@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -18,7 +19,25 @@ export default function Login() {
 
         try {
             await login(email, password);
-            navigate('/dashboard');
+
+            // If redirected from dash.ultrai.id, verify admin & redirect back
+            const redirect = searchParams.get('redirect');
+            if (redirect === 'dash') {
+                try {
+                    const res = await fetch('/api/dash/verify', {
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    if (res.ok) {
+                        window.location.href = 'https://dash.ultrai.id';
+                        return;
+                    }
+                } catch {}
+                // Not admin, go to dashboard
+                navigate('/dashboard');
+            } else {
+                navigate('/dashboard');
+            }
         } catch (err) {
             setError(err.message || 'Login gagal. Periksa email dan password Anda.');
         } finally {

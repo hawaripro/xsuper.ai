@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UltrAI Dashboard — Login Required</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            background: #030712;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #fff;
+            overflow: hidden;
+        }
+        .bg-glow {
+            position: fixed;
+            width: 500px; height: 500px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.08;
+            pointer-events: none;
+        }
+        .bg-glow-1 { top: -200px; right: -100px; background: #ef4444; }
+        .bg-glow-2 { bottom: -200px; left: -100px; background: #ef4444; }
+        .grid-bg {
+            position: fixed; inset: 0;
+            background-image: radial-gradient(circle, rgba(239,68,68,0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+        }
+        .container {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            padding: 2rem;
+            max-width: 440px;
+        }
+        .logo {
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.5rem;
+        }
+        .logo span:first-child { color: #fff; }
+        .logo span:last-child { color: #ef4444; }
+        .subtitle {
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin-bottom: 2.5rem;
+            font-weight: 500;
+        }
+        .card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 1.25rem;
+            padding: 2.5rem 2rem;
+            backdrop-filter: blur(20px);
+        }
+        .shield {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px; height: 64px;
+            border-radius: 1rem;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.15);
+            margin-bottom: 1.5rem;
+        }
+        .title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #f9fafb;
+            margin-bottom: 0.5rem;
+        }
+        .desc {
+            font-size: 0.875rem;
+            color: #6b7280;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            justify-content: center;
+            padding: 0.875rem 2rem;
+            border-radius: 0.875rem;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.875rem;
+            text-decoration: none;
+            transition: all 0.2s;
+            box-shadow: 0 8px 24px rgba(239,68,68,0.25);
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 12px 32px rgba(239,68,68,0.35);
+            transform: translateY(-1px);
+        }
+        .status {
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            color: #4b5563;
+        }
+        .status.error {
+            color: #ef4444;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.15);
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            margin-top: 1rem;
+        }
+        .spinner {
+            display: none;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+    <div class="grid-bg"></div>
+
+    <div class="container">
+        <div class="logo"><span>Ultr</span><span>AI</span></div>
+        <div class="subtitle">Admin Dashboard</div>
+
+        <div class="card">
+            <div class="shield">
+                <svg width="28" height="28" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h1 class="title">Akses Terbatas</h1>
+            <p class="desc">Dashboard ini hanya untuk administrator. Silakan login terlebih dahulu melalui UltrAI.</p>
+
+            <button id="loginBtn" class="btn" onclick="startAuth()">
+                <span class="btn-text">Login sebagai Admin</span>
+                <span class="spinner"></span>
+            </button>
+
+            <div id="status" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        // Check if already authenticated
+        (function() {
+            fetch('https://ultrai.id/api/dash/verify', {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function(r) {
+                if (r.ok) {
+                    // Already logged in as admin, reload to access dashboard
+                    window.location.reload();
+                }
+            })
+            .catch(function() {});
+        })();
+
+        function startAuth() {
+            var btn = document.getElementById('loginBtn');
+            btn.classList.add('loading');
+
+            // First try to verify if already logged in on ultrai.id
+            fetch('https://ultrai.id/api/dash/verify', {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function(r) {
+                if (r.ok) {
+                    return r.json().then(function(data) {
+                        document.getElementById('status').textContent = 'Berhasil! Mengalihkan...';
+                        document.getElementById('status').className = 'status';
+                        setTimeout(function() { window.location.reload(); }, 500);
+                    });
+                } else {
+                    // Not logged in or not admin, redirect to login page
+                    window.location.href = 'https://ultrai.id/login?redirect=dash';
+                }
+            })
+            .catch(function() {
+                window.location.href = 'https://ultrai.id/login?redirect=dash';
+            });
+        }
+    </script>
+</body>
+</html>
