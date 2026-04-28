@@ -13,8 +13,8 @@ class AiProxyService
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.ai_proxy.url', env('AI_PROXY_URL', 'https://api.ultrai.id')), '/');
-        $this->apiKey = config('services.ai_proxy.key', env('AI_PROXY_KEY', ''));
+        $this->baseUrl = rtrim(config('services.ai_proxy.url', env('ENOWX_API_URL', 'https://api.ultrai.id')), '/');
+        $this->apiKey = config('services.ai_proxy.key', env('ENOWX_API_KEY', ''));
     }
 
     /**
