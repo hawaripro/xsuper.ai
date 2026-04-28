@@ -1,0 +1,89 @@
+import '../css/app.css';
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+
+// Pages
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import AdminUsers from './pages/AdminUsers';
+import ChatAI from './pages/ChatAI';
+import Profile from './pages/Profile';
+
+// Layout
+import DashboardLayout from './layouts/DashboardLayout';
+
+// Protected Route wrapper
+function ProtectedRoute({ children, adminOnly = false }) {
+    const { user, loading } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-gray-400 text-sm">Memuat...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (!user) return <Navigate to="/login" replace />;
+    if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+
+    return children;
+}
+
+// Guest Route
+function GuestRoute({ children }) {
+    const { user, loading } = useAuth();
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+                <div className="w-10 h-10 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+    if (user) return <Navigate to="/dashboard" replace />;
+    return children;
+}
+
+function App() {
+    return (
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    {/* Public */}
+                    <Route path="/" element={<Landing />} />
+                    <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+
+                    {/* Protected - Dashboard Layout */}
+                    <Route path="/dashboard" element={
+                        <ProtectedRoute><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>
+                    } />
+                    <Route path="/chat" element={
+                        <ProtectedRoute><DashboardLayout><ChatAI /></DashboardLayout></ProtectedRoute>
+                    } />
+                    <Route path="/profile" element={
+                        <ProtectedRoute><DashboardLayout><Profile /></DashboardLayout></ProtectedRoute>
+                    } />
+
+                    {/* Admin Only */}
+                    <Route path="/admin" element={
+                        <ProtectedRoute adminOnly><DashboardLayout><AdminUsers /></DashboardLayout></ProtectedRoute>
+                    } />
+
+                    {/* Catch all */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
+    );
+}
+
+const container = document.getElementById('app');
+if (container) {
+    createRoot(container).render(<App />);
+}

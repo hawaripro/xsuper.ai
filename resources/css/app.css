@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* ============================================
+   Tailwind v4: Custom animation tokens
+   ============================================ */
+@theme {
+    --animate-float: float 6s ease-in-out infinite;
+    --animate-pulse-glow: pulse-glow 4s ease-in-out infinite;
+    --animate-gradient: gradient-shift 4s ease infinite;
+    --animate-ping-dot: ping-dot 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    --animate-spin-slow: spin-slow 30s linear infinite;
+    --animate-blob: blob 15s ease-in-out infinite;
+    --animate-shake: shake 0.4s ease;
+    --animate-msg-in: msg-in 0.3s ease-out;
+}
+
+/* ============================================
+   Keyframes
+   ============================================ */
+@keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-10px) rotate(1deg); }
+    66% { transform: translateY(5px) rotate(-1deg); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.15); }
+    50% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.3); }
+}
+
+@keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes ping-dot {
+    75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes blob {
+    0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+    25% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+    50% { border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%; }
+    75% { border-radius: 60% 40% 60% 30% / 60% 40% 30% 60%; }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-4px); }
+}
+
+@keyframes msg-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   Animations that @theme can't handle (reverse, delay)
+   These use plain CSS classes instead
+   ============================================ */
+.animate-spin-slow-reverse {
+    animation: spin-slow 50s linear infinite reverse;
+}
+.animate-blob-reverse {
+    animation: blob 20s ease-in-out infinite reverse;
+}
+.animate-blob-delay {
+    animation: blob 18s ease-in-out infinite 2s;
+}
+.animate-gradient {
+    animation: gradient-shift 4s ease infinite;
+    background-size: 200% 200%;
+}
+
+/* ============================================
+   Hero dot pattern (inline style fallback)
+   ============================================ */
+.hero-dots {
+    background-image: radial-gradient(circle, #ef4444 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.06;
+}
+
+/* ============================================
+   Button Shimmer Effect
+   ============================================ */
+.btn-shimmer {
+    position: relative;
+    overflow: hidden;
+}
+.btn-shimmer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s ease;
+}
+.btn-shimmer:hover::before {
+    left: 100%;
+}
+
+/* ============================================
+   Custom Scrollbar
+   ============================================ */
+.scrollbar-thin::-webkit-scrollbar { width: 5px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* ============================================
+   Chat Content Styles
+   ============================================ */
+.chat-content { word-wrap: break-word; overflow-wrap: break-word; }
+
+.chat-code-block {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.chat-code-block .chat-code-header {
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(156,163,175,0.6);
+}
+.chat-code-block code {
+    display: block;
+    padding: 16px;
+    overflow-x: auto;
+    color: #e5e7eb;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: none !important;
+    border: none !important;
+}
+.chat-inline-code {
+    background: rgba(255,255,255,0.08);
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.85em;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: #f87171;
+}
+.chat-content p { margin-bottom: 8px; }
+.chat-content p:last-child { margin-bottom: 0; }
+
+::selection { background: rgba(239,68,68,0.3); color: white; }
