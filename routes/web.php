@@ -67,22 +67,6 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::delete('/admin/users/{user}', [AdminController::class, 'destroy']);
         });
 
-        // Dash auth — verify admin & set cookie for dash.ultrai.id
-        Route::middleware('admin')->get('/dash/verify', function (Request $request) {
-            $token = hash('sha256', $request->user()->id . '|' . config('app.key') . '|dash');
-            $cookie = cookie('dash_token', $token, 120, '/', '.ultrai.id', true, true, false, 'Lax');
-            return response()->json(['status' => 'ok', 'redirect' => 'https://dash.ultrai.id'])->withCookie($cookie);
-        });
-
-        // Dash auth — Nginx calls this to verify the dash_token cookie
-        Route::middleware('admin')->get('/dash/check', function (Request $request) {
-            $token = $request->cookie('dash_token');
-            $expected = hash('sha256', $request->user()->id . '|' . config('app.key') . '|dash');
-            if ($token === $expected) {
-                return response('OK', 200);
-            }
-            return response('Forbidden', 403);
-        });
     });
 });
 

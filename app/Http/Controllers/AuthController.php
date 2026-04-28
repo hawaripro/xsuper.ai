@@ -24,7 +24,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
             $user = Auth::user();
 
-            return response()->json([
+            $response = response()->json([
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
@@ -34,6 +34,14 @@ class AuthController extends Controller
                 ],
                 'redirect' => $user->isAdmin() ? '/admin' : '/dashboard',
             ]);
+
+            // Set dash_token cookie for admin users (allows access to dash.ultrai.id)
+            if ($user->isAdmin()) {
+                $token = hash('sha256', $user->id . '|' . config('app.key') . '|dash');
+                $response->withCookie(cookie('dash_token', $token, 120, '/', '.ultrai.id', true, true, false, 'Lax'));
+            }
+
+            return $response;
         }
 
         return response()->json([
@@ -75,7 +83,9 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return response()->json(['message' => 'Logged out']);
+        // Clear dash_token cookie
+        return response()->json(['message' => 'Logged out'])
+            ->withCookie(cookie()->forget('dash_token', '/', '.ultrai.id'));
     }
 
     public function user(Request $request)

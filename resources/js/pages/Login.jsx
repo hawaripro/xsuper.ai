@@ -20,24 +20,15 @@ export default function Login() {
         try {
             await login(email, password);
 
-            // If redirected from dash.ultrai.id, verify admin & redirect back
+            // If redirected from dash.ultrai.id, redirect back after login
             const redirect = searchParams.get('redirect');
             if (redirect === 'dash') {
-                try {
-                    const res = await fetch('/api/dash/verify', {
-                        credentials: 'same-origin',
-                        headers: { 'Accept': 'application/json' },
-                    });
-                    if (res.ok) {
-                        window.location.href = 'https://dash.ultrai.id';
-                        return;
-                    }
-                } catch {}
-                // Not admin, go to dashboard
-                navigate('/dashboard');
-            } else {
-                navigate('/dashboard');
+                // Cookie dash_token sudah di-set oleh server saat login (admin only)
+                window.location.href = 'https://dash.ultrai.id';
+                return;
             }
+
+            navigate('/dashboard');
         } catch (err) {
             setError(err.message || 'Login gagal. Periksa email dan password Anda.');
         } finally {
