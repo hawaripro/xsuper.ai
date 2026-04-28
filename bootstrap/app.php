@@ -26,6 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
             return '/login';
         });
+
+        // Security headers for all responses
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Return JSON for API errors
