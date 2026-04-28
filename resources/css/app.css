@@ -6,7 +6,6 @@
 @theme {
     --animate-float: float 6s ease-in-out infinite;
     --animate-pulse-glow: pulse-glow 4s ease-in-out infinite;
-    --animate-gradient: gradient-shift 4s ease infinite;
     --animate-ping-dot: ping-dot 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
     --animate-spin-slow: spin-slow 30s linear infinite;
     --animate-blob: blob 15s ease-in-out infinite;
@@ -34,8 +33,14 @@
     100% { background-position: 0% 50%; }
 }
 
+@keyframes gradient-color {
+    0%, 100% { color: #ef4444; }
+    33% { color: #dc2626; }
+    66% { color: #f97316; }
+}
+
 @keyframes ping-dot {
-    75%, 100% { transform: scale(2); opacity: 0; }
+    75%, 100% { transform: scale(2.5); opacity: 0; }
 }
 
 @keyframes spin-slow {
@@ -44,10 +49,15 @@
 }
 
 @keyframes blob {
-    0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-    25% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
-    50% { border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%; }
-    75% { border-radius: 60% 40% 60% 30% / 60% 40% 30% 60%; }
+    0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translate(0, 0) scale(1); }
+    25% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; transform: translate(20px, -15px) scale(1.05); }
+    50% { border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%; transform: translate(-10px, 20px) scale(0.95); }
+    75% { border-radius: 60% 40% 60% 30% / 60% 40% 30% 60%; transform: translate(15px, 10px) scale(1.02); }
+}
+
+@keyframes blob-pulse {
+    0%, 100% { opacity: 0.12; transform: scale(1); }
+    50% { opacity: 0.25; transform: scale(1.15); }
 }
 
 @keyframes shake {
@@ -62,9 +72,20 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes dot-float {
+    0%, 100% { transform: translateY(0) scale(1); opacity: 0.4; }
+    50% { transform: translateY(-20px) scale(1.3); opacity: 0.8; }
+}
+
+@keyframes dot-drift {
+    0% { transform: translate(0, 0); opacity: 0; }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.6; }
+    100% { transform: translate(var(--dx, 30px), var(--dy, -60px)); opacity: 0; }
+}
+
 /* ============================================
    Animations that @theme can't handle (reverse, delay)
-   These use plain CSS classes instead
    ============================================ */
 .animate-spin-slow-reverse {
     animation: spin-slow 50s linear infinite reverse;
@@ -75,18 +96,56 @@
 .animate-blob-delay {
     animation: blob 18s ease-in-out infinite 2s;
 }
+
+/* Gradient text animation — shimmer effect */
 .animate-gradient {
-    animation: gradient-shift 4s ease infinite;
     background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+}
+
+/* Blob with pulsing glow */
+.animate-blob-glow {
+    animation: blob 15s ease-in-out infinite, blob-pulse 4s ease-in-out infinite;
+}
+.animate-blob-glow-reverse {
+    animation: blob 20s ease-in-out infinite reverse, blob-pulse 5s ease-in-out infinite 1s;
+}
+.animate-blob-glow-delay {
+    animation: blob 18s ease-in-out infinite 2s, blob-pulse 6s ease-in-out infinite 2s;
 }
 
 /* ============================================
-   Hero dot pattern (inline style fallback)
+   Hero dot pattern — visible on white bg
    ============================================ */
 .hero-dots {
-    background-image: radial-gradient(circle, #ef4444 1px, transparent 1px);
-    background-size: 40px 40px;
-    opacity: 0.06;
+    background-image: radial-gradient(circle, rgba(239, 68, 68, 0.35) 1px, transparent 1px);
+    background-size: 32px 32px;
+    opacity: 1;
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 70%);
+}
+
+/* Animated floating dots */
+.hero-dot-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: dot-float var(--duration, 3s) ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+    opacity: 0.3;
+}
+
+/* Drifting dots */
+.hero-dot-drift {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: dot-drift var(--duration, 6s) ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
 }
 
 /* ============================================
