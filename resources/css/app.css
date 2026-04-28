@@ -99,8 +99,8 @@
 
 /* Gradient text animation — shimmer effect */
 .animate-gradient {
-    background-size: 200% 200%;
-    animation: gradient-shift 3s ease infinite;
+    background-size: 300% 100% !important;
+    animation: gradient-shift 3s ease infinite !important;
 }
 
 /* Blob with pulsing glow */
