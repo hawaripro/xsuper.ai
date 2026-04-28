@@ -17,6 +17,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     @viteReactRefresh
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
+
+    {{-- Umami Analytics --}}
+    @if(config('services.umami.id'))
+    <script defer src="{{ config('services.umami.url', 'https://cloud.umami.is/script.js') }}" data-website-id="{{ config('services.umami.id') }}"></script>
+    @endif
 </head>
 <body class="font-['Inter'] bg-white">
     <div id="app"></div>

@@ -16,6 +16,23 @@ use App\Http\Controllers\Api\AdminController;
 */
 
 Route::prefix('api')->middleware('web')->group(function () {
+    // Health check (public — for UptimeRobot monitoring)
+    Route::get('/health', function () {
+        $status = ['status' => 'ok', 'timestamp' => now()->toISOString()];
+
+        // Check database
+        try {
+            \Illuminate\Support\Facades\DB::connection()->getPdo();
+            $status['database'] = 'ok';
+        } catch (\Exception $e) {
+            $status['database'] = 'error';
+            $status['status'] = 'degraded';
+        }
+
+        $code = $status['status'] === 'ok' ? 200 : 503;
+        return response()->json($status, $code);
+    });
+
     // Get current authenticated user
     Route::get('/user', [AuthController::class, 'user']);
 

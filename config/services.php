@@ -40,4 +40,9 @@ return [
         'key' => env('AI_PROXY_KEY', ''),
     ],
 
+    'umami' => [
+        'id' => env('UMAMI_WEBSITE_ID'),
+        'url' => env('UMAMI_SCRIPT_URL', 'https://cloud.umami.is/script.js'),
+    ],
+
 ];
