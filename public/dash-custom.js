@@ -1,9 +1,29 @@
 (function(){
+  // Immediately set title & favicon (before React renders)
   document.title="UltrAI Dashboard";
+
+  // Force favicon immediately and repeatedly
+  function setFavicon(){
+    var existing=document.querySelectorAll("link[rel*='icon']");
+    existing.forEach(function(el){el.remove();});
+    var lk=document.createElement("link");
+    lk.rel="icon";
+    lk.type="image/svg+xml";
+    lk.href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23ef4444'/%3E%3C/svg%3E";
+    document.head.appendChild(lk);
+  }
+  setFavicon();
+
+  // Hide body until customized (prevents flash of original)
+  var style=document.createElement("style");
+  style.textContent="#root{opacity:0;transition:opacity 0.2s ease}#root.ultrai-ready{opacity:1}";
+  document.head.appendChild(style);
 
   function run(){
     if(document.title.indexOf("UltrAI")!==0) document.title="UltrAI Dashboard";
+    setFavicon();
 
+    // Rebrand text
     var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);
     while(w.nextNode()){
       var v=w.currentNode.nodeValue;
@@ -15,14 +35,16 @@
       }
     }
 
+    // Fix Chat link
     document.querySelectorAll("a").forEach(function(el){
       var href=el.getAttribute("href")||"";
-      if(href.indexOf("1430/chat")!==-1 || href.match(/\/chat$/)){
+      if(href.indexOf("1430/chat")!==-1 || href.indexOf(":1430")!==-1){
         el.href="https://ultrai.id/chat";
         el.target="_blank";
       }
     });
 
+    // Add UltrAI Panel link
     if(document.querySelector("[data-ultrai-link]")) return;
 
     var chatLink=null;
@@ -58,14 +80,25 @@
 
       chatLink.parentElement.insertBefore(n,chatLink);
     }
+
+    // Show content after customization
+    var root=document.querySelector("#root");
+    if(root) root.classList.add("ultrai-ready");
   }
 
+  // Fast polling — check every 100ms
   var ck=setInterval(function(){
     var r=document.querySelector("#root");
     if(r && r.children.length>0){
       clearInterval(ck);
-      setTimeout(run,1500);
-      new MutationObserver(function(){setTimeout(run,500)}).observe(document.body,{childList:true,subtree:true});
+      run();
+      new MutationObserver(function(){run()}).observe(document.body,{childList:true,subtree:true});
     }
-  },500);
+  },100);
+
+  // Fallback — show content after 3s even if inject fails
+  setTimeout(function(){
+    var root=document.querySelector("#root");
+    if(root) root.classList.add("ultrai-ready");
+  },3000);
 })();
