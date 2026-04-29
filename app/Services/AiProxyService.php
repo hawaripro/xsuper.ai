@@ -32,6 +32,7 @@ class AiProxyService
                 return collect($data['data'] ?? [])
                     ->filter(fn($m) => ($m['category'] ?? '') === 'chat')
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
+                    ->map(fn($m) => $this->scrubModel($m))
                     ->values()
                     ->toArray();
             }
@@ -204,13 +205,29 @@ class AiProxyService
                     'online' => true,
                     'total_models' => count($models),
                     'chat_models' => collect($models)->where('category', 'chat')->count(),
-                    'url' => $this->baseUrl,
                 ];
             }
 
-            return ['online' => false, 'url' => $this->baseUrl];
+            return ['online' => false];
         } catch (\Exception $e) {
-            return ['online' => false, 'error' => $e->getMessage(), 'url' => $this->baseUrl];
+            return ['online' => false];
         }
+    }
+
+    /**
+     * Scrub proxy brand references from model data
+     */
+    private function scrubModel(array $model): array
+    {
+        $search = ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX'];
+        $replace = ['UltrAI', 'UltrAI', 'UltrAI', 'UltrAI', 'UltrAI', 'UltrAI', 'UltrAI'];
+
+        array_walk_recursive($model, function (&$value) use ($search, $replace) {
+            if (is_string($value)) {
+                $value = str_ireplace($search, 'UltrAI', $value);
+            }
+        });
+
+        return $model;
     }
 }
