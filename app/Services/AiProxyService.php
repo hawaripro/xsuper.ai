@@ -20,7 +20,7 @@ class AiProxyService
     /**
      * Get available AI models (filtered to chat category)
      */
-    public function getModels(): array
+    public function getModels(bool $isAdmin = false): array
     {
         try {
             $response = Http::withHeaders([
@@ -32,13 +32,23 @@ class AiProxyService
                 $tierMap = [
                     'Standard' => 'Original',
                     'MAX' => 'Authentic',
+                    'Codex' => 'Codex',
+                    'Wavespeed' => 'Wavespeed',
+                    'YepAPI' => 'YepAPI',
+                    'Canva' => 'Canva',
                 ];
-                $allowedTiers = array_keys($tierMap);
+
+                // Member: hanya Original + Authentic
+                // Admin: semua tier
+                $allowedTiers = $isAdmin
+                    ? array_keys($tierMap)
+                    : ['Standard', 'MAX'];
 
                 return collect($data['data'] ?? [])
                     ->filter(fn($m) => ($m['category'] ?? '') === 'chat')
                     ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
+                    ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
                     ->map(fn($m) => $this->scrubModel($m, $tierMap))
                     ->values()
                     ->toArray();

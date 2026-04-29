@@ -128,7 +128,7 @@ export default function ChatAI() {
     const [currentConvId, setCurrentConvId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [models, setModels] = useState([]);
-    const [selectedModel, setSelectedModel] = useState('auto');
+    const [selectedModel, setSelectedModel] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [input, setInput] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
@@ -160,7 +160,13 @@ export default function ChatAI() {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    setModels(data.models || []);
+                    const m = data.models || [];
+                    setModels(m);
+                    if (m.length > 0 && !selectedModel) {
+                        setSelectedModel(m[0].id);
+                        const cats = [...new Set(m.map(x => x.category))];
+                        if (cats.length > 0) setSelectedCategory(cats[0]);
+                    }
                 }
             } catch (err) {
                 console.error('Failed to load models:', err);
@@ -400,19 +406,18 @@ export default function ChatAI() {
                         <div className="flex items-center gap-2">
                             <select
                                 value={selectedCategory}
-                                onChange={(e) => { setSelectedCategory(e.target.value); setSelectedModel('auto'); }}
+                                onChange={(e) => { setSelectedCategory(e.target.value); setSelectedModel(models.filter(m => e.target.value === 'all' || m.category === e.target.value)[0]?.id || ''); }}
                                 className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all cursor-pointer"
                             >
-                                <option value="all" className="bg-gray-900">Semua</option>
-                                <option value="Original" className="bg-gray-900">Original</option>
-                                <option value="Authentic" className="bg-gray-900">Authentic</option>
+                                {[...new Set(models.map(m => m.category))].sort().map(cat => (
+                                    <option key={cat} value={cat} className="bg-gray-900">{cat}</option>
+                                ))}
                             </select>
                             <select
                                 value={selectedModel}
                                 onChange={(e) => setSelectedModel(e.target.value)}
                                 className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all min-w-[160px] cursor-pointer"
                             >
-                                <option value="auto" className="bg-gray-900">auto (recommended)</option>
                                 {models
                                     .filter((m) => selectedCategory === 'all' || m.category === selectedCategory)
                                     .map((m) => (
