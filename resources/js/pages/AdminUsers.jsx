@@ -19,7 +19,7 @@ export default function AdminUsers() {
 
     const fetchUsers = useCallback(async () => {
         try {
-            const res = await fetch('/api/admin/users', {
+            const res = await fetch('/api/a/u', {
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' },
             });
@@ -58,7 +58,7 @@ export default function AdminUsers() {
         setFormLoading(true);
 
         try {
-            const url = editUser ? `/api/admin/users/${editUser.id}` : '/api/admin/users';
+            const url = editUser ? `/api/a/u/${editUser.id}` : '/api/a/u';
             const method = editUser ? 'PUT' : 'POST';
             const body = { ...formData };
             if (editUser && !body.password) delete body.password;
@@ -90,7 +90,7 @@ export default function AdminUsers() {
 
     const handleDelete = async (id) => {
         try {
-            await fetch(`/api/admin/users/${id}`, {
+            await fetch(`/api/a/u/${id}`, {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {

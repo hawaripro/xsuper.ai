@@ -43,28 +43,28 @@ Route::prefix('api')->middleware('web')->group(function () {
     // Protected routes
     Route::middleware('auth')->group(function () {
         // Profile
-        Route::put('/profile', [ProfileController::class, 'update']);
-        Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+        Route::put('/u/p', [ProfileController::class, 'update']);
+        Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
 
-        // Chat AI
-        Route::get('/chat/models', [ChatController::class, 'models']);
-        Route::post('/chat/send', [ChatController::class, 'send']);
-        Route::get('/chat/history', [ChatController::class, 'history']);
-        Route::get('/chat/history/{conversationId}', [ChatController::class, 'conversation']);
-        Route::delete('/chat/history/{conversationId}', [ChatController::class, 'deleteConversation']);
-
-        // AI Proxy Status
-        Route::get('/ai/status', function () {
-            $aiProxy = app(\App\Services\AiProxyService::class);
-            return response()->json($aiProxy->getStatus());
-        });
+        // Chat
+        Route::get('/c/m', [ChatController::class, 'models']);
+        Route::post('/c/s', [ChatController::class, 'send']);
+        Route::get('/c/h', [ChatController::class, 'history']);
+        Route::get('/c/h/{conversationId}', [ChatController::class, 'conversation']);
+        Route::delete('/c/h/{conversationId}', [ChatController::class, 'deleteConversation']);
 
         // Admin
         Route::middleware('admin')->group(function () {
-            Route::get('/admin/users', [AdminController::class, 'index']);
-            Route::post('/admin/users', [AdminController::class, 'store']);
-            Route::put('/admin/users/{user}', [AdminController::class, 'update']);
-            Route::delete('/admin/users/{user}', [AdminController::class, 'destroy']);
+            // AI Status (admin only)
+            Route::get('/s/info', function () {
+                $aiProxy = app(\App\Services\AiProxyService::class);
+                return response()->json($aiProxy->getStatus());
+            });
+
+            Route::get('/a/u', [AdminController::class, 'index']);
+            Route::post('/a/u', [AdminController::class, 'store']);
+            Route::put('/a/u/{user}', [AdminController::class, 'update']);
+            Route::delete('/a/u/{user}', [AdminController::class, 'destroy']);
         });
 
     });

@@ -215,19 +215,25 @@ class AiProxyService
     }
 
     /**
-     * Scrub proxy brand references from model data
+     * Scrub model data — only return safe fields, remove all sensitive info
      */
     private function scrubModel(array $model): array
     {
-        $search = ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX'];
-        $replace = ['UltrAI', 'UltrAI', 'UltrAI', 'UltrAI', 'UltrAI', 'UltrAI', 'UltrAI'];
+        return [
+            'id' => $model['id'] ?? 'unknown',
+            'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
+        ];
+    }
 
-        array_walk_recursive($model, function (&$value) use ($search, $replace) {
-            if (is_string($value)) {
-                $value = str_ireplace($search, 'UltrAI', $value);
-            }
-        });
-
-        return $model;
+    /**
+     * Remove proxy brand references from text
+     */
+    private function scrubText(string $text): string
+    {
+        return str_ireplace(
+            ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX'],
+            'UltrAI',
+            $text
+        );
     }
 }

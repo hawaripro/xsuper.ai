@@ -125,7 +125,7 @@ export default function Dashboard() {
     useEffect(() => {
         const checkAiStatus = async () => {
             try {
-                const res = await fetch('/api/ai/status', {
+                const res = await fetch('/api/s/info', {
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' },
                 });
@@ -144,7 +144,7 @@ export default function Dashboard() {
     useEffect(() => {
         const loadChatCount = async () => {
             try {
-                const res = await fetch('/api/chat/history', {
+                const res = await fetch('/api/c/h', {
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' },
                 });

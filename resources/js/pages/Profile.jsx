@@ -23,7 +23,7 @@ export default function Profile() {
         setProfileLoading(true);
 
         try {
-            const res = await fetch('/api/profile', {
+            const res = await fetch('/api/u/p', {
                 method: 'PUT',
                 credentials: 'same-origin',
                 headers: {
@@ -58,7 +58,7 @@ export default function Profile() {
         setPasswordLoading(true);
 
         try {
-            const res = await fetch('/api/profile/password', {
+            const res = await fetch('/api/u/pw', {
                 method: 'PUT',
                 credentials: 'same-origin',
                 headers: {

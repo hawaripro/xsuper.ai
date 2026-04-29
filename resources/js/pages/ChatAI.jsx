@@ -153,7 +153,7 @@ export default function ChatAI() {
     useEffect(() => {
         const loadModels = async () => {
             try {
-                const res = await fetch('/api/chat/models', {
+                const res = await fetch('/api/c/m', {
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' },
                 });
@@ -171,7 +171,7 @@ export default function ChatAI() {
     // Load conversations
     const loadConversations = useCallback(async () => {
         try {
-            const res = await fetch('/api/chat/history', {
+            const res = await fetch('/api/c/h', {
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' },
             });
@@ -203,7 +203,7 @@ export default function ChatAI() {
         setCurrentConvId(convId);
         setShowSidebar(false);
         try {
-            const res = await fetch(`/api/chat/history/${convId}`, {
+            const res = await fetch(`/api/c/h/${convId}`, {
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' },
             });
@@ -219,7 +219,7 @@ export default function ChatAI() {
     // Delete conversation
     const deleteConversation = async (convId) => {
         try {
-            await fetch(`/api/chat/history/${convId}`, {
+            await fetch(`/api/c/h/${convId}`, {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {
@@ -250,7 +250,7 @@ export default function ChatAI() {
         const apiMessages = newMessages.filter(m => m.content && m.content.trim().length > 0);
 
         try {
-            const res = await fetch('/api/chat/send', {
+            const res = await fetch('/api/c/s', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
