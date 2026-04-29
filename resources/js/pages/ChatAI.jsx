@@ -4,8 +4,20 @@ import { useAuth } from '../contexts/AuthContext';
 // ============================================
 // Markdown-like renderer (lightweight)
 // ============================================
+function rebrandText(text) {
+    if (!text) return text;
+    return text
+        .replace(/enowxai/gi, 'UltrAI')
+        .replace(/enowx\s*labs/gi, 'UltrAI')
+        .replace(/enowx/gi, 'UltrAI')
+        .replace(/EnowX\s*AI/g, 'UltrAI')
+        .replace(/EnowX\s*Labs/g, 'UltrAI')
+        .replace(/EnowX/g, 'UltrAI');
+}
+
 function formatContent(text) {
     if (!text) return '';
+    text = rebrandText(text);
     let html = text
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -391,7 +403,7 @@ export default function ChatAI() {
                             <option value="auto" className="bg-gray-900">auto (recommended)</option>
                             {models.map((m) => (
                                 <option key={m.id || m} value={m.id || m} className="bg-gray-900">
-                                    {m.id || m}
+                                    {rebrandText(m.id || m)}
                                 </option>
                             ))}
                         </select>
