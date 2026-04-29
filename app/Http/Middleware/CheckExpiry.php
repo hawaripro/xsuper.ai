@@ -12,12 +12,25 @@ class CheckExpiry
     {
         $user = $request->user();
 
-        if ($user && $user->isExpired()) {
-            if ($request->expectsJson() || $request->is('api/*')) {
-                return response()->json([
-                    'message' => 'Akun Anda telah expired. Hubungi administrator untuk perpanjangan.',
-                    'expired' => true,
-                ], 403);
+        if ($user && !$user->isAdmin()) {
+            // Check expired
+            if ($user->isExpired()) {
+                if ($request->expectsJson() || $request->is('api/*')) {
+                    return response()->json([
+                        'message' => 'Akun Anda telah expired. Hubungi administrator untuk perpanjangan.',
+                        'expired' => true,
+                    ], 403);
+                }
+            }
+
+            // Check chat permission
+            if (!$user->hasPermission('chat')) {
+                if ($request->expectsJson() || $request->is('api/*')) {
+                    return response()->json([
+                        'message' => 'Anda tidak memiliki akses ke fitur ini.',
+                        'forbidden' => true,
+                    ], 403);
+                }
             }
         }
 

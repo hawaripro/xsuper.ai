@@ -348,6 +348,10 @@ export default function Dashboard() {
                                         <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400">
                                             Expired
                                         </span>
+                                    ) : user?.days_remaining === null ? (
+                                        <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400">
+                                            ∞ Unlimited
+                                        </span>
                                     ) : user?.days_remaining !== undefined ? (
                                         <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${
                                             user.days_remaining <= 3

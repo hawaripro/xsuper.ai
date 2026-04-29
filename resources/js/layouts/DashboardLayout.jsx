@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Icons as inline SVGs for zero dependencies
 const Icons = {
@@ -60,6 +61,7 @@ const Icons = {
 
 export default function DashboardLayout({ children }) {
     const { user, logout } = useAuth();
+    const { theme, toggleTheme } = useTheme();
     const location = useLocation();
     const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -75,8 +77,10 @@ export default function DashboardLayout({ children }) {
 
     const externalLinks = [
         { name: 'Landing Page', href: '/', icon: Icons.home, internal: true },
-        { name: 'AI API', href: 'https://api.ultrai.id', icon: Icons.api },
-        { name: 'AI Dashboard', href: 'https://dash.ultrai.id', icon: Icons.external },
+        ...(isAdmin ? [
+            { name: 'AI API', href: 'https://api.ultrai.id', icon: Icons.api },
+            { name: 'AI Dashboard', href: 'https://dash.ultrai.id', icon: Icons.external },
+        ] : []),
     ];
 
     const handleLogout = async () => {
@@ -87,7 +91,7 @@ export default function DashboardLayout({ children }) {
     const isActive = (href) => location.pathname === href;
 
     return (
-        <div className="min-h-screen bg-gray-950 flex">
+        <div className={`min-h-screen flex ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'}`}>
             {/* Mobile overlay */}
             {sidebarOpen && (
                 <div
@@ -99,7 +103,7 @@ export default function DashboardLayout({ children }) {
             {/* ===== SIDEBAR ===== */}
             <aside className={`
                 fixed inset-y-0 left-0 z-50 w-[260px] flex flex-col
-                bg-gray-900/80 backdrop-blur-2xl border-r border-white/[0.06]
+                ${theme === 'dark' ? 'bg-gray-900/80 border-white/[0.06]' : 'bg-white border-gray-200/60'} backdrop-blur-2xl border-r
                 transform transition-transform duration-300 ease-out
                 lg:translate-x-0 lg:static lg:z-auto
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -184,7 +188,7 @@ export default function DashboardLayout({ children }) {
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold text-white truncate">{user?.name || 'User'}</div>
-                            <div className="text-[11px] text-gray-500 truncate">{user?.email || ''}</div>
+                            <div className="text-[11px] text-gray-500">{user?.role || 'member'}</div>
                         </div>
                         <button
                             onClick={handleLogout}
@@ -200,7 +204,7 @@ export default function DashboardLayout({ children }) {
             {/* ===== MAIN CONTENT ===== */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Top Bar */}
-                <header className="h-16 flex items-center justify-between px-4 lg:px-6 border-b border-white/[0.06] bg-gray-950/80 backdrop-blur-xl sticky top-0 z-30">
+                <header className={`h-16 flex items-center justify-between px-4 lg:px-6 border-b backdrop-blur-xl sticky top-0 z-30 ${theme === 'dark' ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200/60 bg-white/80'}`}>
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setSidebarOpen(true)}
@@ -218,6 +222,15 @@ export default function DashboardLayout({ children }) {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* Theme toggle */}
+                        <button onClick={toggleTheme} className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 dark:hover:bg-white/10 transition-all" title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}>
+                            {theme === 'dark' ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            )}
+                        </button>
+
                         {/* Status indicator */}
                         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                             <span className="relative flex h-2 w-2">

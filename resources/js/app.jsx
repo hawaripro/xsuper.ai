@@ -3,6 +3,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 // Pages
 import Landing from './pages/Landing';
@@ -52,6 +53,7 @@ function GuestRoute({ children }) {
 
 function App() {
     return (
+        <ThemeProvider>
         <AuthProvider>
             <BrowserRouter>
                 <Routes>
@@ -80,6 +82,7 @@ function App() {
                 </Routes>
             </BrowserRouter>
         </AuthProvider>
+        </ThemeProvider>
     );
 }
 

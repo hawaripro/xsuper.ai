@@ -14,10 +14,11 @@ class AdminController extends Controller
     public function index()
     {
         $users = User::orderByDesc('created_at')->get([
-            'id', 'name', 'email', 'role', 'expires_at', 'created_at', 'updated_at'
+            'id', 'name', 'email', 'role', 'expires_at', 'permissions', 'created_at', 'updated_at'
         ])->map(function ($user) {
             $user->is_expired = $user->isExpired();
             $user->days_remaining = $user->daysRemaining();
+            $user->active_permissions = $user->getPermissions();
             return $user;
         });
 
@@ -31,12 +32,18 @@ class AdminController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
             'role' => 'required|string|in:admin,member',
-            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d',
+            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d,unlimited',
+            'permissions' => 'nullable|array',
         ]);
 
         $expiresAt = null;
-        if ($validated['role'] !== 'admin' && !empty($validated['duration'])) {
+        if ($validated['role'] !== 'admin' && !empty($validated['duration']) && $validated['duration'] !== 'unlimited') {
             $expiresAt = $this->calcExpiry($validated['duration']);
+        }
+
+        $permissions = null;
+        if ($validated['role'] !== 'admin' && isset($validated['permissions'])) {
+            $permissions = $validated['permissions'];
         }
 
         $user = User::create([
@@ -45,6 +52,7 @@ class AdminController extends Controller
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
             'expires_at' => $expiresAt,
+            'permissions' => $permissions,
         ]);
 
         return response()->json(['user' => $user, 'message' => 'User berhasil dibuat'], 201);
@@ -57,7 +65,8 @@ class AdminController extends Controller
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8',
             'role' => 'required|string|in:admin,member',
-            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d,clear',
+            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d,unlimited,clear',
+            'permissions' => 'nullable|array',
         ]);
 
         $user->name = $validated['name'];
@@ -71,13 +80,20 @@ class AdminController extends Controller
         // Handle duration
         if ($validated['role'] === 'admin') {
             $user->expires_at = null;
-        } elseif (!empty($validated['duration'])) {
-            if ($validated['duration'] === 'clear') {
-                $user->expires_at = null;
-            } else {
-                // Tambah durasi dari sekarang atau dari expires_at yang masih aktif
-                $base = ($user->expires_at && $user->expires_at->isFuture()) ? $user->expires_at : now();
-                $user->expires_at = $this->calcExpiry($validated['duration'], $base);
+            $user->permissions = null;
+        } else {
+            if (!empty($validated['duration'])) {
+                if ($validated['duration'] === 'clear' || $validated['duration'] === 'unlimited') {
+                    $user->expires_at = null;
+                } else {
+                    $base = ($user->expires_at && $user->expires_at->isFuture()) ? $user->expires_at : now();
+                    $user->expires_at = $this->calcExpiry($validated['duration'], $base);
+                }
+            }
+
+            // Update permissions
+            if (isset($validated['permissions'])) {
+                $user->permissions = $validated['permissions'];
             }
         }
 

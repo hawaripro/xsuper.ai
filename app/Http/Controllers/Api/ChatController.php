@@ -22,8 +22,9 @@ class ChatController extends Controller
      */
     public function models(Request $request)
     {
-        $isAdmin = $request->user()?->role === 'admin';
-        $models = $this->aiProxy->getModels($isAdmin);
+        $user = $request->user();
+        $allowedTiers = $user->getAllowedTiers();
+        $models = $this->aiProxy->getModels($allowedTiers);
         return response()->json(['models' => $models]);
     }
 

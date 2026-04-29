@@ -1,6 +1,29 @@
 @import "tailwindcss";
 
 /* ============================================
+   Light/Dark Mode — Dashboard & Login
+   Default: Light mode. Dark mode via .dark class
+   Landing page always light.
+   ============================================ */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-card: #ffffff;
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --border-color: rgba(0,0,0,0.06);
+}
+
+.dark {
+    --bg-primary: #030712;
+    --bg-secondary: #0a0f1a;
+    --bg-card: rgba(17,24,39,0.5);
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --border-color: rgba(255,255,255,0.06);
+}
+
+/* ============================================
    Tailwind v4: Custom animation tokens
    ============================================ */
 @theme {

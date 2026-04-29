@@ -98,11 +98,10 @@ class AuthController extends Controller
             'name' => $user->name,
             'role' => $user->role,
             'avatar' => $user->avatar,
+            'permissions' => $user->getPermissions(),
         ];
 
-        // Tambah info expiry untuk member
         if (!$user->isAdmin()) {
-            $data['expires_at'] = $user->expires_at?->toISOString();
             $data['days_remaining'] = $user->daysRemaining();
             $data['is_expired'] = $user->isExpired();
         }

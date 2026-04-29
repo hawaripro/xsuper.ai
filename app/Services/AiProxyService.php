@@ -20,7 +20,7 @@ class AiProxyService
     /**
      * Get available AI models (filtered to chat category)
      */
-    public function getModels(bool $isAdmin = false): array
+    public function getModels(array $allowedTiers = []): array
     {
         try {
             $response = Http::withHeaders([
@@ -38,11 +38,9 @@ class AiProxyService
                     'Canva' => 'Canva',
                 ];
 
-                // Member: hanya Original + Authentic
-                // Admin: semua tier
-                $allowedTiers = $isAdmin
-                    ? array_keys($tierMap)
-                    : ['Standard', 'MAX'];
+                if (empty($allowedTiers)) {
+                    $allowedTiers = ['Standard', 'MAX'];
+                }
 
                 return collect($data['data'] ?? [])
                     ->filter(fn($m) => ($m['category'] ?? '') === 'chat')
