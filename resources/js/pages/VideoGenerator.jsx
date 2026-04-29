@@ -180,15 +180,22 @@ export default function VideoGenerator() {
 
             {/* Tab Selector */}
             <div className={`flex rounded-xl p-1 ${isDark ? 'bg-white/[0.05]' : 'bg-gray-100'}`}>
-                {[['prompt', 'Prompt Manual'], ['ab_testing', 'A/B Testing']].map(([key, label]) => (
-                    <button key={key} onClick={() => setActiveTab(key)}
-                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === key
-                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
-                            : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
-                        }`}>
-                        {label} {key === 'ab_testing' && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400">NEW</span>}
-                    </button>
-                ))}
+                <button onClick={() => setActiveTab('prompt')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'prompt'
+                        ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
+                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                    }`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Prompt Manual
+                </button>
+                <button onClick={() => setActiveTab('ab_testing')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'ab_testing'
+                        ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
+                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                    }`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                    A/B Testing <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400">NEW</span>
+                </button>
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
@@ -210,9 +217,17 @@ export default function VideoGenerator() {
                             <div className="mt-4">
                                 <span className={`text-xs font-bold uppercase tracking-[0.1em] ${labelClass}`}>Contoh Cepat</span>
                                 <div className="flex flex-wrap gap-2 mt-2">
-                                    {Object.keys(QUICK_PROMPTS).map(cat => (
+                                    {[
+                                        ['Kosmetik', '💄'],
+                                        ['Makanan', '🍔'],
+                                        ['Fashion', '👗'],
+                                        ['Elektronik', '📱'],
+                                        ['Alam', '🌿'],
+                                        ['Minuman', '☕'],
+                                    ].map(([cat, icon]) => (
                                         <button key={cat} onClick={() => setPrompt(QUICK_PROMPTS[cat])}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.08] hover:text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.08] hover:text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
+                                            <span>{icon}</span>
                                             {cat}
                                         </button>
                                     ))}
@@ -220,17 +235,31 @@ export default function VideoGenerator() {
                             </div>
 
                             {/* UGC Toggle */}
-                            <div className={`mt-4 p-4 rounded-xl border ${isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className={`mt-4 p-4 rounded-xl border transition-all ${ugcMode
+                                ? isDark ? 'bg-violet-500/[0.05] border-violet-500/20' : 'bg-violet-50 border-violet-200'
+                                : isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-gray-50 border-gray-200'
+                            }`}>
                                 <div className="flex items-center justify-between">
-                                    <div>
-                                        <span className={`text-sm font-semibold ${textClass}`}>UGC Variation Mode (AI)</span>
-                                        <p className={`text-xs mt-0.5 ${subTextClass}`}>Generate beberapa versi berbeda dari 1 prompt</p>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-semibold ${textClass}`}>UGC Variation Mode</span>
+                                        <span className="text-[9px] bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full font-bold border border-violet-200">AI</span>
                                     </div>
                                     <button onClick={() => setUgcMode(!ugcMode)}
-                                        className={`w-11 h-6 rounded-full transition-all ${ugcMode ? 'bg-red-500' : isDark ? 'bg-white/[0.1]' : 'bg-gray-300'}`}>
+                                        className={`w-11 h-6 rounded-full transition-all flex-shrink-0 ${ugcMode ? 'bg-violet-500' : isDark ? 'bg-white/[0.1]' : 'bg-gray-300'}`}>
                                         <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${ugcMode ? 'translate-x-5.5' : 'translate-x-0.5'}`} />
                                     </button>
                                 </div>
+                                <p className={`text-xs mt-1.5 ${subTextClass}`}>Generate beberapa versi berbeda dari 1 prompt</p>
+                                {ugcMode && (
+                                    <div className={`mt-3 flex gap-2.5 p-3 rounded-lg ${isDark ? 'bg-violet-500/[0.08]' : 'bg-violet-50'}`}>
+                                        <span className="text-violet-500 mt-0.5 flex-shrink-0">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                                        </span>
+                                        <p className={`text-xs leading-relaxed ${isDark ? 'text-violet-300/80' : 'text-violet-700'}`}>
+                                            Sistem akan otomatis membuat 1 variasi unik dari prompt-mu — karakter talent, gaya bicara, dan sudut penyampaian berbeda, tapi konsep &amp; produk tetap sama. Hemat token, konten lebih variatif.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
