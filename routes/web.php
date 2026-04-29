@@ -43,6 +43,10 @@ Route::prefix('api')->middleware('web')->group(function () {
     // Protected routes
     Route::middleware('auth')->group(function () {
         // Profile
+        Route::get('/u/me', function (Request $request) {
+            $u = $request->user();
+            return response()->json(['name' => $u->name, 'email' => $u->email, 'role' => $u->role, 'created_at' => $u->created_at]);
+        });
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
 

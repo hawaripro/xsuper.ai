@@ -28,11 +28,9 @@ class AuthController extends Controller
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
-                    'email' => $user->email,
                     'role' => $user->role,
                     'avatar' => $user->avatar,
                 ],
-                'redirect' => $user->isAdmin() ? '/admin' : '/dashboard',
             ]);
 
             // Set dash_token cookie for admin users (allows access to dash.ultrai.id)
@@ -98,10 +96,8 @@ class AuthController extends Controller
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
-            'email' => $user->email,
             'role' => $user->role,
             'avatar' => $user->avatar,
-            'created_at' => $user->created_at,
         ]);
     }
 }

@@ -1,10 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Profile() {
     const { user, refreshUser } = useAuth();
     const [name, setName] = useState(user?.name || '');
-    const [email, setEmail] = useState(user?.email || '');
+    const [email, setEmail] = useState('');
+
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                const res = await fetch('/api/u/me', {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setEmail(data.email || '');
+                    setName(data.name || user?.name || '');
+                }
+            } catch {}
+        };
+        loadProfile();
+    }, []);
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');

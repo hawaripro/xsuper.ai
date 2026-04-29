@@ -121,8 +121,9 @@ export default function Dashboard() {
         return () => clearInterval(timer);
     }, []);
 
-    // Load AI proxy status
+    // Load AI proxy status (admin only)
     useEffect(() => {
+        if (user?.role !== 'admin') return;
         const checkAiStatus = async () => {
             try {
                 const res = await fetch('/api/s/info', {
@@ -138,7 +139,7 @@ export default function Dashboard() {
             }
         };
         checkAiStatus();
-    }, []);
+    }, [user]);
 
     // Load chat history count
     useEffect(() => {
@@ -192,7 +193,7 @@ export default function Dashboard() {
             </div>
 
             {/* Stats Grid — Live Data */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <div className={`grid grid-cols-2 ${user?.role === 'admin' ? 'lg:grid-cols-4' : 'lg:grid-cols-2'} gap-3 lg:gap-4`}>
                 <StatCard
                     icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
                     label="Chat Sessions"
@@ -200,21 +201,25 @@ export default function Dashboard() {
                     suffix=""
                     color="red"
                 />
-                <StatCard
-                    icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>}
-                    label="AI Models"
-                    value={aiStatus.chat_models || aiStatus.total_models || '183'}
-                    suffix="+"
-                    color="blue"
-                />
-                <StatCard
-                    icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>}
-                    label="AI Proxy"
-                    value={aiStatus.online === null ? '...' : aiStatus.online ? 'Online' : 'Offline'}
-                    suffix=""
-                    trend={aiStatus.online ? '✓ Active' : null}
-                    color="emerald"
-                />
+                {user?.role === 'admin' && (
+                    <>
+                        <StatCard
+                            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>}
+                            label="AI Models"
+                            value={aiStatus.chat_models || aiStatus.total_models || '0'}
+                            suffix="+"
+                            color="blue"
+                        />
+                        <StatCard
+                            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>}
+                            label="AI Status"
+                            value={aiStatus.online === null ? '...' : aiStatus.online ? 'Online' : 'Offline'}
+                            suffix=""
+                            trend={aiStatus.online ? '✓ Active' : null}
+                            color="emerald"
+                        />
+                    </>
+                )}
                 <StatCard
                     icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>}
                     label="Response Time"
@@ -237,16 +242,18 @@ export default function Dashboard() {
                             <QuickAction
                                 icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
                                 title="Chat AI"
-                                desc={`Mulai percakapan dengan ${aiStatus.chat_models || '183'}+ AI models`}
+                                desc="Mulai percakapan dengan AI models"
                                 href="/chat"
                             />
-                            <QuickAction
-                                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>}
-                                title="AI API"
-                                desc="Akses API endpoint untuk integrasi"
-                                href="https://api.ultrai.id"
-                                external
-                            />
+                            {user?.role === 'admin' && (
+                                <QuickAction
+                                    icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>}
+                                    title="AI API"
+                                    desc="Akses API endpoint untuk integrasi"
+                                    href="https://api.ultrai.id"
+                                    external
+                                />
+                            )}
                             <QuickAction
                                 icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>}
                                 title="SM Panel"
@@ -298,12 +305,16 @@ export default function Dashboard() {
                         </h2>
                         <div className="space-y-0">
                             <ServiceStatus name="UltrAI Platform" url="https://ultrai.id" status="online" />
-                            <ServiceStatus
-                                name="AI API Proxy"
-                                url="https://api.ultrai.id"
-                                status={aiStatus.online === null ? 'checking' : aiStatus.online ? 'online' : 'offline'}
-                            />
-                            <ServiceStatus name="AI Dashboard" url="https://dash.ultrai.id" status="online" />
+                            {user?.role === 'admin' && (
+                                <>
+                                    <ServiceStatus
+                                        name="AI API"
+                                        url="https://api.ultrai.id"
+                                        status={aiStatus.online === null ? 'checking' : aiStatus.online ? 'online' : 'offline'}
+                                    />
+                                    <ServiceStatus name="AI Dashboard" url="https://dash.ultrai.id" status="online" />
+                                </>
+                            )}
                             <ServiceStatus name="SM Panel" url="https://sm.superpanelpedia.com" status="online" />
                             <ServiceStatus name="PPOB" url="https://ppob.superpanelpedia.com" status="online" />
                         </div>
@@ -321,10 +332,6 @@ export default function Dashboard() {
                                 <span className="text-sm text-gray-300 font-medium">{user?.name || '-'}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-500">Email</span>
-                                <span className="text-sm text-gray-300 font-medium truncate ml-4">{user?.email || '-'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-500">Role</span>
                                 <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${
                                     user?.role === 'admin'
@@ -332,12 +339,6 @@ export default function Dashboard() {
                                         : 'bg-blue-500/15 text-blue-400'
                                 }`}>
                                     {user?.role || 'member'}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-500">Bergabung</span>
-                                <span className="text-sm text-gray-300 font-medium">
-                                    {user?.created_at ? new Date(user.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                                 </span>
                             </div>
                         </div>
