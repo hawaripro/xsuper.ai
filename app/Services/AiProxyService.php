@@ -29,10 +29,17 @@ class AiProxyService
 
             if ($response->successful()) {
                 $data = $response->json();
+                $tierMap = [
+                    'Standard' => 'Original',
+                    'MAX' => 'Authentic',
+                ];
+                $allowedTiers = array_keys($tierMap);
+
                 return collect($data['data'] ?? [])
                     ->filter(fn($m) => ($m['category'] ?? '') === 'chat')
+                    ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
-                    ->map(fn($m) => $this->scrubModel($m))
+                    ->map(fn($m) => $this->scrubModel($m, $tierMap))
                     ->values()
                     ->toArray();
             }
@@ -217,11 +224,13 @@ class AiProxyService
     /**
      * Scrub model data — only return safe fields, remove all sensitive info
      */
-    private function scrubModel(array $model): array
+    private function scrubModel(array $model, array $tierMap = []): array
     {
+        $tier = $model['tier'] ?? 'Standard';
         return [
             'id' => $model['id'] ?? 'unknown',
             'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
+            'category' => $tierMap[$tier] ?? 'Original',
         ];
     }
 

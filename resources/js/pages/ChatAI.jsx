@@ -129,6 +129,7 @@ export default function ChatAI() {
     const [messages, setMessages] = useState([]);
     const [models, setModels] = useState([]);
     const [selectedModel, setSelectedModel] = useState('auto');
+    const [selectedCategory, setSelectedCategory] = useState('all');
     const [input, setInput] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
     const [showSidebar, setShowSidebar] = useState(false);
@@ -396,18 +397,31 @@ export default function ChatAI() {
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                         </button>
-                        <select
-                            value={selectedModel}
-                            onChange={(e) => setSelectedModel(e.target.value)}
-                            className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all min-w-[180px] cursor-pointer"
-                        >
-                            <option value="auto" className="bg-gray-900">auto (recommended)</option>
-                            {models.map((m) => (
-                                <option key={m.id || m} value={m.id || m} className="bg-gray-900">
-                                    {rebrandText(m.id || m)}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => { setSelectedCategory(e.target.value); setSelectedModel('auto'); }}
+                                className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all cursor-pointer"
+                            >
+                                <option value="all" className="bg-gray-900">Semua</option>
+                                <option value="Original" className="bg-gray-900">Original</option>
+                                <option value="Authentic" className="bg-gray-900">Authentic</option>
+                            </select>
+                            <select
+                                value={selectedModel}
+                                onChange={(e) => setSelectedModel(e.target.value)}
+                                className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all min-w-[160px] cursor-pointer"
+                            >
+                                <option value="auto" className="bg-gray-900">auto (recommended)</option>
+                                {models
+                                    .filter((m) => selectedCategory === 'all' || m.category === selectedCategory)
+                                    .map((m) => (
+                                    <option key={m.id} value={m.id} className="bg-gray-900">
+                                        {rebrandText(m.name || m.id)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
