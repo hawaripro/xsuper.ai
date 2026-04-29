@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'check.expiry' => \App\Http\Middleware\CheckExpiry::class,
         ]);
 
         // Make auth middleware return JSON 401 for AJAX/API requests

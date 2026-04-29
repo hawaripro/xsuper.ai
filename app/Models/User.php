@@ -21,6 +21,7 @@ class User extends Authenticatable
         'role',
         'avatar',
         'is_active',
+        'expires_at',
     ];
 
     protected $hidden = [
@@ -36,6 +37,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'expires_at' => 'datetime',
         ];
     }
 
@@ -47,6 +49,21 @@ class User extends Authenticatable
     public function isMember(): bool
     {
         return $this->role === 'member';
+    }
+
+    public function isExpired(): bool
+    {
+        if ($this->isAdmin()) return false;
+        if (!$this->expires_at) return true;
+        return $this->expires_at->isPast();
+    }
+
+    public function daysRemaining(): ?int
+    {
+        if ($this->isAdmin()) return null;
+        if (!$this->expires_at) return 0;
+        if ($this->expires_at->isPast()) return 0;
+        return (int) now()->diffInDays($this->expires_at);
     }
 
     public function chatMessages()

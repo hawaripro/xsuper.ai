@@ -256,9 +256,9 @@ export default function Dashboard() {
                             )}
                             <QuickAction
                                 icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>}
-                                title="SM Panel"
+                                title="SMM Panel"
                                 desc="Social media marketing services"
-                                href="https://sm.superpanelpedia.com"
+                                href="https://smm.superpanelpedia.com"
                                 external
                             />
                             <QuickAction
@@ -315,7 +315,7 @@ export default function Dashboard() {
                                     <ServiceStatus name="AI Dashboard" url="https://dash.ultrai.id" status="online" />
                                 </>
                             )}
-                            <ServiceStatus name="SM Panel" url="https://sm.superpanelpedia.com" status="online" />
+                            <ServiceStatus name="SMM Panel" url="https://smm.superpanelpedia.com" status="online" />
                             <ServiceStatus name="PPOB" url="https://ppob.superpanelpedia.com" status="online" />
                         </div>
                     </div>
@@ -341,6 +341,28 @@ export default function Dashboard() {
                                     {user?.role || 'member'}
                                 </span>
                             </div>
+                            {user?.role !== 'admin' && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-gray-500">Masa Aktif</span>
+                                    {user?.is_expired ? (
+                                        <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400">
+                                            Expired
+                                        </span>
+                                    ) : user?.days_remaining !== undefined ? (
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                                            user.days_remaining <= 3
+                                                ? 'bg-red-500/15 text-red-400'
+                                                : user.days_remaining <= 7
+                                                    ? 'bg-amber-500/15 text-amber-400'
+                                                    : 'bg-emerald-500/15 text-emerald-400'
+                                        }`}>
+                                            {user.days_remaining} hari tersisa
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-gray-500">-</span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <Link to="/profile" className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm font-medium text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all">
                             Edit Profil

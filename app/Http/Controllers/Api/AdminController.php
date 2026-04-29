@@ -7,24 +7,23 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
 
 class AdminController extends Controller
 {
-    /**
-     * List all users
-     */
     public function index()
     {
         $users = User::orderByDesc('created_at')->get([
-            'id', 'name', 'email', 'role', 'created_at', 'updated_at'
-        ]);
+            'id', 'name', 'email', 'role', 'expires_at', 'created_at', 'updated_at'
+        ])->map(function ($user) {
+            $user->is_expired = $user->isExpired();
+            $user->days_remaining = $user->daysRemaining();
+            return $user;
+        });
 
         return response()->json(['users' => $users]);
     }
 
-    /**
-     * Create a new user
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -32,21 +31,25 @@ class AdminController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
             'role' => 'required|string|in:admin,member',
+            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d',
         ]);
+
+        $expiresAt = null;
+        if ($validated['role'] !== 'admin' && !empty($validated['duration'])) {
+            $expiresAt = $this->calcExpiry($validated['duration']);
+        }
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'expires_at' => $expiresAt,
         ]);
 
         return response()->json(['user' => $user, 'message' => 'User berhasil dibuat'], 201);
     }
 
-    /**
-     * Update a user
-     */
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
@@ -54,6 +57,7 @@ class AdminController extends Controller
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8',
             'role' => 'required|string|in:admin,member',
+            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d,clear',
         ]);
 
         $user->name = $validated['name'];
@@ -64,17 +68,26 @@ class AdminController extends Controller
             $user->password = Hash::make($validated['password']);
         }
 
+        // Handle duration
+        if ($validated['role'] === 'admin') {
+            $user->expires_at = null;
+        } elseif (!empty($validated['duration'])) {
+            if ($validated['duration'] === 'clear') {
+                $user->expires_at = null;
+            } else {
+                // Tambah durasi dari sekarang atau dari expires_at yang masih aktif
+                $base = ($user->expires_at && $user->expires_at->isFuture()) ? $user->expires_at : now();
+                $user->expires_at = $this->calcExpiry($validated['duration'], $base);
+            }
+        }
+
         $user->save();
 
         return response()->json(['user' => $user, 'message' => 'User berhasil diperbarui']);
     }
 
-    /**
-     * Delete a user
-     */
     public function destroy(User $user)
     {
-        // Prevent self-deletion
         if ($user->id === auth()->id()) {
             return response()->json(['message' => 'Tidak bisa menghapus akun sendiri'], 403);
         }
@@ -82,5 +95,19 @@ class AdminController extends Controller
         $user->delete();
 
         return response()->json(['message' => 'User berhasil dihapus']);
+    }
+
+    private function calcExpiry(string $duration, ?Carbon $base = null): Carbon
+    {
+        $base = $base ?? now();
+        return match ($duration) {
+            '1d' => $base->copy()->addDay(),
+            '7d' => $base->copy()->addWeek(),
+            '30d' => $base->copy()->addMonth(),
+            '90d' => $base->copy()->addMonths(3),
+            '180d' => $base->copy()->addMonths(6),
+            '365d' => $base->copy()->addYear(),
+            default => $base->copy()->addMonth(),
+        };
     }
 }

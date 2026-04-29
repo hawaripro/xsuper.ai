@@ -50,12 +50,14 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
 
-        // Chat
-        Route::get('/c/m', [ChatController::class, 'models']);
-        Route::post('/c/s', [ChatController::class, 'send']);
-        Route::get('/c/h', [ChatController::class, 'history']);
-        Route::get('/c/h/{conversationId}', [ChatController::class, 'conversation']);
-        Route::delete('/c/h/{conversationId}', [ChatController::class, 'deleteConversation']);
+        // Chat (check expiry)
+        Route::middleware('check.expiry')->group(function () {
+            Route::get('/c/m', [ChatController::class, 'models']);
+            Route::post('/c/s', [ChatController::class, 'send']);
+            Route::get('/c/h', [ChatController::class, 'history']);
+            Route::get('/c/h/{conversationId}', [ChatController::class, 'conversation']);
+            Route::delete('/c/h/{conversationId}', [ChatController::class, 'deleteConversation']);
+        });
 
         // Admin
         Route::middleware('admin')->group(function () {

@@ -8,7 +8,7 @@ export default function AdminUsers() {
     const [search, setSearch] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editUser, setEditUser] = useState(null);
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'member' });
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'member', duration: '30d' });
     const [formError, setFormError] = useState('');
     const [formLoading, setFormLoading] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -40,14 +40,14 @@ export default function AdminUsers() {
 
     const openCreate = () => {
         setEditUser(null);
-        setFormData({ name: '', email: '', password: '', role: 'member' });
+        setFormData({ name: '', email: '', password: '', role: 'member', duration: '30d' });
         setFormError('');
         setShowModal(true);
     };
 
     const openEdit = (u) => {
         setEditUser(u);
-        setFormData({ name: u.name, email: u.email, password: '', role: u.role || 'member' });
+        setFormData({ name: u.name, email: u.email, password: '', role: u.role || 'member', duration: '' });
         setFormError('');
         setShowModal(true);
     };
@@ -165,7 +165,7 @@ export default function AdminUsers() {
                                     <th className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">User</th>
                                     <th className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500 hidden sm:table-cell">Email</th>
                                     <th className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">Role</th>
-                                    <th className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500 hidden md:table-cell">Bergabung</th>
+                                    <th className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500 hidden md:table-cell">Masa Aktif</th>
                                     <th className="text-right px-5 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">Aksi</th>
                                 </tr>
                             </thead>
@@ -197,8 +197,22 @@ export default function AdminUsers() {
                                                 {u.role || 'member'}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-4 text-sm text-gray-500 hidden md:table-cell">
-                                            {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                        <td className="px-5 py-4 hidden md:table-cell">
+                                            {u.role === 'admin' ? (
+                                                <span className="text-xs text-gray-500">∞ Unlimited</span>
+                                            ) : u.is_expired ? (
+                                                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400">Expired</span>
+                                            ) : u.days_remaining !== null && u.days_remaining !== undefined ? (
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                                                    u.days_remaining <= 3 ? 'bg-red-500/15 text-red-400' :
+                                                    u.days_remaining <= 7 ? 'bg-amber-500/15 text-amber-400' :
+                                                    'bg-emerald-500/15 text-emerald-400'
+                                                }`}>
+                                                    {u.days_remaining} hari
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-gray-600">Belum diset</span>
+                                            )}
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1">
@@ -296,6 +310,33 @@ export default function AdminUsers() {
                                     <option value="admin" className="bg-gray-900">Admin</option>
                                 </select>
                             </div>
+                            {formData.role !== 'admin' && (
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-[0.1em] text-gray-400 mb-2">
+                                        {editUser ? 'Tambah Durasi' : 'Durasi Akses'}
+                                    </label>
+                                    <select
+                                        value={formData.duration}
+                                        onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
+                                    >
+                                        {editUser && <option value="" className="bg-gray-900">Tidak diubah</option>}
+                                        <option value="1d" className="bg-gray-900">1 Hari</option>
+                                        <option value="7d" className="bg-gray-900">1 Minggu</option>
+                                        <option value="30d" className="bg-gray-900">1 Bulan</option>
+                                        <option value="90d" className="bg-gray-900">3 Bulan</option>
+                                        <option value="180d" className="bg-gray-900">6 Bulan</option>
+                                        <option value="365d" className="bg-gray-900">12 Bulan</option>
+                                        {editUser && <option value="clear" className="bg-gray-900">Hapus Expired</option>}
+                                    </select>
+                                    {editUser && editUser.expires_at && (
+                                        <p className="mt-1.5 text-[11px] text-gray-500">
+                                            Expired saat ini: {new Date(editUser.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                            {editUser.days_remaining !== null && ` (${editUser.days_remaining} hari lagi)`}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                             <div className="flex gap-3 pt-2">
                                 <button
                                     type="button"

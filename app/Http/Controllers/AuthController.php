@@ -93,11 +93,20 @@ class AuthController extends Controller
             return response()->json(null, 401);
         }
 
-        return response()->json([
+        $data = [
             'id' => $user->id,
             'name' => $user->name,
             'role' => $user->role,
             'avatar' => $user->avatar,
-        ]);
+        ];
+
+        // Tambah info expiry untuk member
+        if (!$user->isAdmin()) {
+            $data['expires_at'] = $user->expires_at?->toISOString();
+            $data['days_remaining'] = $user->daysRemaining();
+            $data['is_expired'] = $user->isExpired();
+        }
+
+        return response()->json($data);
     }
 }
