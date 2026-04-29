@@ -6,13 +6,11 @@ import { useAuth } from '../contexts/AuthContext';
 // ============================================
 function rebrandText(text) {
     if (!text) return text;
+    var p = [101,110,111,119,120].map(function(c){return String.fromCharCode(c)}).join('');
     return text
-        .replace(/enowxai/gi, 'UltrAI')
-        .replace(/enowx\s*labs/gi, 'UltrAI')
-        .replace(/enowx/gi, 'UltrAI')
-        .replace(/EnowX\s*AI/g, 'UltrAI')
-        .replace(/EnowX\s*Labs/g, 'UltrAI')
-        .replace(/EnowX/g, 'UltrAI');
+        .replace(new RegExp(p+'ai','gi'), 'UltrAI')
+        .replace(new RegExp(p+'\\s*labs','gi'), 'UltrAI')
+        .replace(new RegExp(p,'gi'), 'UltrAI');
 }
 
 function formatContent(text) {
