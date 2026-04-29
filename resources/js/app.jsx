@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import AdminUsers from './pages/AdminUsers';
 import ChatAI from './pages/ChatAI';
 import Profile from './pages/Profile';
+import VideoGenerator from './pages/VideoGenerator';
 
 // Layout
 import DashboardLayout from './layouts/DashboardLayout';
@@ -70,6 +71,9 @@ function App() {
                     } />
                     <Route path="/profile" element={
                         <ProtectedRoute><DashboardLayout><Profile /></DashboardLayout></ProtectedRoute>
+                    } />
+                    <Route path="/video" element={
+                        <ProtectedRoute><DashboardLayout><VideoGenerator /></DashboardLayout></ProtectedRoute>
                     } />
 
                     {/* Admin Only */}

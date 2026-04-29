@@ -6,6 +6,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\VideoController;
+use App\Http\Controllers\Api\TokenController;
 
 /*
 |--------------------------------------------------------------------------
@@ -59,8 +61,22 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::delete('/c/h/{conversationId}', [ChatController::class, 'deleteConversation']);
         });
 
+        // Video Generator (check expiry)
+        Route::middleware('check.expiry')->group(function () {
+            Route::get('/v/models', [VideoController::class, 'models']);
+            Route::post('/v/gen', [VideoController::class, 'generate']);
+            Route::get('/v/history', [VideoController::class, 'history']);
+            Route::get('/v/status/{jobId}', [VideoController::class, 'status']);
+        });
+
+        // Token
+        Route::get('/t/balance', [TokenController::class, 'balance']);
+        Route::get('/t/history', [TokenController::class, 'history']);
+
         // Admin
         Route::middleware('admin')->group(function () {
+            // Admin: topup tokens
+            Route::post('/t/topup', [TokenController::class, 'topup']);
             // AI Status (admin only)
             Route::get('/s/info', function () {
                 $aiProxy = app(\App\Services\AiProxyService::class);

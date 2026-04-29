@@ -72,6 +72,7 @@ export default function DashboardLayout({ children }) {
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: Icons.dashboard },
         { name: 'Chat AI', href: '/chat', icon: Icons.chat },
+        { name: 'Video Generator', href: '/video', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg> },
         ...(isAdmin ? [{ name: 'Kelola Users', href: '/admin', icon: Icons.users }] : []),
         { name: 'Profil', href: '/profile', icon: Icons.profile },
     ];
