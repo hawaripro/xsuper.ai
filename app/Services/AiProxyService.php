@@ -31,6 +31,7 @@ class AiProxyService
                 $data = $response->json();
                 return collect($data['data'] ?? [])
                     ->filter(fn($m) => ($m['category'] ?? '') === 'chat')
+                    ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->values()
                     ->toArray();
             }
