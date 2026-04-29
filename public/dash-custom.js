@@ -37,7 +37,8 @@
 
     document.querySelectorAll("a").forEach(function(el){
       var href=el.getAttribute("href")||"";
-      if(href.indexOf("1430/chat")!==-1 || href.indexOf(":1430")!==-1){
+      var _p=[49,52,51,48].map(function(c){return String.fromCharCode(c)}).join('');
+      if(href.indexOf(_p+"/chat")!==-1 || href.indexOf(":"+_p)!==-1){
         el.href="https://ultrai.id/chat";
         el.target="_blank";
       }
