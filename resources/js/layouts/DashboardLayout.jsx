@@ -66,6 +66,7 @@ export default function DashboardLayout({ children }) {
     const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
+    const isDark = theme === 'dark';
     const isAdmin = user?.role === 'admin';
 
     const navigation = [
@@ -91,7 +92,7 @@ export default function DashboardLayout({ children }) {
     const isActive = (href) => location.pathname === href;
 
     return (
-        <div className={`min-h-screen flex ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'}`}>
+        <div className={`min-h-screen flex ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
             {/* Mobile overlay */}
             {sidebarOpen && (
                 <div
@@ -103,20 +104,20 @@ export default function DashboardLayout({ children }) {
             {/* ===== SIDEBAR ===== */}
             <aside className={`
                 fixed inset-y-0 left-0 z-50 w-[260px] flex flex-col
-                ${theme === 'dark' ? 'bg-gray-900/80 border-white/[0.06]' : 'bg-white border-gray-200/60'} backdrop-blur-2xl border-r
+                ${isDark ? 'bg-gray-900/80 border-white/[0.06]' : 'bg-white border-gray-200'} backdrop-blur-2xl border-r
                 transform transition-transform duration-300 ease-out
                 lg:translate-x-0 lg:static lg:z-auto
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
                 {/* Logo */}
-                <div className="h-16 flex items-center justify-between px-5 border-b border-white/[0.06]">
+                <div className={`h-16 flex items-center justify-between px-5 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}`}>
                     <Link to="/dashboard" className="flex items-center gap-[3px] text-xl font-extrabold tracking-tight">
-                        <span className="text-white">Ultr</span>
+                        <span className={isDark ? 'text-white' : 'text-gray-900'}>Ultr</span>
                         <span className="bg-gradient-to-r from-red-500 to-red-400 bg-clip-text text-transparent">AI</span>
                     </Link>
                     <button
                         onClick={() => setSidebarOpen(false)}
-                        className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                        className={`lg:hidden p-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
                     >
                         {Icons.close}
                     </button>
@@ -125,7 +126,7 @@ export default function DashboardLayout({ children }) {
                 {/* Navigation */}
                 <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                     <div className="px-3 mb-3">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Menu</span>
+                        <span className={`text-[10px] font-bold uppercase tracking-[0.15em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Menu</span>
                     </div>
                     {navigation.map((item) => (
                         <Link
@@ -136,11 +137,13 @@ export default function DashboardLayout({ children }) {
                                 group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
                                 ${isActive(item.href)
                                     ? 'bg-gradient-to-r from-red-500/15 to-red-500/5 text-red-400 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/[0.06]'
+                                    : isDark
+                                        ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]'
+                                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                                 }
                             `}
                         >
-                            <span className={`transition-colors ${isActive(item.href) ? 'text-red-400' : 'text-gray-500 group-hover:text-gray-300'}`}>
+                            <span className={`transition-colors ${isActive(item.href) ? 'text-red-400' : isDark ? 'text-gray-500 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-600'}`}>
                                 {item.icon}
                             </span>
                             {item.name}
@@ -152,16 +155,16 @@ export default function DashboardLayout({ children }) {
 
                     {/* External Links */}
                     <div className="pt-6 pb-2 px-3">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Links</span>
+                        <span className={`text-[10px] font-bold uppercase tracking-[0.15em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Links</span>
                     </div>
                     {externalLinks.map((item) => (
                         item.internal ? (
                             <Link
                                 key={item.name}
                                 to={item.href}
-                                className="group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-all"
+                                className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
                             >
-                                <span className="text-gray-600 group-hover:text-gray-400">{item.icon}</span>
+                                <span className={isDark ? 'text-gray-600 group-hover:text-gray-400' : 'text-gray-400 group-hover:text-gray-500'}>{item.icon}</span>
                                 {item.name}
                             </Link>
                         ) : (
@@ -170,9 +173,9 @@ export default function DashboardLayout({ children }) {
                                 href={item.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-all"
+                                className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
                             >
-                                <span className="text-gray-600 group-hover:text-gray-400">{item.icon}</span>
+                                <span className={isDark ? 'text-gray-600 group-hover:text-gray-400' : 'text-gray-400 group-hover:text-gray-500'}>{item.icon}</span>
                                 {item.name}
                                 <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">{Icons.external}</span>
                             </a>
@@ -181,18 +184,18 @@ export default function DashboardLayout({ children }) {
                 </nav>
 
                 {/* User section */}
-                <div className="p-3 border-t border-white/[0.06]">
-                    <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-white/[0.03]">
+                <div className={`p-3 border-t ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}`}>
+                    <div className={`flex items-center gap-3 px-3 py-3 rounded-xl ${isDark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
                         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-red-500/20">
                             {user?.name?.[0]?.toUpperCase() || 'U'}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-white truncate">{user?.name || 'User'}</div>
-                            <div className="text-[11px] text-gray-500">{user?.role || 'member'}</div>
+                            <div className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{user?.name || 'User'}</div>
+                            <div className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{user?.role || 'member'}</div>
                         </div>
                         <button
                             onClick={handleLogout}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            className={`p-1.5 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
                             title="Logout"
                         >
                             {Icons.logout}
@@ -204,18 +207,18 @@ export default function DashboardLayout({ children }) {
             {/* ===== MAIN CONTENT ===== */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Top Bar */}
-                <header className={`h-16 flex items-center justify-between px-4 lg:px-6 border-b backdrop-blur-xl sticky top-0 z-30 ${theme === 'dark' ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200/60 bg-white/80'}`}>
+                <header className={`h-16 flex items-center justify-between px-4 lg:px-6 border-b backdrop-blur-xl sticky top-0 z-30 ${isDark ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200/60 bg-white/80'}`}>
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="lg:hidden p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                            className={`lg:hidden p-2 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
                         >
                             {Icons.menu}
                         </button>
-                        <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500">
-                            <span className="text-gray-600">UltrAI</span>
-                            <span className="text-gray-700">/</span>
-                            <span className="text-gray-300 font-medium">
+                        <div className="hidden sm:flex items-center gap-2 text-sm">
+                            <span className={isDark ? 'text-gray-600' : 'text-gray-400'}>UltrAI</span>
+                            <span className={isDark ? 'text-gray-700' : 'text-gray-300'}>/</span>
+                            <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                                 {navigation.find(n => isActive(n.href))?.name || 'Dashboard'}
                             </span>
                         </div>
@@ -223,8 +226,8 @@ export default function DashboardLayout({ children }) {
 
                     <div className="flex items-center gap-3">
                         {/* Theme toggle */}
-                        <button onClick={toggleTheme} className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 dark:hover:bg-white/10 transition-all" title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}>
-                            {theme === 'dark' ? (
+                        <button onClick={toggleTheme} className={`p-2 rounded-xl transition-all ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`} title={isDark ? 'Light Mode' : 'Dark Mode'}>
+                            {isDark ? (
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
                             ) : (
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>

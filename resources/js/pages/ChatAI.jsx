@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ============================================
 // Markdown-like renderer (lightweight)
@@ -13,21 +14,23 @@ function rebrandText(text) {
         .replace(new RegExp(p,'gi'), 'UltrAI');
 }
 
-function formatContent(text) {
+function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
     let html = text
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Code blocks with language
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-        `<pre class="chat-code-block"><div class="chat-code-header">${lang || 'code'}</div><code>${code.trim()}</code></pre>`
-    );
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        var header = '<div class="chat-code-header">' + (lang || 'code') + '</div>';
+        return '<pre class="chat-code-block">' + header + '<code>' + code.trim() + '</code></pre>';
+    });
     html = html.replace(/```([\s\S]*?)```/g, '<pre class="chat-code-block"><code>$1</code></pre>');
     // Inline code
     html = html.replace(/`([^`]+)`/g, '<code class="chat-inline-code">$1</code>');
-    // Bold
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+    // Bold - theme-aware
+    var boldClass = isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold';
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="' + boldClass + '">$1</strong>');
     // Italic
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     // Line breaks (not inside pre)
@@ -38,28 +41,28 @@ function formatContent(text) {
 // ============================================
 // Message Component
 // ============================================
-function ChatMessage({ message, userName }) {
+function ChatMessage({ message, userName, isDark }) {
     const isUser = message.role === 'user';
 
+    const avatarClass = isUser
+        ? (isDark ? 'bg-white/[0.1] text-gray-300' : 'bg-gray-200 text-gray-600')
+        : 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg shadow-red-500/20';
+
     return (
-        <div className={`flex gap-3 max-w-4xl mx-auto w-full animate-msg-in ${isUser ? '' : ''}`}>
+        <div className="flex gap-3 max-w-4xl mx-auto w-full animate-msg-in">
             {/* Avatar */}
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 ${
-                isUser
-                    ? 'bg-white/[0.1] text-gray-300'
-                    : 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg shadow-red-500/20'
-            }`}>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 ${avatarClass}`}>
                 {isUser ? (userName?.[0]?.toUpperCase() || 'U') : 'AI'}
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500 mb-1.5">
+                <div className={`text-[11px] font-bold uppercase tracking-[0.08em] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     {isUser ? (userName || 'You') : 'UltrAI'}
                 </div>
                 <div
-                    className="text-[15px] leading-7 text-gray-300 chat-content"
-                    dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
+                    className={`text-[15px] leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                    dangerouslySetInnerHTML={{ __html: formatContent(message.content, isDark) }}
                 />
             </div>
         </div>
@@ -69,14 +72,14 @@ function ChatMessage({ message, userName }) {
 // ============================================
 // Typing Indicator
 // ============================================
-function TypingIndicator() {
+function TypingIndicator({ isDark }) {
     return (
         <div className="flex gap-3 max-w-4xl mx-auto w-full animate-msg-in">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg shadow-red-500/20 flex items-center justify-center text-xs font-bold flex-shrink-0">
                 AI
             </div>
             <div className="flex-1">
-                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500 mb-1.5">UltrAI</div>
+                <div className={`text-[11px] font-bold uppercase tracking-[0.08em] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>UltrAI</div>
                 <div className="flex gap-1.5 py-2">
                     <span className="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -90,14 +93,16 @@ function TypingIndicator() {
 // ============================================
 // Conversation Item
 // ============================================
-function ConversationItem({ conv, isActive, onClick, onDelete }) {
+function ConversationItem({ conv, isActive, onClick, onDelete, isDark }) {
     return (
         <div
             onClick={onClick}
             className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
                 isActive
                     ? 'bg-red-500/10 text-red-400 border border-red-500/15'
-                    : 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-300'
+                    : isDark
+                        ? 'text-gray-400 hover:bg-white/[0.04] hover:text-gray-300'
+                        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
             }`}
         >
             <svg className="w-4 h-4 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
@@ -124,6 +129,8 @@ function ConversationItem({ conv, isActive, onClick, onDelete }) {
 // ============================================
 export default function ChatAI() {
     const { user } = useAuth();
+    const { theme } = useTheme();
+    const isDark = theme === 'dark';
     const [conversations, setConversations] = useState([]);
     const [currentConvId, setCurrentConvId] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -210,7 +217,7 @@ export default function ChatAI() {
         setCurrentConvId(convId);
         setShowSidebar(false);
         try {
-            const res = await fetch(`/api/c/h/${convId}`, {
+            const res = await fetch('/api/c/h/' + convId, {
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' },
             });
@@ -226,7 +233,7 @@ export default function ChatAI() {
     // Delete conversation
     const deleteConversation = async (convId) => {
         try {
-            await fetch(`/api/c/h/${convId}`, {
+            await fetch('/api/c/h/' + convId, {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {
@@ -314,7 +321,7 @@ export default function ChatAI() {
         } catch (err) {
             setMessages(prev => [
                 ...prev,
-                { role: 'assistant', content: `⚠️ Error: ${err.message}` }
+                { role: 'assistant', content: 'Error: ' + err.message }
             ]);
         } finally {
             setIsStreaming(false);
@@ -336,6 +343,13 @@ export default function ChatAI() {
         e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
     };
 
+    // Select classes
+    const selectCls = isDark
+        ? 'px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all cursor-pointer'
+        : 'px-3 py-2 rounded-xl bg-white border border-gray-300 text-sm text-gray-700 font-medium focus:outline-none focus:border-red-500/50 transition-all cursor-pointer';
+
+    const optBg = isDark ? 'bg-gray-900' : 'bg-white';
+
     return (
         <div className="flex h-[calc(100vh-4rem)] relative">
             {/* Mobile sidebar overlay */}
@@ -347,15 +361,16 @@ export default function ChatAI() {
             )}
 
             {/* ===== Chat Sidebar ===== */}
-            <div className={`
-                fixed inset-y-0 left-0 z-40 w-[280px] flex flex-col
-                bg-gray-900/95 backdrop-blur-2xl border-r border-white/[0.06]
-                transform transition-transform duration-300
-                lg:static lg:translate-x-0 lg:z-auto
-                ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
-            `}>
+            <div className={[
+                'fixed inset-y-0 left-0 z-40 w-[280px] flex flex-col',
+                'backdrop-blur-2xl border-r',
+                'transform transition-transform duration-300',
+                'lg:static lg:translate-x-0 lg:z-auto',
+                isDark ? 'bg-gray-900/95 border-white/[0.06]' : 'bg-white border-gray-200',
+                showSidebar ? 'translate-x-0' : '-translate-x-full',
+            ].join(' ')}>
                 {/* Sidebar Header */}
-                <div className="p-3 border-b border-white/[0.06]">
+                <div className={`p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}`}>
                     <button
                         onClick={newConversation}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-500/15 to-red-500/5 border border-red-500/15 text-red-400 text-sm font-semibold hover:from-red-500/20 hover:to-red-500/10 transition-all"
@@ -368,7 +383,7 @@ export default function ChatAI() {
                 {/* Conversations List */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-0.5 scrollbar-thin">
                     {conversations.length === 0 ? (
-                        <div className="text-center py-8 text-gray-600 text-sm">
+                        <div className={`text-center py-8 text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                             Belum ada percakapan
                         </div>
                     ) : (
@@ -379,15 +394,16 @@ export default function ChatAI() {
                                 isActive={conv.conversation_id === currentConvId}
                                 onClick={() => loadConversation(conv.conversation_id)}
                                 onDelete={() => deleteConversation(conv.conversation_id)}
+                                isDark={isDark}
                             />
                         ))
                     )}
                 </div>
 
                 {/* Model info */}
-                <div className="p-3 border-t border-white/[0.06]">
-                    <div className="px-3 py-2 rounded-xl bg-white/[0.03] text-xs text-gray-500">
-                        <span className="text-gray-400 font-medium">{models.length || '183+'}</span> AI models tersedia
+                <div className={`p-3 border-t ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}`}>
+                    <div className={`px-3 py-2 rounded-xl text-xs ${isDark ? 'bg-white/[0.03] text-gray-500' : 'bg-gray-50 text-gray-400'}`}>
+                        <span className={`font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{models.length || '183+'}</span> AI models tersedia
                     </div>
                 </div>
             </div>
@@ -395,11 +411,15 @@ export default function ChatAI() {
             {/* ===== Main Chat Area ===== */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Chat Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-gray-950/50 backdrop-blur-xl">
+                <div className={`flex items-center justify-between px-4 py-3 border-b backdrop-blur-xl ${
+                    isDark
+                        ? 'border-white/[0.06] bg-gray-950/50'
+                        : 'border-gray-200 bg-white/80'
+                }`}>
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setShowSidebar(!showSidebar)}
-                            className="lg:hidden p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                            className={`lg:hidden p-2 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                         </button>
@@ -407,21 +427,21 @@ export default function ChatAI() {
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => { setSelectedCategory(e.target.value); setSelectedModel(models.filter(m => e.target.value === 'all' || m.category === e.target.value)[0]?.id || ''); }}
-                                className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all cursor-pointer"
+                                className={selectCls}
                             >
                                 {[...new Set(models.map(m => m.category))].sort().map(cat => (
-                                    <option key={cat} value={cat} className="bg-gray-900">{cat}</option>
+                                    <option key={cat} value={cat} className={optBg}>{cat}</option>
                                 ))}
                             </select>
                             <select
                                 value={selectedModel}
                                 onChange={(e) => setSelectedModel(e.target.value)}
-                                className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-gray-300 font-medium focus:outline-none focus:border-red-500/50 transition-all min-w-[160px] cursor-pointer"
+                                className={selectCls + ' min-w-[160px]'}
                             >
                                 {models
                                     .filter((m) => selectedCategory === 'all' || m.category === selectedCategory)
                                     .map((m) => (
-                                    <option key={m.id} value={m.id} className="bg-gray-900">
+                                    <option key={m.id} value={m.id} className={optBg}>
                                         {rebrandText(m.name || m.id)}
                                     </option>
                                 ))}
@@ -437,17 +457,17 @@ export default function ChatAI() {
                 </div>
 
                 {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 scrollbar-thin">
+                <div className={`flex-1 overflow-y-auto px-4 py-6 space-y-6 scrollbar-thin ${isDark ? '' : 'bg-gray-50/50'}`}>
                     {messages.length === 0 ? (
                         /* Welcome Screen */
                         <div className="flex flex-col items-center justify-center h-full text-center px-4">
                             <div className="mb-6">
                                 <div className="text-4xl font-black tracking-tight mb-2">
-                                    <span className="text-white">Ultr</span>
+                                    <span className={isDark ? 'text-white' : 'text-gray-900'}>Ultr</span>
                                     <span className="bg-gradient-to-r from-red-500 to-red-400 bg-clip-text text-transparent">AI</span>
                                 </div>
-                                <div className="text-xl font-bold text-white mb-2">Halo! Ada yang bisa saya bantu?</div>
-                                <p className="text-gray-500 text-sm max-w-md">
+                                <div className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Halo! Ada yang bisa saya bantu?</div>
+                                <p className={`text-sm max-w-md ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     Pilih model AI dan mulai percakapan. Saya bisa membantu coding, analisis, penulisan, dan banyak lagi.
                                 </p>
                             </div>
@@ -455,15 +475,19 @@ export default function ChatAI() {
                             {/* Quick prompts */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
                                 {[
-                                    { icon: '💻', text: 'Bantu saya menulis kode' },
-                                    { icon: '📝', text: 'Buatkan artikel blog' },
-                                    { icon: '🔍', text: 'Analisis data ini' },
-                                    { icon: '🎨', text: 'Ide desain UI/UX' },
+                                    { icon: '\uD83D\uDCBB', text: 'Bantu saya menulis kode' },
+                                    { icon: '\uD83D\uDCDD', text: 'Buatkan artikel blog' },
+                                    { icon: '\uD83D\uDD0D', text: 'Analisis data ini' },
+                                    { icon: '\uD83C\uDFA8', text: 'Ide desain UI/UX' },
                                 ].map((prompt, i) => (
                                     <button
                                         key={i}
                                         onClick={() => { setInput(prompt.text); inputRef.current?.focus(); }}
-                                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-gray-400 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1] transition-all text-left"
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm transition-all text-left ${
+                                            isDark
+                                                ? 'bg-white/[0.03] border-white/[0.06] text-gray-400 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1]'
+                                                : 'bg-white border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 hover:border-gray-300'
+                                        }`}
                                     >
                                         <span className="text-lg">{prompt.icon}</span>
                                         {prompt.text}
@@ -474,10 +498,10 @@ export default function ChatAI() {
                     ) : (
                         <>
                             {messages.map((msg, i) => (
-                                <ChatMessage key={i} message={msg} userName={user?.name} />
+                                <ChatMessage key={i} message={msg} userName={user?.name} isDark={isDark} />
                             ))}
                             {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
-                                <TypingIndicator />
+                                <TypingIndicator isDark={isDark} />
                             )}
                         </>
                     )}
@@ -485,7 +509,7 @@ export default function ChatAI() {
                 </div>
 
                 {/* Input Area */}
-                <div className="px-4 pb-4 pt-2 bg-gradient-to-t from-gray-950 to-transparent">
+                <div className={`px-4 pb-4 pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 to-transparent' : 'bg-gradient-to-t from-white to-transparent'}`}>
                     <div className="max-w-4xl mx-auto relative">
                         <textarea
                             ref={inputRef}
@@ -495,7 +519,11 @@ export default function ChatAI() {
                             placeholder="Ketik pesan..."
                             rows={1}
                             disabled={isStreaming}
-                            className="w-full px-5 py-3.5 pr-14 rounded-2xl bg-gray-900/80 border border-white/[0.08] text-white placeholder-gray-600 text-[15px] resize-none focus:outline-none focus:border-red-500/40 focus:ring-2 focus:ring-red-500/10 transition-all backdrop-blur-xl disabled:opacity-50"
+                            className={`w-full px-5 py-3.5 pr-14 rounded-2xl border text-[15px] resize-none focus:outline-none focus:border-red-500/40 focus:ring-2 focus:ring-red-500/10 transition-all backdrop-blur-xl disabled:opacity-50 ${
+                                isDark
+                                    ? 'bg-gray-900/80 border-white/[0.08] text-white placeholder-gray-600'
+                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 shadow-sm'
+                            }`}
                             style={{ minHeight: '52px', maxHeight: '200px' }}
                         />
                         <button
@@ -515,7 +543,7 @@ export default function ChatAI() {
                             )}
                         </button>
                     </div>
-                    <p className="text-center text-[11px] text-gray-600 mt-2">
+                    <p className={`text-center text-[11px] mt-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                         UltrAI dapat membuat kesalahan. Periksa informasi penting.
                     </p>
                 </div>

@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Login() {
     const { login } = useAuth();
+    const { theme } = useTheme();
+    const isDark = theme === 'dark';
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [email, setEmail] = useState('');
@@ -36,14 +39,24 @@ export default function Login() {
         }
     };
 
+    const inputClass = isDark
+        ? 'w-full px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-gray-600 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all'
+        : 'w-full px-4 py-3 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all';
+
+    const inputClassPr = isDark
+        ? 'w-full px-4 py-3 pr-12 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-gray-600 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all'
+        : 'w-full px-4 py-3 pr-12 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all';
+
     return (
-        <div className="min-h-screen bg-gray-950 flex items-center justify-center relative overflow-hidden px-4">
+        <div className={`min-h-screen flex items-center justify-center relative overflow-hidden px-4 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
             {/* Background effects */}
             <div className="absolute inset-0 -z-10">
-                <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-red-500/[0.07] rounded-full blur-[120px] animate-blob" />
-                <div className="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] bg-red-600/[0.05] rounded-full blur-[100px] animate-blob-reverse" />
+                <div className={`absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full blur-[120px] animate-blob ${isDark ? 'bg-red-500/[0.07]' : 'bg-red-500/[0.05]'}`} />
+                <div className={`absolute bottom-1/4 left-1/4 w-[400px] h-[400px] rounded-full blur-[100px] animate-blob-reverse ${isDark ? 'bg-red-600/[0.05]' : 'bg-red-600/[0.04]'}`} />
                 <div className="absolute inset-0" style={{
-                    backgroundImage: 'radial-gradient(circle, rgba(239,68,68,0.03) 1px, transparent 1px)',
+                    backgroundImage: isDark
+                        ? 'radial-gradient(circle, rgba(239,68,68,0.03) 1px, transparent 1px)'
+                        : 'radial-gradient(circle, rgba(239,68,68,0.06) 1px, transparent 1px)',
                     backgroundSize: '32px 32px'
                 }} />
             </div>
@@ -52,20 +65,24 @@ export default function Login() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <a href="/" className="inline-flex items-center gap-[3px] text-3xl font-black tracking-tight mb-3">
-                        <span className="text-white">Ultr</span>
+                        <span className={isDark ? 'text-white' : 'text-gray-900'}>Ultr</span>
                         <span className="bg-gradient-to-r from-red-500 to-red-400 bg-clip-text text-transparent">AI</span>
                     </a>
-                    <p className="text-gray-500 text-sm">Masuk ke dashboard Anda</p>
+                    <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Masuk ke dashboard Anda</p>
                 </div>
 
                 {/* Card */}
                 <div className="relative">
                     {/* Glow behind card */}
-                    <div className="absolute -inset-1 bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20 rounded-3xl blur-xl opacity-50" />
+                    <div className={`absolute -inset-1 bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20 rounded-3xl blur-xl ${isDark ? 'opacity-50' : 'opacity-30'}`} />
 
                     <form
                         onSubmit={handleSubmit}
-                        className="relative bg-gray-900/80 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl"
+                        className={`relative backdrop-blur-2xl border rounded-2xl p-8 shadow-2xl ${
+                            isDark
+                                ? 'bg-gray-900/80 border-white/[0.08]'
+                                : 'bg-white/90 border-gray-200'
+                        }`}
                     >
                         {/* Error */}
                         {error && (
@@ -76,7 +93,7 @@ export default function Login() {
 
                         {/* Email */}
                         <div className="mb-5">
-                            <label className="block text-xs font-bold uppercase tracking-[0.1em] text-gray-400 mb-2">
+                            <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 Email
                             </label>
                             <input
@@ -86,13 +103,13 @@ export default function Login() {
                                 placeholder="nama@email.com"
                                 required
                                 autoFocus
-                                className="w-full px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-gray-600 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
+                                className={inputClass}
                             />
                         </div>
 
                         {/* Password */}
                         <div className="mb-6">
-                            <label className="block text-xs font-bold uppercase tracking-[0.1em] text-gray-400 mb-2">
+                            <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 Password
                             </label>
                             <div className="relative">
@@ -102,12 +119,12 @@ export default function Login() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
                                     required
-                                    className="w-full px-4 py-3 pr-12 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-gray-600 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
+                                    className={inputClassPr}
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 transition-colors ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
                                 >
                                     {showPassword ? (
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
@@ -137,15 +154,15 @@ export default function Login() {
 
                         {/* Back to home */}
                         <div className="mt-6 text-center">
-                            <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
-                                ← Kembali ke beranda
+                            <a href="/" className={`text-sm transition-colors ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}>
+                                &larr; Kembali ke beranda
                             </a>
                         </div>
                     </form>
                 </div>
 
                 {/* Footer */}
-                <p className="text-center text-xs text-gray-600 mt-8">
+                <p className={`text-center text-xs mt-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                     &copy; 2026 UltrAI. All rights reserved.
                 </p>
             </div>

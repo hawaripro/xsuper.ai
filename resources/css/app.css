@@ -193,15 +193,19 @@
 }
 
 /* ============================================
-   Custom Scrollbar
+   Custom Scrollbar — theme-aware
    ============================================ */
 .scrollbar-thin::-webkit-scrollbar { width: 5px; }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
+/* Light mode scrollbar */
+:root:not(.dark) .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); }
+:root:not(.dark) .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+
 /* ============================================
-   Chat Content Styles
+   Chat Content Styles — theme-aware
    ============================================ */
 .chat-content { word-wrap: break-word; overflow-wrap: break-word; }
 
@@ -233,6 +237,21 @@
     background: none !important;
     border: none !important;
 }
+
+/* Light mode code blocks */
+:root:not(.dark) .chat-code-block {
+    background: #1e293b;
+    border-color: #334155;
+}
+:root:not(.dark) .chat-code-block .chat-code-header {
+    background: rgba(255,255,255,0.05);
+    border-bottom-color: #334155;
+    color: #94a3b8;
+}
+:root:not(.dark) .chat-code-block code {
+    color: #e2e8f0;
+}
+
 .chat-inline-code {
     background: rgba(255,255,255,0.08);
     padding: 2px 6px;
@@ -241,6 +260,13 @@
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
     color: #f87171;
 }
+
+/* Light mode inline code */
+:root:not(.dark) .chat-inline-code {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
 .chat-content p { margin-bottom: 8px; }
 .chat-content p:last-child { margin-bottom: 0; }
 
