@@ -248,6 +248,9 @@ export default function ChatAI() {
         setIsStreaming(true);
         streamingContentRef.current = '';
 
+        // Filter out empty messages before sending to API
+        const apiMessages = newMessages.filter(m => m.content && m.content.trim().length > 0);
+
         try {
             const res = await fetch('/api/chat/send', {
                 method: 'POST',
@@ -259,7 +262,7 @@ export default function ChatAI() {
                 },
                 body: JSON.stringify({
                     model: selectedModel,
-                    messages: newMessages,
+                    messages: apiMessages,
                     conversation_id: currentConvId,
                 }),
             });
