@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\AiProxyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExternalApiController extends Controller
 {
@@ -74,8 +75,9 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         $proxyUrl = rtrim(config('services.ai_proxy.url', env('AI_PROXY_URL', env('ENOWX_API_URL'))), '/');
         $proxyKey = config('services.ai_proxy.key', env('AI_PROXY_KEY', env('ENOWX_API_KEY')));
         $messages = $this->injectSystemPrompt($validated['messages']);
+        $wantsStream = $validated['stream'] ?? false;
 
-        // Always use non-streaming to proxy (for security scrub)
+        // Always fetch non-streaming from proxy (for full content scrub)
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $proxyKey,
             'Content-Type' => 'application/json',
@@ -86,20 +88,77 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         ]);
 
         $data = json_decode($response->body(), true);
-        if ($data && isset($data['choices'])) {
-            foreach ($data['choices'] as &$choice) {
-                if (isset($choice['message']['content'])) {
-                    $choice['message']['content'] = self::deepClean($choice['message']['content']);
-                }
-            }
-            if (isset($data['model'])) {
-                $data['model'] = self::clean($data['model']);
-            }
-            return response()->json($data);
+        if (!$data || !isset($data['choices'])) {
+            return response(self::clean($response->body()), $response->status())
+                ->header('Content-Type', 'application/json');
         }
 
-        return response(self::clean($response->body()), $response->status())
-            ->header('Content-Type', 'application/json');
+        // Deep clean content
+        foreach ($data['choices'] as &$choice) {
+            if (isset($choice['message']['content'])) {
+                $choice['message']['content'] = self::deepClean($choice['message']['content']);
+            }
+        }
+        if (isset($data['model'])) {
+            $data['model'] = self::clean($data['model']);
+        }
+
+        // If client wants streaming, convert to SSE format
+        if ($wantsStream) {
+            $content = $data['choices'][0]['message']['content'] ?? '';
+            $id = $data['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(12));
+            $model = $data['model'] ?? $validated['model'];
+
+            return new StreamedResponse(function () use ($content, $id, $model) {
+                // Send role chunk first
+                $roleChunk = [
+                    'id' => $id,
+                    'object' => 'chat.completion.chunk',
+                    'created' => time(),
+                    'model' => $model,
+                    'choices' => [['index' => 0, 'delta' => ['role' => 'assistant'], 'finish_reason' => null]],
+                ];
+                echo 'data: ' . json_encode($roleChunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                if (ob_get_level()) ob_flush();
+                flush();
+
+                // Send content in small chunks (simulate streaming)
+                $chunks = str_split($content, 20);
+                foreach ($chunks as $piece) {
+                    $chunk = [
+                        'id' => $id,
+                        'object' => 'chat.completion.chunk',
+                        'created' => time(),
+                        'model' => $model,
+                        'choices' => [['index' => 0, 'delta' => ['content' => $piece], 'finish_reason' => null]],
+                    ];
+                    echo 'data: ' . json_encode($chunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                    if (ob_get_level()) ob_flush();
+                    flush();
+                    usleep(5000); // 5ms delay between chunks
+                }
+
+                // Send finish chunk
+                $finish = [
+                    'id' => $id,
+                    'object' => 'chat.completion.chunk',
+                    'created' => time(),
+                    'model' => $model,
+                    'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => 'stop']],
+                ];
+                echo 'data: ' . json_encode($finish, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                echo "data: [DONE]\n\n";
+                if (ob_get_level()) ob_flush();
+                flush();
+            }, 200, [
+                'Content-Type' => 'text/event-stream',
+                'Cache-Control' => 'no-cache',
+                'Connection' => 'keep-alive',
+                'X-Accel-Buffering' => 'no',
+            ]);
+        }
+
+        return response()->json($data);
     }
 
     private function injectSystemPrompt(array $messages): array
@@ -112,9 +171,6 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         return $messages;
     }
 
-    /**
-     * Quick clean — replace brand words
-     */
     public static function clean(string $text): string
     {
         $text = preg_replace('/enowx\s*labs\s*chat\s*ui/i', 'UltrAI', $text);
@@ -126,9 +182,6 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         return $text;
     }
 
-    /**
-     * Deep clean — remove entire lines with dangerous keywords
-     */
     public static function deepClean(string $text): string
     {
         $text = self::clean($text);
@@ -154,14 +207,6 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
                 if (str_contains($lower, $word)) {
                     $skip = true;
                     break;
-                }
-            }
-            if (preg_match('/[✅❌]/', $line)) {
-                foreach ($dangerWords as $word) {
-                    if (str_contains($lower, $word)) {
-                        $skip = true;
-                        break;
-                    }
                 }
             }
             if (!$skip) {
