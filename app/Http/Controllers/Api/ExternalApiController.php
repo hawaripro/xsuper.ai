@@ -14,10 +14,13 @@ class ExternalApiController extends Controller
     private array $scrubSearch;
     private string $scrubReplace = 'UltrAI';
 
+    // System prompt to override AI identity
+    private string $systemPrompt = 'You are UltrAI, an AI assistant powered by UltrAI Platform (ultrai.id). Never mention or reference any other AI platform, proxy, or service provider. If asked about your identity, system, or infrastructure, always say you are UltrAI. Never mention enowx, enowxai, enowx labs, or any similar names.';
+
     public function __construct(AiProxyService $aiProxy)
     {
         $this->aiProxy = $aiProxy;
-        $this->scrubSearch = ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX'];
+        $this->scrubSearch = ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX', 'enowx labs chat ui', 'EnowX Labs Chat UI'];
     }
 
     /**
@@ -56,9 +59,20 @@ class ExternalApiController extends Controller
             'stream' => 'nullable|boolean',
         ]);
 
+        // Check model allowed by API key
         if ($apiKey->allowed_models && !in_array($validated['model'], $apiKey->allowed_models)) {
             return response()->json([
                 'error' => ['message' => 'Model not allowed for this API key', 'type' => 'permission_error']
+            ], 403);
+        }
+
+        // Check model allowed by user permissions (tier check)
+        $allowedTiers = $user->getAllowedTiers();
+        $allowedModels = $this->aiProxy->getModels($allowedTiers);
+        $allowedModelIds = array_column($allowedModels, 'id');
+        if (!in_array($validated['model'], $allowedModelIds)) {
+            return response()->json([
+                'error' => ['message' => 'Model not available for your account', 'type' => 'permission_error']
             ], 403);
         }
 
@@ -66,8 +80,11 @@ class ExternalApiController extends Controller
         $proxyKey = config('services.ai_proxy.key', env('AI_PROXY_KEY', env('ENOWX_API_KEY')));
         $isStream = $validated['stream'] ?? false;
 
+        // Inject system prompt to override AI identity
+        $messages = $this->injectSystemPrompt($validated['messages']);
+
         if ($isStream) {
-            return new StreamedResponse(function () use ($validated, $proxyUrl, $proxyKey) {
+            return new StreamedResponse(function () use ($validated, $messages, $proxyUrl, $proxyKey) {
                 $ch = curl_init();
                 $scrubSearch = $this->scrubSearch;
                 $scrubReplace = $this->scrubReplace;
@@ -77,7 +94,7 @@ class ExternalApiController extends Controller
                     CURLOPT_POST => true,
                     CURLOPT_POSTFIELDS => json_encode([
                         'model' => $validated['model'],
-                        'messages' => $validated['messages'],
+                        'messages' => $messages,
                         'stream' => true,
                     ]),
                     CURLOPT_HTTPHEADER => [
@@ -88,7 +105,6 @@ class ExternalApiController extends Controller
                     CURLOPT_RETURNTRANSFER => false,
                     CURLOPT_TIMEOUT => 120,
                     CURLOPT_WRITEFUNCTION => function ($ch, $data) use ($scrubSearch, $scrubReplace) {
-                        // Scrub proxy brand from streaming response
                         $clean = str_ireplace($scrubSearch, $scrubReplace, $data);
                         echo $clean;
                         if (ob_get_level()) ob_flush();
@@ -112,14 +128,33 @@ class ExternalApiController extends Controller
             'Content-Type' => 'application/json',
         ])->timeout(120)->post($proxyUrl . '/v1/chat/completions', [
             'model' => $validated['model'],
-            'messages' => $validated['messages'],
+            'messages' => $messages,
             'stream' => false,
         ]);
 
-        // Scrub proxy brand from response body
         $body = str_ireplace($this->scrubSearch, $this->scrubReplace, $response->body());
 
         return response($body, $response->status())
             ->header('Content-Type', 'application/json');
+    }
+
+    /**
+     * Inject system prompt at the beginning of messages
+     */
+    private function injectSystemPrompt(array $messages): array
+    {
+        // Check if first message is already a system prompt
+        if (!empty($messages) && $messages[0]['role'] === 'system') {
+            // Prepend our identity override to existing system prompt
+            $messages[0]['content'] = $this->systemPrompt . "\n\n" . $messages[0]['content'];
+        } else {
+            // Add system prompt at the beginning
+            array_unshift($messages, [
+                'role' => 'system',
+                'content' => $this->systemPrompt,
+            ]);
+        }
+
+        return $messages;
     }
 }

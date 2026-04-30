@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 class ChatController extends Controller
 {
     private AiProxyService $aiProxy;
+    private string $systemPrompt = 'You are UltrAI, an AI assistant powered by UltrAI Platform (ultrai.id). Never mention or reference any other AI platform, proxy, or service provider. If asked about your identity, system, or infrastructure, always say you are UltrAI. Never mention enowx, enowxai, enowx labs, or any similar names.';
 
     public function __construct(AiProxyService $aiProxy)
     {
@@ -58,6 +59,9 @@ class ChatController extends Controller
                 'created_at' => now(),
             ]);
         }
+
+        // Inject system prompt to override AI identity
+        $messages = $this->injectSystemPrompt($messages);
 
         // Stream response from AI proxy via AiProxyService
         return $this->aiProxy->chatCompletionStream(
@@ -139,5 +143,18 @@ class ChatController extends Controller
             ->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    private function injectSystemPrompt(array $messages): array
+    {
+        if (!empty($messages) && $messages[0]['role'] === 'system') {
+            $messages[0]['content'] = $this->systemPrompt . "\n\n" . $messages[0]['content'];
+        } else {
+            array_unshift($messages, [
+                'role' => 'system',
+                'content' => $this->systemPrompt,
+            ]);
+        }
+        return $messages;
     }
 }
