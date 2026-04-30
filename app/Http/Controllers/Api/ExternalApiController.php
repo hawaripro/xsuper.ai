@@ -134,19 +134,21 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
                 flush();
 
                 // Send content in small chunks (simulate streaming)
-                $chunks = str_split($content, 20);
-                foreach ($chunks as $piece) {
-                    $chunk = [
-                        'id' => $id,
-                        'object' => 'chat.completion.chunk',
-                        'created' => time(),
-                        'model' => $model,
-                        'choices' => [['index' => 0, 'delta' => ['content' => $piece], 'finish_reason' => null]],
-                    ];
-                    echo 'data: ' . json_encode($chunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
-                    if (ob_get_level()) ob_flush();
-                    flush();
-                    usleep(5000); // 5ms delay between chunks
+                if (strlen($content) > 0) {
+                    $chunks = str_split($content, 20);
+                    foreach ($chunks as $piece) {
+                        if (strlen($piece) === 0) continue;
+                        $chunk = [
+                            'id' => $id,
+                            'object' => 'chat.completion.chunk',
+                            'created' => time(),
+                            'model' => $model,
+                            'choices' => [['index' => 0, 'delta' => ['content' => $piece], 'finish_reason' => null]],
+                        ];
+                        echo 'data: ' . json_encode($chunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                        if (ob_get_level()) ob_flush();
+                        flush();
+                    }
                 }
 
                 // Send finish chunk
@@ -157,8 +159,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
                     'model' => $model,
                     'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => 'stop']],
                 ];
-                echo 'data: ' . json_encode($finish, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
-                echo "data: [DONE]\n\n";
+                echo 'data: ' . json_encode($finish, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\ndata: [DONE]\n\n";
                 if (ob_get_level()) ob_flush();
                 flush();
             }, 200, [
