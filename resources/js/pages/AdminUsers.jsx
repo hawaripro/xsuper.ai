@@ -37,6 +37,7 @@ export default function AdminUsers() {
     const [apiKeys, setApiKeys] = useState([]);
     const [keyLoading, setKeyLoading] = useState(false);
     const [copiedKey, setCopiedKey] = useState('');
+    const [deleteKeyConfirm, setDeleteKeyConfirm] = useState(null);
 
     const getCsrfToken = () => {
         return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
@@ -167,17 +168,22 @@ export default function AdminUsers() {
     };
 
     const regenKey = async (keyId) => {
-        if (!confirm('Regenerate key? Key lama tidak bisa dipakai lagi.')) return;
-        try {
-            await fetch(`/api/k/regen/${keyId}`, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() } });
-            openKeyModal(keyModal);
-        } catch {}
+        setDeleteKeyConfirm({ id: keyId, action: 'regen' });
     };
 
     const deleteKey = async (keyId) => {
-        if (!confirm('Hapus API key ini?')) return;
+        setDeleteKeyConfirm({ id: keyId, action: 'delete' });
+    };
+
+    const confirmKeyAction = async () => {
+        if (!deleteKeyConfirm) return;
         try {
-            await fetch(`/api/k/${keyId}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() } });
+            if (deleteKeyConfirm.action === 'delete') {
+                await fetch(`/api/k/${deleteKeyConfirm.id}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() } });
+            } else {
+                await fetch(`/api/k/regen/${deleteKeyConfirm.id}`, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() } });
+            }
+            setDeleteKeyConfirm(null);
             openKeyModal(keyModal);
         } catch {}
     };
@@ -453,6 +459,43 @@ export default function AdminUsers() {
                     </div>
                 </div>
             )}
+            {/* Delete/Regen API Key Confirm Modal */}
+            {deleteKeyConfirm && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteKeyConfirm(null)} />
+                    <div className={`relative w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`}>
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
+                            deleteKeyConfirm.action === 'delete' ? 'bg-red-500/15' : 'bg-amber-500/15'
+                        }`}>
+                            {deleteKeyConfirm.action === 'delete' ? (
+                                <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                            ) : (
+                                <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                            )}
+                        </div>
+                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {deleteKeyConfirm.action === 'delete' ? 'Hapus API Key?' : 'Regenerate API Key?'}
+                        </h3>
+                        <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {deleteKeyConfirm.action === 'delete'
+                                ? 'API key ini akan dihapus permanen. User tidak bisa menggunakannya lagi.'
+                                : 'Key lama akan diganti dengan key baru. Key lama tidak bisa dipakai lagi.'
+                            }
+                        </p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setDeleteKeyConfirm(null)} className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                                isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
+                            }`}>Batal</button>
+                            <button onClick={confirmKeyAction} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all ${
+                                deleteKeyConfirm.action === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
+                            }`}>
+                                {deleteKeyConfirm.action === 'delete' ? 'Hapus' : 'Regenerate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* API Key Modal */}
             {keyModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
