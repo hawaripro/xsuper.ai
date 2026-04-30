@@ -46,6 +46,11 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             $models = array_values(array_filter($models, fn($m) => in_array($m['id'], $apiKey->allowed_models)));
         }
 
+        // Log models request
+        UsageLog::record($user->id, 'models', [
+            'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0, 'credit' => 0,
+        ], 'api');
+
         return response()->json(['object' => 'list', 'data' => $models]);
     }
 

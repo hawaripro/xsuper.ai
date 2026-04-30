@@ -42,6 +42,11 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         $user = $request->user();
         $allowedTiers = $user->getAllowedTiers();
         $models = $this->aiProxy->getModels($allowedTiers);
+
+        UsageLog::record($user->id, 'models', [
+            'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0, 'credit' => 0,
+        ], 'web');
+
         return response()->json(['models' => $models]);
     }
 
