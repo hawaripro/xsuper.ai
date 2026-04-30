@@ -39,4 +39,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(function (Request $request) {
             return $request->is('api/*') || $request->expectsJson();
         });
+
+        // Handle token mismatch (expired CSRF) — redirect to login
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json(['message' => 'Session expired'], 419);
+            }
+            return redirect('/login');
+        });
     })->create();

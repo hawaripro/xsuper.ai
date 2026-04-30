@@ -5,10 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\UserDevice;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DeviceController extends Controller
 {
-    // Admin: list devices for a user
     public function index(Request $request)
     {
         $userId = $request->query('user_id');
@@ -35,7 +35,6 @@ class DeviceController extends Controller
         return response()->json(['devices' => $devices]);
     }
 
-    // Admin: update device status (active/blocked)
     public function update(Request $request, UserDevice $device)
     {
         $validated = $request->validate([
@@ -45,13 +44,31 @@ class DeviceController extends Controller
         $device->status = $validated['status'];
         $device->save();
 
+        // If blocked, kill user's sessions
+        if ($validated['status'] === 'blocked') {
+            $this->killUserSessions($device->user_id);
+        }
+
         return response()->json(['message' => 'Device status diperbarui', 'device' => $device]);
     }
 
-    // Admin: delete device
     public function destroy(UserDevice $device)
     {
+        $userId = $device->user_id;
         $device->delete();
+
+        // Kill user's sessions so they get logged out
+        $this->killUserSessions($userId);
+
         return response()->json(['message' => 'Device dihapus']);
+    }
+
+    /**
+     * Kill all sessions for a user (force logout)
+     */
+    private function killUserSessions(int $userId): void
+    {
+        // Delete sessions from database (session driver = database)
+        DB::table('sessions')->where('user_id', $userId)->delete();
     }
 }
