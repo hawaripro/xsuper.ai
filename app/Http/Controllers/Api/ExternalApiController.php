@@ -78,60 +78,55 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         $isStream = $validated['stream'] ?? false;
 
         if ($isStream) {
-            return new StreamedResponse(function () use ($validated, $messages, $proxyUrl, $proxyKey) {
-                $ch = curl_init();
-                $buffer = '';
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $proxyUrl . '/v1/chat/completions',
-                    CURLOPT_POST => true,
-                    CURLOPT_POSTFIELDS => json_encode(['model' => $validated['model'], 'messages' => $messages, 'stream' => true]),
-                    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $proxyKey, 'Content-Type: application/json', 'Accept: text/event-stream'],
-                    CURLOPT_RETURNTRANSFER => false,
-                    CURLOPT_TIMEOUT => 120,
-                    CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$buffer) {
-                        $buffer .= $data;
-                        while (($pos = strpos($buffer, "\n")) !== false) {
-                            $line = substr($buffer, 0, $pos);
-                            $buffer = substr($buffer, $pos + 1);
-                            $line = trim($line);
-                            if ($line === '') {
-                                echo "\n";
-                            } elseif (str_starts_with($line, 'data: [DONE]')) {
-                                echo "data: [DONE]\n";
-                            } elseif (str_starts_with($line, 'data: ')) {
-                                $json = json_decode(substr($line, 6), true);
-                                if ($json) {
-                                    if (isset($json['choices'])) {
-                                        foreach ($json['choices'] as &$c) {
-                                            if (isset($c['delta']['content'])) {
-                                                $c['delta']['content'] = self::clean($c['delta']['content']);
-                                            }
-                                        }
-                                    }
-                                    if (isset($json['model'])) {
-                                        $json['model'] = self::clean($json['model']);
-                                    }
-                                    echo 'data: ' . json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
-                                } else {
-                                    echo 'data: ' . self::clean(substr($line, 6)) . "\n";
-                                }
-                            } else {
-                                echo self::clean($line) . "\n";
+            // Collect full response first, scrub, then re-stream
+            $ch = curl_init();
+            $fullContent = '';
+            $lastJson = null;
+
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $proxyUrl . '/v1/chat/completions',
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode(['model' => $validated['model'], 'messages' => $messages, 'stream' => true]),
+                CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $proxyKey, 'Content-Type: application/json', 'Accept: text/event-stream'],
+                CURLOPT_RETURNTRANSFER => false,
+                CURLOPT_TIMEOUT => 120,
+                CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullContent, &$lastJson) {
+                    $lines = explode("\n", $data);
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if (str_starts_with($line, 'data: ') && $line !== 'data: [DONE]') {
+                            $json = json_decode(substr($line, 6), true);
+                            if ($json) {
+                                $lastJson = $json;
+                                $content = $json['choices'][0]['delta']['content'] ?? '';
+                                $fullContent .= $content;
                             }
-                            if (ob_get_level()) ob_flush();
-                            flush();
                         }
-                        return strlen($data);
-                    },
-                ]);
-                curl_exec($ch);
-                if ($buffer) {
-                    echo self::clean($buffer);
-                    if (ob_get_level()) ob_flush();
-                    flush();
-                }
-                curl_close($ch);
-            }, 200, ['Content-Type' => 'text/event-stream', 'Cache-Control' => 'no-cache', 'Connection' => 'keep-alive', 'X-Accel-Buffering' => 'no']);
+                    }
+                    return strlen($data);
+                },
+            ]);
+            curl_exec($ch);
+            curl_close($ch);
+
+            // Deep clean the full content
+            $cleanContent = self::deepClean($fullContent);
+
+            // Build non-streaming response (VSCode/OpenCode handle both)
+            $responseData = [
+                'id' => $lastJson['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(12)),
+                'object' => 'chat.completion',
+                'created' => time(),
+                'model' => self::clean($lastJson['model'] ?? $validated['model']),
+                'choices' => [[
+                    'index' => 0,
+                    'message' => ['role' => 'assistant', 'content' => $cleanContent],
+                    'finish_reason' => 'stop',
+                ]],
+                'usage' => $lastJson['usage'] ?? ['prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0],
+            ];
+
+            return response()->json($responseData);
         }
 
         // Non-streaming
