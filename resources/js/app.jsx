@@ -10,7 +10,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AdminUsers from './pages/AdminUsers';
-import ChatAI from './pages/ChatAI';
+import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
 import VideoGenerator from './pages/VideoGenerator';
 import TokenUsage from './pages/TokenUsage';
@@ -63,12 +63,14 @@ function App() {
                     <Route path="/" element={<Landing />} />
                     <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
 
+                    {/* Protected - Full Page (no dashboard layout) */}
+                    <Route path="/chat" element={
+                        <ProtectedRoute><ChatFullPage /></ProtectedRoute>
+                    } />
+
                     {/* Protected - Dashboard Layout */}
                     <Route path="/dashboard" element={
                         <ProtectedRoute><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>
-                    } />
-                    <Route path="/chat" element={
-                        <ProtectedRoute><DashboardLayout><ChatAI /></DashboardLayout></ProtectedRoute>
                     } />
                     <Route path="/profile" element={
                         <ProtectedRoute><DashboardLayout><Profile /></DashboardLayout></ProtectedRoute>

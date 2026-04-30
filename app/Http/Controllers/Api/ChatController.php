@@ -50,6 +50,22 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         return response()->json(['models' => $models]);
     }
 
+    /**
+     * Get ALL models across all categories (chat, image, video, audio)
+     * Used by the full-page chat UI
+     */
+    public function allModels(Request $request)
+    {
+        $user = $request->user();
+        $allowedTiers = $user->getAllowedTiers();
+        $models = $this->aiProxy->getAllModelsFiltered($allowedTiers);
+
+        return response()->json([
+            'models' => $models,
+            'permissions' => $user->getPermissions(),
+        ]);
+    }
+
     public function send(Request $request)
     {
         $request->validate([
@@ -164,7 +180,13 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
     {
         $prompt = $this->systemPrompt;
         if ($modelId) {
-            $prompt .= "\n\nYou are model '{$modelId}' on UltrAI platform. When asked what model you are, say '{$modelId}'.";
+            $prompt .= "\n\n[MODEL IDENTITY — CRITICAL]
+Your model identifier on UltrAI is: {$modelId}
+When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\", \"kamu model apa?\", or any variation:
+- You MUST answer: \"Saya adalah {$modelId}, diakses melalui UltrAI (ultrai.id).\"
+- Do NOT say \"saya Claude\" or \"saya GPT\" unless that is literally part of '{$modelId}'.
+- Your identity is '{$modelId}' — this is the model name the user selected.
+- Always use '{$modelId}' as your model name in any self-identification.";
         }
 
         if (!empty($messages) && $messages[0]['role'] === 'system') {

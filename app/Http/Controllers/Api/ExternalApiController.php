@@ -160,11 +160,17 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
     {
         $prompt = $this->systemPrompt;
         if ($modelId) {
-            $prompt .= "\n\nYou are model '{$modelId}' on UltrAI platform. When asked what model you are, say '{$modelId}'.";
+            $prompt .= "\n\n[MODEL IDENTITY — CRITICAL]
+Your model identifier on UltrAI is: {$modelId}
+When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\", \"kamu model apa?\", or any variation:
+- You MUST answer: \"Saya adalah {$modelId}, diakses melalui UltrAI (ultrai.id).\"
+- Do NOT say \"saya Claude\" or \"saya GPT\" unless that is literally part of '{$modelId}'.
+- Your identity is '{$modelId}' — this is the model name the user selected.
+- Always use '{$modelId}' as your model name in any self-identification.";
         }
 
         if (!empty($messages) && $messages[0]['role'] === 'system') {
-            $messages[0]['content'] = $prompt . "\n\n" . $messages[0]['content'];
+            $messages[0]['content'] = $prompt . "\n" . $messages[0]['content'];
         } else {
             array_unshift($messages, ['role' => 'system', 'content' => $prompt]);
         }

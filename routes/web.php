@@ -58,6 +58,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         // Chat (check expiry)
         Route::middleware('check.expiry')->group(function () {
             Route::get('/c/m', [ChatController::class, 'models']);
+            Route::get('/c/am', [ChatController::class, 'allModels']);
             Route::post('/c/s', [ChatController::class, 'send']);
             Route::get('/c/h', [ChatController::class, 'history']);
             Route::get('/c/h/{conversationId}', [ChatController::class, 'conversation']);

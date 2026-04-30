@@ -154,20 +154,37 @@ class AiProxyService
                 CURLOPT_TIMEOUT => 120,
                 CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse, $onChunk) {
                     $data = \App\Http\Controllers\Api\ExternalApiController::clean($data);
-                    echo $data;
-                    if (ob_get_level()) ob_flush();
-                    flush();
 
-                    // Parse SSE data to collect full response
+                    // Fix: Filter out empty/malformed data lines that cause JSON parse errors
                     $lines = explode("\n", $data);
+                    $cleanedLines = [];
                     foreach ($lines as $line) {
-                        if (str_starts_with($line, 'data: ') && $line !== 'data: [DONE]') {
-                            $json = json_decode(substr($line, 6), true);
-                            $content = $json['choices'][0]['delta']['content'] ?? null;
+                        $trimmed = trim($line);
+                        // Skip empty "data: " lines (no JSON payload)
+                        if ($trimmed === 'data:' || $trimmed === 'data: ') {
+                            continue;
+                        }
+                        // Validate JSON in data lines before forwarding
+                        if (str_starts_with($trimmed, 'data: ') && $trimmed !== 'data: [DONE]') {
+                            $jsonStr = substr($trimmed, 6);
+                            $parsed = json_decode($jsonStr, true);
+                            if ($parsed === null && json_last_error() !== JSON_ERROR_NONE) {
+                                // Skip malformed JSON lines
+                                continue;
+                            }
+                            $content = $parsed['choices'][0]['delta']['content'] ?? null;
                             if ($content) {
                                 $fullResponse .= $content;
                             }
                         }
+                        $cleanedLines[] = $line;
+                    }
+
+                    $cleanedData = implode("\n", $cleanedLines);
+                    if (trim($cleanedData) !== '') {
+                        echo $cleanedData;
+                        if (ob_get_level()) ob_flush();
+                        flush();
                     }
 
                     return strlen($data);
@@ -237,6 +254,49 @@ class AiProxyService
     }
 
     /**
+     * Get all models across ALL categories (chat, image, video, audio) with tier filtering
+     * Used by the full-page chat UI
+     */
+    public function getAllModelsFiltered(array $allowedTiers = []): array
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+            ])->timeout(10)->get($this->baseUrl . '/v1/models');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $tierMap = [
+                    'Standard' => 'Original',
+                    'MAX' => 'Authentic',
+                    'Codex' => 'Codex',
+                    'Wavespeed' => 'Wavespeed',
+                    'YepAPI' => 'YepAPI',
+                    'Canva' => 'Canva',
+                ];
+
+                if (empty($allowedTiers)) {
+                    $allowedTiers = ['Standard', 'MAX'];
+                }
+
+                return collect($data['data'] ?? [])
+                    ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
+                    ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
+                    ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
+                    ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'default'))
+                    ->map(fn($m) => $this->scrubModelFull($m, $tierMap))
+                    ->values()
+                    ->toArray();
+            }
+
+            return [];
+        } catch (\Exception $e) {
+            Log::error('AI Proxy connection failed', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
      * Scrub model data — only return safe fields, remove all sensitive info
      */
     private function scrubModel(array $model, array $tierMap = []): array
@@ -246,6 +306,20 @@ class AiProxyService
             'id' => $model['id'] ?? 'unknown',
             'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
             'category' => $tierMap[$tier] ?? 'Original',
+        ];
+    }
+
+    /**
+     * Scrub model data with full info (includes media_type for full chat page)
+     */
+    private function scrubModelFull(array $model, array $tierMap = []): array
+    {
+        $tier = $model['tier'] ?? 'Standard';
+        return [
+            'id' => $model['id'] ?? 'unknown',
+            'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
+            'tier' => $tierMap[$tier] ?? 'Original',
+            'category' => $model['category'] ?? 'chat',
         ];
     }
 
