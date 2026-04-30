@@ -77,33 +77,33 @@ class UsageController extends Controller
         switch ($period) {
             case 'hourly':
                 $query->where('created_at', '>=', now()->subHours(24));
-                $select = "TO_CHAR(created_at, 'HH24:00') as label";
-                $group = DB::raw("TO_CHAR(created_at, 'YYYY-MM-DD HH24')");
+                $labelExpr = "TO_CHAR(created_at, 'HH24:00')";
+                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM-DD HH24')";
                 break;
             case 'weekly':
                 $query->where('created_at', '>=', now()->subWeeks(12));
-                $select = "TO_CHAR(created_at, 'IYYY-IW') as label";
-                $group = DB::raw("TO_CHAR(created_at, 'IYYY-IW')");
+                $labelExpr = "TO_CHAR(created_at, 'IYYY-IW')";
+                $groupExpr = "TO_CHAR(created_at, 'IYYY-IW')";
                 break;
             case 'monthly':
                 $query->where('created_at', '>=', now()->subMonths(12));
-                $select = "TO_CHAR(created_at, 'YYYY-MM') as label";
-                $group = DB::raw("TO_CHAR(created_at, 'YYYY-MM')");
+                $labelExpr = "TO_CHAR(created_at, 'YYYY-MM')";
+                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM')";
                 break;
             case 'all':
-                $select = "TO_CHAR(created_at, 'YYYY-MM') as label";
-                $group = DB::raw("TO_CHAR(created_at, 'YYYY-MM')");
+                $labelExpr = "TO_CHAR(created_at, 'YYYY-MM')";
+                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM')";
                 break;
             default: // daily
                 $query->where('created_at', '>=', now()->subDays(30));
-                $select = "TO_CHAR(created_at, 'MM-DD') as label";
-                $group = DB::raw("DATE(created_at)");
+                $labelExpr = "TO_CHAR(created_at, 'MM-DD')";
+                $groupExpr = "DATE(created_at)";
                 break;
         }
 
-        return $query->selectRaw("$select, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests")
-            ->groupBy($group, DB::raw($select))
-            ->orderBy($group)
+        return $query->selectRaw("$labelExpr as label, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests")
+            ->groupBy(DB::raw($groupExpr), DB::raw($labelExpr))
+            ->orderBy(DB::raw($groupExpr))
             ->get()
             ->toArray();
     }
@@ -155,7 +155,7 @@ class UsageController extends Controller
         }
 
         $raw = $query->selectRaw("$dateExpr as label, model, SUM(total_tokens) as tokens")
-            ->groupBy(DB::raw($groupExpr), DB::raw($dateExpr), 'model')
+            ->groupBy(DB::raw($groupExpr), DB::raw($dateExpr), DB::raw('model'))
             ->orderBy(DB::raw($groupExpr))
             ->get();
 
