@@ -16,17 +16,26 @@ class TrackDevice
             return $next($request);
         }
 
-        // Track device for ALL users (including admin)
-        // Admin: unlimited devices, just track
-        // Member: max 2 devices, block if over
         $maxDevices = $user->isAdmin() ? 999 : 2;
         $device = UserDevice::trackDevice($user->id, $request, $maxDevices);
 
+        // If device is pending (over limit) and user is not admin
+        if (!$user->isAdmin() && $device && $device->status === 'pending') {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'message' => 'Perangkat baru terdeteksi. Menunggu persetujuan admin (maksimal 2 perangkat aktif).',
+                    'device_pending' => true,
+                    'device_name' => $device->device_name,
+                ], 403);
+            }
+        }
+
+        // If device is null (blocked)
         if ($device === null && !$user->isAdmin()) {
             if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
-                    'message' => 'Batas perangkat tercapai (maksimal 2). Hubungi admin untuk menambah perangkat.',
-                    'device_limit' => true,
+                    'message' => 'Perangkat ini diblokir. Hubungi admin.',
+                    'device_blocked' => true,
                 ], 403);
             }
         }

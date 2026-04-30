@@ -553,35 +553,65 @@ export default function AdminUsers() {
                     <div className={`relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border p-5 scrollbar-thin ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center justify-between mb-4">
                             <div>
-                                <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Perangkat</h3>
-                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{deviceModal.name} — Max 2 device</p>
+                                <div className="flex items-center gap-2">
+                                    <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Perangkat</h3>
+                                    {devices.filter(d => d.status === 'pending').length > 0 && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 animate-pulse">
+                                            {devices.filter(d => d.status === 'pending').length} pending
+                                        </span>
+                                    )}
+                                </div>
+                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    {deviceModal.name} — {deviceModal.role === 'admin' ? '∞ Unlimited' : 'Max 2 device'}
+                                    {' · '}{devices.filter(d => d.status === 'active').length} aktif
+                                </p>
                             </div>
                             <button onClick={() => setDeviceModal(null)} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
                         </div>
 
-                        {devices.length === 0 ? (
+                        {/* Pending devices first */}
+                        {devices.filter(d => d.status === 'pending').length > 0 && (
+                            <div className={`mb-3 p-3 rounded-xl border ${isDark ? 'bg-amber-500/[0.05] border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+                                <p className="text-xs font-bold text-amber-400 mb-2">⏳ Menunggu Persetujuan</p>
+                                {devices.filter(d => d.status === 'pending').map(d => (
+                                    <div key={d.id} className={`flex items-center justify-between p-2 rounded-lg mb-1 ${isDark ? 'bg-black/20' : 'bg-white'}`}>
+                                        <div>
+                                            <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{d.device_name}</span>
+                                            <span className={`text-[10px] ml-1.5 px-1.5 py-0.5 rounded ${d.device_type === 'plugin' ? 'bg-violet-500/15 text-violet-400' : d.device_type === 'mobile' ? 'bg-cyan-500/15 text-cyan-400' : 'bg-blue-500/15 text-blue-400'}`}>{d.device_type}</span>
+                                            <div className={`text-[9px] mt-0.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>IP: {d.ip_address} · {d.last_active_at ? new Date(d.last_active_at).toLocaleString('id-ID') : '-'}</div>
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <button onClick={() => updateDeviceStatus(d.id, 'active')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500 text-white hover:bg-emerald-600">Setujui</button>
+                                            <button onClick={() => updateDeviceStatus(d.id, 'blocked')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20">Tolak</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {devices.filter(d => d.status !== 'pending').length === 0 && devices.filter(d => d.status === 'pending').length === 0 ? (
                             <div className={`text-center py-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                                 <p className="text-sm">Belum ada perangkat terdaftar</p>
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {devices.map(d => (
+                            <div className="space-y-2">
+                                {devices.filter(d => d.status !== 'pending').map(d => (
                                     <div key={d.id} className={`p-3 rounded-xl border ${isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-gray-50 border-gray-200'}`}>
-                                        <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center justify-between mb-1.5">
                                             <div className="flex items-center gap-2">
-                                                <span className={`w-2 h-2 rounded-full ${d.status === 'active' ? 'bg-emerald-500' : d.status === 'blocked' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                                                <span className={`w-2 h-2 rounded-full ${d.status === 'active' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
                                                 <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{d.device_name}</span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${d.device_type === 'browser' ? 'bg-blue-500/15 text-blue-400' : d.device_type === 'plugin' ? 'bg-violet-500/15 text-violet-400' : 'bg-gray-500/15 text-gray-400'}`}>{d.device_type}</span>
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${d.device_type === 'browser' ? 'bg-blue-500/15 text-blue-400' : d.device_type === 'plugin' ? 'bg-violet-500/15 text-violet-400' : d.device_type === 'mobile' ? 'bg-cyan-500/15 text-cyan-400' : 'bg-gray-500/15 text-gray-400'}`}>{d.device_type}</span>
                                             </div>
-                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${d.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : d.status === 'blocked' ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400'}`}>{d.status}</span>
+                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${d.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{d.status}</span>
                                         </div>
                                         <div className={`text-[10px] space-y-0.5 mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                             <div>IP: {d.ip_address || '-'}</div>
                                             <div>Last active: {d.last_active_at ? new Date(d.last_active_at).toLocaleString('id-ID') : '-'}</div>
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-1.5">
                                             {d.status !== 'active' && (
                                                 <button onClick={() => updateDeviceStatus(d.id, 'active')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>Aktifkan</button>
                                             )}

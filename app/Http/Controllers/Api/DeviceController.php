@@ -32,7 +32,12 @@ class DeviceController extends Controller
             ];
         });
 
-        return response()->json(['devices' => $devices]);
+        // Count pending devices
+        $pendingCount = UserDevice::where('status', 'pending');
+        if ($userId) $pendingCount->where('user_id', $userId);
+        $pending = $pendingCount->count();
+
+        return response()->json(['devices' => $devices, 'pending_count' => $pending]);
     }
 
     public function update(Request $request, UserDevice $device)
@@ -44,7 +49,6 @@ class DeviceController extends Controller
         $device->status = $validated['status'];
         $device->save();
 
-        // If blocked, kill user's sessions
         if ($validated['status'] === 'blocked') {
             $this->killUserSessions($device->user_id);
         }
@@ -56,19 +60,13 @@ class DeviceController extends Controller
     {
         $userId = $device->user_id;
         $device->delete();
-
-        // Kill user's sessions so they get logged out
         $this->killUserSessions($userId);
 
         return response()->json(['message' => 'Device dihapus']);
     }
 
-    /**
-     * Kill all sessions for a user (force logout)
-     */
     private function killUserSessions(int $userId): void
     {
-        // Delete sessions from database (session driver = database)
         DB::table('sessions')->where('user_id', $userId)->delete();
     }
 }
