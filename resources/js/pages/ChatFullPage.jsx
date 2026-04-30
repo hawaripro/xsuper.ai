@@ -294,20 +294,20 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                 </svg>
             </button>
 
-            {/* Dropdown — left-aligned to trigger button, scrollable inside */}
+            {/* Dropdown — same width as trigger, left-aligned */}
             {open && (
                 <>
                     {/* Invisible backdrop to catch outside clicks */}
                     <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
-                    <div className={`absolute top-full left-0 mt-1.5 min-w-[300px] sm:min-w-[360px] w-max max-w-[calc(100vw-1.5rem)] max-h-[min(480px,70vh)] rounded-xl sm:rounded-2xl border shadow-2xl z-[999] flex flex-col ${
+                    <div className={`absolute top-full left-0 mt-1 w-[280px] sm:w-[340px] max-h-[min(420px,65vh)] rounded-lg sm:rounded-xl border shadow-xl z-[999] flex flex-col ${
                         isDark
-                            ? 'bg-gray-900 border-white/[0.08] shadow-black/50'
-                            : 'bg-white border-gray-200 shadow-gray-200/50'
+                            ? 'bg-gray-900 border-white/[0.1] shadow-black/60'
+                            : 'bg-white border-gray-200 shadow-gray-300/40'
                     }`}>
                         {/* Search */}
-                        <div className={`p-2.5 sm:p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
+                        <div className={`px-2.5 pt-2.5 pb-2 ${isDark ? '' : ''}`}>
                             <div className="relative">
-                                <svg className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                                 </svg>
                                 <input
@@ -316,28 +316,28 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                                     onChange={(e) => setSearch(e.target.value)}
                                     placeholder="Cari model..."
                                     autoFocus
-                                    className={`w-full pl-9 pr-3 py-2 rounded-xl text-sm border focus:outline-none focus:ring-2 ${
+                                    className={`w-full pl-8 pr-3 py-1.5 rounded-lg text-xs border focus:outline-none focus:ring-1 ${
                                         isDark
-                                            ? 'bg-white/[0.04] border-white/[0.08] text-white placeholder-gray-500 focus:ring-red-500/20 focus:border-red-500/30'
-                                            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:ring-red-500/20 focus:border-red-500/30'
+                                            ? 'bg-white/[0.04] border-white/[0.08] text-white placeholder-gray-500 focus:ring-red-500/30 focus:border-red-500/30'
+                                            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:ring-red-500/30 focus:border-red-500/30'
                                     }`}
                                 />
                             </div>
                         </div>
 
                         {/* Category Tabs */}
-                        <div className={`flex gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 border-b overflow-x-auto scrollbar-thin ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
+                        <div className={`flex gap-0.5 px-2.5 pb-2 overflow-x-auto scrollbar-thin`}>
                             <button
                                 onClick={() => onCategoryChange('all')}
-                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
+                                className={`px-2 py-1 rounded-md text-[10px] sm:text-[11px] font-semibold whitespace-nowrap transition-all ${
                                     selectedCategory === 'all'
-                                        ? 'bg-red-500/15 text-red-400 border border-red-500/20'
+                                        ? 'bg-red-500/15 text-red-400'
                                         : isDark
                                             ? 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-300'
                                             : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                                 }`}
                             >
-                                All ({models.length})
+                                All
                             </button>
                             {categories.map(cat => {
                                 const cfg = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.chat;
@@ -346,34 +346,37 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                                     <button
                                         key={cat}
                                         onClick={() => onCategoryChange(cat)}
-                                        className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] sm:text-[11px] font-semibold whitespace-nowrap transition-all ${
                                             selectedCategory === cat
-                                                ? `${cfg.bg} ${cfg.text} border ${cfg.border}`
+                                                ? `${cfg.bg} ${cfg.text}`
                                                 : isDark
                                                     ? 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-300'
                                                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                                         }`}
                                     >
-                                        <span className="[&>svg]:w-3 [&>svg]:h-3 sm:[&>svg]:w-4 sm:[&>svg]:h-4">{cfg.icon}</span>
-                                        {cfg.label} ({count})
+                                        <span className="[&>svg]:w-3 [&>svg]:h-3">{cfg.icon}</span>
+                                        {cfg.label}
                                     </button>
                                 );
                             })}
                         </div>
 
+                        {/* Divider */}
+                        <div className={`mx-2.5 border-t ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`} />
+
                         {/* Model List — scrollable */}
-                        <div className="overflow-y-auto flex-1 p-1.5 sm:p-2 scrollbar-thin" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
+                        <div className="overflow-y-auto flex-1 p-1.5 scrollbar-thin" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
                             {Object.keys(groupedModels).length === 0 ? (
-                                <div className={`text-center py-8 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <div className={`text-center py-6 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     Tidak ada model ditemukan
                                 </div>
                             ) : (
                                 Object.entries(groupedModels).map(([tier, tierModels]) => (
-                                    <div key={tier} className="mb-1.5 sm:mb-2 last:mb-0">
-                                        <div className={`flex items-center gap-2 px-2 py-1 sm:py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${TIER_CONFIG[tier]?.bg?.replace('/10', '/40') || 'bg-gray-400'}`} />
+                                    <div key={tier} className="mb-1 last:mb-0">
+                                        <div className={`flex items-center gap-1.5 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            <span className={`w-1 h-1 rounded-full ${TIER_CONFIG[tier]?.bg?.replace('/10', '/40') || 'bg-gray-400'}`} />
                                             {TIER_CONFIG[tier]?.label || tier}
-                                            <span className={`ml-auto text-[9px] font-medium ${isDark ? 'text-gray-600' : 'text-gray-300'}`}>{tierModels.length}</span>
+                                            <span className={`ml-auto text-[9px] ${isDark ? 'text-gray-600' : 'text-gray-300'}`}>{tierModels.length}</span>
                                         </div>
                                         {tierModels.map(model => {
                                             const catCfg = CATEGORY_CONFIG[model.category] || CATEGORY_CONFIG.chat;
@@ -382,28 +385,24 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                                                 <button
                                                     key={model.id}
                                                     onClick={() => { onSelect(model.id); setOpen(false); setSearch(''); }}
-                                                    className={`w-full flex items-center gap-2 sm:gap-2.5 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-left transition-all duration-150 ${
+                                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all duration-100 ${
                                                         isSelected
                                                             ? isDark
-                                                                ? 'bg-red-500/10 border border-red-500/15 text-white'
-                                                                : 'bg-red-50 border border-red-200 text-gray-900'
+                                                                ? 'bg-red-500/10 text-white'
+                                                                : 'bg-red-50 text-gray-900'
                                                             : isDark
-                                                                ? 'text-gray-300 hover:bg-white/[0.04]'
+                                                                ? 'text-gray-300 hover:bg-white/[0.05]'
                                                                 : 'text-gray-700 hover:bg-gray-50'
                                                     }`}
                                                 >
-                                                    <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md sm:rounded-lg flex items-center justify-center text-white bg-gradient-to-br ${catCfg.gradient} flex-shrink-0 [&>svg]:w-3 [&>svg]:h-3 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
+                                                    <span className={`w-5 h-5 rounded-md flex items-center justify-center text-white bg-gradient-to-br ${catCfg.gradient} flex-shrink-0 [&>svg]:w-2.5 [&>svg]:h-2.5`}>
                                                         {catCfg.icon}
                                                     </span>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="text-xs sm:text-sm font-medium truncate">{rebrandText(model.name || model.id)}</div>
-                                                        <div className={`text-[9px] sm:text-[10px] truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{model.id}</div>
+                                                        <div className="text-[11px] sm:text-xs font-medium truncate">{rebrandText(model.name || model.id)}</div>
                                                     </div>
-                                                    <span className={`hidden sm:inline text-[9px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${catCfg.bg} ${catCfg.text}`}>
-                                                        {catCfg.label}
-                                                    </span>
                                                     {isSelected && (
-                                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                                        <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                                             <polyline points="20 6 9 17 4 12" />
                                                         </svg>
                                                     )}

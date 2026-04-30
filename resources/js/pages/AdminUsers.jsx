@@ -43,6 +43,7 @@ export default function AdminUsers() {
     const [deleteKeyConfirm, setDeleteKeyConfirm] = useState(null);
     const [deviceModal, setDeviceModal] = useState(null);
     const [devices, setDevices] = useState([]);
+    const [deviceAction, setDeviceAction] = useState(null); // { id, action: 'block'|'delete', name }
 
     const getCsrfToken = () => {
         return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
@@ -619,14 +620,61 @@ export default function AdminUsers() {
                                                 <button onClick={() => updateDeviceStatus(d.id, 'active')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>Aktifkan</button>
                                             )}
                                             {d.status !== 'blocked' && (
-                                                <button onClick={() => updateDeviceStatus(d.id, 'blocked')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'}`}>Block</button>
+                                                <button onClick={() => setDeviceAction({ id: d.id, action: 'block', name: d.device_name })} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'}`}>Block</button>
                                             )}
-                                            <button onClick={() => deleteDevice(d.id)} className={`py-1.5 px-3 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.05] text-gray-400' : 'bg-gray-100 text-gray-500'}`}>Hapus</button>
+                                            <button onClick={() => setDeviceAction({ id: d.id, action: 'delete', name: d.device_name })} className={`py-1.5 px-3 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-red-500/10 hover:text-red-400' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500'} transition-colors`}>Hapus</button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Device Block/Delete Confirmation Modal */}
+            {deviceAction && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeviceAction(null)} />
+                    <div className={`relative w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`}>
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
+                            deviceAction.action === 'delete' ? 'bg-red-500/15' : 'bg-amber-500/15'
+                        }`}>
+                            {deviceAction.action === 'delete' ? (
+                                <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                            ) : (
+                                <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                            )}
+                        </div>
+                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {deviceAction.action === 'delete' ? 'Hapus Perangkat?' : 'Block Perangkat?'}
+                        </h3>
+                        <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {deviceAction.action === 'delete'
+                                ? <>Yakin ingin menghapus <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat harus login ulang.</>
+                                : <>Yakin ingin memblokir <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat tidak bisa mengakses.</>
+                            }
+                        </p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setDeviceAction(null)} className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                                isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
+                            }`}>Batal</button>
+                            <button
+                                onClick={async () => {
+                                    if (deviceAction.action === 'delete') {
+                                        await deleteDevice(deviceAction.id);
+                                    } else {
+                                        await updateDeviceStatus(deviceAction.id, 'blocked');
+                                    }
+                                    setDeviceAction(null);
+                                }}
+                                className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all ${
+                                    deviceAction.action === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
+                                }`}
+                            >
+                                {deviceAction.action === 'delete' ? 'Hapus' : 'Block'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
