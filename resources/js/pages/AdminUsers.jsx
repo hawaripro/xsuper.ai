@@ -33,6 +33,10 @@ export default function AdminUsers() {
     const [formError, setFormError] = useState('');
     const [formLoading, setFormLoading] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const [keyModal, setKeyModal] = useState(null); // user object
+    const [apiKeys, setApiKeys] = useState([]);
+    const [keyLoading, setKeyLoading] = useState(false);
+    const [copiedKey, setCopiedKey] = useState('');
 
     const getCsrfToken = () => {
         return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
@@ -130,6 +134,58 @@ export default function AdminUsers() {
         } catch (err) {
             console.error('Delete failed:', err);
         }
+    };
+
+    // API Key functions
+    const openKeyModal = async (u) => {
+        setKeyModal(u);
+        setKeyLoading(true);
+        try {
+            const res = await fetch(`/api/k/list?user_id=${u.id}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+            if (res.ok) { const d = await res.json(); setApiKeys(d.keys || []); }
+        } catch {} finally { setKeyLoading(false); }
+    };
+
+    const generateKey = async () => {
+        if (!keyModal) return;
+        setKeyLoading(true);
+        try {
+            const res = await fetch('/api/k/create', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
+                body: JSON.stringify({ user_id: keyModal.id, name: 'API Key' }),
+            });
+            if (res.ok) { openKeyModal(keyModal); }
+        } catch {} finally { setKeyLoading(false); }
+    };
+
+    const toggleKey = async (keyId) => {
+        try {
+            await fetch(`/api/k/toggle/${keyId}`, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() } });
+            openKeyModal(keyModal);
+        } catch {}
+    };
+
+    const regenKey = async (keyId) => {
+        if (!confirm('Regenerate key? Key lama tidak bisa dipakai lagi.')) return;
+        try {
+            await fetch(`/api/k/regen/${keyId}`, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() } });
+            openKeyModal(keyModal);
+        } catch {}
+    };
+
+    const deleteKey = async (keyId) => {
+        if (!confirm('Hapus API key ini?')) return;
+        try {
+            await fetch(`/api/k/${keyId}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() } });
+            openKeyModal(keyModal);
+        } catch {}
+    };
+
+    const copyKey = (key) => {
+        navigator.clipboard.writeText(key);
+        setCopiedKey(key);
+        setTimeout(() => setCopiedKey(''), 2000);
     };
 
     const filteredUsers = users.filter(u =>
@@ -237,6 +293,9 @@ export default function AdminUsers() {
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1">
+                                                <button onClick={() => openKeyModal(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'}`} title="API Key">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                                                </button>
                                                 <button onClick={() => openEdit(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Edit">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                                                 </button>
@@ -390,6 +449,107 @@ export default function AdminUsers() {
                                     : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
                             }`}>Batal</button>
                             <button onClick={() => handleDelete(deleteConfirm.id)} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all">Hapus</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* API Key Modal */}
+            {keyModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setKeyModal(null)} />
+                    <div className={`relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border p-6 scrollbar-thin ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>API Keys</h3>
+                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{keyModal.name} ({keyModal.email})</p>
+                            </div>
+                            <button onClick={() => setKeyModal(null)} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        {/* Generate Button */}
+                        <button onClick={generateKey} disabled={keyLoading}
+                            className="w-full mb-4 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold hover:brightness-110 disabled:opacity-50 transition-all shadow-lg shadow-red-500/25">
+                            {keyLoading ? 'Loading...' : '+ Generate API Key Baru'}
+                        </button>
+
+                        {/* Keys List */}
+                        {apiKeys.length === 0 ? (
+                            <div className={`text-center py-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                                <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                                <p className="text-sm">Belum ada API key</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {apiKeys.map(k => (
+                                    <div key={k.id} className={`p-4 rounded-xl border ${isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-gray-50 border-gray-200'}`}>
+                                        {/* Key header */}
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`w-2 h-2 rounded-full ${k.is_active ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
+                                                <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{k.name}</span>
+                                            </div>
+                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${k.is_active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                                                {k.is_active ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </div>
+
+                                        {/* Key value */}
+                                        <div className={`flex items-center gap-2 p-2 rounded-lg mb-3 ${isDark ? 'bg-black/30' : 'bg-gray-100'}`}>
+                                            <code className={`flex-1 text-xs font-mono truncate ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{k.key}</code>
+                                            <button onClick={() => copyKey(k.key)}
+                                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${copiedKey === k.key ? 'bg-emerald-500/20 text-emerald-400' : isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.1]' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}>
+                                                {copiedKey === k.key ? '✓ Copied' : 'Copy'}
+                                            </button>
+                                        </div>
+
+                                        {/* Stats */}
+                                        <div className="grid grid-cols-3 gap-2 mb-3">
+                                            <div className={`text-center p-1.5 rounded-lg ${isDark ? 'bg-white/[0.03]' : 'bg-white'}`}>
+                                                <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{k.total_requests}</div>
+                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Requests</div>
+                                            </div>
+                                            <div className={`text-center p-1.5 rounded-lg ${isDark ? 'bg-white/[0.03]' : 'bg-white'}`}>
+                                                <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{k.rate_limit}/m</div>
+                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Rate Limit</div>
+                                            </div>
+                                            <div className={`text-center p-1.5 rounded-lg ${isDark ? 'bg-white/[0.03]' : 'bg-white'}`}>
+                                                <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString('id-ID') : '-'}</div>
+                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Last Used</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="flex gap-2">
+                                            <button onClick={() => toggleKey(k.id)}
+                                                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${k.is_active
+                                                    ? isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                                    : isDark ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                                }`}>
+                                                {k.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                                            </button>
+                                            <button onClick={() => regenKey(k.id)}
+                                                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${isDark ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                                                Regenerate
+                                            </button>
+                                            <button onClick={() => deleteKey(k.id)}
+                                                className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>
+                                                Hapus
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Usage Info */}
+                        <div className={`mt-4 p-3 rounded-xl ${isDark ? 'bg-white/[0.02] border border-white/[0.06]' : 'bg-gray-50 border border-gray-200'}`}>
+                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cara pakai di OpenCode / Cursor:</p>
+                            <div className={`mt-2 p-2 rounded-lg font-mono text-[11px] ${isDark ? 'bg-black/30 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                Base URL: https://api.ultrai.id/v1<br/>
+                                API Key: ultrai-xxxxxxxxxx
+                            </div>
                         </div>
                     </div>
                 </div>
