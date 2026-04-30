@@ -60,8 +60,6 @@ export function AuthProvider({ children }) {
             });
         } catch {}
         setUser(null);
-        // Use full page reload to get fresh CSRF token
-        window.location.replace('/login');
     };
 
     return (

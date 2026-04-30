@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\ApiKey;
+use App\Models\UserDevice;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -48,6 +49,16 @@ class VerifyApiKey
 
         // Record usage
         $apiKey->recordUsage();
+
+        // Track device for non-admin users
+        if (!$user->isAdmin()) {
+            $device = UserDevice::trackDevice($user->id, $request, 2);
+            if ($device === null) {
+                return response()->json([
+                    'error' => ['message' => 'Device limit reached (max 2). Contact admin.', 'type' => 'device_limit_error']
+                ], 403);
+            }
+        }
 
         // Store user & apiKey for downstream use
         $request->merge(['_api_user' => $user, '_api_key' => $apiKey]);
