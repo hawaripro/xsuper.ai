@@ -42,8 +42,14 @@ class AiProxyService
                     $allowedTiers = ['Standard', 'MAX'];
                 }
 
+                $allowedCategories = ['chat'];
+                if (in_array('Canva', $allowedTiers)) {
+                    $allowedCategories[] = 'image';
+                    $allowedCategories[] = 'canva';
+                }
+
                 return collect($data['data'] ?? [])
-                    ->filter(fn($m) => ($m['category'] ?? '') === 'chat')
+                    ->filter(fn($m) => in_array($m['category'] ?? '', $allowedCategories))
                     ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
