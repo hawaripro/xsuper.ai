@@ -446,7 +446,7 @@ export default function ChatFullPage() {
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [input, setInput] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
-    const [showSidebar, setShowSidebar] = useState(true);
+    const [showSidebar, setShowSidebar] = useState(false); // hidden by default on mobile
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
@@ -659,7 +659,7 @@ export default function ChatFullPage() {
     }, [models]);
 
     return (
-        <div className={`h-screen flex ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+        <div className={`h-screen flex ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`} style={{ fontSize: '90%' }}>
             {/* Mobile sidebar overlay */}
             {showSidebar && (
                 <div
@@ -852,8 +852,8 @@ export default function ChatFullPage() {
                 {/* Messages Area */}
                 <div className={`flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6 scrollbar-thin ${isDark ? '' : 'bg-gray-50/50'}`}>
                     {messages.length === 0 ? (
-                        /* Welcome Screen — starts from top, not vertically centered */
-                        <div className="flex flex-col items-center text-center px-2 sm:px-4 pt-6 sm:pt-12 pb-4">
+                        /* Welcome Screen — centered on desktop, starts from top on mobile */
+                        <div className="flex flex-col items-center text-center px-2 sm:px-4 pt-6 lg:pt-0 pb-4 lg:justify-center lg:min-h-full">
                             {/* Animated Logo */}
                             <div className="mb-6 sm:mb-8 relative">
                                 <div className={`absolute inset-0 w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-gradient-to-br ${catCfg.gradient} opacity-20 blur-xl animate-pulse`} />

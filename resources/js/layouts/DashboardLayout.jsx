@@ -96,7 +96,7 @@ export default function DashboardLayout({ children }) {
     const isActive = (href) => location.pathname === href;
 
     return (
-        <div className={`min-h-screen flex ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+        <div className={`min-h-screen flex ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`} style={{ fontSize: '90%' }}>
             {/* Mobile overlay */}
             {sidebarOpen && (
                 <div
