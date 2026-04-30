@@ -8,11 +8,16 @@ use Illuminate\Support\Facades\DB;
 
 class ImportUsageHistory extends Command
 {
-    protected $signature = 'usage:import';
+    protected $signature = 'usage:import {--fresh : Clear existing usage_logs before import}';
     protected $description = 'Import chat history into usage_logs table';
 
     public function handle()
     {
+        if ($this->option('fresh')) {
+            DB::table('usage_logs')->truncate();
+            $this->info('Cleared existing usage_logs.');
+        }
+
         $this->info('Importing chat history to usage_logs...');
 
         $messages = DB::table('chat_history')

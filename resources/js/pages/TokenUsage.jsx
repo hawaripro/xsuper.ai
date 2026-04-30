@@ -66,7 +66,11 @@ export default function TokenUsage() {
         } catch {} finally { setLoading(false); }
     }, [period]);
 
-    useEffect(() => { loadStats(); }, [loadStats]);
+    useEffect(() => {
+        loadStats();
+        const interval = setInterval(loadStats, 10000); // Auto-refresh every 10s
+        return () => clearInterval(interval);
+    }, [loadStats]);
 
     const loadUserStats = async (userId) => {
         setSelectedUser(userId);

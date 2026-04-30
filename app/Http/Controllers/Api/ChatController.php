@@ -88,15 +88,20 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
                         'created_at' => now(),
                     ]);
                 }
-                // Log usage estimate (streaming doesn't return exact tokens)
-                $promptTokens = (int) (mb_strlen(implode(' ', array_column($user->chatMessages ?? [], 'content'))) / 4);
-                $completionTokens = (int) (mb_strlen($fullResponse) / 4);
-                UsageLog::record($user->id, $model, [
-                    'prompt_tokens' => $promptTokens,
-                    'completion_tokens' => $completionTokens,
-                    'total_tokens' => $promptTokens + $completionTokens,
-                    'credit' => round(($promptTokens + $completionTokens) / 1000 * 0.01, 4),
-                ], 'web');
+                // Log usage
+                $completionTokens = max(1, (int) (mb_strlen($fullResponse) / 4));
+                $promptTokens = max(1, (int) ($completionTokens * 0.5));
+                $totalTokens = $promptTokens + $completionTokens;
+                try {
+                    UsageLog::record($user->id, $model, [
+                        'prompt_tokens' => $promptTokens,
+                        'completion_tokens' => $completionTokens,
+                        'total_tokens' => $totalTokens,
+                        'credit' => round($totalTokens / 1000 * 0.01, 4),
+                    ], 'web');
+                } catch (\Exception $e) {
+                    \Log::error('Usage log failed: ' . $e->getMessage());
+                }
             }
         );
     }
