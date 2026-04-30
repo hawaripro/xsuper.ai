@@ -62,7 +62,11 @@ export default function AdminUsers() {
         }
     }, []);
 
-    useEffect(() => { fetchUsers(); }, [fetchUsers]);
+    useEffect(() => {
+        fetchUsers();
+        const interval = setInterval(fetchUsers, 5000); // Auto-refresh every 5s
+        return () => clearInterval(interval);
+    }, [fetchUsers]);
 
     const openCreate = () => {
         setEditUser(null);
@@ -197,13 +201,24 @@ export default function AdminUsers() {
     };
 
     // Device functions
-    const openDeviceModal = async (u) => {
-        setDeviceModal(u);
+    const loadDevices = async (userId) => {
         try {
-            const res = await fetch(`/api/d/list?user_id=${u.id}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+            const res = await fetch(`/api/d/list?user_id=${userId}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
             if (res.ok) { const d = await res.json(); setDevices(d.devices || []); }
         } catch {}
     };
+
+    const openDeviceModal = async (u) => {
+        setDeviceModal(u);
+        loadDevices(u.id);
+    };
+
+    // Auto-refresh devices when modal is open
+    useEffect(() => {
+        if (!deviceModal) return;
+        const interval = setInterval(() => loadDevices(deviceModal.id), 3000);
+        return () => clearInterval(interval);
+    }, [deviceModal]);
 
     const updateDeviceStatus = async (deviceId, status) => {
         try {
@@ -212,7 +227,7 @@ export default function AdminUsers() {
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
                 body: JSON.stringify({ status }),
             });
-            openDeviceModal(deviceModal);
+            if (deviceModal) loadDevices(deviceModal.id);
         } catch {}
     };
 
@@ -222,7 +237,7 @@ export default function AdminUsers() {
                 method: 'DELETE', credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
             });
-            openDeviceModal(deviceModal);
+            if (deviceModal) loadDevices(deviceModal.id);
         } catch {}
     };
 

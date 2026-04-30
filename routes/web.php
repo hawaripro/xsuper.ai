@@ -45,8 +45,8 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
 
-    // Protected routes
-    Route::middleware('auth')->group(function () {
+    // Protected routes — track device on ALL authenticated requests
+    Route::middleware(['auth', 'track.device'])->group(function () {
         // Profile
         Route::get('/u/me', function (Request $request) {
             $u = $request->user();
@@ -55,8 +55,8 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
 
-        // Chat (check expiry + track device)
-        Route::middleware(['check.expiry', 'track.device'])->group(function () {
+        // Chat (check expiry)
+        Route::middleware('check.expiry')->group(function () {
             Route::get('/c/m', [ChatController::class, 'models']);
             Route::post('/c/s', [ChatController::class, 'send']);
             Route::get('/c/h', [ChatController::class, 'history']);
