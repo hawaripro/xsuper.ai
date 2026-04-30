@@ -248,7 +248,7 @@ class AiProxyService
     private function scrubText(string $text): string
     {
         return str_ireplace(
-            ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX'],
+            ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX', 'enowxlabs', 'EnowXLabs', 'ENOWXLABS'],
             'UltrAI',
             $text
         );
