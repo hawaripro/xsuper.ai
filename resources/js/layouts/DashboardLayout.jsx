@@ -69,10 +69,14 @@ export default function DashboardLayout({ children }) {
     const isDark = theme === 'dark';
     const isAdmin = user?.role === 'admin';
 
+    const perms = user?.permissions || {};
+    const hasChat = isAdmin || (perms.chat !== false);
+    const hasVideo = isAdmin || (perms.video_generator === true);
+
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: Icons.dashboard },
-        { name: 'Chat AI', href: '/chat', icon: Icons.chat },
-        { name: 'Video Generator', href: '/video', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg> },
+        ...(hasChat ? [{ name: 'Chat AI', href: '/chat', icon: Icons.chat }] : []),
+        ...(hasVideo ? [{ name: 'Video Generator', href: '/video', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg> }] : []),
         ...(isAdmin ? [
             { name: 'Kelola Users', href: '/admin', icon: Icons.users },
             { name: 'Token Usage', href: '/usage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg> },

@@ -19,7 +19,7 @@ import TokenUsage from './pages/TokenUsage';
 import DashboardLayout from './layouts/DashboardLayout';
 
 // Protected Route wrapper
-function ProtectedRoute({ children, adminOnly = false }) {
+function ProtectedRoute({ children, adminOnly = false, permission = null }) {
     const { user, loading } = useAuth();
 
     if (loading) {
@@ -35,6 +35,12 @@ function ProtectedRoute({ children, adminOnly = false }) {
 
     if (!user) return <Navigate to="/login" replace />;
     if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+
+    // Check specific permission (admin always has access)
+    if (permission && user.role !== 'admin') {
+        const perms = user.permissions || {};
+        if (!perms[permission]) return <Navigate to="/dashboard" replace />;
+    }
 
     return children;
 }
@@ -65,7 +71,7 @@ function App() {
 
                     {/* Protected - Full Page (no dashboard layout) */}
                     <Route path="/chat" element={
-                        <ProtectedRoute><ChatFullPage /></ProtectedRoute>
+                        <ProtectedRoute permission="chat"><ChatFullPage /></ProtectedRoute>
                     } />
 
                     {/* Protected - Dashboard Layout */}
@@ -76,7 +82,7 @@ function App() {
                         <ProtectedRoute><DashboardLayout><Profile /></DashboardLayout></ProtectedRoute>
                     } />
                     <Route path="/video" element={
-                        <ProtectedRoute><DashboardLayout><VideoGenerator /></DashboardLayout></ProtectedRoute>
+                        <ProtectedRoute permission="video_generator"><DashboardLayout><VideoGenerator /></DashboardLayout></ProtectedRoute>
                     } />
 
                     {/* Admin Only */}

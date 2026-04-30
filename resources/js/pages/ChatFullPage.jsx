@@ -265,14 +265,6 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
     const currentModel = models.find(m => m.id === selectedModel);
     const currentCatCfg = CATEGORY_CONFIG[currentModel?.category] || CATEGORY_CONFIG.chat;
 
-    // Close dropdown on scroll (prevents misalignment)
-    useEffect(() => {
-        if (!open) return;
-        const handler = () => setOpen(false);
-        window.addEventListener('scroll', handler, true);
-        return () => window.removeEventListener('scroll', handler, true);
-    }, [open]);
-
     return (
         <div className="relative" ref={dropdownRef}>
             {/* Trigger Button — compact on mobile */}
@@ -302,12 +294,12 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                 </svg>
             </button>
 
-            {/* Dropdown — absolute, left-aligned to trigger, z-[999] above everything */}
+            {/* Dropdown — left-aligned to trigger button, scrollable inside */}
             {open && (
                 <>
-                    {/* Invisible backdrop to catch clicks on mobile */}
+                    {/* Invisible backdrop to catch outside clicks */}
                     <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
-                    <div className={`absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] sm:w-[380px] max-h-[min(480px,70vh)] rounded-2xl border shadow-2xl z-[999] overflow-hidden ${
+                    <div className={`absolute top-full left-0 mt-1.5 min-w-[300px] sm:min-w-[360px] w-max max-w-[calc(100vw-1.5rem)] max-h-[min(480px,70vh)] rounded-xl sm:rounded-2xl border shadow-2xl z-[999] flex flex-col ${
                         isDark
                             ? 'bg-gray-900 border-white/[0.08] shadow-black/50'
                             : 'bg-white border-gray-200 shadow-gray-200/50'
@@ -369,8 +361,8 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                             })}
                         </div>
 
-                        {/* Model List */}
-                        <div className="overflow-y-auto max-h-[min(340px,50vh)] p-1.5 sm:p-2 scrollbar-thin">
+                        {/* Model List — scrollable */}
+                        <div className="overflow-y-auto flex-1 p-1.5 sm:p-2 scrollbar-thin" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
                             {Object.keys(groupedModels).length === 0 ? (
                                 <div className={`text-center py-8 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     Tidak ada model ditemukan

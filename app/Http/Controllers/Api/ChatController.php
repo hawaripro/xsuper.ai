@@ -52,17 +52,34 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
 
     /**
      * Get ALL models across all categories (chat, image, video, audio)
-     * Used by the full-page chat UI
+     * Used by the full-page chat UI — respects ALL permissions
      */
     public function allModels(Request $request)
     {
         $user = $request->user();
         $allowedTiers = $user->getAllowedTiers();
+        $permissions = $user->getPermissions();
         $models = $this->aiProxy->getAllModelsFiltered($allowedTiers);
+
+        // Filter by category permissions
+        $models = array_values(array_filter($models, function ($model) use ($permissions) {
+            $category = $model['category'] ?? 'chat';
+
+            // Chat permission controls chat category
+            if ($category === 'chat' && !($permissions['chat'] ?? true)) {
+                return false;
+            }
+            // Video generator permission controls video category
+            if ($category === 'video' && !($permissions['video_generator'] ?? false)) {
+                return false;
+            }
+            // Image/audio follow the tier permission (already filtered above)
+            return true;
+        }));
 
         return response()->json([
             'models' => $models,
-            'permissions' => $user->getPermissions(),
+            'permissions' => $permissions,
         ]);
     }
 
@@ -79,6 +96,19 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         $user = Auth::user();
         $model = $request->input('model', 'auto');
         $messages = $request->input('messages');
+
+        // Verify user has permission for the selected model
+        if (!$user->isAdmin()) {
+            $allowedTiers = $user->getAllowedTiers();
+            $allowedModels = $this->aiProxy->getAllModelsFiltered($allowedTiers);
+            $allowedModelIds = array_column($allowedModels, 'id');
+            if (!in_array($model, $allowedModelIds) && $model !== 'auto') {
+                return response()->json([
+                    'message' => 'Anda tidak memiliki akses ke model ini.',
+                    'forbidden' => true,
+                ], 403);
+            }
+        }
         $conversationId = $request->input('conversation_id');
 
         $lastMsg = end($messages);
