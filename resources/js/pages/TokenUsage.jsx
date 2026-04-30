@@ -58,17 +58,20 @@ export default function TokenUsage() {
     const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)';
     const axisColor = isDark ? '#6b7280' : '#9ca3af';
 
-    const loadStats = useCallback(async () => {
-        setLoading(true);
+    const loadStats = useCallback(async (isInitial = false) => {
+        if (isInitial) setLoading(true);
         try {
             const res = await fetch(`/api/usage?period=${period}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
-            if (res.ok) setStats(await res.json());
-        } catch {} finally { setLoading(false); }
+            if (res.ok) {
+                const data = await res.json();
+                setStats(data);
+            }
+        } catch {} finally { if (isInitial) setLoading(false); }
     }, [period]);
 
     useEffect(() => {
-        loadStats();
-        const interval = setInterval(loadStats, 10000); // Auto-refresh every 10s
+        loadStats(true);
+        const interval = setInterval(() => loadStats(false), 2000); // Auto-refresh every 2s
         return () => clearInterval(interval);
     }, [loadStats]);
 
@@ -124,8 +127,8 @@ export default function TokenUsage() {
     };
 
     const rawModelTimeline = stats?.model_timeline || { data: [], models: [] };
-    const modelTimeline = fillTimeline(rawModelTimeline.data, rawModelTimeline.models);
-    const filledTimeline = fillTimeline(stats?.timeline || [], []).data;
+    const modelTimeline = React.useMemo(() => fillTimeline(rawModelTimeline.data, rawModelTimeline.models), [rawModelTimeline.data, rawModelTimeline.models, period]);
+    const filledTimeline = React.useMemo(() => fillTimeline(stats?.timeline || [], []).data, [stats?.timeline, period]);
     const maxModel = Math.max(...(stats?.by_model || []).map(x => Number(x.tokens)), 1);
 
     return (
