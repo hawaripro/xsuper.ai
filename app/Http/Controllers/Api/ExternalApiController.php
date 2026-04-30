@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\AiProxyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExternalApiController extends Controller
 {
@@ -75,81 +74,8 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         $proxyUrl = rtrim(config('services.ai_proxy.url', env('AI_PROXY_URL', env('ENOWX_API_URL'))), '/');
         $proxyKey = config('services.ai_proxy.key', env('AI_PROXY_KEY', env('ENOWX_API_KEY')));
         $messages = $this->injectSystemPrompt($validated['messages']);
-        $isStream = $validated['stream'] ?? false;
 
-        if ($isStream) {
-            return new StreamedResponse(function () use ($validated, $messages, $proxyUrl, $proxyKey) {
-                // Step 1: Collect full response from proxy
-                $ch = curl_init();
-                $fullContent = '';
-                $lastJson = null;
-                $allChunks = [];
-
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $proxyUrl . '/v1/chat/completions',
-                    CURLOPT_POST => true,
-                    CURLOPT_POSTFIELDS => json_encode(['model' => $validated['model'], 'messages' => $messages, 'stream' => true]),
-                    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $proxyKey, 'Content-Type: application/json', 'Accept: text/event-stream'],
-                    CURLOPT_RETURNTRANSFER => false,
-                    CURLOPT_TIMEOUT => 120,
-                    CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullContent, &$lastJson, &$allChunks) {
-                        $lines = explode("\n", $data);
-                        foreach ($lines as $line) {
-                            $line = trim($line);
-                            if (str_starts_with($line, 'data: ') && $line !== 'data: [DONE]') {
-                                $json = json_decode(substr($line, 6), true);
-                                if ($json) {
-                                    $lastJson = $json;
-                                    $content = $json['choices'][0]['delta']['content'] ?? '';
-                                    $fullContent .= $content;
-                                    $allChunks[] = $json;
-                                }
-                            }
-                        }
-                        return strlen($data);
-                    },
-                ]);
-                curl_exec($ch);
-                curl_close($ch);
-
-                // Step 2: Deep clean the full content
-                $cleanContent = self::deepClean($fullContent);
-
-                // Step 3: Re-stream the cleaned content as SSE chunks
-                $id = $lastJson['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(12));
-                $model = self::clean($lastJson['model'] ?? $validated['model']);
-
-                // Send cleaned content in chunks
-                $words = preg_split('/([\s])/', $cleanContent, -1, PREG_SPLIT_DELIM_CAPTURE);
-                foreach ($words as $word) {
-                    $chunk = [
-                        'id' => $id,
-                        'object' => 'chat.completion.chunk',
-                        'created' => time(),
-                        'model' => $model,
-                        'choices' => [['index' => 0, 'delta' => ['content' => $word], 'finish_reason' => null]],
-                    ];
-                    echo 'data: ' . json_encode($chunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
-                    if (ob_get_level()) ob_flush();
-                    flush();
-                }
-
-                // Send finish
-                $finish = [
-                    'id' => $id,
-                    'object' => 'chat.completion.chunk',
-                    'created' => time(),
-                    'model' => $model,
-                    'choices' => [['index' => 0, 'delta' => [], 'finish_reason' => 'stop']],
-                ];
-                echo 'data: ' . json_encode($finish, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
-                echo "data: [DONE]\n\n";
-                if (ob_get_level()) ob_flush();
-                flush();
-            }, 200, ['Content-Type' => 'text/event-stream', 'Cache-Control' => 'no-cache', 'Connection' => 'keep-alive', 'X-Accel-Buffering' => 'no']);
-        }
-
-        // Non-streaming
+        // Always use non-streaming to proxy (for security scrub)
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $proxyKey,
             'Content-Type' => 'application/json',
@@ -159,7 +85,6 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             'stream' => false,
         ]);
 
-        // Decode, scrub content, re-encode
         $data = json_decode($response->body(), true);
         if ($data && isset($data['choices'])) {
             foreach ($data['choices'] as &$choice) {
@@ -192,32 +117,22 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
      */
     public static function clean(string $text): string
     {
-        // Order matters: longest match first
         $text = preg_replace('/enowx\s*labs\s*chat\s*ui/i', 'UltrAI', $text);
         $text = preg_replace('/enowx\s*labs/i', 'UltrAI', $text);
         $text = preg_replace('/enowx\s*ai/i', 'UltrAI', $text);
         $text = preg_replace('/enowx/i', 'UltrAI', $text);
-
-        // "UltrAI Labs" → "UltrAI" (after enowx replacement)
         $text = preg_replace('/UltrAI\s*Labs/i', 'UltrAI', $text);
-
-        // Any standalone "Labs" near UltrAI
-        $text = preg_replace('/UltrAI\s*\bLabs\b/i', 'UltrAI', $text);
-        $text = preg_replace('/\bLabs\b\s*UltrAI/i', 'UltrAI', $text);
-
+        $text = preg_replace('/\bLabs\b/', '', $text);
         return $text;
     }
 
     /**
-     * Deep clean — for full response content (non-streaming)
-     * Removes entire lines that contain dangerous keywords
+     * Deep clean — remove entire lines with dangerous keywords
      */
     public static function deepClean(string $text): string
     {
-        // First do quick clean
         $text = self::clean($text);
 
-        // Split into lines, filter dangerous ones
         $lines = explode("\n", $text);
         $result = [];
         $dangerWords = [
@@ -228,21 +143,26 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             'identitas inti', 'identitas asli', 'tidak menggantikan',
             'tidak meng-override', 'harus menyebut', 'tidak boleh mengarang',
             'diminta untuk', 'diminta agar', 'diminta supaya',
-            'Analoginya', 'Netflix', 'dealer', 'showroom',
+            'analoginya', 'netflix', 'dealer', 'showroom',
+            'meng-host', 'di-host',
         ];
 
         foreach ($lines as $line) {
             $lower = mb_strtolower($line);
             $skip = false;
             foreach ($dangerWords as $word) {
-                if (str_contains($lower, mb_strtolower($word))) {
+                if (str_contains($lower, $word)) {
                     $skip = true;
                     break;
                 }
             }
-            // Also skip checkmark lines about dangerous topics
-            if (preg_match('/[✅❌]/', $line) && $skip) {
-                continue;
+            if (preg_match('/[✅❌]/', $line)) {
+                foreach ($dangerWords as $word) {
+                    if (str_contains($lower, $word)) {
+                        $skip = true;
+                        break;
+                    }
+                }
             }
             if (!$skip) {
                 $result[] = $line;
@@ -250,15 +170,9 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         }
 
         $text = implode("\n", $result);
-
-        // Clean empty markdown headers
         $text = preg_replace('/##\s*\n/', '', $text);
         $text = preg_replace('/\*\*\s*\*\*/', '', $text);
-
-        // Clean multiple empty lines
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
-
-        // Final catch — run clean() again on entire result
         $text = self::clean($text);
 
         return trim($text);
