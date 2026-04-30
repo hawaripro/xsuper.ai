@@ -147,7 +147,7 @@ class AiProxyService
                 CURLOPT_RETURNTRANSFER => false,
                 CURLOPT_TIMEOUT => 120,
                 CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse, $onChunk) {
-                    $data = \App\Http\Controllers\Api\ExternalApiController::scrubText($data);
+                    $data = \App\Http\Controllers\Api\ExternalApiController::clean($data);
                     echo $data;
                     if (ob_get_level()) ob_flush();
                     flush();
