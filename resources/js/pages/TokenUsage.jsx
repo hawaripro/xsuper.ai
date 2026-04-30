@@ -163,7 +163,7 @@ export default function TokenUsage() {
                                         <Tooltip content={<CustomTooltip isDark={isDark} />} />
                                         <Legend wrapperStyle={{ fontSize: 10 }} />
                                         {modelTimeline.models.map((m, i) => (
-                                            <Area key={m} type="monotone" dataKey={m} stackId="1" stroke={COLORS[i % COLORS.length]} fill={`url(#grad-${i})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2 }} animationDuration={1000} animationBegin={i * 100} />
+                                            <Area key={m} type="natural" dataKey={m} stackId="1" stroke={COLORS[i % COLORS.length]} fill={`url(#grad-${i})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2 }} animationDuration={1000} animationBegin={i * 100} />
                                         ))}
                                     </AreaChart>
                                 ) : (
@@ -202,7 +202,7 @@ export default function TokenUsage() {
                                         <XAxis dataKey="label" tick={{ fontSize: 9, fill: axisColor }} />
                                         <YAxis tick={{ fontSize: 9, fill: axisColor }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
                                         <Tooltip content={<CustomTooltip isDark={isDark} />} />
-                                        <Area type="monotone" dataKey="tokens" name="Tokens" stroke="#10b981" fill="url(#gradTotal)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#10b981' }} animationDuration={1200} />
+                                        <Area type="natural" dataKey="tokens" name="Tokens" stroke="#10b981" fill="url(#gradTotal)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#10b981' }} animationDuration={1200} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
@@ -314,7 +314,7 @@ export default function TokenUsage() {
                                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: axisColor }} />
                                     <YAxis tick={{ fontSize: 9, fill: axisColor }} />
                                     <Tooltip content={<CustomTooltip isDark={isDark} />} />
-                                    <Area type="monotone" dataKey="tokens" name="Tokens" stroke="#ef4444" fill="url(#gradUser)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#ef4444' }} animationDuration={1000} />
+                                    <Area type="natural" dataKey="tokens" name="Tokens" stroke="#ef4444" fill="url(#gradUser)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#ef4444' }} animationDuration={1000} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
@@ -346,3 +346,4 @@ export default function TokenUsage() {
         </div>
     );
 }
+
