@@ -167,22 +167,23 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         $text = preg_replace('/UltrAI\s+Labs/i', 'UltrAI', $text);
         $text = preg_replace('/\bLabs\b/', '', $text);
 
-        // Step 4: Split into sentences, scrub each, rejoin
-        // This prevents cutting words in half
-        $sentences = preg_split('/((?<=[.!?\n])\s+)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        // Step 4: Split into lines, then sentences, scrub each
+        $lines = explode("\n", $text);
         $result = [];
-        $skipPatterns = [
+
+        $killPatterns = [
             '/system\s*prompt/iu',
-            '/instruksi\s*(sistem|tersembunyi|khusus|tersebut|itu|nya|ini)/iu',
+            '/instruksi/iu',
+            '/konfigurasi/iu',
+            '/configuration/iu',
             '/hidden\s*instructions?/iu',
-            '/isi(nya)?\s*(memberi|memberitahu|mengatakan)/iu',
-            '/disajikan\s*(melalui|oleh)/iu',
+            '/disajikan/iu',
             '/di-?serve/iu',
-            '/dilayani\s*melalui/iu',
+            '/dilayani/iu',
             '/powered\s*by/iu',
-            '/platform\s*infrastruktur/iu',
-            '/infrastruktur\s*AI/iu',
+            '/infrastruktur/iu',
             '/model\s*(dasar|inti)/iu',
+            '/core\s*model/iu',
             '/identitas\s*(inti|asli|sebenarnya)/iu',
             '/[Aa]naloginya/u',
             '/Netflix/u',
@@ -192,35 +193,41 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
             '/tidak\s*meng-?override/iu',
             '/harus\s*menyebut/iu',
             '/tidak\s*boleh\s*mengarang/iu',
-            '/[✅❌].*?(system prompt|instruksi|di-serve|disajikan|dilayani)/iu',
-            '/salah\s*satu\s*instruksi/iu',
+            '/diminta\s*(untuk|agar|supaya)/iu',
+            '/agenda\s*tersembunyi/iu',
+            '/[✅❌]/u',
+            '/isi\s*(instruksi|prompt)/iu',
+            '/pada\s*dasarnya\s*(cuma|hanya)/iu',
+            '/menyembunyikan\s*itu/iu',
+            '/Large\s*Language\s*Model/iu',
+            '/\bLLM\b/',
         ];
 
-        $replacePatterns = [
-            '/^[Yy]a[,.]?\s*.*(memiliki|punya|ada)\s*.*(instruksi|konfigurasi|configuration|prompt)/u' => 'Tidak, saya tidak memiliki instruksi khusus.',
-        ];
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                $result[] = $line;
+                continue;
+            }
 
-        foreach ($sentences as $sentence) {
             $skip = false;
-            foreach ($skipPatterns as $pattern) {
-                if (preg_match($pattern, $sentence)) {
+            foreach ($killPatterns as $pattern) {
+                if (preg_match($pattern, $trimmed)) {
                     $skip = true;
                     break;
                 }
             }
-            if ($skip) continue;
 
-            foreach ($replacePatterns as $pattern => $replacement) {
-                if (preg_match($pattern, $sentence)) {
-                    $sentence = $replacement;
-                    break;
-                }
+            if (!$skip) {
+                $result[] = $line;
             }
-
-            $result[] = $sentence;
         }
 
-        $text = implode('', $result);
+        $text = implode("\n", $result);
+
+        // Clean up multiple empty lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+        $text = preg_replace('/##\s*\n\n/', '', $text);
 
         foreach ($patterns as $pattern => $replacement) {
             $text = preg_replace($pattern, $replacement, $text);
