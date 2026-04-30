@@ -76,7 +76,52 @@ export default function TokenUsage() {
         } catch {}
     };
 
-    const modelTimeline = stats?.model_timeline || { data: [], models: [] };
+    // Fill gaps — ensure all time slots exist (even with 0 values)
+    const fillTimeline = (data, models) => {
+        if (!data || data.length === 0) return { data: [], models: models || [] };
+
+        if (period === 'hourly') {
+            // Fill 24 hours (00:00 to 23:00)
+            const map = {};
+            data.forEach(d => { map[d.label] = d; });
+            const filled = [];
+            for (let h = 0; h < 24; h++) {
+                const label = String(h).padStart(2, '0') + ':00';
+                const existing = map[label] || {};
+                const entry = { label };
+                (models || []).forEach(m => { entry[m] = existing[m] || 0; });
+                entry.tokens = existing.tokens || 0;
+                entry.requests = existing.requests || 0;
+                filled.push(entry);
+            }
+            return { data: filled, models: models || [] };
+        }
+
+        if (period === 'daily') {
+            // Fill 30 days
+            const map = {};
+            data.forEach(d => { map[d.label] = d; });
+            const filled = [];
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const label = String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+                const existing = map[label] || {};
+                const entry = { label };
+                (models || []).forEach(m => { entry[m] = existing[m] || 0; });
+                entry.tokens = existing.tokens || 0;
+                entry.requests = existing.requests || 0;
+                filled.push(entry);
+            }
+            return { data: filled, models: models || [] };
+        }
+
+        return { data, models: models || [] };
+    };
+
+    const rawModelTimeline = stats?.model_timeline || { data: [], models: [] };
+    const modelTimeline = fillTimeline(rawModelTimeline.data, rawModelTimeline.models);
+    const filledTimeline = fillTimeline(stats?.timeline || [], []).data;
     const maxModel = Math.max(...(stats?.by_model || []).map(x => Number(x.tokens)), 1);
 
     return (
@@ -163,7 +208,7 @@ export default function TokenUsage() {
                                         <Tooltip content={<CustomTooltip isDark={isDark} />} />
                                         <Legend wrapperStyle={{ fontSize: 10 }} />
                                         {modelTimeline.models.map((m, i) => (
-                                            <Area key={m} type="natural" dataKey={m} stackId="1" stroke={COLORS[i % COLORS.length]} fill={`url(#grad-${i})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2 }} animationDuration={1000} animationBegin={i * 100} />
+                                            <Area key={m} type="monotone" dataKey={m} stackId="1" stroke={COLORS[i % COLORS.length]} fill={`url(#grad-${i})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2 }} animationDuration={1000} animationBegin={i * 100} />
                                         ))}
                                     </AreaChart>
                                 ) : (
@@ -191,7 +236,7 @@ export default function TokenUsage() {
                             </h3>
                             <div style={{ width: '100%', height: 200 }}>
                                 <ResponsiveContainer>
-                                    <AreaChart data={stats?.timeline || []}>
+                                    <AreaChart data={filledTimeline}>
                                         <defs>
                                             <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -202,7 +247,7 @@ export default function TokenUsage() {
                                         <XAxis dataKey="label" tick={{ fontSize: 9, fill: axisColor }} />
                                         <YAxis tick={{ fontSize: 9, fill: axisColor }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
                                         <Tooltip content={<CustomTooltip isDark={isDark} />} />
-                                        <Area type="natural" dataKey="tokens" name="Tokens" stroke="#10b981" fill="url(#gradTotal)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#10b981' }} animationDuration={1200} />
+                                        <Area type="monotone" dataKey="tokens" name="Tokens" stroke="#10b981" fill="url(#gradTotal)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#10b981' }} animationDuration={1200} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
@@ -314,7 +359,7 @@ export default function TokenUsage() {
                                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: axisColor }} />
                                     <YAxis tick={{ fontSize: 9, fill: axisColor }} />
                                     <Tooltip content={<CustomTooltip isDark={isDark} />} />
-                                    <Area type="natural" dataKey="tokens" name="Tokens" stroke="#ef4444" fill="url(#gradUser)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#ef4444' }} animationDuration={1000} />
+                                    <Area type="monotone" dataKey="tokens" name="Tokens" stroke="#ef4444" fill="url(#gradUser)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#ef4444' }} animationDuration={1000} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
