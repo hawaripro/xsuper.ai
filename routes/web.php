@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\VideoController;
 use App\Http\Controllers\Api\TokenController;
+use App\Http\Controllers\Api\ApiKeyController;
+use App\Http\Controllers\Api\ExternalApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -77,6 +79,13 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::middleware('admin')->group(function () {
             // Admin: topup tokens
             Route::post('/t/topup', [TokenController::class, 'topup']);
+
+            // Admin: API key management
+            Route::get('/k/list', [ApiKeyController::class, 'index']);
+            Route::post('/k/create', [ApiKeyController::class, 'store']);
+            Route::post('/k/toggle/{apiKey}', [ApiKeyController::class, 'toggle']);
+            Route::post('/k/regen/{apiKey}', [ApiKeyController::class, 'regenerate']);
+            Route::delete('/k/{apiKey}', [ApiKeyController::class, 'destroy']);
             // AI Status (admin only)
             Route::get('/s/info', function () {
                 $aiProxy = app(\App\Services\AiProxyService::class);
@@ -90,6 +99,13 @@ Route::prefix('api')->middleware('web')->group(function () {
         });
 
     });
+});
+
+// External API — for plugins (OpenCode, Cursor, etc)
+// Authenticated via Bearer token (ultrai-xxx)
+Route::prefix('v1')->middleware(\App\Http\Middleware\VerifyApiKey::class)->group(function () {
+    Route::get('/models', [ExternalApiController::class, 'models']);
+    Route::post('/chat/completions', [ExternalApiController::class, 'chatCompletions']);
 });
 
 // SPA catch-all — must be last
