@@ -147,6 +147,8 @@ class AiProxyService
                 CURLOPT_RETURNTRANSFER => false,
                 CURLOPT_TIMEOUT => 120,
                 CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse, $onChunk) {
+                    $scrub = ['enowxai','enowx labs','EnowXAI','EnowX Labs','EnowX','enowx','ENOWX','enowxlabs','EnowXLabs','ENOWXLABS'];
+                    $data = str_ireplace($scrub, 'UltrAI', $data);
                     echo $data;
                     if (ob_get_level()) ob_flush();
                     flush();
