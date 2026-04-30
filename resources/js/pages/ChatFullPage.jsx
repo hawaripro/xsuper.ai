@@ -137,16 +137,16 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
         : `bg-gradient-to-br ${catCfg.gradient} text-white shadow-lg ${catCfg.glow}`;
 
     return (
-        <div className="flex gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 ${avatarClass}`}>
+        <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0 mt-0.5 ${avatarClass} [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
                 {isUser ? (userName?.[0]?.toUpperCase() || 'U') : catCfg.icon}
             </div>
             <div className="flex-1 min-w-0">
-                <div className={`text-[11px] font-bold uppercase tracking-[0.08em] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                <div className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.08em] mb-1 sm:mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     {isUser ? (userName || 'You') : 'UltrAI'}
                 </div>
                 <div
-                    className={`text-[15px] leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                    className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
                     dangerouslySetInnerHTML={{ __html: formatContent(message.content, isDark) }}
                 />
             </div>
@@ -160,15 +160,15 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
 function TypingIndicator({ isDark, categoryColor }) {
     const catCfg = CATEGORY_CONFIG[categoryColor] || CATEGORY_CONFIG.chat;
     return (
-        <div className="flex gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
-            <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${catCfg.gradient} text-white shadow-lg ${catCfg.glow} flex items-center justify-center text-xs font-bold flex-shrink-0`}>
+        <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br ${catCfg.gradient} text-white shadow-lg ${catCfg.glow} flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
                 {catCfg.icon}
             </div>
             <div className="flex-1">
-                <div className={`text-[11px] font-bold uppercase tracking-[0.08em] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>UltrAI</div>
+                <div className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.08em] mb-1 sm:mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>UltrAI</div>
                 <div className="flex gap-1.5 py-2">
                     {[0, 150, 300].map((delay) => (
-                        <span key={delay} className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-500' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: `${delay}ms` }} />
+                        <span key={delay} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isDark ? 'bg-gray-500' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: `${delay}ms` }} />
                     ))}
                 </div>
             </div>
@@ -265,12 +265,20 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
     const currentModel = models.find(m => m.id === selectedModel);
     const currentCatCfg = CATEGORY_CONFIG[currentModel?.category] || CATEGORY_CONFIG.chat;
 
+    // Close dropdown on scroll (prevents misalignment)
+    useEffect(() => {
+        if (!open) return;
+        const handler = () => setOpen(false);
+        window.addEventListener('scroll', handler, true);
+        return () => window.removeEventListener('scroll', handler, true);
+    }, [open]);
+
     return (
-        <div className="relative z-[60]" ref={dropdownRef}>
-            {/* Trigger Button */}
+        <div className="relative" ref={dropdownRef}>
+            {/* Trigger Button — compact on mobile */}
             <button
                 onClick={() => setOpen(!open)}
-                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl border transition-all duration-200 ${
+                className={`flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl border transition-all duration-200 ${
                     open
                         ? isDark
                             ? 'bg-white/[0.08] border-white/[0.15] text-white'
@@ -280,140 +288,142 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                             : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
                 }`}
             >
-                <span className={`w-6 h-6 rounded-lg bg-gradient-to-br ${currentCatCfg.gradient} flex items-center justify-center text-white`}>
+                <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md sm:rounded-lg bg-gradient-to-br ${currentCatCfg.gradient} flex items-center justify-center text-white [&>svg]:w-3 [&>svg]:h-3 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
                     {currentCatCfg.icon}
                 </span>
-                <span className="text-sm font-semibold truncate max-w-[200px]">
+                <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">
                     {rebrandText(currentModel?.name || currentModel?.id || 'Select Model')}
                 </span>
-                {currentModel?.tier && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${TIER_CONFIG[currentModel.tier]?.bg || ''} ${TIER_CONFIG[currentModel.tier]?.color || ''}`}>
-                        {TIER_CONFIG[currentModel.tier]?.label || currentModel.tier}
-                    </span>
-                )}
-                <svg className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <span className={`hidden sm:inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md ${TIER_CONFIG[currentModel?.tier]?.bg || ''} ${TIER_CONFIG[currentModel?.tier]?.color || ''}`}>
+                    {TIER_CONFIG[currentModel?.tier]?.label || ''}
+                </span>
+                <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform ${open ? 'rotate-180' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <polyline points="6 9 12 15 18 9" />
                 </svg>
             </button>
 
-            {/* Dropdown — fixed position so it renders above everything */}
+            {/* Dropdown — absolute, left-aligned to trigger, z-[999] above everything */}
             {open && (
-                <div className={`fixed left-auto mt-2 w-[380px] max-w-[calc(100vw-2rem)] max-h-[480px] rounded-2xl border shadow-2xl z-[999] overflow-hidden ${
-                    isDark
-                        ? 'bg-gray-900 border-white/[0.08] shadow-black/50'
-                        : 'bg-white border-gray-200 shadow-gray-200/50'
-                }`} style={{ top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + 8 + 'px' : 'auto', left: dropdownRef.current ? Math.min(dropdownRef.current.getBoundingClientRect().left, window.innerWidth - 396) + 'px' : 'auto' }}>
-                    {/* Search */}
-                    <div className={`p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
-                        <div className="relative">
-                            <svg className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                            </svg>
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Cari model..."
-                                autoFocus
-                                className={`w-full pl-9 pr-3 py-2 rounded-xl text-sm border focus:outline-none focus:ring-2 ${
-                                    isDark
-                                        ? 'bg-white/[0.04] border-white/[0.08] text-white placeholder-gray-500 focus:ring-red-500/20 focus:border-red-500/30'
-                                        : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:ring-red-500/20 focus:border-red-500/30'
+                <>
+                    {/* Invisible backdrop to catch clicks on mobile */}
+                    <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
+                    <div className={`absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] sm:w-[380px] max-h-[min(480px,70vh)] rounded-2xl border shadow-2xl z-[999] overflow-hidden ${
+                        isDark
+                            ? 'bg-gray-900 border-white/[0.08] shadow-black/50'
+                            : 'bg-white border-gray-200 shadow-gray-200/50'
+                    }`}>
+                        {/* Search */}
+                        <div className={`p-2.5 sm:p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
+                            <div className="relative">
+                                <svg className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                                <input
+                                    type="text"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Cari model..."
+                                    autoFocus
+                                    className={`w-full pl-9 pr-3 py-2 rounded-xl text-sm border focus:outline-none focus:ring-2 ${
+                                        isDark
+                                            ? 'bg-white/[0.04] border-white/[0.08] text-white placeholder-gray-500 focus:ring-red-500/20 focus:border-red-500/30'
+                                            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:ring-red-500/20 focus:border-red-500/30'
+                                    }`}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Category Tabs */}
+                        <div className={`flex gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 border-b overflow-x-auto scrollbar-thin ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
+                            <button
+                                onClick={() => onCategoryChange('all')}
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
+                                    selectedCategory === 'all'
+                                        ? 'bg-red-500/15 text-red-400 border border-red-500/20'
+                                        : isDark
+                                            ? 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-300'
+                                            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                                 }`}
-                            />
+                            >
+                                All ({models.length})
+                            </button>
+                            {categories.map(cat => {
+                                const cfg = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.chat;
+                                const count = models.filter(m => m.category === cat).length;
+                                return (
+                                    <button
+                                        key={cat}
+                                        onClick={() => onCategoryChange(cat)}
+                                        className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
+                                            selectedCategory === cat
+                                                ? `${cfg.bg} ${cfg.text} border ${cfg.border}`
+                                                : isDark
+                                                    ? 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-300'
+                                                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                                        }`}
+                                    >
+                                        <span className="[&>svg]:w-3 [&>svg]:h-3 sm:[&>svg]:w-4 sm:[&>svg]:h-4">{cfg.icon}</span>
+                                        {cfg.label} ({count})
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Model List */}
+                        <div className="overflow-y-auto max-h-[min(340px,50vh)] p-1.5 sm:p-2 scrollbar-thin">
+                            {Object.keys(groupedModels).length === 0 ? (
+                                <div className={`text-center py-8 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    Tidak ada model ditemukan
+                                </div>
+                            ) : (
+                                Object.entries(groupedModels).map(([tier, tierModels]) => (
+                                    <div key={tier} className="mb-1.5 sm:mb-2 last:mb-0">
+                                        <div className={`flex items-center gap-2 px-2 py-1 sm:py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${TIER_CONFIG[tier]?.bg?.replace('/10', '/40') || 'bg-gray-400'}`} />
+                                            {TIER_CONFIG[tier]?.label || tier}
+                                            <span className={`ml-auto text-[9px] font-medium ${isDark ? 'text-gray-600' : 'text-gray-300'}`}>{tierModels.length}</span>
+                                        </div>
+                                        {tierModels.map(model => {
+                                            const catCfg = CATEGORY_CONFIG[model.category] || CATEGORY_CONFIG.chat;
+                                            const isSelected = model.id === selectedModel;
+                                            return (
+                                                <button
+                                                    key={model.id}
+                                                    onClick={() => { onSelect(model.id); setOpen(false); setSearch(''); }}
+                                                    className={`w-full flex items-center gap-2 sm:gap-2.5 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-left transition-all duration-150 ${
+                                                        isSelected
+                                                            ? isDark
+                                                                ? 'bg-red-500/10 border border-red-500/15 text-white'
+                                                                : 'bg-red-50 border border-red-200 text-gray-900'
+                                                            : isDark
+                                                                ? 'text-gray-300 hover:bg-white/[0.04]'
+                                                                : 'text-gray-700 hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md sm:rounded-lg flex items-center justify-center text-white bg-gradient-to-br ${catCfg.gradient} flex-shrink-0 [&>svg]:w-3 [&>svg]:h-3 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
+                                                        {catCfg.icon}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-xs sm:text-sm font-medium truncate">{rebrandText(model.name || model.id)}</div>
+                                                        <div className={`text-[9px] sm:text-[10px] truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{model.id}</div>
+                                                    </div>
+                                                    <span className={`hidden sm:inline text-[9px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${catCfg.bg} ${catCfg.text}`}>
+                                                        {catCfg.label}
+                                                    </span>
+                                                    {isSelected && (
+                                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
-
-                    {/* Category Tabs */}
-                    <div className={`flex gap-1 px-3 py-2 border-b overflow-x-auto scrollbar-thin ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
-                        <button
-                            onClick={() => onCategoryChange('all')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                                selectedCategory === 'all'
-                                    ? 'bg-red-500/15 text-red-400 border border-red-500/20'
-                                    : isDark
-                                        ? 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-300'
-                                        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                            }`}
-                        >
-                            All ({models.length})
-                        </button>
-                        {categories.map(cat => {
-                            const cfg = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.chat;
-                            const count = models.filter(m => m.category === cat).length;
-                            return (
-                                <button
-                                    key={cat}
-                                    onClick={() => onCategoryChange(cat)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                                        selectedCategory === cat
-                                            ? `${cfg.bg} ${cfg.text} border ${cfg.border}`
-                                            : isDark
-                                                ? 'text-gray-400 hover:bg-white/[0.06] hover:text-gray-300'
-                                                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                                    }`}
-                                >
-                                    {cfg.icon}
-                                    {cfg.label} ({count})
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* Model List */}
-                    <div className="overflow-y-auto max-h-[340px] p-2 scrollbar-thin">
-                        {Object.keys(groupedModels).length === 0 ? (
-                            <div className={`text-center py-8 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                Tidak ada model ditemukan
-                            </div>
-                        ) : (
-                            Object.entries(groupedModels).map(([tier, tierModels]) => (
-                                <div key={tier} className="mb-2 last:mb-0">
-                                    <div className={`flex items-center gap-2 px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${TIER_CONFIG[tier]?.bg?.replace('/10', '/40') || 'bg-gray-400'}`} />
-                                        {TIER_CONFIG[tier]?.label || tier}
-                                        <span className={`ml-auto text-[9px] font-medium ${isDark ? 'text-gray-600' : 'text-gray-300'}`}>{tierModels.length}</span>
-                                    </div>
-                                    {tierModels.map(model => {
-                                        const catCfg = CATEGORY_CONFIG[model.category] || CATEGORY_CONFIG.chat;
-                                        const isSelected = model.id === selectedModel;
-                                        return (
-                                            <button
-                                                key={model.id}
-                                                onClick={() => { onSelect(model.id); setOpen(false); setSearch(''); }}
-                                                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all duration-150 ${
-                                                    isSelected
-                                                        ? isDark
-                                                            ? 'bg-red-500/10 border border-red-500/15 text-white'
-                                                            : 'bg-red-50 border border-red-200 text-gray-900'
-                                                        : isDark
-                                                            ? 'text-gray-300 hover:bg-white/[0.04]'
-                                                            : 'text-gray-700 hover:bg-gray-50'
-                                                }`}
-                                            >
-                                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-white bg-gradient-to-br ${catCfg.gradient} flex-shrink-0`} style={{ fontSize: '10px' }}>
-                                                    {catCfg.icon}
-                                                </span>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium truncate">{rebrandText(model.name || model.id)}</div>
-                                                    <div className={`text-[10px] truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{model.id}</div>
-                                                </div>
-                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${catCfg.bg} ${catCfg.text}`}>
-                                                    {catCfg.label}
-                                                </span>
-                                                {isSelected && (
-                                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                                        <polyline points="20 6 9 17 4 12" />
-                                                    </svg>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
+                </>
             )}
         </div>
     );
@@ -441,10 +451,12 @@ export default function ChatFullPage() {
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
 
-    // Auto-scroll
+    // Auto-scroll — only when there are messages (not on welcome screen)
     const scrollToBottom = useCallback(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, []);
+        if (messages.length > 0) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages.length]);
 
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
@@ -797,14 +809,14 @@ export default function ChatFullPage() {
 
             {/* ===== Main Chat Area ===== */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Chat Header — sticky */}
-                <div className={`sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 border-b backdrop-blur-xl ${
+                {/* Chat Header — sticky, compact on mobile */}
+                <div className={`sticky top-0 z-30 flex items-center justify-between px-2.5 sm:px-4 py-2 sm:py-2.5 border-b backdrop-blur-xl ${
                     isDark ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200 bg-white/90'
                 }`}>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <button
                             onClick={() => setShowSidebar(!showSidebar)}
-                            className={`lg:hidden p-2 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                            className={`lg:hidden p-1.5 sm:p-2 rounded-lg sm:rounded-xl transition-colors flex-shrink-0 ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                         </button>
@@ -819,40 +831,40 @@ export default function ChatFullPage() {
                         />
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                         {/* Category indicator */}
-                        <span className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${catCfg.bg} border ${catCfg.border} ${catCfg.text}`}>
+                        <span className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${catCfg.bg} border ${catCfg.border} ${catCfg.text}`}>
                             {catCfg.icon}
                             {catCfg.label}
                         </span>
 
                         {/* Connected status */}
-                        <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
+                        <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] sm:text-[11px] font-medium text-emerald-400">
                             <span className="relative flex h-1.5 w-1.5">
                                 <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" style={{ animationDuration: '2s' }} />
                                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                             </span>
-                            Online
+                            <span className="hidden sm:inline">Online</span>
                         </span>
                     </div>
                 </div>
 
                 {/* Messages Area */}
-                <div className={`flex-1 overflow-y-auto px-4 py-6 space-y-6 scrollbar-thin ${isDark ? '' : 'bg-gray-50/50'}`}>
+                <div className={`flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6 scrollbar-thin ${isDark ? '' : 'bg-gray-50/50'}`}>
                     {messages.length === 0 ? (
-                        /* Welcome Screen */
-                        <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                        /* Welcome Screen — starts from top, not vertically centered */
+                        <div className="flex flex-col items-center text-center px-2 sm:px-4 pt-6 sm:pt-12 pb-4">
                             {/* Animated Logo */}
-                            <div className="mb-8 relative">
-                                <div className={`absolute inset-0 w-20 h-20 mx-auto rounded-full bg-gradient-to-br ${catCfg.gradient} opacity-20 blur-xl animate-pulse`} />
-                                <div className="relative text-5xl font-black tracking-tight mb-3">
+                            <div className="mb-6 sm:mb-8 relative">
+                                <div className={`absolute inset-0 w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-gradient-to-br ${catCfg.gradient} opacity-20 blur-xl animate-pulse`} />
+                                <div className="relative text-4xl sm:text-5xl font-black tracking-tight mb-2 sm:mb-3">
                                     <span className={isDark ? 'text-white' : 'text-gray-900'}>Ultr</span>
                                     <span className="bg-gradient-to-r from-red-500 to-red-400 bg-clip-text text-transparent">AI</span>
                                 </div>
-                                <div className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                <div className={`text-lg sm:text-xl font-bold mb-1.5 sm:mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     Halo, {user?.name?.split(' ')[0] || 'User'}! Ada yang bisa saya bantu?
                                 </div>
-                                <p className={`text-sm max-w-lg ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <p className={`text-xs sm:text-sm max-w-lg ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     Pilih model AI dari {modelCounts.total || 0}+ model yang tersedia. Chat, generate gambar, video, dan audio — semua dalam satu tempat.
                                 </p>
                             </div>
@@ -862,7 +874,7 @@ export default function ChatFullPage() {
                                 const availableCats = Object.entries(CATEGORY_CONFIG).filter(([cat]) => (modelCounts[cat] || 0) > 0);
                                 const count = availableCats.length;
                                 return (
-                                    <div className="flex flex-wrap justify-center gap-3 max-w-2xl w-full mb-6">
+                                    <div className="flex flex-wrap justify-center gap-2 sm:gap-3 max-w-2xl w-full mb-5 sm:mb-6">
                                         {availableCats.map(([cat, cfg]) => (
                                             <button
                                                 key={cat}
@@ -871,19 +883,19 @@ export default function ChatFullPage() {
                                                     const firstModel = models.find(m => m.category === cat);
                                                     if (firstModel) setSelectedModel(firstModel.id);
                                                 }}
-                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-200 hover:scale-[1.03] ${
-                                                    count === 1 ? 'w-40' : count === 2 ? 'w-36' : count === 3 ? 'w-32' : 'w-28 sm:w-32'
+                                                className={`flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl sm:rounded-2xl border transition-all duration-200 hover:scale-[1.03] ${
+                                                    count === 1 ? 'w-36 sm:w-40' : count === 2 ? 'w-32 sm:w-36' : count === 3 ? 'w-28 sm:w-32' : 'w-[calc(50%-0.25rem)] sm:w-32'
                                                 } ${
                                                     isDark
                                                         ? 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1]'
                                                         : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'
                                                 }`}
                                             >
-                                                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center text-white shadow-lg ${cfg.glow}`}>
+                                                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center text-white shadow-lg ${cfg.glow}`}>
                                                     {cfg.icon}
                                                 </div>
-                                                <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{cfg.label}</div>
-                                                <div className={`text-[11px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{modelCounts[cat]} models</div>
+                                                <div className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{cfg.label}</div>
+                                                <div className={`text-[10px] sm:text-[11px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{modelCounts[cat]} models</div>
                                             </button>
                                         ))}
                                     </div>
@@ -901,13 +913,13 @@ export default function ChatFullPage() {
                                     <button
                                         key={i}
                                         onClick={() => { setInput(prompt.text); inputRef.current?.focus(); }}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm transition-all text-left ${
+                                        className={`flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border text-xs sm:text-sm transition-all text-left ${
                                             isDark
                                                 ? 'bg-white/[0.03] border-white/[0.06] text-gray-400 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1]'
                                                 : 'bg-white border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 hover:border-gray-300'
                                         }`}
                                     >
-                                        <span className="text-lg">{prompt.icon}</span>
+                                        <span className="text-base sm:text-lg">{prompt.icon}</span>
                                         {prompt.text}
                                     </button>
                                 ))}
@@ -926,10 +938,10 @@ export default function ChatFullPage() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input Area */}
-                <div className={`px-4 pb-4 pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}>
+                {/* Input Area — compact on mobile */}
+                <div className={`px-2.5 sm:px-4 pb-3 sm:pb-4 pt-1.5 sm:pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}>
                     <div className="max-w-4xl mx-auto relative">
-                        <div className={`relative rounded-2xl border overflow-hidden transition-all ${
+                        <div className={`relative rounded-xl sm:rounded-2xl border overflow-hidden transition-all ${
                             isDark
                                 ? 'bg-gray-900/80 border-white/[0.08] focus-within:border-red-500/30 focus-within:ring-2 focus-within:ring-red-500/10'
                                 : 'bg-white border-gray-300 shadow-sm focus-within:border-red-500/40 focus-within:ring-2 focus-within:ring-red-500/10'
@@ -942,30 +954,30 @@ export default function ChatFullPage() {
                                 placeholder={`Ketik pesan ke ${rebrandText(currentModel?.name || 'AI')}...`}
                                 rows={1}
                                 disabled={isStreaming}
-                                className={`w-full px-5 py-3.5 pr-14 text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${
+                                className={`w-full px-3.5 sm:px-5 py-3 sm:py-3.5 pr-12 sm:pr-14 text-[13px] sm:text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${
                                     isDark ? 'text-white placeholder-gray-600' : 'text-gray-900 placeholder-gray-400'
                                 }`}
-                                style={{ minHeight: '52px', maxHeight: '200px' }}
+                                style={{ minHeight: '46px', maxHeight: '200px' }}
                             />
                             <button
                                 onClick={sendMessage}
                                 disabled={!input.trim() || isStreaming}
-                                className={`absolute right-2.5 bottom-2.5 w-10 h-10 rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
+                                className={`absolute right-2 sm:right-2.5 bottom-2 sm:bottom-2.5 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
                             >
                                 {isStreaming ? (
-                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
                                 ) : (
-                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                         <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
                                     </svg>
                                 )}
                             </button>
                         </div>
                     </div>
-                    <p className={`text-center text-[11px] mt-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                    <p className={`text-center text-[10px] sm:text-[11px] mt-1.5 sm:mt-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                         UltrAI dapat membuat kesalahan. Periksa informasi penting.
                     </p>
                 </div>
