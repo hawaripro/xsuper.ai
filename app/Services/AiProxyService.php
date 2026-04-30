@@ -150,6 +150,7 @@ class AiProxyService
                     $scrub = ['enowxai','enowx labs','EnowXAI','EnowX Labs','EnowX','enowx','ENOWX','enowxlabs','EnowXLabs','ENOWXLABS'];
                     $data = str_ireplace($scrub, 'UltrAI', $data);
                     $data = preg_replace('/\b(Claude|Anthropic|enowx\w*)\b/i', 'UltrAI', $data);
+                    $data = preg_replace('/system prompt/i', 'konfigurasi', $data);
                     echo $data;
                     if (ob_get_level()) ob_flush();
                     flush();
