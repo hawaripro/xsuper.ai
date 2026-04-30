@@ -78,55 +78,75 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         $isStream = $validated['stream'] ?? false;
 
         if ($isStream) {
-            // Collect full response first, scrub, then re-stream
-            $ch = curl_init();
-            $fullContent = '';
-            $lastJson = null;
+            return new StreamedResponse(function () use ($validated, $messages, $proxyUrl, $proxyKey) {
+                // Step 1: Collect full response from proxy
+                $ch = curl_init();
+                $fullContent = '';
+                $lastJson = null;
+                $allChunks = [];
 
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $proxyUrl . '/v1/chat/completions',
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode(['model' => $validated['model'], 'messages' => $messages, 'stream' => true]),
-                CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $proxyKey, 'Content-Type: application/json', 'Accept: text/event-stream'],
-                CURLOPT_RETURNTRANSFER => false,
-                CURLOPT_TIMEOUT => 120,
-                CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullContent, &$lastJson) {
-                    $lines = explode("\n", $data);
-                    foreach ($lines as $line) {
-                        $line = trim($line);
-                        if (str_starts_with($line, 'data: ') && $line !== 'data: [DONE]') {
-                            $json = json_decode(substr($line, 6), true);
-                            if ($json) {
-                                $lastJson = $json;
-                                $content = $json['choices'][0]['delta']['content'] ?? '';
-                                $fullContent .= $content;
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $proxyUrl . '/v1/chat/completions',
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => json_encode(['model' => $validated['model'], 'messages' => $messages, 'stream' => true]),
+                    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $proxyKey, 'Content-Type: application/json', 'Accept: text/event-stream'],
+                    CURLOPT_RETURNTRANSFER => false,
+                    CURLOPT_TIMEOUT => 120,
+                    CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullContent, &$lastJson, &$allChunks) {
+                        $lines = explode("\n", $data);
+                        foreach ($lines as $line) {
+                            $line = trim($line);
+                            if (str_starts_with($line, 'data: ') && $line !== 'data: [DONE]') {
+                                $json = json_decode(substr($line, 6), true);
+                                if ($json) {
+                                    $lastJson = $json;
+                                    $content = $json['choices'][0]['delta']['content'] ?? '';
+                                    $fullContent .= $content;
+                                    $allChunks[] = $json;
+                                }
                             }
                         }
-                    }
-                    return strlen($data);
-                },
-            ]);
-            curl_exec($ch);
-            curl_close($ch);
+                        return strlen($data);
+                    },
+                ]);
+                curl_exec($ch);
+                curl_close($ch);
 
-            // Deep clean the full content
-            $cleanContent = self::deepClean($fullContent);
+                // Step 2: Deep clean the full content
+                $cleanContent = self::deepClean($fullContent);
 
-            // Build non-streaming response (VSCode/OpenCode handle both)
-            $responseData = [
-                'id' => $lastJson['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(12)),
-                'object' => 'chat.completion',
-                'created' => time(),
-                'model' => self::clean($lastJson['model'] ?? $validated['model']),
-                'choices' => [[
-                    'index' => 0,
-                    'message' => ['role' => 'assistant', 'content' => $cleanContent],
-                    'finish_reason' => 'stop',
-                ]],
-                'usage' => $lastJson['usage'] ?? ['prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0],
-            ];
+                // Step 3: Re-stream the cleaned content as SSE chunks
+                $id = $lastJson['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(12));
+                $model = self::clean($lastJson['model'] ?? $validated['model']);
 
-            return response()->json($responseData);
+                // Send cleaned content in chunks
+                $words = preg_split('/([\s])/', $cleanContent, -1, PREG_SPLIT_DELIM_CAPTURE);
+                foreach ($words as $word) {
+                    $chunk = [
+                        'id' => $id,
+                        'object' => 'chat.completion.chunk',
+                        'created' => time(),
+                        'model' => $model,
+                        'choices' => [['index' => 0, 'delta' => ['content' => $word], 'finish_reason' => null]],
+                    ];
+                    echo 'data: ' . json_encode($chunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                    if (ob_get_level()) ob_flush();
+                    flush();
+                }
+
+                // Send finish
+                $finish = [
+                    'id' => $id,
+                    'object' => 'chat.completion.chunk',
+                    'created' => time(),
+                    'model' => $model,
+                    'choices' => [['index' => 0, 'delta' => [], 'finish_reason' => 'stop']],
+                ];
+                echo 'data: ' . json_encode($finish, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                echo "data: [DONE]\n\n";
+                if (ob_get_level()) ob_flush();
+                flush();
+            }, 200, ['Content-Type' => 'text/event-stream', 'Cache-Control' => 'no-cache', 'Connection' => 'keep-alive', 'X-Accel-Buffering' => 'no']);
         }
 
         // Non-streaming
@@ -172,16 +192,18 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
      */
     public static function clean(string $text): string
     {
-        // enowx variations (case insensitive)
-        $text = preg_replace('/enowx\s*ai/i', 'UltrAI', $text);
+        // Order matters: longest match first
+        $text = preg_replace('/enowx\s*labs\s*chat\s*ui/i', 'UltrAI', $text);
         $text = preg_replace('/enowx\s*labs/i', 'UltrAI', $text);
+        $text = preg_replace('/enowx\s*ai/i', 'UltrAI', $text);
         $text = preg_replace('/enowx/i', 'UltrAI', $text);
 
-        // "UltrAI Labs" → "UltrAI"
-        $text = preg_replace('/UltrAI\s+Labs/i', 'UltrAI', $text);
+        // "UltrAI Labs" → "UltrAI" (after enowx replacement)
+        $text = preg_replace('/UltrAI\s*Labs/i', 'UltrAI', $text);
 
-        // Standalone "Labs" after cleanup
-        $text = preg_replace('/\bLabs\b/', '', $text);
+        // Any standalone "Labs" near UltrAI
+        $text = preg_replace('/UltrAI\s*\bLabs\b/i', 'UltrAI', $text);
+        $text = preg_replace('/\bLabs\b\s*UltrAI/i', 'UltrAI', $text);
 
         return $text;
     }
@@ -236,9 +258,8 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         // Clean multiple empty lines
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
 
-        // Final enowx catch
-        $text = preg_replace('/enowx/i', 'UltrAI', $text);
-        $text = preg_replace('/UltrAI\s+Labs/i', 'UltrAI', $text);
+        // Final catch — run clean() again on entire result
+        $text = self::clean($text);
 
         return trim($text);
     }
