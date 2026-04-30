@@ -12,7 +12,7 @@ class UsageController extends Controller
     public function index(Request $request)
     {
         $userId = $request->query('user_id');
-        $period = $request->query('period', 'daily'); // hourly, daily, weekly, monthly, all
+        $period = $request->query('period', 'daily');
 
         if ($userId) {
             return response()->json($this->userStats((int) $userId, $period));
@@ -24,15 +24,15 @@ class UsageController extends Controller
     private function globalStats(string $period): array
     {
         $totalStats = UsageLog::selectRaw('
-            SUM(total_tokens) as tokens,
-            SUM(credit) as credits,
+            COALESCE(SUM(total_tokens), 0) as tokens,
+            COALESCE(SUM(credit), 0) as credits,
             COUNT(*) as requests,
             COUNT(DISTINCT user_id) as active_users
         ')->first();
 
         $topUsers = UsageLog::selectRaw('user_id, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests')
             ->groupBy('user_id')
-            ->orderByDesc('tokens')
+            ->orderByDesc(DB::raw('SUM(total_tokens)'))
             ->limit(20)
             ->get()
             ->map(function ($u) {
@@ -56,7 +56,7 @@ class UsageController extends Controller
     private function userStats(int $userId, string $period): array
     {
         $total = UsageLog::where('user_id', $userId)->selectRaw('
-            SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests
+            COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(credit), 0) as credits, COUNT(*) as requests
         ')->first();
 
         return [
@@ -69,97 +69,80 @@ class UsageController extends Controller
         ];
     }
 
+    private function getTimeConfig(string $period): array
+    {
+        return match ($period) {
+            'hourly' => [
+                'where' => now()->subHours(24),
+                'label' => "TO_CHAR(created_at, 'HH24:00')",
+                'group' => "DATE_TRUNC('hour', created_at)",
+            ],
+            'weekly' => [
+                'where' => now()->subWeeks(12),
+                'label' => "'W' || TO_CHAR(created_at, 'IW')",
+                'group' => "DATE_TRUNC('week', created_at)",
+            ],
+            'monthly' => [
+                'where' => now()->subMonths(12),
+                'label' => "TO_CHAR(created_at, 'YYYY-MM')",
+                'group' => "DATE_TRUNC('month', created_at)",
+            ],
+            'all' => [
+                'where' => null,
+                'label' => "TO_CHAR(created_at, 'YYYY-MM')",
+                'group' => "DATE_TRUNC('month', created_at)",
+            ],
+            default => [ // daily
+                'where' => now()->subDays(30),
+                'label' => "TO_CHAR(created_at, 'MM-DD')",
+                'group' => "DATE_TRUNC('day', created_at)",
+            ],
+        };
+    }
+
     private function getTimeline(?int $userId, string $period): array
     {
+        $cfg = $this->getTimeConfig($period);
         $query = UsageLog::query();
         if ($userId) $query->where('user_id', $userId);
+        if ($cfg['where']) $query->where('created_at', '>=', $cfg['where']);
 
-        switch ($period) {
-            case 'hourly':
-                $query->where('created_at', '>=', now()->subHours(24));
-                $labelExpr = "TO_CHAR(created_at, 'HH24:00')";
-                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM-DD HH24')";
-                break;
-            case 'weekly':
-                $query->where('created_at', '>=', now()->subWeeks(12));
-                $labelExpr = "TO_CHAR(created_at, 'IYYY-IW')";
-                $groupExpr = "TO_CHAR(created_at, 'IYYY-IW')";
-                break;
-            case 'monthly':
-                $query->where('created_at', '>=', now()->subMonths(12));
-                $labelExpr = "TO_CHAR(created_at, 'YYYY-MM')";
-                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM')";
-                break;
-            case 'all':
-                $labelExpr = "TO_CHAR(created_at, 'YYYY-MM')";
-                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM')";
-                break;
-            default: // daily
-                $query->where('created_at', '>=', now()->subDays(30));
-                $labelExpr = "TO_CHAR(created_at, 'MM-DD')";
-                $groupExpr = "DATE(created_at)";
-                break;
-        }
-
-        return $query->selectRaw("$labelExpr as label, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests")
-            ->groupBy(DB::raw($groupExpr), DB::raw($labelExpr))
-            ->orderBy(DB::raw($groupExpr))
+        return $query->selectRaw("{$cfg['label']} as label, {$cfg['group']} as grp, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests")
+            ->groupBy(DB::raw($cfg['group']), DB::raw($cfg['label']))
+            ->orderBy(DB::raw($cfg['group']))
             ->get()
+            ->map(fn($r) => ['label' => $r->label, 'tokens' => (int) $r->tokens, 'credits' => round((float) $r->credits, 4), 'requests' => (int) $r->requests])
             ->toArray();
     }
 
     private function getModelBreakdown(?int $userId, string $period): array
     {
+        $cfg = $this->getTimeConfig($period);
         $query = UsageLog::query();
         if ($userId) $query->where('user_id', $userId);
-
-        if ($period === 'hourly') $query->where('created_at', '>=', now()->subHours(24));
-        elseif ($period === 'daily') $query->where('created_at', '>=', now()->subDays(30));
-        elseif ($period === 'weekly') $query->where('created_at', '>=', now()->subWeeks(12));
-        elseif ($period === 'monthly') $query->where('created_at', '>=', now()->subMonths(12));
+        if ($cfg['where']) $query->where('created_at', '>=', $cfg['where']);
 
         return $query->selectRaw('model, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests')
             ->groupBy('model')
-            ->orderByDesc('tokens')
+            ->orderByDesc(DB::raw('SUM(total_tokens)'))
             ->limit(15)
             ->get()
+            ->map(fn($r) => ['model' => $r->model, 'tokens' => (int) $r->tokens, 'credits' => round((float) $r->credits, 4), 'requests' => (int) $r->requests])
             ->toArray();
     }
 
     private function getModelTimeline(?int $userId, string $period): array
     {
+        $cfg = $this->getTimeConfig($period);
         $query = UsageLog::query();
         if ($userId) $query->where('user_id', $userId);
+        if ($cfg['where']) $query->where('created_at', '>=', $cfg['where']);
 
-        switch ($period) {
-            case 'hourly':
-                $query->where('created_at', '>=', now()->subHours(24));
-                $dateExpr = "TO_CHAR(created_at, 'HH24:00')";
-                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM-DD HH24')";
-                break;
-            case 'weekly':
-                $query->where('created_at', '>=', now()->subWeeks(12));
-                $dateExpr = "TO_CHAR(created_at, 'IYYY-IW')";
-                $groupExpr = "TO_CHAR(created_at, 'IYYY-IW')";
-                break;
-            case 'monthly':
-                $query->where('created_at', '>=', now()->subMonths(12));
-                $dateExpr = "TO_CHAR(created_at, 'YYYY-MM')";
-                $groupExpr = "TO_CHAR(created_at, 'YYYY-MM')";
-                break;
-            default:
-                $query->where('created_at', '>=', now()->subDays(30));
-                $dateExpr = "TO_CHAR(created_at, 'MM-DD')";
-                $groupExpr = "DATE(created_at)";
-                break;
-        }
-
-        $raw = $query->selectRaw("$dateExpr as label, model, SUM(total_tokens) as tokens")
-            ->groupBy(DB::raw($groupExpr), DB::raw($dateExpr), DB::raw('model'))
-            ->orderBy(DB::raw($groupExpr))
+        $raw = $query->selectRaw("{$cfg['label']} as label, {$cfg['group']} as grp, model, SUM(total_tokens) as tokens")
+            ->groupBy(DB::raw($cfg['group']), DB::raw($cfg['label']), 'model')
+            ->orderBy(DB::raw($cfg['group']))
             ->get();
 
-        // Pivot: group by label, each model as a key
         $pivoted = [];
         $models = [];
         foreach ($raw as $r) {
