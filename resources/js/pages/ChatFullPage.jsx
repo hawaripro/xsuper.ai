@@ -266,7 +266,7 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
     const currentCatCfg = CATEGORY_CONFIG[currentModel?.category] || CATEGORY_CONFIG.chat;
 
     return (
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative z-[60]" ref={dropdownRef}>
             {/* Trigger Button */}
             <button
                 onClick={() => setOpen(!open)}
@@ -296,13 +296,13 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                 </svg>
             </button>
 
-            {/* Dropdown */}
+            {/* Dropdown — fixed position so it renders above everything */}
             {open && (
-                <div className={`absolute top-full left-0 mt-2 w-[380px] max-h-[480px] rounded-2xl border shadow-2xl z-50 overflow-hidden ${
+                <div className={`fixed left-auto mt-2 w-[380px] max-w-[calc(100vw-2rem)] max-h-[480px] rounded-2xl border shadow-2xl z-[999] overflow-hidden ${
                     isDark
                         ? 'bg-gray-900 border-white/[0.08] shadow-black/50'
                         : 'bg-white border-gray-200 shadow-gray-200/50'
-                }`}>
+                }`} style={{ top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + 8 + 'px' : 'auto', left: dropdownRef.current ? Math.min(dropdownRef.current.getBoundingClientRect().left, window.innerWidth - 396) + 'px' : 'auto' }}>
                     {/* Search */}
                     <div className={`p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
                         <div className="relative">
@@ -797,8 +797,8 @@ export default function ChatFullPage() {
 
             {/* ===== Main Chat Area ===== */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Chat Header */}
-                <div className={`flex items-center justify-between px-4 py-2.5 border-b backdrop-blur-xl ${
+                {/* Chat Header — sticky */}
+                <div className={`sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 border-b backdrop-blur-xl ${
                     isDark ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200 bg-white/90'
                 }`}>
                     <div className="flex items-center gap-3">
@@ -857,34 +857,38 @@ export default function ChatFullPage() {
                                 </p>
                             </div>
 
-                            {/* Category Cards */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl w-full mb-6">
-                                {Object.entries(CATEGORY_CONFIG).map(([cat, cfg]) => {
-                                    const count = modelCounts[cat] || 0;
-                                    if (count === 0) return null;
-                                    return (
-                                        <button
-                                            key={cat}
-                                            onClick={() => {
-                                                setSelectedCategory(cat);
-                                                const firstModel = models.find(m => m.category === cat);
-                                                if (firstModel) setSelectedModel(firstModel.id);
-                                            }}
-                                            className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-200 hover:scale-[1.03] ${
-                                                isDark
-                                                    ? `bg-white/[0.03] border-white/[0.06] hover:${cfg.bg} hover:${cfg.border}`
-                                                    : `bg-white border-gray-200 hover:border-gray-300 shadow-sm`
-                                            }`}
-                                        >
-                                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center text-white shadow-lg ${cfg.glow}`}>
-                                                {cfg.icon}
-                                            </div>
-                                            <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{cfg.label}</div>
-                                            <div className={`text-[11px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{count} models</div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            {/* Category Cards — auto center based on available categories */}
+                            {(() => {
+                                const availableCats = Object.entries(CATEGORY_CONFIG).filter(([cat]) => (modelCounts[cat] || 0) > 0);
+                                const count = availableCats.length;
+                                return (
+                                    <div className="flex flex-wrap justify-center gap-3 max-w-2xl w-full mb-6">
+                                        {availableCats.map(([cat, cfg]) => (
+                                            <button
+                                                key={cat}
+                                                onClick={() => {
+                                                    setSelectedCategory(cat);
+                                                    const firstModel = models.find(m => m.category === cat);
+                                                    if (firstModel) setSelectedModel(firstModel.id);
+                                                }}
+                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-200 hover:scale-[1.03] ${
+                                                    count === 1 ? 'w-40' : count === 2 ? 'w-36' : count === 3 ? 'w-32' : 'w-28 sm:w-32'
+                                                } ${
+                                                    isDark
+                                                        ? 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1]'
+                                                        : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'
+                                                }`}
+                                            >
+                                                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center text-white shadow-lg ${cfg.glow}`}>
+                                                    {cfg.icon}
+                                                </div>
+                                                <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{cfg.label}</div>
+                                                <div className={`text-[11px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{modelCounts[cat]} models</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
 
                             {/* Quick prompts */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
