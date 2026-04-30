@@ -7,6 +7,7 @@ use App\Services\AiProxyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Models\UsageLog;
 
 class ExternalApiController extends Controller
 {
@@ -101,6 +102,11 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         }
         if (isset($data['model'])) {
             $data['model'] = self::clean($data['model']);
+        }
+
+        // Log usage
+        if (isset($data['usage'])) {
+            UsageLog::record($user->id, $validated['model'], $data['usage'], 'api');
         }
 
         // If client wants streaming, convert to SSE format

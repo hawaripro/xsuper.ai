@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\VideoController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\ApiKeyController;
+use App\Http\Controllers\Api\UsageController;
+use App\Http\Controllers\Api\DeviceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,8 +55,8 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
 
-        // Chat (check expiry)
-        Route::middleware('check.expiry')->group(function () {
+        // Chat (check expiry + track device)
+        Route::middleware(['check.expiry', 'track.device'])->group(function () {
             Route::get('/c/m', [ChatController::class, 'models']);
             Route::post('/c/s', [ChatController::class, 'send']);
             Route::get('/c/h', [ChatController::class, 'history']);
@@ -78,6 +80,14 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::middleware('admin')->group(function () {
             // Admin: topup tokens
             Route::post('/t/topup', [TokenController::class, 'topup']);
+
+            // Admin: usage stats
+            Route::get('/usage', [UsageController::class, 'index']);
+
+            // Admin: device management
+            Route::get('/d/list', [DeviceController::class, 'index']);
+            Route::put('/d/{device}', [DeviceController::class, 'update']);
+            Route::delete('/d/{device}', [DeviceController::class, 'destroy']);
 
             // Admin: API key management
             Route::get('/k/list', [ApiKeyController::class, 'index']);

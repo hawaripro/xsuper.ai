@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'check.expiry' => \App\Http\Middleware\CheckExpiry::class,
             'verify.apikey' => \App\Http\Middleware\VerifyApiKey::class,
+            'track.device' => \App\Http\Middleware\TrackDevice::class,
         ]);
 
         // Make auth middleware return JSON 401 for AJAX/API requests

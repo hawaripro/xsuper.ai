@@ -13,6 +13,7 @@ import AdminUsers from './pages/AdminUsers';
 import ChatAI from './pages/ChatAI';
 import Profile from './pages/Profile';
 import VideoGenerator from './pages/VideoGenerator';
+import TokenUsage from './pages/TokenUsage';
 
 // Layout
 import DashboardLayout from './layouts/DashboardLayout';
@@ -79,6 +80,9 @@ function App() {
                     {/* Admin Only */}
                     <Route path="/admin" element={
                         <ProtectedRoute adminOnly><DashboardLayout><AdminUsers /></DashboardLayout></ProtectedRoute>
+                    } />
+                    <Route path="/usage" element={
+                        <ProtectedRoute adminOnly><DashboardLayout><TokenUsage /></DashboardLayout></ProtectedRoute>
                     } />
 
                     {/* Catch all */}

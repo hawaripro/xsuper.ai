@@ -190,7 +190,7 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+        <div className="p-3 lg:p-5 space-y-4 lg:space-y-5 max-w-7xl mx-auto" style={{ fontSize: '90%' }}>
             {/* Welcome Header */}
             <div className={`relative p-6 lg:p-8 rounded-2xl bg-gradient-to-br overflow-hidden ${
                 isDark
