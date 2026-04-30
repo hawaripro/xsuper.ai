@@ -13,15 +13,19 @@ class UsageController extends Controller
     {
         $userId = $request->query('user_id');
         $period = $request->query('period', 'daily');
+        $tz = $request->query('tz', 'Asia/Jakarta');
+
+        // Validate timezone
+        try { new \DateTimeZone($tz); } catch (\Exception $e) { $tz = 'Asia/Jakarta'; }
 
         if ($userId) {
-            return response()->json($this->userStats((int) $userId, $period));
+            return response()->json($this->userStats((int) $userId, $period, $tz));
         }
 
-        return response()->json($this->globalStats($period));
+        return response()->json($this->globalStats($period, $tz));
     }
 
-    private function globalStats(string $period): array
+    private function globalStats(string $period, string $tz): array
     {
         $totalStats = UsageLog::selectRaw('
             COALESCE(SUM(total_tokens), 0) as tokens,
@@ -47,13 +51,13 @@ class UsageController extends Controller
             'total_requests' => (int) ($totalStats->requests ?? 0),
             'active_users' => (int) ($totalStats->active_users ?? 0),
             'top_users' => $topUsers,
-            'timeline' => $this->getTimeline(null, $period),
-            'by_model' => $this->getModelBreakdown(null, $period),
-            'model_timeline' => $this->getModelTimeline(null, $period),
+            'timeline' => $this->getTimeline(null, $period, $tz),
+            'by_model' => $this->getModelBreakdown(null, $period, $tz),
+            'model_timeline' => $this->getModelTimeline(null, $period, $tz),
         ];
     }
 
-    private function userStats(int $userId, string $period): array
+    private function userStats(int $userId, string $period, string $tz): array
     {
         $total = UsageLog::where('user_id', $userId)->selectRaw('
             COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(credit), 0) as credits, COUNT(*) as requests
@@ -63,49 +67,52 @@ class UsageController extends Controller
             'total_tokens' => (int) ($total->tokens ?? 0),
             'total_credits' => round($total->credits ?? 0, 4),
             'total_requests' => (int) ($total->requests ?? 0),
-            'timeline' => $this->getTimeline($userId, $period),
-            'by_model' => $this->getModelBreakdown($userId, $period),
-            'model_timeline' => $this->getModelTimeline($userId, $period),
+            'timeline' => $this->getTimeline($userId, $period, $tz),
+            'by_model' => $this->getModelBreakdown($userId, $period, $tz),
+            'model_timeline' => $this->getModelTimeline($userId, $period, $tz),
         ];
     }
 
-    private function getTimeConfig(string $period): array
+    private function getTimeConfig(string $period, string $tz): array
     {
+        // Convert created_at to user's timezone for grouping
+        $tzCol = "created_at AT TIME ZONE 'UTC' AT TIME ZONE '{$tz}'";
+
         return match ($period) {
             'hourly' => [
-                'where' => now()->subHours(24),
-                'label' => "TO_CHAR(created_at, 'HH24:00')",
-                'group' => "DATE_TRUNC('hour', created_at)",
+                'hours' => 24,
+                'label' => "TO_CHAR({$tzCol}, 'HH24:00')",
+                'group' => "DATE_TRUNC('hour', {$tzCol})",
             ],
             'weekly' => [
-                'where' => now()->subWeeks(12),
-                'label' => "'W' || TO_CHAR(created_at, 'IW')",
-                'group' => "DATE_TRUNC('week', created_at)",
+                'hours' => 12 * 7 * 24,
+                'label' => "'W' || TO_CHAR({$tzCol}, 'IW')",
+                'group' => "DATE_TRUNC('week', {$tzCol})",
             ],
             'monthly' => [
-                'where' => now()->subMonths(12),
-                'label' => "TO_CHAR(created_at, 'YYYY-MM')",
-                'group' => "DATE_TRUNC('month', created_at)",
+                'hours' => 365 * 24,
+                'label' => "TO_CHAR({$tzCol}, 'YYYY-MM')",
+                'group' => "DATE_TRUNC('month', {$tzCol})",
             ],
             'all' => [
-                'where' => null,
-                'label' => "TO_CHAR(created_at, 'YYYY-MM')",
-                'group' => "DATE_TRUNC('month', created_at)",
+                'hours' => null,
+                'label' => "TO_CHAR({$tzCol}, 'YYYY-MM')",
+                'group' => "DATE_TRUNC('month', {$tzCol})",
             ],
             default => [ // daily
-                'where' => now()->subDays(30),
-                'label' => "TO_CHAR(created_at, 'MM-DD')",
-                'group' => "DATE_TRUNC('day', created_at)",
+                'hours' => 30 * 24,
+                'label' => "TO_CHAR({$tzCol}, 'MM-DD')",
+                'group' => "DATE_TRUNC('day', {$tzCol})",
             ],
         };
     }
 
-    private function getTimeline(?int $userId, string $period): array
+    private function getTimeline(?int $userId, string $period, string $tz): array
     {
-        $cfg = $this->getTimeConfig($period);
+        $cfg = $this->getTimeConfig($period, $tz);
         $query = UsageLog::query();
         if ($userId) $query->where('user_id', $userId);
-        if ($cfg['where']) $query->where('created_at', '>=', $cfg['where']);
+        if ($cfg['hours']) $query->where('created_at', '>=', now()->subHours($cfg['hours']));
 
         return $query->selectRaw("{$cfg['label']} as label, {$cfg['group']} as grp, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests")
             ->groupBy(DB::raw($cfg['group']), DB::raw($cfg['label']))
@@ -115,12 +122,12 @@ class UsageController extends Controller
             ->toArray();
     }
 
-    private function getModelBreakdown(?int $userId, string $period): array
+    private function getModelBreakdown(?int $userId, string $period, string $tz): array
     {
-        $cfg = $this->getTimeConfig($period);
+        $cfg = $this->getTimeConfig($period, $tz);
         $query = UsageLog::query();
         if ($userId) $query->where('user_id', $userId);
-        if ($cfg['where']) $query->where('created_at', '>=', $cfg['where']);
+        if ($cfg['hours']) $query->where('created_at', '>=', now()->subHours($cfg['hours']));
 
         return $query->selectRaw('model, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests')
             ->groupBy('model')
@@ -131,12 +138,12 @@ class UsageController extends Controller
             ->toArray();
     }
 
-    private function getModelTimeline(?int $userId, string $period): array
+    private function getModelTimeline(?int $userId, string $period, string $tz): array
     {
-        $cfg = $this->getTimeConfig($period);
+        $cfg = $this->getTimeConfig($period, $tz);
         $query = UsageLog::query();
         if ($userId) $query->where('user_id', $userId);
-        if ($cfg['where']) $query->where('created_at', '>=', $cfg['where']);
+        if ($cfg['hours']) $query->where('created_at', '>=', now()->subHours($cfg['hours']));
 
         $raw = $query->selectRaw("{$cfg['label']} as label, {$cfg['group']} as grp, model, SUM(total_tokens) as tokens")
             ->groupBy(DB::raw($cfg['group']), DB::raw($cfg['label']), 'model')

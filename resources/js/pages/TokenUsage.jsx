@@ -58,16 +58,19 @@ export default function TokenUsage() {
     const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)';
     const axisColor = isDark ? '#6b7280' : '#9ca3af';
 
+    // Detect user timezone automatically
+    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta';
+
     const loadStats = useCallback(async (isInitial = false) => {
         if (isInitial) setLoading(true);
         try {
-            const res = await fetch(`/api/usage?period=${period}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+            const res = await fetch(`/api/usage?period=${period}&tz=${encodeURIComponent(userTz)}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
             if (res.ok) {
                 const data = await res.json();
                 setStats(data);
             }
         } catch {} finally { if (isInitial) setLoading(false); }
-    }, [period]);
+    }, [period, userTz]);
 
     useEffect(() => {
         loadStats(true);
@@ -78,7 +81,7 @@ export default function TokenUsage() {
     const loadUserStats = async (userId) => {
         setSelectedUser(userId);
         try {
-            const res = await fetch(`/api/usage?user_id=${userId}&period=${period}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+            const res = await fetch(`/api/usage?user_id=${userId}&period=${period}&tz=${encodeURIComponent(userTz)}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
             if (res.ok) setUserStats(await res.json());
         } catch {}
     };
