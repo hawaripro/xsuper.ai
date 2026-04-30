@@ -298,20 +298,20 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                 </svg>
             </button>
 
-            {/* Dropdown — width matches trigger button */}
+            {/* Dropdown — exact same width as trigger button */}
             {open && (
                 <>
                     <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
                     <div
-                        className={`absolute top-full left-0 mt-1.5 max-h-[min(460px,68vh)] rounded-lg sm:rounded-xl border shadow-xl z-[999] flex flex-col ${
+                        className={`absolute top-full left-0 mt-1.5 rounded-lg sm:rounded-xl border shadow-xl z-[999] flex flex-col ${
                             isDark
                                 ? 'bg-gray-900 border-white/[0.1] shadow-black/60'
                                 : 'bg-white border-gray-200 shadow-gray-300/40'
                         }`}
-                        style={{ width: triggerRef.current ? Math.max(triggerRef.current.offsetWidth, 300) + 'px' : '320px' }}
+                        style={{ width: triggerRef.current ? triggerRef.current.offsetWidth + 'px' : 'auto' }}
                     >
                         {/* Search */}
-                        <div className="p-3">
+                        <div className="p-3 pb-2">
                             <div className="relative">
                                 <svg className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -331,8 +331,8 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                             </div>
                         </div>
 
-                        {/* Category Tabs */}
-                        <div className={`flex gap-1 px-3 pb-2.5 overflow-x-auto scrollbar-thin`}>
+                        {/* Category Tabs — sticky, never hidden by scroll */}
+                        <div className={`flex-shrink-0 flex gap-1 px-3 py-2 overflow-x-auto scrollbar-thin border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`}>
                             <button
                                 onClick={() => onCategoryChange('all')}
                                 className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
@@ -366,11 +366,8 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                             })}
                         </div>
 
-                        {/* Divider with spacing */}
-                        <div className={`mx-3 border-t ${isDark ? 'border-white/[0.06]' : 'border-gray-100'}`} />
-
-                        {/* Model List — scrollable */}
-                        <div className="overflow-y-auto flex-1 p-2 pt-2.5 scrollbar-thin" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
+                        {/* Model List — only this part scrolls, expands downward */}
+                        <div className="overflow-y-auto max-h-[min(340px,50vh)] p-2 scrollbar-thin" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
                             {Object.keys(groupedModels).length === 0 ? (
                                 <div className={`text-center py-8 text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                     Tidak ada model ditemukan
