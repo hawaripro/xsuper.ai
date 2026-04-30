@@ -9,7 +9,6 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\VideoController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\ApiKeyController;
-use App\Http\Controllers\Api\ExternalApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -99,13 +98,6 @@ Route::prefix('api')->middleware('web')->group(function () {
         });
 
     });
-});
-
-// External API — for plugins (OpenCode, Cursor, etc)
-// Authenticated via Bearer token (ultrai-xxx)
-Route::prefix('v1')->middleware(\App\Http\Middleware\VerifyApiKey::class)->group(function () {
-    Route::get('/models', [ExternalApiController::class, 'models']);
-    Route::post('/chat/completions', [ExternalApiController::class, 'chatCompletions']);
 });
 
 // SPA catch-all — must be last

@@ -1,13 +1,15 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\ExternalApiController;
+
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| External API Routes (no CSRF, no session — Bearer token auth only)
 |--------------------------------------------------------------------------
-|
-| SEMUA API routes sudah dipindahkan ke web.php agar bisa pakai
-| session auth dari Fortify (bukan Sanctum).
-|
-| File ini sengaja dikosongkan.
-|
 */
+
+Route::prefix('v1')->middleware(\App\Http\Middleware\VerifyApiKey::class)->group(function () {
+    Route::get('/models', [ExternalApiController::class, 'models']);
+    Route::post('/chat/completions', [ExternalApiController::class, 'chatCompletions']);
+});
