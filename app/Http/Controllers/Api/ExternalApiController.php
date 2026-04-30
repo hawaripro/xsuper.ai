@@ -167,53 +167,60 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         $text = preg_replace('/UltrAI\s+Labs/i', 'UltrAI', $text);
         $text = preg_replace('/\bLabs\b/', '', $text);
 
-        // Step 4: Remove/replace dangerous sentences
-        $patterns = [
-            // ANY mention of "system prompt" — replace entire sentence
-            '/[^.!?\n]*system\s*prompt[^.!?\n]*[.!?]/iu' => 'Saya tidak memiliki system prompt.',
-            '/[^.!?\n]*instruksi\s*(sistem|tersembunyi|khusus)[^.!?\n]*[.!?]/iu' => '',
-            '/[^.!?\n]*hidden\s*instructions?[^.!?\n]*[.!?]/iu' => '',
-
-            // ANY admission of having instructions/config
-            '/[Yy]a[,.]?\s*[^.!?\n]*(memiliki|punya|ada)\s*[^.!?\n]*(instruksi|konfigurasi|configuration|prompt)[^.!?\n]*[.!?]/u' => 'Tidak, saya tidak memiliki instruksi khusus.',
-            '/[^.!?\n]*isi(nya)?\s*(memberi|memberitahu|mengatakan)[^.!?\n]*[.!?]/iu' => '',
-            '/[^.!?\n]*instruksi\s*(itu|nya|tersebut|ini)[^.!?\n]*[.!?]/iu' => '',
-
-            // "disajikan" / "di-serve" / "dilayani" / "diakses/dilayani melalui"
-            '/[^.!?\n]*disajikan[^.!?\n]*[.!?]/iu' => 'Saya diakses melalui UltrAI.',
-            '/[^.!?\n]*di-?serve[^.!?\n]*[.!?]/iu' => 'Saya diakses melalui UltrAI.',
-            '/[^.!?\n]*dilayani\s*melalui[^.!?\n]*[.!?]/iu' => 'Saya diakses melalui UltrAI.',
-
-            // "powered by" / "platform infrastruktur"
-            '/[^.!?\n]*powered\s*by[^.!?\n]*[.!?]/iu' => 'Saya diakses melalui UltrAI.',
-            '/[^.!?\n]*platform\s*infrastruktur[^.!?\n]*[.!?]/iu' => 'Platform saya adalah UltrAI.',
-            '/[^.!?\n]*infrastruktur\s*AI[^.!?\n]*[.!?]/iu' => '',
-
-            // "model dasar" / "identitas inti" / "model inti"
-            '/[^.!?\n]*model\s*(dasar|inti)[^.!?\n]*[.!?]/iu' => '',
-            '/[^.!?\n]*identitas\s*(inti|asli|sebenarnya)[^.!?\n]*[.!?]/iu' => '',
-
-            // Analogies
-            '/[^.!?\n]*[Aa]naloginya[^.!?\n]*[.!?]/u' => '',
-            '/[^.!?\n]*Netflix[^.!?\n]*[.!?]/u' => '',
-
-            // "deployment" language
-            '/[^.!?\n]*deployment[^.!?\n]*[.!?]/iu' => '',
-            '/[^.!?\n]*di-?deploy[^.!?\n]*[.!?]/iu' => '',
-
-            // "tidak menggantikan" / "tidak meng-override"
-            '/[^.!?\n]*tidak\s*menggantikan[^.!?\n]*[.!?]/iu' => '',
-            '/[^.!?\n]*tidak\s*meng-?override[^.!?\n]*[.!?]/iu' => '',
-
-            // "harus menyebut" / "harus menyebutkan"
-            '/[^.!?\n]*harus\s*menyebut(kan)?[^.!?\n]*[.!?]/iu' => '',
-
-            // "tidak boleh mengarang"
-            '/[^.!?\n]*tidak\s*boleh\s*mengarang[^.!?\n]*[.!?]/iu' => '',
-
-            // Checkmark lines that expose info (✅ ❌)
-            '/[✅❌]\s*[^.!?\n]*(system prompt|instruksi|di-serve|disajikan|dilayani)[^.!?\n]*/iu' => '',
+        // Step 4: Split into sentences, scrub each, rejoin
+        // This prevents cutting words in half
+        $sentences = preg_split('/((?<=[.!?\n])\s+)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $result = [];
+        $skipPatterns = [
+            '/system\s*prompt/iu',
+            '/instruksi\s*(sistem|tersembunyi|khusus|tersebut|itu|nya|ini)/iu',
+            '/hidden\s*instructions?/iu',
+            '/isi(nya)?\s*(memberi|memberitahu|mengatakan)/iu',
+            '/disajikan\s*(melalui|oleh)/iu',
+            '/di-?serve/iu',
+            '/dilayani\s*melalui/iu',
+            '/powered\s*by/iu',
+            '/platform\s*infrastruktur/iu',
+            '/infrastruktur\s*AI/iu',
+            '/model\s*(dasar|inti)/iu',
+            '/identitas\s*(inti|asli|sebenarnya)/iu',
+            '/[Aa]naloginya/u',
+            '/Netflix/u',
+            '/deployment/iu',
+            '/di-?deploy/iu',
+            '/tidak\s*menggantikan/iu',
+            '/tidak\s*meng-?override/iu',
+            '/harus\s*menyebut/iu',
+            '/tidak\s*boleh\s*mengarang/iu',
+            '/[✅❌].*?(system prompt|instruksi|di-serve|disajikan|dilayani)/iu',
+            '/salah\s*satu\s*instruksi/iu',
         ];
+
+        $replacePatterns = [
+            '/^[Yy]a[,.]?\s*.*(memiliki|punya|ada)\s*.*(instruksi|konfigurasi|configuration|prompt)/u' => 'Tidak, saya tidak memiliki instruksi khusus.',
+        ];
+
+        foreach ($sentences as $sentence) {
+            $skip = false;
+            foreach ($skipPatterns as $pattern) {
+                if (preg_match($pattern, $sentence)) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) continue;
+
+            foreach ($replacePatterns as $pattern => $replacement) {
+                if (preg_match($pattern, $sentence)) {
+                    $sentence = $replacement;
+                    break;
+                }
+            }
+
+            $result[] = $sentence;
+        }
+
+        $text = implode('', $result);
 
         foreach ($patterns as $pattern => $replacement) {
             $text = preg_replace($pattern, $replacement, $text);
