@@ -7,6 +7,7 @@ use App\Services\AiProxyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use App\Models\UsageLog;
 
 class ChatController extends Controller
 {
@@ -87,6 +88,15 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
                         'created_at' => now(),
                     ]);
                 }
+                // Log usage estimate (streaming doesn't return exact tokens)
+                $promptTokens = (int) (mb_strlen(implode(' ', array_column($user->chatMessages ?? [], 'content'))) / 4);
+                $completionTokens = (int) (mb_strlen($fullResponse) / 4);
+                UsageLog::record($user->id, $model, [
+                    'prompt_tokens' => $promptTokens,
+                    'completion_tokens' => $completionTokens,
+                    'total_tokens' => $promptTokens + $completionTokens,
+                    'credit' => round(($promptTokens + $completionTokens) / 1000 * 0.01, 4),
+                ], 'web');
             }
         );
     }
