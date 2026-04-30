@@ -80,7 +80,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
 
         $proxyUrl = rtrim(config('services.ai_proxy.url', env('AI_PROXY_URL', env('ENOWX_API_URL'))), '/');
         $proxyKey = config('services.ai_proxy.key', env('AI_PROXY_KEY', env('ENOWX_API_KEY')));
-        $messages = $this->injectSystemPrompt($validated['messages']);
+        $messages = $this->injectSystemPrompt($validated['messages'], $validated['model']);
         $wantsStream = $validated['stream'] ?? false;
 
         // Always fetch non-streaming from proxy (for full content scrub)
@@ -120,46 +120,29 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             $id = $data['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(12));
             $model = $data['model'] ?? $validated['model'];
 
+            // If content empty after scrub, send minimal response
+            if (trim($content) === '') {
+                $content = 'Saya siap membantu Anda.';
+            }
+
             return new StreamedResponse(function () use ($content, $id, $model) {
-                // Send role chunk first
-                $roleChunk = [
-                    'id' => $id,
-                    'object' => 'chat.completion.chunk',
-                    'created' => time(),
-                    'model' => $model,
-                    'choices' => [['index' => 0, 'delta' => ['role' => 'assistant'], 'finish_reason' => null]],
-                ];
-                echo 'data: ' . json_encode($roleChunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                $json = function($data) {
+                    return 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                };
+
+                // Role chunk
+                echo $json(['id' => $id, 'object' => 'chat.completion.chunk', 'created' => time(), 'model' => $model, 'choices' => [['index' => 0, 'delta' => ['role' => 'assistant'], 'finish_reason' => null]]]);
                 if (ob_get_level()) ob_flush();
                 flush();
 
-                // Send content in small chunks (simulate streaming)
-                if (strlen($content) > 0) {
-                    $chunks = str_split($content, 20);
-                    foreach ($chunks as $piece) {
-                        if (strlen($piece) === 0) continue;
-                        $chunk = [
-                            'id' => $id,
-                            'object' => 'chat.completion.chunk',
-                            'created' => time(),
-                            'model' => $model,
-                            'choices' => [['index' => 0, 'delta' => ['content' => $piece], 'finish_reason' => null]],
-                        ];
-                        echo 'data: ' . json_encode($chunk, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
-                        if (ob_get_level()) ob_flush();
-                        flush();
-                    }
-                }
+                // Content chunks — send entire content in one chunk to avoid splitting issues
+                echo $json(['id' => $id, 'object' => 'chat.completion.chunk', 'created' => time(), 'model' => $model, 'choices' => [['index' => 0, 'delta' => ['content' => $content], 'finish_reason' => null]]]);
+                if (ob_get_level()) ob_flush();
+                flush();
 
-                // Send finish chunk
-                $finish = [
-                    'id' => $id,
-                    'object' => 'chat.completion.chunk',
-                    'created' => time(),
-                    'model' => $model,
-                    'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => 'stop']],
-                ];
-                echo 'data: ' . json_encode($finish, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\ndata: [DONE]\n\n";
+                // Finish + DONE
+                echo $json(['id' => $id, 'object' => 'chat.completion.chunk', 'created' => time(), 'model' => $model, 'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => 'stop']]]);
+                echo "data: [DONE]\n\n";
                 if (ob_get_level()) ob_flush();
                 flush();
             }, 200, [
@@ -173,12 +156,17 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         return response()->json($data);
     }
 
-    private function injectSystemPrompt(array $messages): array
+    private function injectSystemPrompt(array $messages, string $modelId = ''): array
     {
+        $prompt = $this->systemPrompt;
+        if ($modelId) {
+            $prompt .= "\n\nYou are model '{$modelId}' on UltrAI platform. When asked what model you are, say '{$modelId}'.";
+        }
+
         if (!empty($messages) && $messages[0]['role'] === 'system') {
-            $messages[0]['content'] = $this->systemPrompt . "\n\n" . $messages[0]['content'];
+            $messages[0]['content'] = $prompt . "\n\n" . $messages[0]['content'];
         } else {
-            array_unshift($messages, ['role' => 'system', 'content' => $this->systemPrompt]);
+            array_unshift($messages, ['role' => 'system', 'content' => $prompt]);
         }
         return $messages;
     }

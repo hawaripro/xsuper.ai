@@ -23,6 +23,8 @@ class User extends Authenticatable
         'model_codex' => false,
         'model_wavespeed' => false,
         'model_yepapi' => false,
+        'model_canva' => false,
+        'video_generator' => false,
         'ai_api' => false,
         'ai_dashboard' => false,
     ];
@@ -106,6 +108,7 @@ class User extends Authenticatable
         if ($this->hasPermission('model_codex')) $tiers[] = 'Codex';
         if ($this->hasPermission('model_wavespeed')) $tiers[] = 'Wavespeed';
         if ($this->hasPermission('model_yepapi')) $tiers[] = 'YepAPI';
+        if ($this->hasPermission('model_canva')) $tiers[] = 'Canva';
         return $tiers;
     }
 

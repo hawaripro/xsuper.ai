@@ -77,7 +77,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
             ]);
         }
 
-        $messages = $this->injectSystemPrompt($messages);
+        $messages = $this->injectSystemPrompt($messages, $model);
 
         return $this->aiProxy->chatCompletionStream(
             $messages,
@@ -160,12 +160,17 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         return response()->json(['success' => true]);
     }
 
-    private function injectSystemPrompt(array $messages): array
+    private function injectSystemPrompt(array $messages, string $modelId = ''): array
     {
+        $prompt = $this->systemPrompt;
+        if ($modelId) {
+            $prompt .= "\n\nYou are model '{$modelId}' on UltrAI platform. When asked what model you are, say '{$modelId}'.";
+        }
+
         if (!empty($messages) && $messages[0]['role'] === 'system') {
-            $messages[0]['content'] = $this->systemPrompt . "\n\n" . $messages[0]['content'];
+            $messages[0]['content'] = $prompt . "\n\n" . $messages[0]['content'];
         } else {
-            array_unshift($messages, ['role' => 'system', 'content' => $this->systemPrompt]);
+            array_unshift($messages, ['role' => 'system', 'content' => $prompt]);
         }
         return $messages;
     }

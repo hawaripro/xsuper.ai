@@ -64,7 +64,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::delete('/c/h/{conversationId}', [ChatController::class, 'deleteConversation']);
         });
 
-        // Video Generator (check expiry)
+        // Video Generator (check expiry + permission)
         Route::middleware('check.expiry')->group(function () {
             Route::get('/v/models', [VideoController::class, 'models']);
             Route::post('/v/gen', [VideoController::class, 'generate']);

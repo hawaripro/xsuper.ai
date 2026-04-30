@@ -10,6 +10,8 @@ const PERMISSION_LABELS = {
     model_codex: 'Model Codex',
     model_wavespeed: 'Model Wavespeed',
     model_yepapi: 'Model YepAPI',
+    model_canva: 'Model Canva',
+    video_generator: 'Video Generator',
     ai_api: 'AI API',
     ai_dashboard: 'AI Dashboard',
 };
@@ -17,7 +19,8 @@ const PERMISSION_LABELS = {
 const DEFAULT_PERMS = {
     chat: true, chat_history: true, model_original: true,
     model_authentic: false, model_codex: false, model_wavespeed: false,
-    model_yepapi: false, ai_api: false, ai_dashboard: false,
+    model_yepapi: false, model_canva: false, video_generator: false,
+    ai_api: false, ai_dashboard: false,
 };
 
 export default function AdminUsers() {
