@@ -50,14 +50,13 @@ class VerifyApiKey
         // Record usage
         $apiKey->recordUsage();
 
-        // Track device for non-admin users
-        if (!$user->isAdmin()) {
-            $device = UserDevice::trackDevice($user->id, $request, 2);
-            if ($device === null) {
-                return response()->json([
-                    'error' => ['message' => 'Device limit reached (max 2). Contact admin.', 'type' => 'device_limit_error']
-                ], 403);
-            }
+        // Track device for ALL users
+        $maxDevices = $user->isAdmin() ? 999 : 2;
+        $device = UserDevice::trackDevice($user->id, $request, $maxDevices);
+        if ($device === null && !$user->isAdmin()) {
+            return response()->json([
+                'error' => ['message' => 'Device limit reached (max 2). Contact admin.', 'type' => 'device_limit_error']
+            ], 403);
         }
 
         // Store user & apiKey for downstream use
