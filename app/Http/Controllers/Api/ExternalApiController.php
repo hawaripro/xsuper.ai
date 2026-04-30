@@ -85,6 +85,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         if ($isStream) {
             return new StreamedResponse(function () use ($validated, $messages, $proxyUrl, $proxyKey) {
                 $ch = curl_init();
+                $buffer = '';
                 curl_setopt_array($ch, [
                     CURLOPT_URL => $proxyUrl . '/v1/chat/completions',
                     CURLOPT_POST => true,
@@ -92,14 +93,51 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
                     CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $proxyKey, 'Content-Type: application/json', 'Accept: text/event-stream'],
                     CURLOPT_RETURNTRANSFER => false,
                     CURLOPT_TIMEOUT => 120,
-                    CURLOPT_WRITEFUNCTION => function ($ch, $data) {
-                        echo self::scrubText($data);
-                        if (ob_get_level()) ob_flush();
-                        flush();
+                    CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$buffer) {
+                        $buffer .= $data;
+                        // Process complete SSE lines
+                        while (($pos = strpos($buffer, "\n")) !== false) {
+                            $line = substr($buffer, 0, $pos);
+                            $buffer = substr($buffer, $pos + 1);
+                            $line = trim($line);
+                            if ($line === '') {
+                                echo "\n";
+                            } elseif (str_starts_with($line, 'data: [DONE]')) {
+                                echo "data: [DONE]\n";
+                            } elseif (str_starts_with($line, 'data: ')) {
+                                $json = json_decode(substr($line, 6), true);
+                                if ($json) {
+                                    // Scrub delta content
+                                    if (isset($json['choices'])) {
+                                        foreach ($json['choices'] as &$c) {
+                                            if (isset($c['delta']['content'])) {
+                                                $c['delta']['content'] = self::scrubText($c['delta']['content']);
+                                            }
+                                        }
+                                    }
+                                    if (isset($json['model'])) {
+                                        $json['model'] = self::scrubText($json['model']);
+                                    }
+                                    echo 'data: ' . json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+                                } else {
+                                    echo $line . "\n";
+                                }
+                            } else {
+                                echo $line . "\n";
+                            }
+                            if (ob_get_level()) ob_flush();
+                            flush();
+                        }
                         return strlen($data);
                     },
                 ]);
                 curl_exec($ch);
+                // Flush remaining buffer
+                if ($buffer) {
+                    echo self::scrubText($buffer);
+                    if (ob_get_level()) ob_flush();
+                    flush();
+                }
                 curl_close($ch);
             }, 200, ['Content-Type' => 'text/event-stream', 'Cache-Control' => 'no-cache', 'Connection' => 'keep-alive', 'X-Accel-Buffering' => 'no']);
         }
