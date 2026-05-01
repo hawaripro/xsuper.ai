@@ -771,7 +771,7 @@ export default function ChatFullPage() {
     };
 
     // Models that can natively generate images in chat
-    const IMAGE_CAPABLE_CHAT_MODELS = ['gpt-4.5', 'gpt-4o', 'gpt-4o-mini', 'gpt-image-1'];
+    const IMAGE_CAPABLE_CHAT_MODELS = ['gpt-5.4', 'gpt-4o', 'gpt-4o-mini', 'gpt-image-1'];
 
     // Find best image-capable model for auto-forward
     const findImageForwardModel = () => {
