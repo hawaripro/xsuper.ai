@@ -105,12 +105,32 @@ const BASE64_IMG_REGEX = /data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g;
 const VIDEO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp4|webm|mov)(?:\?[^\s"'<>]*)?/gi;
 const AUDIO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp3|wav|ogg|m4a)(?:\?[^\s"'<>]*)?/gi;
 
+function svgToDataUrl(svg) {
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
 function extractMediaUrls(text) {
     if (!text) return { images: [], videos: [], audios: [], cleanText: text };
     const images = [];
     const videos = [];
     const audios = [];
     let cleanText = text;
+
+    // Extract raw SVG → convert to data URL image (safe, no DOM injection)
+    cleanText = cleanText.replace(/<svg[\s\S]*?<\/svg>/gi, (svg) => {
+        images.push(svgToDataUrl(svg));
+        return '';
+    });
+
+    // Extract SVG from code blocks: ```svg ... ``` or ```xml ... ```
+    cleanText = cleanText.replace(/```(?:svg|xml)\n([\s\S]*?)```/gi, (full, code) => {
+        const svgMatch = code.match(/<svg[\s\S]*?<\/svg>/i);
+        if (svgMatch) {
+            images.push(svgToDataUrl(svgMatch[0]));
+            return '';
+        }
+        return full;
+    });
 
     // Extract markdown images first: ![alt](url)
     cleanText = cleanText.replace(MARKDOWN_IMG_REGEX, (_, alt, url) => {
@@ -242,28 +262,37 @@ function ChatMessage({ message, userName, isDark, categoryColor, onSwitchModel, 
                     />
                 )}
 
-                {/* AI Generated Images */}
+                {/* AI Generated Images (including SVG converted to data URL) */}
                 {aiImages.length > 0 && (
                     <div className="flex flex-wrap gap-2.5 mt-3">
-                        {aiImages.map((src, i) => (
-                            <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="group relative block">
-                                <img
-                                    src={src}
-                                    alt={`Generated image ${i + 1}`}
-                                    className={`max-w-[280px] sm:max-w-[400px] max-h-[400px] rounded-2xl border-2 object-contain shadow-lg transition-transform duration-200 group-hover:scale-[1.02] ${
-                                        isDark ? 'border-purple-500/20 shadow-purple-500/10' : 'border-purple-200 shadow-purple-100'
-                                    }`}
-                                    onError={(e) => { e.target.style.display = 'none'; }}
-                                />
-                                {/* Overlay on hover */}
-                                <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-end p-2 opacity-0 group-hover:opacity-100">
-                                    <span className="px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-medium flex items-center gap-1">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                                        Buka
-                                    </span>
+                        {aiImages.map((src, i) => {
+                            const isSvg = src.startsWith('data:image/svg');
+                            return (
+                                <div key={i} className="group relative block">
+                                    <img
+                                        src={src}
+                                        alt={`Generated image ${i + 1}`}
+                                        className={`max-w-[280px] sm:max-w-[400px] max-h-[400px] rounded-2xl border-2 object-contain shadow-lg transition-transform duration-200 group-hover:scale-[1.02] ${
+                                            isSvg ? 'bg-white p-2' : ''
+                                        } ${
+                                            isDark ? 'border-purple-500/20 shadow-purple-500/10' : 'border-purple-200 shadow-purple-100'
+                                        }`}
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                    {/* Hover overlay with actions */}
+                                    <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-end p-2 gap-1.5 opacity-0 group-hover:opacity-100">
+                                        <a href={src} download={`ultrai-image-${Date.now()}.${isSvg ? 'svg' : 'png'}`} onClick={(e) => e.stopPropagation()} className="px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-medium flex items-center gap-1 hover:bg-black/80 transition-colors">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                            Download
+                                        </a>
+                                        <a href={src} target="_blank" rel="noopener noreferrer" className="px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-medium flex items-center gap-1 hover:bg-black/80 transition-colors">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                            Buka
+                                        </a>
+                                    </div>
                                 </div>
-                            </a>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
 
