@@ -97,8 +97,57 @@ function rebrandText(text) {
 }
 
 // ============================================
-// Markdown renderer
+// Markdown renderer (with image/media detection)
 // ============================================
+const IMAGE_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s"'<>]*)?/gi;
+const MARKDOWN_IMG_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
+const BASE64_IMG_REGEX = /data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g;
+const VIDEO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp4|webm|mov)(?:\?[^\s"'<>]*)?/gi;
+const AUDIO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp3|wav|ogg|m4a)(?:\?[^\s"'<>]*)?/gi;
+
+function extractMediaUrls(text) {
+    if (!text) return { images: [], videos: [], audios: [], cleanText: text };
+    const images = [];
+    const videos = [];
+    const audios = [];
+    let cleanText = text;
+
+    // Extract markdown images first: ![alt](url)
+    cleanText = cleanText.replace(MARKDOWN_IMG_REGEX, (_, alt, url) => {
+        images.push(url);
+        return '';
+    });
+
+    // Extract standalone image URLs (not inside markdown/code)
+    cleanText = cleanText.replace(IMAGE_URL_REGEX, (url) => {
+        if (!images.includes(url)) images.push(url);
+        return '';
+    });
+
+    // Extract base64 images
+    cleanText = cleanText.replace(BASE64_IMG_REGEX, (b64) => {
+        images.push(b64);
+        return '';
+    });
+
+    // Extract video URLs
+    cleanText = cleanText.replace(VIDEO_URL_REGEX, (url) => {
+        videos.push(url);
+        return '';
+    });
+
+    // Extract audio URLs
+    cleanText = cleanText.replace(AUDIO_URL_REGEX, (url) => {
+        audios.push(url);
+        return '';
+    });
+
+    // Clean up leftover empty lines
+    cleanText = cleanText.replace(/\n{3,}/g, '\n\n').trim();
+
+    return { images, videos, audios, cleanText };
+}
+
 function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
@@ -138,8 +187,15 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
 
     // Determine display content
     const display = message.display;
-    const hasAttachments = display && typeof display === 'object' && (display.images?.length || display.docs?.length);
-    const textContent = hasAttachments ? display.text : (typeof message.content === 'string' ? message.content : '');
+    const hasUserAttachments = display && typeof display === 'object' && (display.images?.length || display.docs?.length);
+    const rawText = hasUserAttachments ? display.text : (typeof message.content === 'string' ? message.content : '');
+
+    // Extract media from AI responses (images, videos, audio URLs)
+    const media = !isUser ? extractMediaUrls(rawText) : { images: [], videos: [], audios: [], cleanText: rawText };
+    const textContent = isUser ? rawText : media.cleanText;
+    const aiImages = media.images;
+    const aiVideos = media.videos;
+    const aiAudios = media.audios;
 
     return (
         <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
@@ -151,8 +207,8 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
                     {isUser ? (userName || 'You') : 'UltrAI'}
                 </div>
 
-                {/* Attached images */}
-                {hasAttachments && display.images?.length > 0 && (
+                {/* User attached images */}
+                {hasUserAttachments && display.images?.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
                         {display.images.map((src, i) => (
                             <img key={i} src={src} alt="attachment" className={`max-w-[200px] sm:max-w-[280px] max-h-[200px] rounded-xl border object-cover ${isDark ? 'border-white/[0.08]' : 'border-gray-200'}`} />
@@ -160,8 +216,8 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
                     </div>
                 )}
 
-                {/* Attached docs */}
-                {hasAttachments && display.docs?.length > 0 && (
+                {/* User attached docs */}
+                {hasUserAttachments && display.docs?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
                         {display.docs.map((name, i) => (
                             <span key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.06] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
@@ -178,6 +234,65 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
                         className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
                         dangerouslySetInnerHTML={{ __html: formatContent(textContent, isDark) }}
                     />
+                )}
+
+                {/* AI Generated Images */}
+                {aiImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2.5 mt-3">
+                        {aiImages.map((src, i) => (
+                            <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="group relative block">
+                                <img
+                                    src={src}
+                                    alt={`Generated image ${i + 1}`}
+                                    className={`max-w-[280px] sm:max-w-[400px] max-h-[400px] rounded-2xl border-2 object-contain shadow-lg transition-transform duration-200 group-hover:scale-[1.02] ${
+                                        isDark ? 'border-purple-500/20 shadow-purple-500/10' : 'border-purple-200 shadow-purple-100'
+                                    }`}
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                                {/* Overlay on hover */}
+                                <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-end p-2 opacity-0 group-hover:opacity-100">
+                                    <span className="px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-medium flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                        Buka
+                                    </span>
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                )}
+
+                {/* AI Generated Videos */}
+                {aiVideos.length > 0 && (
+                    <div className="flex flex-col gap-2.5 mt-3">
+                        {aiVideos.map((src, i) => (
+                            <div key={i} className={`rounded-2xl border-2 overflow-hidden shadow-lg ${isDark ? 'border-red-500/20 shadow-red-500/10' : 'border-red-200 shadow-red-100'}`}>
+                                <video
+                                    src={src}
+                                    controls
+                                    className="max-w-[400px] sm:max-w-[500px] max-h-[360px] w-full"
+                                    preload="metadata"
+                                />
+                                <div className={`flex items-center gap-2 px-3 py-2 text-[11px] ${isDark ? 'bg-white/[0.03] text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
+                                    <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                                    <a href={src} target="_blank" rel="noopener noreferrer" className="hover:text-red-400 transition-colors truncate">{src.split('/').pop()?.split('?')[0] || 'video'}</a>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* AI Generated Audio */}
+                {aiAudios.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-3">
+                        {aiAudios.map((src, i) => (
+                            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${isDark ? 'bg-white/[0.03] border-emerald-500/20' : 'bg-emerald-50/50 border-emerald-200'}`}>
+                                <div className={`w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-emerald-500/20`}>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                                </div>
+                                <audio src={src} controls className="flex-1 h-8" preload="metadata" />
+                            </div>
+                        ))}
+                    </div>
                 )}
             </div>
         </div>
