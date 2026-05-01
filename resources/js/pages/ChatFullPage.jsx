@@ -151,12 +151,6 @@ function extractMediaUrls(text) {
 function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
-
-    // Wrap raw SVG in code block so it displays as code, not rendered HTML
-    text = text.replace(/<svg[\s\S]*?<\/svg>/gi, (match) => {
-        return '```svg\n' + match + '\n```';
-    });
-
     let html = text
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -183,7 +177,7 @@ function getCsrfToken() {
 // ============================================
 // Chat Message Component
 // ============================================
-function ChatMessage({ message, userName, isDark, categoryColor, onSwitchModel, onForwardModel }) {
+function ChatMessage({ message, userName, isDark, categoryColor }) {
     const isUser = message.role === 'user';
     const catCfg = CATEGORY_CONFIG[categoryColor] || CATEGORY_CONFIG.chat;
 
@@ -300,11 +294,6 @@ function ChatMessage({ message, userName, isDark, categoryColor, onSwitchModel, 
                         ))}
                     </div>
                 )}
-
-                {/* Suggestion Card (switch to image model) */}
-                {message.suggestion && message.suggestion.type === 'switch_image_model' && (
-                    <SuggestionCard suggestion={message.suggestion} isDark={isDark} onSwitchModel={onSwitchModel} onForwardModel={onForwardModel} />
-                )}
             </div>
         </div>
     );
@@ -326,67 +315,6 @@ function TypingIndicator({ isDark, categoryColor }) {
                     {[0, 150, 300].map((delay) => (
                         <span key={delay} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isDark ? 'bg-gray-500' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: `${delay}ms` }} />
                     ))}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ============================================
-// Suggestion Card (switch to image model)
-// ============================================
-function SuggestionCard({ suggestion, isDark, onSwitchModel, onForwardModel }) {
-    const imgCfg = CATEGORY_CONFIG.image;
-    return (
-        <div className={`mt-3 p-4 rounded-2xl border animate-msg-in ${
-            isDark ? 'bg-purple-500/[0.05] border-purple-500/20' : 'bg-purple-50 border-purple-200'
-        }`}>
-            <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${imgCfg.gradient} flex items-center justify-center text-white flex-shrink-0 shadow-lg ${imgCfg.glow}`}>
-                    <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
-                    </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Model ini tidak bisa generate gambar
-                    </div>
-                    <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {suggestion.imageModel
-                            ? 'Gunakan model Image untuk hasil gambar terbaik, atau generate dengan model AI yang support.'
-                            : 'Akan digenerate menggunakan model AI yang support image generation.'
-                        }
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        {suggestion.imageModel && (
-                            <button
-                                onClick={() => onSwitchModel(suggestion.imageModel.id, suggestion.originalText)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                                    isDark
-                                        ? 'bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 border border-purple-500/20'
-                                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200'
-                                }`}
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
-                                </svg>
-                                Pakai {rebrandText(suggestion.imageModel.name || suggestion.imageModel.id)}
-                            </button>
-                        )}
-                        {suggestion.forwardModel && (
-                            <button
-                                onClick={() => onForwardModel(suggestion.forwardModel, suggestion.originalText)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                                    isDark
-                                        ? 'bg-white/[0.06] text-gray-300 hover:bg-white/[0.1] border border-white/[0.08]'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                }`}
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                                Generate dengan AI
-                            </button>
-                        )}
-                    </div>
                 </div>
             </div>
         </div>
@@ -759,151 +687,11 @@ export default function ChatFullPage() {
         }
     };
 
-    // ===== Image Request Detection =====
-    const IMAGE_KEYWORDS = [
-        'buatkan gambar', 'buat gambar', 'generate gambar', 'bikin gambar',
-        'buatkan foto', 'buat foto', 'generate foto', 'bikin foto',
-        'buatkan image', 'generate image', 'create image', 'make image',
-        'draw', 'gambarkan', 'ilustrasi', 'buat ilustrasi',
-        'generate a picture', 'create a picture', 'make a picture',
-        'generate an image', 'create an image', 'make an image',
-        'tolong gambar', 'coba gambar', 'gambarin',
-    ];
-
-    const isImageRequest = (text) => {
-        if (!text) return false;
-        const lower = text.toLowerCase();
-        return IMAGE_KEYWORDS.some(kw => lower.includes(kw));
-    };
-
-    // Models that can natively generate images in chat
-    const IMAGE_CAPABLE_CHAT_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-image-1'];
-
-    // Find best image-capable model for auto-forward
-    const findImageForwardModel = () => {
-        // Priority: gpt-4.5 > gpt-4o > any image-capable chat model
-        for (const preferred of IMAGE_CAPABLE_CHAT_MODELS) {
-            const found = models.find(m => m.id === preferred && m.category === 'chat');
-            if (found) return found.id;
-        }
-        return null;
-    };
-
-    // Check if user has access to dedicated image models
-    const hasImageModels = useMemo(() => {
-        return models.some(m => m.category === 'image');
-    }, [models]);
-
-    // Get first image model for quick-switch
-    const firstImageModel = useMemo(() => {
-        return models.find(m => m.category === 'image');
-    }, [models]);
-
     // Send message
-    const sendMessage = async (overrideModel = null) => {
+    const sendMessage = async () => {
         const text = input.trim();
         if (!text && attachments.length === 0) return;
         if (isStreaming) return;
-
-        const modelToUse = overrideModel || selectedModel;
-        const currentModelObj = models.find(m => m.id === modelToUse);
-        const isNonImageModel = currentModelObj?.category === 'chat';
-        const isImageCapable = IMAGE_CAPABLE_CHAT_MODELS.includes(modelToUse);
-
-        // Detect image generation request on non-image-capable chat model
-        if (isNonImageModel && !isImageCapable && isImageRequest(text) && !overrideModel) {
-            if (hasImageModels) {
-                // User has image model access → show suggestion
-                const userMsg = { role: 'user', content: text, display: text };
-                setMessages(prev => [...prev, userMsg, {
-                    role: 'assistant',
-                    content: '',
-                    display: text,
-                    suggestion: {
-                        type: 'switch_image_model',
-                        text: `Model **${rebrandText(currentModelObj?.name || modelToUse)}** tidak bisa generate gambar. Gunakan model Image untuk hasil terbaik.`,
-                        imageModel: firstImageModel,
-                        forwardModel: findImageForwardModel(),
-                        originalText: text,
-                    }
-                }]);
-                return;
-            } else {
-                // No image model access → auto-forward to image-capable chat model
-                const forwardTo = findImageForwardModel();
-                if (forwardTo && forwardTo !== modelToUse) {
-                    // Silently forward to image-capable model
-                    const userMsg = { role: 'user', content: text, display: text };
-                    const newMessages = [...messages, userMsg];
-                    setMessages(newMessages);
-                    setInput('');
-                    setAttachments([]);
-                    setIsStreaming(true);
-                    if (inputRef.current) inputRef.current.style.height = 'auto';
-
-                    const apiMessages = newMessages.filter(m => {
-                        if (!m.content) return false;
-                        if (typeof m.content === 'string') return m.content.trim().length > 0;
-                        return true;
-                    }).map(m => ({ role: m.role, content: m.content }));
-
-                    try {
-                        const res = await fetch('/api/c/s', {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'text/event-stream',
-                                'X-XSRF-TOKEN': getCsrfToken(),
-                            },
-                            body: JSON.stringify({
-                                model: forwardTo,
-                                messages: apiMessages,
-                                conversation_id: currentConvId,
-                            }),
-                        });
-
-                        if (!res.ok) throw new Error('Chat gagal');
-
-                        const reader = res.body.getReader();
-                        const decoder = new TextDecoder();
-                        let fullText = '';
-                        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            const chunk = decoder.decode(value, { stream: true });
-                            for (const line of chunk.split('\n')) {
-                                const trimmed = line.trim();
-                                if (!trimmed || trimmed === 'data:' || trimmed === 'data: ') continue;
-                                if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-                                    try {
-                                        const json = JSON.parse(trimmed.slice(6));
-                                        const content = json.choices?.[0]?.delta?.content;
-                                        if (content) {
-                                            fullText += content;
-                                            setMessages(prev => {
-                                                const updated = [...prev];
-                                                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
-                                                return updated;
-                                            });
-                                        }
-                                    } catch {}
-                                }
-                            }
-                        }
-                        loadConversations();
-                    } catch (err) {
-                        setMessages(prev => [...prev.filter(m => m.content !== ''), { role: 'assistant', content: 'Error: ' + err.message }]);
-                    } finally {
-                        setIsStreaming(false);
-                        inputRef.current?.focus();
-                    }
-                    return;
-                }
-            }
-        }
 
         // Build multimodal content if attachments exist
         let userContent = text;
@@ -911,6 +699,7 @@ export default function ChatFullPage() {
         const currentAttachments = [...attachments];
 
         if (currentAttachments.length > 0) {
+            // Build content array for API (multimodal)
             const contentParts = [];
             if (text) contentParts.push({ type: 'text', text });
 
@@ -919,12 +708,14 @@ export default function ChatFullPage() {
                     const base64 = await fileToBase64(att.file);
                     contentParts.push({ type: 'image_url', image_url: { url: base64 } });
                 } else {
+                    // For docs, read as text and include
                     const docText = await att.file.text();
                     contentParts.push({ type: 'text', text: `[File: ${att.name}]\n${docText}` });
                 }
             }
             userContent = contentParts;
 
+            // Build display content (text + image previews for UI)
             const imgPreviews = currentAttachments.filter(a => a.type === 'image').map(a => a.preview);
             const docNames = currentAttachments.filter(a => a.type === 'doc').map(a => a.name);
             displayContent = { text, images: imgPreviews, docs: docNames };
@@ -937,21 +728,15 @@ export default function ChatFullPage() {
         setAttachments([]);
         setIsStreaming(true);
 
+        // Reset textarea height
         if (inputRef.current) inputRef.current.style.height = 'auto';
 
-        // Build API messages — ensure only serializable data (no DOM refs)
+        // Build API messages — filter empty, keep multimodal format
         const apiMessages = newMessages.filter(m => {
             if (!m.content) return false;
             if (typeof m.content === 'string') return m.content.trim().length > 0;
-            if (Array.isArray(m.content)) return true;
-            return false;
-        }).map(m => {
-            // Only pass role + content (strip display, suggestion, etc)
-            const content = typeof m.content === 'string' ? m.content
-                : Array.isArray(m.content) ? m.content
-                : String(m.content);
-            return { role: m.role, content };
-        });
+            return true; // array content (multimodal)
+        }).map(m => ({ role: m.role, content: m.content }));
 
         try {
             const res = await fetch('/api/c/s', {
@@ -963,7 +748,7 @@ export default function ChatFullPage() {
                     'X-XSRF-TOKEN': getCsrfToken(),
                 },
                 body: JSON.stringify({
-                    model: modelToUse,
+                    model: selectedModel,
                     messages: apiMessages,
                     conversation_id: currentConvId,
                 }),
@@ -1114,32 +899,6 @@ export default function ChatFullPage() {
             e.target.value = ''; // reset so same file can be selected again
         }
     };
-
-    // Handlers for suggestion card actions
-    const handleSwitchModel = useCallback((modelId, originalText) => {
-        // Remove the suggestion message, switch model, re-send
-        setMessages(prev => prev.filter(m => !m.suggestion));
-        setSelectedModel(modelId);
-        setSelectedCategory(models.find(m => m.id === modelId)?.category || 'image');
-        setInput(originalText);
-        // Auto-send after state update
-        setTimeout(() => {
-            const textarea = inputRef.current;
-            if (textarea) {
-                textarea.focus();
-                // Trigger send via Enter key simulation
-                const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                textarea.dispatchEvent(event);
-            }
-        }, 100);
-    }, [models]);
-
-    const handleForwardModel = useCallback((modelId, originalText) => {
-        // Remove the suggestion message, forward to image-capable model
-        setMessages(prev => prev.filter(m => !m.suggestion));
-        setInput(originalText);
-        setTimeout(() => sendMessage(modelId), 50);
-    }, []);
 
     // Current model category for theming
     const currentModel = models.find(m => m.id === selectedModel);
@@ -1425,7 +1184,7 @@ export default function ChatFullPage() {
                     ) : (
                         <>
                             {messages.map((msg, i) => (
-                                <ChatMessage key={i} message={msg} userName={user?.name} isDark={isDark} categoryColor={currentCategory} onSwitchModel={handleSwitchModel} onForwardModel={handleForwardModel} />
+                                <ChatMessage key={i} message={msg} userName={user?.name} isDark={isDark} categoryColor={currentCategory} />
                             ))}
                             {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
                                 <TypingIndicator isDark={isDark} categoryColor={currentCategory} />
