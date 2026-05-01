@@ -136,6 +136,11 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
         ? (isDark ? 'bg-white/[0.08] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200')
         : `bg-gradient-to-br ${catCfg.gradient} text-white shadow-lg ${catCfg.glow}`;
 
+    // Determine display content
+    const display = message.display;
+    const hasAttachments = display && typeof display === 'object' && (display.images?.length || display.docs?.length);
+    const textContent = hasAttachments ? display.text : (typeof message.content === 'string' ? message.content : '');
+
     return (
         <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
             <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0 mt-0.5 ${avatarClass} [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
@@ -145,10 +150,35 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
                 <div className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.08em] mb-1 sm:mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     {isUser ? (userName || 'You') : 'UltrAI'}
                 </div>
-                <div
-                    className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                    dangerouslySetInnerHTML={{ __html: formatContent(message.content, isDark) }}
-                />
+
+                {/* Attached images */}
+                {hasAttachments && display.images?.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                        {display.images.map((src, i) => (
+                            <img key={i} src={src} alt="attachment" className={`max-w-[200px] sm:max-w-[280px] max-h-[200px] rounded-xl border object-cover ${isDark ? 'border-white/[0.08]' : 'border-gray-200'}`} />
+                        ))}
+                    </div>
+                )}
+
+                {/* Attached docs */}
+                {hasAttachments && display.docs?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {display.docs.map((name, i) => (
+                            <span key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.06] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                {name}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                {/* Text content */}
+                {textContent && (
+                    <div
+                        className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                        dangerouslySetInnerHTML={{ __html: formatContent(textContent, isDark) }}
+                    />
+                )}
             </div>
         </div>
     );
@@ -441,8 +471,11 @@ export default function ChatFullPage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [showSidebar, setShowSidebar] = useState(false); // hidden by default on mobile
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [attachments, setAttachments] = useState([]); // [{file, preview, type, name}]
+    const [isDragging, setIsDragging] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     // Auto-scroll — only when there are messages (not on welcome screen)
     const scrollToBottom = useCallback(() => {
@@ -542,18 +575,53 @@ export default function ChatFullPage() {
     // Send message
     const sendMessage = async () => {
         const text = input.trim();
-        if (!text || isStreaming) return;
+        if (!text && attachments.length === 0) return;
+        if (isStreaming) return;
 
-        const userMsg = { role: 'user', content: text };
+        // Build multimodal content if attachments exist
+        let userContent = text;
+        let displayContent = text;
+        const currentAttachments = [...attachments];
+
+        if (currentAttachments.length > 0) {
+            // Build content array for API (multimodal)
+            const contentParts = [];
+            if (text) contentParts.push({ type: 'text', text });
+
+            for (const att of currentAttachments) {
+                if (att.type === 'image') {
+                    const base64 = await fileToBase64(att.file);
+                    contentParts.push({ type: 'image_url', image_url: { url: base64 } });
+                } else {
+                    // For docs, read as text and include
+                    const docText = await att.file.text();
+                    contentParts.push({ type: 'text', text: `[File: ${att.name}]\n${docText}` });
+                }
+            }
+            userContent = contentParts;
+
+            // Build display content (text + image previews for UI)
+            const imgPreviews = currentAttachments.filter(a => a.type === 'image').map(a => a.preview);
+            const docNames = currentAttachments.filter(a => a.type === 'doc').map(a => a.name);
+            displayContent = { text, images: imgPreviews, docs: docNames };
+        }
+
+        const userMsg = { role: 'user', content: userContent, display: displayContent };
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
         setInput('');
+        setAttachments([]);
         setIsStreaming(true);
 
         // Reset textarea height
         if (inputRef.current) inputRef.current.style.height = 'auto';
 
-        const apiMessages = newMessages.filter(m => m.content && m.content.trim().length > 0);
+        // Build API messages — filter empty, keep multimodal format
+        const apiMessages = newMessages.filter(m => {
+            if (!m.content) return false;
+            if (typeof m.content === 'string') return m.content.trim().length > 0;
+            return true; // array content (multimodal)
+        }).map(m => ({ role: m.role, content: m.content }));
 
         try {
             const res = await fetch('/api/c/s', {
@@ -635,6 +703,86 @@ export default function ChatFullPage() {
         setInput(e.target.value);
         e.target.style.height = 'auto';
         e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+    };
+
+    // ===== File Upload Handlers =====
+    const ACCEPTED_TYPES = {
+        image: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
+        doc: ['application/pdf', 'text/plain', 'text/markdown', 'text/csv', 'application/json'],
+    };
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    const MAX_ATTACHMENTS = 5;
+
+    const processFiles = useCallback((files) => {
+        const newAttachments = [];
+        for (const file of files) {
+            if (attachments.length + newAttachments.length >= MAX_ATTACHMENTS) break;
+            const isImage = ACCEPTED_TYPES.image.includes(file.type);
+            const isDoc = ACCEPTED_TYPES.doc.includes(file.type);
+            if (!isImage && !isDoc) continue;
+            if (file.size > MAX_FILE_SIZE) continue;
+
+            const preview = isImage ? URL.createObjectURL(file) : null;
+            newAttachments.push({
+                id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                file,
+                preview,
+                type: isImage ? 'image' : 'doc',
+                name: file.name,
+                size: file.size,
+            });
+        }
+        if (newAttachments.length > 0) {
+            setAttachments(prev => [...prev, ...newAttachments]);
+        }
+    }, [attachments.length]);
+
+    const removeAttachment = (id) => {
+        setAttachments(prev => {
+            const item = prev.find(a => a.id === id);
+            if (item?.preview) URL.revokeObjectURL(item.preview);
+            return prev.filter(a => a.id !== id);
+        });
+    };
+
+    const fileToBase64 = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    // Drag & Drop
+    const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+    const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
+    const handleDrop = (e) => {
+        e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+        if (e.dataTransfer.files?.length) processFiles(Array.from(e.dataTransfer.files));
+    };
+
+    // Paste (screenshot / image from clipboard)
+    const handlePaste = (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        const files = [];
+        for (const item of items) {
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) files.push(file);
+            }
+        }
+        if (files.length > 0) {
+            e.preventDefault();
+            processFiles(files);
+        }
+    };
+
+    // File input change
+    const handleFileSelect = (e) => {
+        if (e.target.files?.length) {
+            processFiles(Array.from(e.target.files));
+            e.target.value = ''; // reset so same file can be selected again
+        }
     };
 
     // Current model category for theming
@@ -801,7 +949,7 @@ export default function ChatFullPage() {
             </div>
 
             {/* ===== Main Chat Area ===== */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 {/* Chat Header — sticky, compact on mobile */}
                 <div className={`sticky top-0 z-30 flex items-center justify-between px-2.5 sm:px-4 py-2 sm:py-2.5 border-b backdrop-blur-xl ${
                     isDark ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200 bg-white/90'
@@ -931,43 +1079,125 @@ export default function ChatFullPage() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input Area — compact on mobile */}
-                <div className={`px-2.5 sm:px-4 pb-3 sm:pb-4 pt-1.5 sm:pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}>
+                {/* Drag overlay for entire chat area */}
+                {isDragging && (
+                    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none">
+                        <div className={`flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-dashed ${catCfg.border} ${catCfg.bg}`}>
+                            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${catCfg.gradient} flex items-center justify-center text-white shadow-lg`}>
+                                <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            </div>
+                            <div className="text-white font-bold text-sm">Drop file di sini</div>
+                            <div className="text-white/60 text-xs">Gambar, PDF, TXT (max 20MB)</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Input Area — with file upload */}
+                <div
+                    className={`px-2.5 sm:px-4 pb-3 sm:pb-4 pt-1.5 sm:pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                >
                     <div className="max-w-4xl mx-auto relative">
-                        <div className={`relative rounded-xl sm:rounded-2xl border overflow-hidden transition-all ${
-                            isDark
-                                ? 'bg-gray-900/80 border-white/[0.08] focus-within:border-red-500/30 focus-within:ring-2 focus-within:ring-red-500/10'
-                                : 'bg-white border-gray-300 shadow-sm focus-within:border-red-500/40 focus-within:ring-2 focus-within:ring-red-500/10'
+                        <div className={`relative rounded-xl sm:rounded-2xl border transition-all ${
+                            isDragging
+                                ? `border-2 ${catCfg.border} ${catCfg.bg}`
+                                : isDark
+                                    ? 'bg-gray-900/80 border-white/[0.08] focus-within:border-red-500/30 focus-within:ring-2 focus-within:ring-red-500/10'
+                                    : 'bg-white border-gray-300 shadow-sm focus-within:border-red-500/40 focus-within:ring-2 focus-within:ring-red-500/10'
                         }`}>
-                            <textarea
-                                ref={inputRef}
-                                value={input}
-                                onChange={handleInputChange}
-                                onKeyDown={handleKeyDown}
-                                placeholder={`Ketik pesan ke ${rebrandText(currentModel?.name || 'AI')}...`}
-                                rows={1}
-                                disabled={isStreaming}
-                                className={`w-full px-3.5 sm:px-5 py-3 sm:py-3.5 pr-12 sm:pr-14 text-[13px] sm:text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${
-                                    isDark ? 'text-white placeholder-gray-600' : 'text-gray-900 placeholder-gray-400'
-                                }`}
-                                style={{ minHeight: '46px', maxHeight: '200px' }}
+
+                            {/* Attachment Preview */}
+                            {attachments.length > 0 && (
+                                <div className="flex gap-2 px-3 sm:px-4 pt-3 pb-1 overflow-x-auto scrollbar-thin">
+                                    {attachments.map((att) => (
+                                        <div key={att.id} className="relative group flex-shrink-0 animate-msg-in">
+                                            {att.type === 'image' ? (
+                                                <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border ${isDark ? 'border-white/[0.1]' : 'border-gray-200'}`}>
+                                                    <img src={att.preview} alt={att.name} className="w-full h-full object-cover" />
+                                                    <div className={`absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
+                                                </div>
+                                            ) : (
+                                                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${isDark ? 'bg-white/[0.04] border-white/[0.08] text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                                                    <svg className={`w-5 h-5 flex-shrink-0 ${catCfg.text}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                                    <div className="min-w-0">
+                                                        <div className="text-[11px] font-medium truncate max-w-[100px]">{att.name}</div>
+                                                        <div className={`text-[9px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{(att.size / 1024).toFixed(0)} KB</div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Remove button */}
+                                            <button
+                                                onClick={() => removeAttachment(att.id)}
+                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all shadow-lg scale-75 group-hover:scale-100"
+                                            >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Text input row */}
+                            <div className="flex items-end">
+                                {/* Upload button */}
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
+                                    className={`flex-shrink-0 p-2 sm:p-2.5 ml-1 sm:ml-1.5 mb-1 sm:mb-1.5 rounded-lg sm:rounded-xl transition-all disabled:opacity-30 ${
+                                        isDark
+                                            ? 'text-gray-400 hover:text-white hover:bg-white/[0.08]'
+                                            : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                    title="Upload gambar atau dokumen"
+                                >
+                                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                </button>
+
+                                <textarea
+                                    ref={inputRef}
+                                    value={input}
+                                    onChange={handleInputChange}
+                                    onKeyDown={handleKeyDown}
+                                    onPaste={handlePaste}
+                                    placeholder={attachments.length > 0 ? 'Tambahkan pesan...' : `Ketik pesan ke ${rebrandText(currentModel?.name || 'AI')}...`}
+                                    rows={1}
+                                    disabled={isStreaming}
+                                    className={`flex-1 px-1 sm:px-2 py-3 sm:py-3.5 pr-12 sm:pr-14 text-[13px] sm:text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${
+                                        isDark ? 'text-white placeholder-gray-600' : 'text-gray-900 placeholder-gray-400'
+                                    }`}
+                                    style={{ minHeight: '46px', maxHeight: '200px' }}
+                                />
+
+                                {/* Send button */}
+                                <button
+                                    onClick={sendMessage}
+                                    disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+                                    className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 mr-2 sm:mr-2.5 mb-2 sm:mb-2.5 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
+                                >
+                                    {isStreaming ? (
+                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Hidden file input */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                multiple
+                                accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json"
+                                onChange={handleFileSelect}
+                                className="hidden"
                             />
-                            <button
-                                onClick={sendMessage}
-                                disabled={!input.trim() || isStreaming}
-                                className={`absolute right-2 sm:right-2.5 bottom-2 sm:bottom-2.5 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
-                            >
-                                {isStreaming ? (
-                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                ) : (
-                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                    </svg>
-                                )}
-                            </button>
                         </div>
                     </div>
                     <p className={`text-center text-[10px] sm:text-[11px] mt-1.5 sm:mt-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>

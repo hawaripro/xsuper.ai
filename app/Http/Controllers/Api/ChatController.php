@@ -88,7 +88,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         $request->validate([
             'messages' => 'required|array|min:1',
             'messages.*.role' => 'required|string|in:user,assistant,system',
-            'messages.*.content' => 'required|string',
+            'messages.*.content' => 'required',  // string or array (multimodal)
             'model' => 'nullable|string',
             'conversation_id' => 'nullable|string|max:100',
         ]);
@@ -111,13 +111,21 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         }
         $conversationId = $request->input('conversation_id');
 
+        // Extract text content for chat history (multimodal messages store text only)
         $lastMsg = end($messages);
         if ($conversationId && $lastMsg) {
+            $historyContent = $lastMsg['content'];
+            if (is_array($historyContent)) {
+                // Extract only text parts for history storage
+                $textParts = array_filter($historyContent, fn($p) => ($p['type'] ?? '') === 'text');
+                $historyContent = implode("\n", array_map(fn($p) => $p['text'] ?? '', $textParts));
+                if (empty($historyContent)) $historyContent = '[Image/File attachment]';
+            }
             DB::table('chat_history')->insert([
                 'user_id' => $user->id,
                 'conversation_id' => $conversationId,
                 'role' => $lastMsg['role'],
-                'content' => $lastMsg['content'],
+                'content' => $historyContent,
                 'model' => $model,
                 'created_at' => now(),
             ]);
