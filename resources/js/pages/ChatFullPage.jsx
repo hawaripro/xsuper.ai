@@ -97,38 +97,20 @@ function rebrandText(text) {
 }
 
 // ============================================
-// Markdown renderer (with image/media/SVG detection)
+// Markdown renderer (with image/media detection)
 // ============================================
 const IMAGE_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s"'<>]*)?/gi;
 const MARKDOWN_IMG_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
 const BASE64_IMG_REGEX = /data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g;
 const VIDEO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp4|webm|mov)(?:\?[^\s"'<>]*)?/gi;
 const AUDIO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp3|wav|ogg|m4a)(?:\?[^\s"'<>]*)?/gi;
-const SVG_REGEX = /<svg[\s\S]*?<\/svg>/gi;
 
 function extractMediaUrls(text) {
-    if (!text) return { images: [], videos: [], audios: [], svgs: [], cleanText: text };
+    if (!text) return { images: [], videos: [], audios: [], cleanText: text };
     const images = [];
     const videos = [];
     const audios = [];
-    const svgs = [];
     let cleanText = text;
-
-    // Extract SVG content (full <svg>...</svg> blocks)
-    cleanText = cleanText.replace(SVG_REGEX, (svg) => {
-        svgs.push(svg);
-        return '';
-    });
-
-    // Also extract SVG from code blocks: ```svg ... ``` or ```xml ... ```
-    cleanText = cleanText.replace(/```(?:svg|xml)\n([\s\S]*?)```/gi, (_, code) => {
-        const svgMatch = code.match(/<svg[\s\S]*?<\/svg>/i);
-        if (svgMatch) {
-            svgs.push(svgMatch[0]);
-            return '';
-        }
-        return _;
-    });
 
     // Extract markdown images first: ![alt](url)
     cleanText = cleanText.replace(MARKDOWN_IMG_REGEX, (_, alt, url) => {
@@ -163,63 +145,7 @@ function extractMediaUrls(text) {
     // Clean up leftover empty lines
     cleanText = cleanText.replace(/\n{3,}/g, '\n\n').trim();
 
-    return { images, videos, audios, svgs, cleanText };
-}
-
-// ============================================
-// SVG Renderer Component (with download as PNG)
-// ============================================
-function SvgImage({ svg, isDark }) {
-    const containerRef = useRef(null);
-
-    const downloadAsPng = () => {
-        const svgEl = containerRef.current?.querySelector('svg');
-        if (!svgEl) return;
-
-        const canvas = document.createElement('canvas');
-        const bbox = svgEl.getBoundingClientRect();
-        const scale = 2; // 2x for retina
-        canvas.width = bbox.width * scale;
-        canvas.height = bbox.height * scale;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale);
-
-        const svgData = new XMLSerializer().serializeToString(svgEl);
-        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(svgBlob);
-        const img = new Image();
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0, bbox.width, bbox.height);
-            URL.revokeObjectURL(url);
-            const pngUrl = canvas.toDataURL('image/png');
-            const a = document.createElement('a');
-            a.href = pngUrl;
-            a.download = 'ultrai-image-' + Date.now() + '.png';
-            a.click();
-        };
-        img.src = url;
-    };
-
-    return (
-        <div className="group relative inline-block">
-            <div
-                ref={containerRef}
-                className={`rounded-2xl border-2 overflow-hidden shadow-lg ${isDark ? 'border-purple-500/20 shadow-purple-500/10 bg-white' : 'border-purple-200 shadow-purple-100 bg-white'}`}
-                dangerouslySetInnerHTML={{ __html: svg }}
-                style={{ maxWidth: '400px', maxHeight: '400px' }}
-            />
-            {/* Download button overlay */}
-            <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                    onClick={downloadAsPng}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-black/70 text-white text-[10px] font-semibold hover:bg-black/90 transition-colors backdrop-blur-sm"
-                >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    PNG
-                </button>
-            </div>
-        </div>
-    );
+    return { images, videos, audios, cleanText };
 }
 
 function formatContent(text, isDark) {
@@ -264,13 +190,12 @@ function ChatMessage({ message, userName, isDark, categoryColor, onSwitchModel, 
     const hasUserAttachments = display && typeof display === 'object' && (display.images?.length || display.docs?.length);
     const rawText = hasUserAttachments ? display.text : (typeof message.content === 'string' ? message.content : '');
 
-    // Extract media from AI responses (images, videos, audio, SVGs)
-    const media = !isUser ? extractMediaUrls(rawText) : { images: [], videos: [], audios: [], svgs: [], cleanText: rawText };
+    // Extract media from AI responses (images, videos, audio URLs)
+    const media = !isUser ? extractMediaUrls(rawText) : { images: [], videos: [], audios: [], cleanText: rawText };
     const textContent = isUser ? rawText : media.cleanText;
     const aiImages = media.images;
     const aiVideos = media.videos;
     const aiAudios = media.audios;
-    const aiSvgs = media.svgs;
 
     return (
         <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
@@ -309,15 +234,6 @@ function ChatMessage({ message, userName, isDark, categoryColor, onSwitchModel, 
                         className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
                         dangerouslySetInnerHTML={{ __html: formatContent(textContent, isDark) }}
                     />
-                )}
-
-                {/* AI Generated SVG Images */}
-                {aiSvgs.length > 0 && (
-                    <div className="flex flex-wrap gap-3 mt-3">
-                        {aiSvgs.map((svg, i) => (
-                            <SvgImage key={i} svg={svg} isDark={isDark} />
-                        ))}
-                    </div>
                 )}
 
                 {/* AI Generated Images */}
@@ -855,7 +771,7 @@ export default function ChatFullPage() {
     };
 
     // Models that can natively generate images in chat
-    const IMAGE_CAPABLE_CHAT_MODELS = ['gpt-5.4', 'gpt-4o', 'gpt-4o-mini', 'gpt-image-1'];
+    const IMAGE_CAPABLE_CHAT_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-image-1'];
 
     // Find best image-capable model for auto-forward
     const findImageForwardModel = () => {
