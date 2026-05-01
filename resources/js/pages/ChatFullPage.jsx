@@ -151,6 +151,12 @@ function extractMediaUrls(text) {
 function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
+
+    // Wrap raw SVG in code block so it displays as code, not rendered HTML
+    text = text.replace(/<svg[\s\S]*?<\/svg>/gi, (match) => {
+        return '```svg\n' + match + '\n```';
+    });
+
     let html = text
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -933,11 +939,19 @@ export default function ChatFullPage() {
 
         if (inputRef.current) inputRef.current.style.height = 'auto';
 
+        // Build API messages — ensure only serializable data (no DOM refs)
         const apiMessages = newMessages.filter(m => {
             if (!m.content) return false;
             if (typeof m.content === 'string') return m.content.trim().length > 0;
-            return true;
-        }).map(m => ({ role: m.role, content: m.content }));
+            if (Array.isArray(m.content)) return true;
+            return false;
+        }).map(m => {
+            // Only pass role + content (strip display, suggestion, etc)
+            const content = typeof m.content === 'string' ? m.content
+                : Array.isArray(m.content) ? m.content
+                : String(m.content);
+            return { role: m.role, content };
+        });
 
         try {
             const res = await fetch('/api/c/s', {
