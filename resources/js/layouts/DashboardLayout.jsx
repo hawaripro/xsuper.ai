@@ -78,7 +78,6 @@ export default function DashboardLayout({ children }) {
         { name: 'Dashboard', href: '/dashboard', icon: Icons.dashboard },
         ...(hasChat ? [{ name: 'Chat AI', href: '/chat', icon: Icons.chat }] : []),
         ...(hasVideo ? [{ name: 'Video Generator', href: '/video', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg> }] : []),
-        ...(hasDashboard ? [{ name: 'AI Dashboard', href: 'https://app.ultrai.id', icon: Icons.external, external: true }] : []),
         ...(isAdmin ? [
             { name: 'Kelola Users', href: '/admin', icon: Icons.users },
             { name: 'Token Usage', href: '/usage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg> },
@@ -88,6 +87,9 @@ export default function DashboardLayout({ children }) {
 
     const externalLinks = [
         { name: 'Landing Page', href: '/', icon: Icons.home, internal: true },
+        ...(hasDashboard ? [
+            { name: 'AI Dashboard Official', href: 'https://app.ultrai.id', icon: Icons.external },
+        ] : []),
         ...(isAdmin ? [
             { name: 'AI API', href: 'https://api.ultrai.id', icon: Icons.api },
             { name: 'AI Dashboard', href: 'https://dash.ultrai.id', icon: Icons.external },
@@ -138,36 +140,30 @@ export default function DashboardLayout({ children }) {
                     <div className="px-3 mb-3">
                         <span className={`text-[10px] font-bold uppercase tracking-[0.15em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Menu</span>
                     </div>
-                    {navigation.map((item) => {
-                        const cls = `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                            isActive(item.href)
-                                ? 'bg-gradient-to-r from-red-500/15 to-red-500/5 text-red-400 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]'
-                                : isDark
-                                    ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]'
-                                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                        }`;
-                        const iconCls = `transition-colors ${isActive(item.href) ? 'text-red-400' : isDark ? 'text-gray-500 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-600'}`;
-
-                        if (item.external) {
-                            return (
-                                <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setSidebarOpen(false)} className={cls}>
-                                    <span className={iconCls}>{item.icon}</span>
-                                    {item.name}
-                                    <svg className={`ml-auto w-3.5 h-3.5 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                                </a>
-                            );
-                        }
-
-                        return (
-                            <Link key={item.href} to={item.href} onClick={() => setSidebarOpen(false)} className={cls}>
-                                <span className={iconCls}>{item.icon}</span>
-                                {item.name}
-                                {isActive(item.href) && (
-                                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
-                                )}
-                            </Link>
-                        );
-                    })}
+                    {navigation.map((item) => (
+                        <Link
+                            key={item.href}
+                            to={item.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`
+                                group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                                ${isActive(item.href)
+                                    ? 'bg-gradient-to-r from-red-500/15 to-red-500/5 text-red-400 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]'
+                                    : isDark
+                                        ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]'
+                                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                                }
+                            `}
+                        >
+                            <span className={`transition-colors ${isActive(item.href) ? 'text-red-400' : isDark ? 'text-gray-500 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                                {item.icon}
+                            </span>
+                            {item.name}
+                            {isActive(item.href) && (
+                                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                            )}
+                        </Link>
+                    ))}
 
                     {/* External Links */}
                     <div className="pt-6 pb-2 px-3">
