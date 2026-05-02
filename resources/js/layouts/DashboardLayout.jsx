@@ -87,10 +87,8 @@ export default function DashboardLayout({ children }) {
 
     const externalLinks = [
         { name: 'Landing Page', href: '/', icon: Icons.home, internal: true },
-        ...(hasDashboard ? [
-            { name: 'AI Dashboard Official', href: 'https://app.ultrai.id', icon: Icons.external },
-        ] : []),
         ...(isAdmin ? [
+            { name: 'AI Dashboard Official', href: 'https://app.ultrai.id', icon: Icons.external },
             { name: 'AI API', href: 'https://api.ultrai.id', icon: Icons.api },
             { name: 'AI Dashboard', href: 'https://dash.ultrai.id', icon: Icons.external },
         ] : []),
