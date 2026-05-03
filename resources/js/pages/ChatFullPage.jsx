@@ -141,6 +141,11 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
         ? (isDark ? 'bg-white/[0.08] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200')
         : `bg-gradient-to-br ${catCfg.gradient} text-white shadow-lg ${catCfg.glow}`;
 
+    // Get display text (plain string for rendering)
+    const displayText = typeof message.content === 'string' ? message.content : (message._display || '');
+    // Get user attachments for preview
+    const atts = message._attachments || [];
+
     return (
         <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
             <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0 mt-0.5 ${avatarClass} [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
@@ -150,10 +155,35 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
                 <div className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.08em] mb-1 sm:mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     {isUser ? (userName || 'You') : 'UltrAI'}
                 </div>
-                <div
-                    className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                    dangerouslySetInnerHTML={{ __html: formatContent(message.content, isDark) }}
-                />
+
+                {/* User image attachments */}
+                {atts.filter(a => a.type === 'image').length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                        {atts.filter(a => a.type === 'image').map(a => (
+                            <img key={a.id} src={a.base64} alt={a.name} className={`max-w-[180px] sm:max-w-[240px] max-h-[180px] rounded-xl border object-cover ${isDark ? 'border-white/[0.08]' : 'border-gray-200'}`} />
+                        ))}
+                    </div>
+                )}
+
+                {/* User doc attachments */}
+                {atts.filter(a => a.type === 'doc').length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {atts.filter(a => a.type === 'doc').map(a => (
+                            <span key={a.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.06] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                {a.name}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                {/* Text content */}
+                {displayText && (
+                    <div
+                        className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                        dangerouslySetInnerHTML={{ __html: formatContent(displayText, isDark) }}
+                    />
+                )}
             </div>
         </div>
     );
@@ -444,10 +474,13 @@ export default function ChatFullPage() {
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [input, setInput] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
-    const [showSidebar, setShowSidebar] = useState(false); // hidden by default on mobile
+    const [showSidebar, setShowSidebar] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [attachments, setAttachments] = useState([]); // [{id, base64, name, size, type:'image'|'doc'}]
+    const [isDragging, setIsDragging] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     // Auto-scroll — only when there are messages (not on welcome screen)
     const scrollToBottom = useCallback(() => {
@@ -626,12 +659,35 @@ export default function ChatFullPage() {
 
     const sendMessage = async () => {
         const text = input.trim();
-        if (!text || isStreaming || !selectedModel) return;
+        if ((!text && attachments.length === 0) || isStreaming || !selectedModel) return;
 
-        const userMsg = { role: 'user', content: text };
+        // Build user message content
+        let userContent = text;
+        let userDisplay = text; // plain string for display
+        const currentAtts = [...attachments];
+
+        if (currentAtts.length > 0) {
+            // Multimodal: array of {type, text/image_url}
+            const parts = [];
+            if (text) parts.push({ type: 'text', text });
+            for (const att of currentAtts) {
+                if (att.type === 'image') {
+                    parts.push({ type: 'image_url', image_url: { url: att.base64 } });
+                } else if (att.type === 'doc') {
+                    parts.push({ type: 'text', text: `[File: ${att.name}]\n${att.text}` });
+                }
+            }
+            userContent = parts;
+            // Display: text + attachment names
+            const attNames = currentAtts.map(a => a.name).join(', ');
+            userDisplay = text ? `${text}\n[${attNames}]` : `[${attNames}]`;
+        }
+
+        const userMsg = { role: 'user', content: userContent, _display: userDisplay, _attachments: currentAtts };
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
         setInput('');
+        setAttachments([]);
         setIsStreaming(true);
 
         if (inputRef.current) inputRef.current.style.height = 'auto';
@@ -663,6 +719,60 @@ export default function ChatFullPage() {
         e.target.style.height = 'auto';
         e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
     };
+
+    // ===== File Upload =====
+    const MAX_FILES = 5;
+    const MAX_SIZE = 20 * 1024 * 1024;
+    const IMG_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+    const DOC_TYPES = ['application/pdf', 'text/plain', 'text/markdown', 'text/csv', 'application/json'];
+
+    const fileToBase64 = (file) => new Promise((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.readAsDataURL(file);
+    });
+
+    const processFiles = useCallback(async (fileList) => {
+        const files = Array.from(fileList);
+        for (const file of files) {
+            if (attachments.length >= MAX_FILES) break;
+            const isImg = IMG_TYPES.includes(file.type);
+            const isDoc = DOC_TYPES.includes(file.type);
+            if (!isImg && !isDoc) continue;
+            if (file.size > MAX_SIZE) continue;
+
+            if (isImg) {
+                const base64 = await fileToBase64(file);
+                if (!base64) continue;
+                setAttachments(prev => prev.length >= MAX_FILES ? prev : [...prev, {
+                    id: Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+                    base64, name: file.name, size: file.size, type: 'image',
+                }]);
+            } else {
+                const text = await file.text().catch(() => null);
+                if (!text) continue;
+                setAttachments(prev => prev.length >= MAX_FILES ? prev : [...prev, {
+                    id: Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+                    text, name: file.name, size: file.size, type: 'doc',
+                }]);
+            }
+        }
+    }, [attachments.length]);
+
+    const removeAttachment = (id) => setAttachments(prev => prev.filter(a => a.id !== id));
+
+    const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+    const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+    const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files?.length) processFiles(e.dataTransfer.files); };
+    const handlePaste = (e) => {
+        const files = [];
+        for (const item of (e.clipboardData?.items || [])) {
+            if (item.kind === 'file') { const f = item.getAsFile(); if (f) files.push(f); }
+        }
+        if (files.length > 0) { e.preventDefault(); processFiles(files); }
+    };
+    const handleFileSelect = (e) => { if (e.target.files?.length) { processFiles(e.target.files); e.target.value = ''; } };
 
     // Current model category for theming
     const currentModel = models.find(m => m.id === selectedModel);
@@ -828,7 +938,7 @@ export default function ChatFullPage() {
             </div>
 
             {/* ===== Main Chat Area ===== */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 {/* Chat Header — sticky, compact on mobile */}
                 <div className={`sticky top-0 z-30 flex items-center justify-between px-2.5 sm:px-4 py-2 sm:py-2.5 border-b backdrop-blur-xl ${
                     isDark ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200 bg-white/90'
@@ -958,43 +1068,88 @@ export default function ChatFullPage() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input Area — compact on mobile */}
-                <div className={`px-2.5 sm:px-4 pb-3 sm:pb-4 pt-1.5 sm:pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}>
+                {/* Drag overlay */}
+                {isDragging && (
+                    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none">
+                        <div className={`flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-dashed ${catCfg.border} ${catCfg.bg}`}>
+                            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${catCfg.gradient} flex items-center justify-center text-white`}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            </div>
+                            <div className="text-white font-bold text-sm">Drop file di sini</div>
+                            <div className="text-white/60 text-xs">Gambar, PDF, TXT (max 20MB)</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Input Area */}
+                <div
+                    className={`px-2.5 sm:px-4 pb-3 sm:pb-4 pt-1.5 sm:pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}
+                    onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                >
                     <div className="max-w-4xl mx-auto relative">
-                        <div className={`relative rounded-xl sm:rounded-2xl border overflow-hidden transition-all ${
+                        <div className={`relative rounded-xl sm:rounded-2xl border transition-all ${
                             isDark
                                 ? 'bg-gray-900/80 border-white/[0.08] focus-within:border-red-500/30 focus-within:ring-2 focus-within:ring-red-500/10'
                                 : 'bg-white border-gray-300 shadow-sm focus-within:border-red-500/40 focus-within:ring-2 focus-within:ring-red-500/10'
                         }`}>
-                            <textarea
-                                ref={inputRef}
-                                value={input}
-                                onChange={handleInputChange}
-                                onKeyDown={handleKeyDown}
-                                placeholder={`Ketik pesan ke ${rebrandText(currentModel?.name || 'AI')}...`}
-                                rows={1}
-                                disabled={isStreaming}
-                                className={`w-full px-3.5 sm:px-5 py-3 sm:py-3.5 pr-12 sm:pr-14 text-[13px] sm:text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${
-                                    isDark ? 'text-white placeholder-gray-600' : 'text-gray-900 placeholder-gray-400'
-                                }`}
-                                style={{ minHeight: '46px', maxHeight: '200px' }}
-                            />
-                            <button
-                                onClick={sendMessage}
-                                disabled={!input.trim() || isStreaming}
-                                className={`absolute right-2 sm:right-2.5 bottom-2 sm:bottom-2.5 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
-                            >
-                                {isStreaming ? (
-                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                ) : (
-                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                    </svg>
-                                )}
-                            </button>
+
+                            {/* Attachment previews */}
+                            {attachments.length > 0 && (
+                                <div className="flex gap-2 px-3 sm:px-4 pt-3 pb-1 overflow-x-auto scrollbar-thin">
+                                    {attachments.map(att => (
+                                        <div key={att.id} className="relative group flex-shrink-0 animate-msg-in">
+                                            {att.type === 'image' ? (
+                                                <img src={att.base64} alt={att.name} className={`w-14 h-14 sm:w-18 sm:h-18 rounded-lg object-cover border ${isDark ? 'border-white/[0.1]' : 'border-gray-200'}`} />
+                                            ) : (
+                                                <div className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border ${isDark ? 'bg-white/[0.04] border-white/[0.08] text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                                                    <svg className={`w-4 h-4 ${catCfg.text}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                                    <span className="text-[10px] font-medium truncate max-w-[80px]">{att.name}</span>
+                                                </div>
+                                            )}
+                                            <button onClick={() => removeAttachment(att.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all shadow-lg text-[10px]">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Input row */}
+                            <div className="flex items-end">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isStreaming || attachments.length >= MAX_FILES}
+                                    className={`flex-shrink-0 p-2 sm:p-2.5 ml-1 mb-1 rounded-lg transition-all disabled:opacity-30 ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/[0.08]' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                                    title="Upload gambar atau dokumen"
+                                >
+                                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                </button>
+                                <textarea
+                                    ref={inputRef}
+                                    value={input}
+                                    onChange={handleInputChange}
+                                    onKeyDown={handleKeyDown}
+                                    onPaste={handlePaste}
+                                    placeholder={attachments.length > 0 ? 'Tambahkan pesan...' : `Ketik pesan ke ${rebrandText(currentModel?.name || 'AI')}...`}
+                                    rows={1}
+                                    disabled={isStreaming}
+                                    className={`flex-1 px-1 sm:px-2 py-3 sm:py-3.5 pr-12 sm:pr-14 text-[13px] sm:text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${isDark ? 'text-white placeholder-gray-600' : 'text-gray-900 placeholder-gray-400'}`}
+                                    style={{ minHeight: '46px', maxHeight: '200px' }}
+                                />
+                                <button
+                                    onClick={sendMessage}
+                                    disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+                                    className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 mr-2 mb-2 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
+                                >
+                                    {isStreaming ? (
+                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    ) : (
+                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                                    )}
+                                </button>
+                            </div>
+
+                            <input ref={fileInputRef} type="file" multiple accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json" onChange={handleFileSelect} className="hidden" />
                         </div>
                     </div>
                     <p className={`text-center text-[10px] sm:text-[11px] mt-1.5 sm:mt-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
