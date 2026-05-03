@@ -562,7 +562,7 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                     {currentCatCfg.icon}
                 </span>
                 <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">
-                    {rebrandText(currentModel?.name || currentModel?.id || 'Select Model')}
+                    {models.length === 0 ? 'Memuat...' : rebrandText(currentModel?.name || currentModel?.id || 'Select Model')}
                 </span>
                 <span className={`hidden sm:inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md ${TIER_CONFIG[currentModel?.tier]?.bg || ''} ${TIER_CONFIG[currentModel?.tier]?.color || ''}`}>
                     {TIER_CONFIG[currentModel?.tier]?.label || ''}
@@ -730,26 +730,36 @@ export default function ChatFullPage() {
 
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-    // Load all models
+    // Load all models (with retry for mobile)
     useEffect(() => {
+        let retries = 0;
         const loadModels = async () => {
             try {
                 const res = await fetch('/api/c/am', {
                     credentials: 'same-origin',
-                    headers: { 'Accept': 'application/json' },
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
                 });
                 if (res.ok) {
                     const data = await res.json();
                     const m = data.models || [];
                     setModels(m);
                     if (m.length > 0 && !selectedModel) {
-                        // Default to first chat model
                         const chatModel = m.find(x => x.category === 'chat');
                         setSelectedModel(chatModel?.id || m[0].id);
                     }
+                } else if (retries < 2) {
+                    retries++;
+                    setTimeout(loadModels, 1000);
                 }
             } catch (err) {
                 console.error('Failed to load models:', err);
+                if (retries < 2) {
+                    retries++;
+                    setTimeout(loadModels, 1000);
+                }
             }
         };
         loadModels();
