@@ -949,6 +949,7 @@ export default function ChatFullPage() {
                                             setMessages(prev => {
                                                 const updated = [...prev];
                                                 updated[updated.length - 1] = { role: 'assistant', content: sanitizeForState(rebrandText(fullText)) };
+                                                return updated;
                                             });
                                         }
                                     } catch {}
