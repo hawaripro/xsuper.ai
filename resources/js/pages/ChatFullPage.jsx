@@ -148,38 +148,20 @@ function extractMediaUrls(text) {
     return { images, videos, audios, cleanText };
 }
 
-// Sanitize ALL raw HTML from streaming content before it enters React state
-// This prevents React from creating DOM elements via dangerouslySetInnerHTML
-// which cause "circular structure to JSON" errors on next message send
+// Sanitize streaming content — only convert SVG to safe data URL
+// All other content passes through as-is (formatContent handles HTML escaping)
+// Circular JSON is handled by safeStringify, not here
 function sanitizeForState(text) {
-    if (!text || !text.includes('<')) return text;
-
-    // 1. Convert complete <svg>...</svg> to data URL image
-    text = text.replace(/<svg[\s\S]*?<\/svg>/gi, (svg) => {
-        try {
-            const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-            return '\n![Generated Image](' + dataUrl + ')\n';
-        } catch { return '[SVG Image]'; }
-    });
-
-    // 2. Strip ALL remaining HTML tags (except inside code blocks)
-    // Preserve code blocks first
-    const codeBlocks = [];
-    text = text.replace(/```[\s\S]*?```/g, (block) => {
-        codeBlocks.push(block);
-        return '%%CODEBLOCK' + (codeBlocks.length - 1) + '%%';
-    });
-    text = text.replace(/`[^`]+`/g, (inline) => {
-        codeBlocks.push(inline);
-        return '%%CODEBLOCK' + (codeBlocks.length - 1) + '%%';
-    });
-
-    // Strip HTML tags outside code blocks
-    text = text.replace(/<[^>]+>/g, '');
-
-    // Restore code blocks
-    text = text.replace(/%%CODEBLOCK(\d+)%%/g, (_, i) => codeBlocks[parseInt(i)] || '');
-
+    if (!text) return text;
+    // Only convert complete <svg>...</svg> to data URL image
+    if (text.includes('<svg')) {
+        text = text.replace(/<svg[\s\S]*?<\/svg>/gi, (svg) => {
+            try {
+                const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+                return '\n![Generated Image](' + dataUrl + ')\n';
+            } catch { return '[SVG Image]'; }
+        });
+    }
     return text;
 }
 
