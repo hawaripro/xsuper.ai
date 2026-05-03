@@ -183,11 +183,28 @@ function sanitizeForState(text) {
     return text;
 }
 
-// Build safe serializable messages array for API — no DOM refs, no circular objects
+// Safe JSON stringify — never throws on circular references
+function safeStringify(obj) {
+    const seen = new WeakSet();
+    return JSON.stringify(obj, (key, value) => {
+        if (typeof value === 'object' && value !== null) {
+            if (seen.has(value)) return undefined;
+            // Skip DOM elements, React fibers, and other non-serializable objects
+            if (value instanceof Element || value instanceof Node) return undefined;
+            if (key.startsWith('__react')) return undefined;
+            if (value.$$typeof) return undefined;
+            seen.add(value);
+        }
+        if (typeof value === 'function') return undefined;
+        return value;
+    });
+}
+
+// Build safe serializable messages array for API — plain strings and arrays only
 function buildSafeMessages(messages) {
     const safe = [];
     for (const m of messages) {
-        if (!m.content || m.suggestion) continue;
+        if (!m || !m.content || m.suggestion) continue;
         const role = String(m.role || 'user');
         let content = m.content;
 
@@ -195,7 +212,6 @@ function buildSafeMessages(messages) {
             content = sanitizeForState(content);
             if (!content.trim()) continue;
         } else if (Array.isArray(content)) {
-            // Deep clone multimodal parts — only safe primitives
             content = content.map(part => {
                 if (part?.type === 'text') return { type: 'text', text: String(part.text || '') };
                 if (part?.type === 'image_url') return { type: 'image_url', image_url: { url: String(part.image_url?.url || '') } };
@@ -231,10 +247,17 @@ function formatContent(text, isDark) {
 }
 
 // ============================================
-// CSRF Token
+// CSRF Token (works on all browsers including mobile)
 // ============================================
 function getCsrfToken() {
-    return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
+    // Try cookie first
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    if (match) {
+        try { return decodeURIComponent(match[1]); } catch { return match[1]; }
+    }
+    // Fallback to meta tag
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : '';
 }
 
 // ============================================
@@ -919,7 +942,7 @@ export default function ChatFullPage() {
                                 'Accept': 'text/event-stream',
                                 'X-XSRF-TOKEN': getCsrfToken(),
                             },
-                            body: JSON.stringify({
+                            body: safeStringify({
                                 model: forwardTo,
                                 messages: apiMessages,
                                 conversation_id: currentConvId,
@@ -1013,7 +1036,7 @@ export default function ChatFullPage() {
                     'Accept': 'text/event-stream',
                     'X-XSRF-TOKEN': getCsrfToken(),
                 },
-                body: JSON.stringify({
+                body: safeStringify({
                     model: modelToUse,
                     messages: apiMessages,
                     conversation_id: currentConvId,
