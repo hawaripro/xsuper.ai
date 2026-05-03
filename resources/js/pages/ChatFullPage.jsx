@@ -97,90 +97,8 @@ function rebrandText(text) {
 }
 
 // ============================================
-// Safe API helpers — prevent circular JSON errors
+// Markdown renderer
 // ============================================
-
-// Clone message content to plain serializable data
-function cloneContent(content) {
-    if (typeof content === 'string') return content;
-    if (Array.isArray(content)) {
-        return content.map(p => {
-            if (p?.type === 'text') return { type: 'text', text: String(p.text || '') };
-            if (p?.type === 'image_url') return { type: 'image_url', image_url: { url: String(p.image_url?.url || '') } };
-            return { type: 'text', text: '' };
-        }).filter(p => p.text !== '' || p.type === 'image_url');
-    }
-    return String(content || '');
-}
-
-// Build messages array safe for JSON.stringify
-function buildApiPayload(messages, model, conversationId) {
-    const msgs = [];
-    for (const m of messages) {
-        if (!m.content || m.suggestion) continue;
-        const content = cloneContent(m.content);
-        if (typeof content === 'string' && !content.trim()) continue;
-        msgs.push({ role: String(m.role || 'user'), content });
-    }
-    return JSON.stringify({
-        model: String(model),
-        messages: msgs,
-        conversation_id: String(conversationId || ''),
-    });
-}
-
-// ============================================
-// Markdown renderer (with image/media detection)
-// ============================================
-const IMAGE_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s"'<>]*)?/gi;
-const MARKDOWN_IMG_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
-const BASE64_IMG_REGEX = /data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g;
-const VIDEO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp4|webm|mov)(?:\?[^\s"'<>]*)?/gi;
-const AUDIO_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:mp3|wav|ogg|m4a)(?:\?[^\s"'<>]*)?/gi;
-
-function extractMediaUrls(text) {
-    if (!text) return { images: [], videos: [], audios: [], cleanText: text };
-    const images = [];
-    const videos = [];
-    const audios = [];
-    let cleanText = text;
-
-    // Extract markdown images first: ![alt](url)
-    cleanText = cleanText.replace(MARKDOWN_IMG_REGEX, (_, alt, url) => {
-        images.push(url);
-        return '';
-    });
-
-    // Extract standalone image URLs (not inside markdown/code)
-    cleanText = cleanText.replace(IMAGE_URL_REGEX, (url) => {
-        if (!images.includes(url)) images.push(url);
-        return '';
-    });
-
-    // Extract base64 images
-    cleanText = cleanText.replace(BASE64_IMG_REGEX, (b64) => {
-        images.push(b64);
-        return '';
-    });
-
-    // Extract video URLs
-    cleanText = cleanText.replace(VIDEO_URL_REGEX, (url) => {
-        videos.push(url);
-        return '';
-    });
-
-    // Extract audio URLs
-    cleanText = cleanText.replace(AUDIO_URL_REGEX, (url) => {
-        audios.push(url);
-        return '';
-    });
-
-    // Clean up leftover empty lines
-    cleanText = cleanText.replace(/\n{3,}/g, '\n\n').trim();
-
-    return { images, videos, audios, cleanText };
-}
-
 function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
@@ -215,25 +133,13 @@ function getCsrfToken() {
 // ============================================
 // Chat Message Component
 // ============================================
-function ChatMessage({ message, userName, isDark, categoryColor, onSwitchModel, onForwardModel }) {
+function ChatMessage({ message, userName, isDark, categoryColor }) {
     const isUser = message.role === 'user';
     const catCfg = CATEGORY_CONFIG[categoryColor] || CATEGORY_CONFIG.chat;
 
     const avatarClass = isUser
         ? (isDark ? 'bg-white/[0.08] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200')
         : `bg-gradient-to-br ${catCfg.gradient} text-white shadow-lg ${catCfg.glow}`;
-
-    // Determine display content
-    const display = message.display;
-    const hasUserAttachments = display && typeof display === 'object' && (display.images?.length || display.docs?.length);
-    const rawText = hasUserAttachments ? display.text : (typeof message.content === 'string' ? message.content : '');
-
-    // Extract media from AI responses (images, videos, audio URLs)
-    const media = !isUser ? extractMediaUrls(rawText) : { images: [], videos: [], audios: [], cleanText: rawText };
-    const textContent = isUser ? rawText : media.cleanText;
-    const aiImages = media.images;
-    const aiVideos = media.videos;
-    const aiAudios = media.audios;
 
     return (
         <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
@@ -244,99 +150,10 @@ function ChatMessage({ message, userName, isDark, categoryColor, onSwitchModel, 
                 <div className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.08em] mb-1 sm:mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     {isUser ? (userName || 'You') : 'UltrAI'}
                 </div>
-
-                {/* User attached images */}
-                {hasUserAttachments && display.images?.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-2">
-                        {display.images.map((src, i) => (
-                            <img key={i} src={src} alt="attachment" className={`max-w-[200px] sm:max-w-[280px] max-h-[200px] rounded-xl border object-cover ${isDark ? 'border-white/[0.08]' : 'border-gray-200'}`} />
-                        ))}
-                    </div>
-                )}
-
-                {/* User attached docs */}
-                {hasUserAttachments && display.docs?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                        {display.docs.map((name, i) => (
-                            <span key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.06] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                {name}
-                            </span>
-                        ))}
-                    </div>
-                )}
-
-                {/* Text content */}
-                {textContent && (
-                    <div
-                        className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                        dangerouslySetInnerHTML={{ __html: formatContent(textContent, isDark) }}
-                    />
-                )}
-
-                {/* AI Generated Images */}
-                {aiImages.length > 0 && (
-                    <div className="flex flex-wrap gap-2.5 mt-3">
-                        {aiImages.map((src, i) => (
-                            <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="group relative block">
-                                <img
-                                    src={src}
-                                    alt={`Generated image ${i + 1}`}
-                                    className={`max-w-[280px] sm:max-w-[400px] max-h-[400px] rounded-2xl border-2 object-contain shadow-lg transition-transform duration-200 group-hover:scale-[1.02] ${
-                                        isDark ? 'border-purple-500/20 shadow-purple-500/10' : 'border-purple-200 shadow-purple-100'
-                                    }`}
-                                    onError={(e) => { e.target.style.display = 'none'; }}
-                                />
-                                {/* Overlay on hover */}
-                                <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-end p-2 opacity-0 group-hover:opacity-100">
-                                    <span className="px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-medium flex items-center gap-1">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                                        Buka
-                                    </span>
-                                </div>
-                            </a>
-                        ))}
-                    </div>
-                )}
-
-                {/* AI Generated Videos */}
-                {aiVideos.length > 0 && (
-                    <div className="flex flex-col gap-2.5 mt-3">
-                        {aiVideos.map((src, i) => (
-                            <div key={i} className={`rounded-2xl border-2 overflow-hidden shadow-lg ${isDark ? 'border-red-500/20 shadow-red-500/10' : 'border-red-200 shadow-red-100'}`}>
-                                <video
-                                    src={src}
-                                    controls
-                                    className="max-w-[400px] sm:max-w-[500px] max-h-[360px] w-full"
-                                    preload="metadata"
-                                />
-                                <div className={`flex items-center gap-2 px-3 py-2 text-[11px] ${isDark ? 'bg-white/[0.03] text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
-                                    <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-                                    <a href={src} target="_blank" rel="noopener noreferrer" className="hover:text-red-400 transition-colors truncate">{src.split('/').pop()?.split('?')[0] || 'video'}</a>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* AI Generated Audio */}
-                {aiAudios.length > 0 && (
-                    <div className="flex flex-col gap-2 mt-3">
-                        {aiAudios.map((src, i) => (
-                            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${isDark ? 'bg-white/[0.03] border-emerald-500/20' : 'bg-emerald-50/50 border-emerald-200'}`}>
-                                <div className={`w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-emerald-500/20`}>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                                </div>
-                                <audio src={src} controls className="flex-1 h-8" preload="metadata" />
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Suggestion Card (switch to image model) */}
-                {message.suggestion && message.suggestion.type === 'switch_image_model' && (
-                    <SuggestionCard suggestion={message.suggestion} isDark={isDark} onSwitchModel={onSwitchModel} onForwardModel={onForwardModel} />
-                )}
+                <div
+                    className={`text-[13px] sm:text-[15px] leading-6 sm:leading-7 chat-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+                    dangerouslySetInnerHTML={{ __html: formatContent(message.content, isDark) }}
+                />
             </div>
         </div>
     );
@@ -358,67 +175,6 @@ function TypingIndicator({ isDark, categoryColor }) {
                     {[0, 150, 300].map((delay) => (
                         <span key={delay} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isDark ? 'bg-gray-500' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: `${delay}ms` }} />
                     ))}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ============================================
-// Suggestion Card (switch to image model)
-// ============================================
-function SuggestionCard({ suggestion, isDark, onSwitchModel, onForwardModel }) {
-    const imgCfg = CATEGORY_CONFIG.image;
-    return (
-        <div className={`mt-3 p-4 rounded-2xl border animate-msg-in ${
-            isDark ? 'bg-purple-500/[0.05] border-purple-500/20' : 'bg-purple-50 border-purple-200'
-        }`}>
-            <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${imgCfg.gradient} flex items-center justify-center text-white flex-shrink-0 shadow-lg ${imgCfg.glow}`}>
-                    <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
-                    </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Model ini tidak bisa generate gambar
-                    </div>
-                    <p className={`text-xs mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {suggestion.imageModel
-                            ? 'Gunakan model Image untuk hasil gambar terbaik, atau generate dengan model AI yang support.'
-                            : 'Akan digenerate menggunakan model AI yang support image generation.'
-                        }
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        {suggestion.imageModel && (
-                            <button
-                                onClick={() => onSwitchModel(suggestion.imageModel.id, suggestion.originalText)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                                    isDark
-                                        ? 'bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 border border-purple-500/20'
-                                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200'
-                                }`}
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
-                                </svg>
-                                Pakai {rebrandText(suggestion.imageModel.name || suggestion.imageModel.id)}
-                            </button>
-                        )}
-                        {suggestion.forwardModel && (
-                            <button
-                                onClick={() => onForwardModel(suggestion.forwardModel, suggestion.originalText)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                                    isDark
-                                        ? 'bg-white/[0.06] text-gray-300 hover:bg-white/[0.1] border border-white/[0.08]'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                }`}
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                                Generate dengan AI
-                            </button>
-                        )}
-                    </div>
                 </div>
             </div>
         </div>
@@ -690,11 +446,8 @@ export default function ChatFullPage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [showSidebar, setShowSidebar] = useState(false); // hidden by default on mobile
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const [attachments, setAttachments] = useState([]); // [{file, preview, type, name}]
-    const [isDragging, setIsDragging] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
-    const fileInputRef = useRef(null);
 
     // Auto-scroll — only when there are messages (not on welcome screen)
     const scrollToBottom = useCallback(() => {
@@ -791,230 +544,101 @@ export default function ChatFullPage() {
         }
     };
 
-    // ===== Image Request Detection =====
-    const IMAGE_KEYWORDS = [
-        'buatkan gambar', 'buat gambar', 'generate gambar', 'bikin gambar',
-        'buatkan foto', 'buat foto', 'generate foto', 'bikin foto',
-        'buatkan image', 'generate image', 'create image', 'make image',
-        'draw', 'gambarkan', 'ilustrasi', 'buat ilustrasi',
-        'generate a picture', 'create a picture', 'make a picture',
-        'generate an image', 'create an image', 'make an image',
-        'tolong gambar', 'coba gambar', 'gambarin',
-    ];
-
-    const isImageRequest = (text) => {
-        if (!text) return false;
-        const lower = text.toLowerCase();
-        return IMAGE_KEYWORDS.some(kw => lower.includes(kw));
-    };
-
-    // Models that can natively generate images in chat
-    const IMAGE_CAPABLE_CHAT_MODELS = ['gpt-4.5', 'gpt-4o', 'gpt-4o-mini', 'gpt-image-1'];
-
-    // Find best image-capable model for auto-forward
-    const findImageForwardModel = () => {
-        // Priority: gpt-4.5 > gpt-4o > any image-capable chat model
-        for (const preferred of IMAGE_CAPABLE_CHAT_MODELS) {
-            const found = models.find(m => m.id === preferred && m.category === 'chat');
-            if (found) return found.id;
-        }
-        return null;
-    };
-
-    // Check if user has access to dedicated image models
-    const hasImageModels = useMemo(() => {
-        return models.some(m => m.category === 'image');
-    }, [models]);
-
-    // Get first image model for quick-switch
-    const firstImageModel = useMemo(() => {
-        return models.find(m => m.category === 'image');
-    }, [models]);
-
     // Send message
-    const sendMessage = async (overrideModel = null) => {
-        const text = input.trim();
-        if (!text && attachments.length === 0) return;
-        if (isStreaming) return;
+    // Build clean messages for API — only plain strings, no objects/DOM refs
+    const buildApiMessages = (msgs) => {
+        return msgs
+            .filter(m => m.role && m.content)
+            .map(m => ({
+                role: String(m.role),
+                content: typeof m.content === 'string' ? m.content
+                    : Array.isArray(m.content) ? m.content.map(p =>
+                        p?.type === 'image_url' ? { type: 'image_url', image_url: { url: String(p.image_url?.url || '') } }
+                        : { type: 'text', text: String(p?.text || '') }
+                    )
+                    : String(m.content),
+            }))
+            .filter(m => typeof m.content === 'string' ? m.content.trim().length > 0 : true);
+    };
 
-        const modelToUse = overrideModel || selectedModel;
-        if (!modelToUse) return; // Don't send if no model selected
-        const currentModelObj = models.find(m => m.id === modelToUse);
-        const isNonImageModel = currentModelObj?.category === 'chat';
-        const isImageCapable = IMAGE_CAPABLE_CHAT_MODELS.includes(modelToUse);
+    // Stream chat response with proper buffer handling
+    const streamChat = async (apiMessages, model, convId) => {
+        const res = await fetch('/api/c/s', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+                'X-XSRF-TOKEN': getCsrfToken(),
+            },
+            body: JSON.stringify({
+                model: String(model),
+                messages: apiMessages,
+                conversation_id: String(convId || ''),
+            }),
+        });
 
-        // Detect image generation request on non-image-capable chat model
-        if (isNonImageModel && !isImageCapable && isImageRequest(text) && !overrideModel) {
-            if (hasImageModels) {
-                // User has image model access → show suggestion
-                const userMsg = { role: 'user', content: text, display: text };
-                setMessages(prev => [...prev, userMsg, {
-                    role: 'assistant',
-                    content: '',
-                    display: text,
-                    suggestion: {
-                        type: 'switch_image_model',
-                        text: `Model **${rebrandText(currentModelObj?.name || modelToUse)}** tidak bisa generate gambar. Gunakan model Image untuk hasil terbaik.`,
-                        imageModel: firstImageModel,
-                        forwardModel: findImageForwardModel(),
-                        originalText: text,
-                    }
-                }]);
-                return;
-            } else {
-                // No image model access → auto-forward to image-capable chat model
-                const forwardTo = findImageForwardModel();
-                if (forwardTo && forwardTo !== modelToUse) {
-                    // Silently forward to image-capable model
-                    const userMsg = { role: 'user', content: text, display: text };
-                    const newMessages = [...messages, userMsg];
-                    setMessages(newMessages);
-                    setInput('');
-                    setAttachments([]);
-                    setIsStreaming(true);
-                    if (inputRef.current) inputRef.current.style.height = 'auto';
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err.message || err.error || 'Chat gagal');
+        }
 
-                    try {
-                        const res = await fetch('/api/c/s', {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'text/event-stream',
-                                'X-XSRF-TOKEN': getCsrfToken(),
-                            },
-                            body: buildApiPayload(newMessages, forwardTo, currentConvId),
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+
+        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const data = line.slice(6);
+                if (data === '[DONE]') return fullText;
+
+                try {
+                    const delta = JSON.parse(data).choices?.[0]?.delta;
+                    if (delta?.content) {
+                        fullText += delta.content;
+                        const display = rebrandText(fullText);
+                        setMessages(prev => {
+                            const updated = [...prev];
+                            updated[updated.length - 1] = { role: 'assistant', content: display };
+                            return updated;
                         });
-
-                        if (!res.ok) throw new Error('Chat gagal');
-
-                        const reader = res.body.getReader();
-                        const decoder = new TextDecoder();
-                        let fullText = '';
-                        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            const chunk = decoder.decode(value, { stream: true });
-                            for (const line of chunk.split('\n')) {
-                                const trimmed = line.trim();
-                                if (!trimmed || trimmed === 'data:' || trimmed === 'data: ') continue;
-                                if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-                                    try {
-                                        const json = JSON.parse(trimmed.slice(6));
-                                        const content = json.choices?.[0]?.delta?.content;
-                                        if (content) {
-                                            fullText += content;
-                                            setMessages(prev => {
-                                                const updated = [...prev];
-                                                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
-                                                return updated;
-                                            });
-                                        }
-                                    } catch {}
-                                }
-                            }
-                        }
-                        loadConversations();
-                    } catch (err) {
-                        setMessages(prev => [...prev.filter(m => m.content !== ''), { role: 'assistant', content: 'Error: ' + err.message }]);
-                    } finally {
-                        setIsStreaming(false);
-                        inputRef.current?.focus();
                     }
-                    return;
+                } catch {
+                    // Skip malformed JSON chunks
                 }
             }
         }
+        return fullText;
+    };
 
-        // Build multimodal content if attachments exist
-        let userContent = text;
-        let displayContent = text;
-        const currentAttachments = [...attachments];
+    const sendMessage = async () => {
+        const text = input.trim();
+        if (!text || isStreaming || !selectedModel) return;
 
-        if (currentAttachments.length > 0) {
-            const contentParts = [];
-            if (text) contentParts.push({ type: 'text', text });
-
-            for (const att of currentAttachments) {
-                if (att.type === 'image') {
-                    const base64 = await fileToBase64(att.file);
-                    contentParts.push({ type: 'image_url', image_url: { url: base64 } });
-                } else {
-                    const docText = await att.file.text();
-                    contentParts.push({ type: 'text', text: `[File: ${att.name}]\n${docText}` });
-                }
-            }
-            userContent = contentParts;
-
-            const imgPreviews = currentAttachments.filter(a => a.type === 'image').map(a => a.preview);
-            const docNames = currentAttachments.filter(a => a.type === 'doc').map(a => a.name);
-            displayContent = { text, images: imgPreviews, docs: docNames };
-        }
-
-        const userMsg = { role: 'user', content: userContent, display: displayContent };
+        const userMsg = { role: 'user', content: text };
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
         setInput('');
-        setAttachments([]);
         setIsStreaming(true);
 
         if (inputRef.current) inputRef.current.style.height = 'auto';
 
         try {
-            const res = await fetch('/api/c/s', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream',
-                    'X-XSRF-TOKEN': getCsrfToken(),
-                },
-                body: buildApiPayload(newMessages, modelToUse, currentConvId),
-            });
-
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({ message: 'Request failed' }));
-                throw new Error(err.message || 'Chat gagal');
-            }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let fullText = '';
-
-            setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    // Skip empty lines and empty data lines
-                    if (!trimmed || trimmed === 'data:' || trimmed === 'data: ') continue;
-                    if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-                        try {
-                            const json = JSON.parse(trimmed.slice(6));
-                            const content = json.choices?.[0]?.delta?.content;
-                            if (content) {
-                                fullText += content;
-                                setMessages(prev => {
-                                    const updated = [...prev];
-                                    updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
-                                    return updated;
-                                });
-                            }
-                        } catch {
-                            // Skip malformed JSON
-                        }
-                    }
-                }
-            }
-
+            const apiMessages = buildApiMessages(newMessages);
+            await streamChat(apiMessages, selectedModel, currentConvId);
             loadConversations();
         } catch (err) {
             setMessages(prev => [
@@ -1039,112 +663,6 @@ export default function ChatFullPage() {
         e.target.style.height = 'auto';
         e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
     };
-
-    // ===== File Upload Handlers =====
-    const ACCEPTED_TYPES = {
-        image: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
-        doc: ['application/pdf', 'text/plain', 'text/markdown', 'text/csv', 'application/json'],
-    };
-    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-    const MAX_ATTACHMENTS = 5;
-
-    const processFiles = useCallback((files) => {
-        const newAttachments = [];
-        for (const file of files) {
-            if (attachments.length + newAttachments.length >= MAX_ATTACHMENTS) break;
-            const isImage = ACCEPTED_TYPES.image.includes(file.type);
-            const isDoc = ACCEPTED_TYPES.doc.includes(file.type);
-            if (!isImage && !isDoc) continue;
-            if (file.size > MAX_FILE_SIZE) continue;
-
-            const preview = isImage ? URL.createObjectURL(file) : null;
-            newAttachments.push({
-                id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-                file,
-                preview,
-                type: isImage ? 'image' : 'doc',
-                name: file.name,
-                size: file.size,
-            });
-        }
-        if (newAttachments.length > 0) {
-            setAttachments(prev => [...prev, ...newAttachments]);
-        }
-    }, [attachments.length]);
-
-    const removeAttachment = (id) => {
-        setAttachments(prev => {
-            const item = prev.find(a => a.id === id);
-            if (item?.preview) URL.revokeObjectURL(item.preview);
-            return prev.filter(a => a.id !== id);
-        });
-    };
-
-    const fileToBase64 = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-
-    // Drag & Drop
-    const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-    const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-    const handleDrop = (e) => {
-        e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-        if (e.dataTransfer.files?.length) processFiles(Array.from(e.dataTransfer.files));
-    };
-
-    // Paste (screenshot / image from clipboard)
-    const handlePaste = (e) => {
-        const items = e.clipboardData?.items;
-        if (!items) return;
-        const files = [];
-        for (const item of items) {
-            if (item.kind === 'file') {
-                const file = item.getAsFile();
-                if (file) files.push(file);
-            }
-        }
-        if (files.length > 0) {
-            e.preventDefault();
-            processFiles(files);
-        }
-    };
-
-    // File input change
-    const handleFileSelect = (e) => {
-        if (e.target.files?.length) {
-            processFiles(Array.from(e.target.files));
-            e.target.value = ''; // reset so same file can be selected again
-        }
-    };
-
-    // Handlers for suggestion card actions
-    const handleSwitchModel = useCallback((modelId, originalText) => {
-        // Remove the suggestion message, switch model, re-send
-        setMessages(prev => prev.filter(m => !m.suggestion));
-        setSelectedModel(modelId);
-        setSelectedCategory(models.find(m => m.id === modelId)?.category || 'image');
-        setInput(originalText);
-        // Auto-send after state update
-        setTimeout(() => {
-            const textarea = inputRef.current;
-            if (textarea) {
-                textarea.focus();
-                // Trigger send via Enter key simulation
-                const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                textarea.dispatchEvent(event);
-            }
-        }, 100);
-    }, [models]);
-
-    const handleForwardModel = useCallback((modelId, originalText) => {
-        // Remove the suggestion message, forward to image-capable model
-        setMessages(prev => prev.filter(m => !m.suggestion));
-        setInput(originalText);
-        setTimeout(() => sendMessage(modelId), 50);
-    }, []);
 
     // Current model category for theming
     const currentModel = models.find(m => m.id === selectedModel);
@@ -1310,7 +828,7 @@ export default function ChatFullPage() {
             </div>
 
             {/* ===== Main Chat Area ===== */}
-            <div className="flex-1 flex flex-col min-w-0 relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+            <div className="flex-1 flex flex-col min-w-0">
                 {/* Chat Header — sticky, compact on mobile */}
                 <div className={`sticky top-0 z-30 flex items-center justify-between px-2.5 sm:px-4 py-2 sm:py-2.5 border-b backdrop-blur-xl ${
                     isDark ? 'border-white/[0.06] bg-gray-950/80' : 'border-gray-200 bg-white/90'
@@ -1430,7 +948,7 @@ export default function ChatFullPage() {
                     ) : (
                         <>
                             {messages.map((msg, i) => (
-                                <ChatMessage key={i} message={msg} userName={user?.name} isDark={isDark} categoryColor={currentCategory} onSwitchModel={handleSwitchModel} onForwardModel={handleForwardModel} />
+                                <ChatMessage key={i} message={msg} userName={user?.name} isDark={isDark} categoryColor={currentCategory} />
                             ))}
                             {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
                                 <TypingIndicator isDark={isDark} categoryColor={currentCategory} />
@@ -1440,125 +958,43 @@ export default function ChatFullPage() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Drag overlay for entire chat area */}
-                {isDragging && (
-                    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none">
-                        <div className={`flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-dashed ${catCfg.border} ${catCfg.bg}`}>
-                            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${catCfg.gradient} flex items-center justify-center text-white shadow-lg`}>
-                                <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                            </div>
-                            <div className="text-white font-bold text-sm">Drop file di sini</div>
-                            <div className="text-white/60 text-xs">Gambar, PDF, TXT (max 20MB)</div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Input Area — with file upload */}
-                <div
-                    className={`px-2.5 sm:px-4 pb-3 sm:pb-4 pt-1.5 sm:pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                >
+                {/* Input Area — compact on mobile */}
+                <div className={`px-2.5 sm:px-4 pb-3 sm:pb-4 pt-1.5 sm:pt-2 ${isDark ? 'bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent' : 'bg-gradient-to-t from-white via-white/80 to-transparent'}`}>
                     <div className="max-w-4xl mx-auto relative">
-                        <div className={`relative rounded-xl sm:rounded-2xl border transition-all ${
-                            isDragging
-                                ? `border-2 ${catCfg.border} ${catCfg.bg}`
-                                : isDark
-                                    ? 'bg-gray-900/80 border-white/[0.08] focus-within:border-red-500/30 focus-within:ring-2 focus-within:ring-red-500/10'
-                                    : 'bg-white border-gray-300 shadow-sm focus-within:border-red-500/40 focus-within:ring-2 focus-within:ring-red-500/10'
+                        <div className={`relative rounded-xl sm:rounded-2xl border overflow-hidden transition-all ${
+                            isDark
+                                ? 'bg-gray-900/80 border-white/[0.08] focus-within:border-red-500/30 focus-within:ring-2 focus-within:ring-red-500/10'
+                                : 'bg-white border-gray-300 shadow-sm focus-within:border-red-500/40 focus-within:ring-2 focus-within:ring-red-500/10'
                         }`}>
-
-                            {/* Attachment Preview */}
-                            {attachments.length > 0 && (
-                                <div className="flex gap-2 px-3 sm:px-4 pt-3 pb-1 overflow-x-auto scrollbar-thin">
-                                    {attachments.map((att) => (
-                                        <div key={att.id} className="relative group flex-shrink-0 animate-msg-in">
-                                            {att.type === 'image' ? (
-                                                <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border ${isDark ? 'border-white/[0.1]' : 'border-gray-200'}`}>
-                                                    <img src={att.preview} alt={att.name} className="w-full h-full object-cover" />
-                                                    <div className={`absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
-                                                </div>
-                                            ) : (
-                                                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${isDark ? 'bg-white/[0.04] border-white/[0.08] text-gray-300' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
-                                                    <svg className={`w-5 h-5 flex-shrink-0 ${catCfg.text}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                                    <div className="min-w-0">
-                                                        <div className="text-[11px] font-medium truncate max-w-[100px]">{att.name}</div>
-                                                        <div className={`text-[9px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{(att.size / 1024).toFixed(0)} KB</div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {/* Remove button */}
-                                            <button
-                                                onClick={() => removeAttachment(att.id)}
-                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all shadow-lg scale-75 group-hover:scale-100"
-                                            >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Text input row */}
-                            <div className="flex items-end">
-                                {/* Upload button */}
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
-                                    className={`flex-shrink-0 p-2 sm:p-2.5 ml-1 sm:ml-1.5 mb-1 sm:mb-1.5 rounded-lg sm:rounded-xl transition-all disabled:opacity-30 ${
-                                        isDark
-                                            ? 'text-gray-400 hover:text-white hover:bg-white/[0.08]'
-                                            : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                    title="Upload gambar atau dokumen"
-                                >
-                                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                                </button>
-
-                                <textarea
-                                    ref={inputRef}
-                                    value={input}
-                                    onChange={handleInputChange}
-                                    onKeyDown={handleKeyDown}
-                                    onPaste={handlePaste}
-                                    placeholder={attachments.length > 0 ? 'Tambahkan pesan...' : `Ketik pesan ke ${rebrandText(currentModel?.name || 'AI')}...`}
-                                    rows={1}
-                                    disabled={isStreaming}
-                                    className={`flex-1 px-1 sm:px-2 py-3 sm:py-3.5 pr-12 sm:pr-14 text-[13px] sm:text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${
-                                        isDark ? 'text-white placeholder-gray-600' : 'text-gray-900 placeholder-gray-400'
-                                    }`}
-                                    style={{ minHeight: '46px', maxHeight: '200px' }}
-                                />
-
-                                {/* Send button */}
-                                <button
-                                    onClick={sendMessage}
-                                    disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-                                    className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 mr-2 sm:mr-2.5 mb-2 sm:mb-2.5 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
-                                >
-                                    {isStreaming ? (
-                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                        </svg>
-                                    ) : (
-                                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                        </svg>
-                                    )}
-                                </button>
-                            </div>
-
-                            {/* Hidden file input */}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                multiple
-                                accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json"
-                                onChange={handleFileSelect}
-                                className="hidden"
+                            <textarea
+                                ref={inputRef}
+                                value={input}
+                                onChange={handleInputChange}
+                                onKeyDown={handleKeyDown}
+                                placeholder={`Ketik pesan ke ${rebrandText(currentModel?.name || 'AI')}...`}
+                                rows={1}
+                                disabled={isStreaming}
+                                className={`w-full px-3.5 sm:px-5 py-3 sm:py-3.5 pr-12 sm:pr-14 text-[13px] sm:text-[15px] resize-none focus:outline-none bg-transparent disabled:opacity-50 ${
+                                    isDark ? 'text-white placeholder-gray-600' : 'text-gray-900 placeholder-gray-400'
+                                }`}
+                                style={{ minHeight: '46px', maxHeight: '200px' }}
                             />
+                            <button
+                                onClick={sendMessage}
+                                disabled={!input.trim() || isStreaming}
+                                className={`absolute right-2 sm:right-2.5 bottom-2 sm:bottom-2.5 w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
+                            >
+                                {isStreaming ? (
+                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                    </svg>
+                                )}
+                            </button>
                         </div>
                     </div>
                     <p className={`text-center text-[10px] sm:text-[11px] mt-1.5 sm:mt-2 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
