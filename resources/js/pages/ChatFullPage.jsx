@@ -148,6 +148,20 @@ function extractMediaUrls(text) {
     return { images, videos, audios, cleanText };
 }
 
+// Sanitize raw SVG/HTML from streaming content before it enters React state
+// Converts <svg>...</svg> to safe data URL, strips other HTML tags
+function sanitizeForState(text) {
+    if (!text || !text.includes('<')) return text;
+    // Convert complete SVG to data URL image markdown
+    text = text.replace(/<svg[\s\S]*?<\/svg>/gi, (svg) => {
+        try {
+            const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+            return '\n![Generated Image](' + dataUrl + ')\n';
+        } catch { return '[SVG Image]'; }
+    });
+    return text;
+}
+
 function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
@@ -879,8 +893,7 @@ export default function ChatFullPage() {
                                             fullText += content;
                                             setMessages(prev => {
                                                 const updated = [...prev];
-                                                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
-                                                return updated;
+                                                updated[updated.length - 1] = { role: 'assistant', content: sanitizeForState(rebrandText(fullText)) };
                                             });
                                         }
                                     } catch {}
@@ -985,7 +998,7 @@ export default function ChatFullPage() {
                                 fullText += content;
                                 setMessages(prev => {
                                     const updated = [...prev];
-                                    updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
+                                    updated[updated.length - 1] = { role: 'assistant', content: sanitizeForState(rebrandText(fullText)) };
                                     return updated;
                                 });
                             }
