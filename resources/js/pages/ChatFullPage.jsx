@@ -183,6 +183,34 @@ function sanitizeForState(text) {
     return text;
 }
 
+// Build safe serializable messages array for API — no DOM refs, no circular objects
+function buildSafeMessages(messages) {
+    const safe = [];
+    for (const m of messages) {
+        if (!m.content || m.suggestion) continue;
+        const role = String(m.role || 'user');
+        let content = m.content;
+
+        if (typeof content === 'string') {
+            content = sanitizeForState(content);
+            if (!content.trim()) continue;
+        } else if (Array.isArray(content)) {
+            // Deep clone multimodal parts — only safe primitives
+            content = content.map(part => {
+                if (part?.type === 'text') return { type: 'text', text: String(part.text || '') };
+                if (part?.type === 'image_url') return { type: 'image_url', image_url: { url: String(part.image_url?.url || '') } };
+                return { type: 'text', text: '[attachment]' };
+            });
+        } else {
+            content = String(content || '');
+            if (!content.trim()) continue;
+        }
+
+        safe.push({ role, content });
+    }
+    return safe;
+}
+
 function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
@@ -870,11 +898,7 @@ export default function ChatFullPage() {
                     setIsStreaming(true);
                     if (inputRef.current) inputRef.current.style.height = 'auto';
 
-                    const apiMessages = newMessages.filter(m => {
-                        if (!m.content) return false;
-                        if (typeof m.content === 'string') return m.content.trim().length > 0;
-                        return true;
-                    }).map(m => ({ role: m.role, content: m.content }));
+                    const apiMessages = buildSafeMessages(newMessages);
 
                     try {
                         const res = await fetch('/api/c/s', {
@@ -967,11 +991,7 @@ export default function ChatFullPage() {
 
         if (inputRef.current) inputRef.current.style.height = 'auto';
 
-        const apiMessages = newMessages.filter(m => {
-            if (!m.content) return false;
-            if (typeof m.content === 'string') return m.content.trim().length > 0;
-            return true;
-        }).map(m => ({ role: m.role, content: m.content }));
+        const apiMessages = buildSafeMessages(newMessages);
 
         try {
             const res = await fetch('/api/c/s', {
