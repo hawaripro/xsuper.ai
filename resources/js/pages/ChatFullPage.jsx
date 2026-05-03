@@ -148,17 +148,38 @@ function extractMediaUrls(text) {
     return { images, videos, audios, cleanText };
 }
 
-// Sanitize raw SVG/HTML from streaming content before it enters React state
-// Converts <svg>...</svg> to safe data URL, strips other HTML tags
+// Sanitize ALL raw HTML from streaming content before it enters React state
+// This prevents React from creating DOM elements via dangerouslySetInnerHTML
+// which cause "circular structure to JSON" errors on next message send
 function sanitizeForState(text) {
     if (!text || !text.includes('<')) return text;
-    // Convert complete SVG to data URL image markdown
+
+    // 1. Convert complete <svg>...</svg> to data URL image
     text = text.replace(/<svg[\s\S]*?<\/svg>/gi, (svg) => {
         try {
             const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
             return '\n![Generated Image](' + dataUrl + ')\n';
         } catch { return '[SVG Image]'; }
     });
+
+    // 2. Strip ALL remaining HTML tags (except inside code blocks)
+    // Preserve code blocks first
+    const codeBlocks = [];
+    text = text.replace(/```[\s\S]*?```/g, (block) => {
+        codeBlocks.push(block);
+        return '%%CODEBLOCK' + (codeBlocks.length - 1) + '%%';
+    });
+    text = text.replace(/`[^`]+`/g, (inline) => {
+        codeBlocks.push(inline);
+        return '%%CODEBLOCK' + (codeBlocks.length - 1) + '%%';
+    });
+
+    // Strip HTML tags outside code blocks
+    text = text.replace(/<[^>]+>/g, '');
+
+    // Restore code blocks
+    text = text.replace(/%%CODEBLOCK(\d+)%%/g, (_, i) => codeBlocks[parseInt(i)] || '');
+
     return text;
 }
 
