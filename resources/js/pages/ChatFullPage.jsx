@@ -97,6 +97,39 @@ function rebrandText(text) {
 }
 
 // ============================================
+// Safe API helpers — prevent circular JSON errors
+// ============================================
+
+// Clone message content to plain serializable data
+function cloneContent(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+        return content.map(p => {
+            if (p?.type === 'text') return { type: 'text', text: String(p.text || '') };
+            if (p?.type === 'image_url') return { type: 'image_url', image_url: { url: String(p.image_url?.url || '') } };
+            return { type: 'text', text: '' };
+        }).filter(p => p.text !== '' || p.type === 'image_url');
+    }
+    return String(content || '');
+}
+
+// Build messages array safe for JSON.stringify
+function buildApiPayload(messages, model, conversationId) {
+    const msgs = [];
+    for (const m of messages) {
+        if (!m.content || m.suggestion) continue;
+        const content = cloneContent(m.content);
+        if (typeof content === 'string' && !content.trim()) continue;
+        msgs.push({ role: String(m.role || 'user'), content });
+    }
+    return JSON.stringify({
+        model: String(model || 'auto'),
+        messages: msgs,
+        conversation_id: String(conversationId || ''),
+    });
+}
+
+// ============================================
 // Markdown renderer (with image/media detection)
 // ============================================
 const IMAGE_URL_REGEX = /https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s"'<>]*)?/gi;
@@ -148,67 +181,6 @@ function extractMediaUrls(text) {
     return { images, videos, audios, cleanText };
 }
 
-// Sanitize streaming content — only convert SVG to safe data URL
-// All other content passes through as-is (formatContent handles HTML escaping)
-// Circular JSON is handled by safeStringify, not here
-function sanitizeForState(text) {
-    if (!text) return text;
-    // Only convert complete <svg>...</svg> to data URL image
-    if (text.includes('<svg')) {
-        text = text.replace(/<svg[\s\S]*?<\/svg>/gi, (svg) => {
-            try {
-                const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-                return '\n![Generated Image](' + dataUrl + ')\n';
-            } catch { return '[SVG Image]'; }
-        });
-    }
-    return text;
-}
-
-// Safe JSON stringify — never throws on circular references
-function safeStringify(obj) {
-    const seen = new WeakSet();
-    return JSON.stringify(obj, (key, value) => {
-        if (typeof value === 'object' && value !== null) {
-            if (seen.has(value)) return undefined;
-            // Skip DOM elements, React fibers, and other non-serializable objects
-            if (value instanceof Element || value instanceof Node) return undefined;
-            if (key.startsWith('__react')) return undefined;
-            if (value.$$typeof) return undefined;
-            seen.add(value);
-        }
-        if (typeof value === 'function') return undefined;
-        return value;
-    });
-}
-
-// Build safe serializable messages array for API — plain strings and arrays only
-function buildSafeMessages(messages) {
-    const safe = [];
-    for (const m of messages) {
-        if (!m || !m.content || m.suggestion) continue;
-        const role = String(m.role || 'user');
-        let content = m.content;
-
-        if (typeof content === 'string') {
-            content = sanitizeForState(content);
-            if (!content.trim()) continue;
-        } else if (Array.isArray(content)) {
-            content = content.map(part => {
-                if (part?.type === 'text') return { type: 'text', text: String(part.text || '') };
-                if (part?.type === 'image_url') return { type: 'image_url', image_url: { url: String(part.image_url?.url || '') } };
-                return { type: 'text', text: '[attachment]' };
-            });
-        } else {
-            content = String(content || '');
-            if (!content.trim()) continue;
-        }
-
-        safe.push({ role, content });
-    }
-    return safe;
-}
-
 function formatContent(text, isDark) {
     if (!text) return '';
     text = rebrandText(text);
@@ -229,15 +201,13 @@ function formatContent(text, isDark) {
 }
 
 // ============================================
-// CSRF Token (works on all browsers including mobile)
+// CSRF Token
 // ============================================
 function getCsrfToken() {
-    // Try cookie first
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    if (match) {
-        try { return decodeURIComponent(match[1]); } catch { return match[1]; }
-    }
-    // Fallback to meta tag
+    try {
+        const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+        if (match) return decodeURIComponent(match[1]);
+    } catch {}
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta ? meta.content : '';
 }
@@ -567,7 +537,7 @@ function ModelSelector({ models, selectedModel, onSelect, selectedCategory, onCa
                     {currentCatCfg.icon}
                 </span>
                 <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">
-                    {models.length === 0 ? 'Memuat...' : rebrandText(currentModel?.name || currentModel?.id || 'Select Model')}
+                    {rebrandText(currentModel?.name || currentModel?.id || 'Select Model')}
                 </span>
                 <span className={`hidden sm:inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md ${TIER_CONFIG[currentModel?.tier]?.bg || ''} ${TIER_CONFIG[currentModel?.tier]?.color || ''}`}>
                     {TIER_CONFIG[currentModel?.tier]?.label || ''}
@@ -735,36 +705,26 @@ export default function ChatFullPage() {
 
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-    // Load all models (with retry for mobile)
+    // Load all models
     useEffect(() => {
-        let retries = 0;
         const loadModels = async () => {
             try {
                 const res = await fetch('/api/c/am', {
                     credentials: 'same-origin',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
+                    headers: { 'Accept': 'application/json' },
                 });
                 if (res.ok) {
                     const data = await res.json();
                     const m = data.models || [];
                     setModels(m);
                     if (m.length > 0 && !selectedModel) {
+                        // Default to first chat model
                         const chatModel = m.find(x => x.category === 'chat');
                         setSelectedModel(chatModel?.id || m[0].id);
                     }
-                } else if (retries < 2) {
-                    retries++;
-                    setTimeout(loadModels, 1000);
                 }
             } catch (err) {
                 console.error('Failed to load models:', err);
-                if (retries < 2) {
-                    retries++;
-                    setTimeout(loadModels, 1000);
-                }
             }
         };
         loadModels();
@@ -877,7 +837,7 @@ export default function ChatFullPage() {
         if (!text && attachments.length === 0) return;
         if (isStreaming) return;
 
-        const modelToUse = String(overrideModel || selectedModel || 'auto');
+        const modelToUse = overrideModel || selectedModel;
         const currentModelObj = models.find(m => m.id === modelToUse);
         const isNonImageModel = currentModelObj?.category === 'chat';
         const isImageCapable = IMAGE_CAPABLE_CHAT_MODELS.includes(modelToUse);
@@ -913,8 +873,6 @@ export default function ChatFullPage() {
                     setIsStreaming(true);
                     if (inputRef.current) inputRef.current.style.height = 'auto';
 
-                    const apiMessages = buildSafeMessages(newMessages);
-
                     try {
                         const res = await fetch('/api/c/s', {
                             method: 'POST',
@@ -924,11 +882,7 @@ export default function ChatFullPage() {
                                 'Accept': 'text/event-stream',
                                 'X-XSRF-TOKEN': getCsrfToken(),
                             },
-                            body: safeStringify({
-                                model: String(forwardTo || 'auto'),
-                                messages: apiMessages,
-                                conversation_id: String(currentConvId || ''),
-                            }),
+                            body: buildApiPayload(newMessages, forwardTo, currentConvId),
                         });
 
                         if (!res.ok) throw new Error('Chat gagal');
@@ -953,7 +907,7 @@ export default function ChatFullPage() {
                                             fullText += content;
                                             setMessages(prev => {
                                                 const updated = [...prev];
-                                                updated[updated.length - 1] = { role: 'assistant', content: sanitizeForState(rebrandText(fullText)) };
+                                                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
                                                 return updated;
                                             });
                                         }
@@ -1007,8 +961,6 @@ export default function ChatFullPage() {
 
         if (inputRef.current) inputRef.current.style.height = 'auto';
 
-        const apiMessages = buildSafeMessages(newMessages);
-
         try {
             const res = await fetch('/api/c/s', {
                 method: 'POST',
@@ -1018,11 +970,7 @@ export default function ChatFullPage() {
                     'Accept': 'text/event-stream',
                     'X-XSRF-TOKEN': getCsrfToken(),
                 },
-                body: safeStringify({
-                    model: String(modelToUse || 'auto'),
-                    messages: apiMessages,
-                    conversation_id: String(currentConvId || ''),
-                }),
+                body: buildApiPayload(newMessages, modelToUse, currentConvId),
             });
 
             if (!res.ok) {
@@ -1055,7 +1003,7 @@ export default function ChatFullPage() {
                                 fullText += content;
                                 setMessages(prev => {
                                     const updated = [...prev];
-                                    updated[updated.length - 1] = { role: 'assistant', content: sanitizeForState(rebrandText(fullText)) };
+                                    updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
                                     return updated;
                                 });
                             }
