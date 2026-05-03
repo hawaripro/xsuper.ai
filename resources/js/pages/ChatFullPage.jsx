@@ -123,7 +123,7 @@ function buildApiPayload(messages, model, conversationId) {
         msgs.push({ role: String(m.role || 'user'), content });
     }
     return JSON.stringify({
-        model: String(model || 'auto'),
+        model: String(model),
         messages: msgs,
         conversation_id: String(conversationId || ''),
     });
@@ -838,6 +838,7 @@ export default function ChatFullPage() {
         if (isStreaming) return;
 
         const modelToUse = overrideModel || selectedModel;
+        if (!modelToUse) return; // Don't send if no model selected
         const currentModelObj = models.find(m => m.id === modelToUse);
         const isNonImageModel = currentModelObj?.category === 'chat';
         const isImageCapable = IMAGE_CAPABLE_CHAT_MODELS.includes(modelToUse);
