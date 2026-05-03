@@ -895,7 +895,7 @@ export default function ChatFullPage() {
         if (!text && attachments.length === 0) return;
         if (isStreaming) return;
 
-        const modelToUse = overrideModel || selectedModel;
+        const modelToUse = String(overrideModel || selectedModel || 'auto');
         const currentModelObj = models.find(m => m.id === modelToUse);
         const isNonImageModel = currentModelObj?.category === 'chat';
         const isImageCapable = IMAGE_CAPABLE_CHAT_MODELS.includes(modelToUse);
@@ -943,9 +943,9 @@ export default function ChatFullPage() {
                                 'X-XSRF-TOKEN': getCsrfToken(),
                             },
                             body: safeStringify({
-                                model: forwardTo,
+                                model: String(forwardTo || 'auto'),
                                 messages: apiMessages,
-                                conversation_id: currentConvId,
+                                conversation_id: String(currentConvId || ''),
                             }),
                         });
 
@@ -1037,9 +1037,9 @@ export default function ChatFullPage() {
                     'X-XSRF-TOKEN': getCsrfToken(),
                 },
                 body: safeStringify({
-                    model: modelToUse,
+                    model: String(modelToUse || 'auto'),
                     messages: apiMessages,
-                    conversation_id: currentConvId,
+                    conversation_id: String(currentConvId || ''),
                 }),
             });
 
