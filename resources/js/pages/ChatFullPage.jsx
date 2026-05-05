@@ -136,6 +136,7 @@ function getCsrfToken() {
 function ChatMessage({ message, userName, isDark, categoryColor }) {
     const isUser = message.role === 'user';
     const catCfg = CATEGORY_CONFIG[categoryColor] || CATEGORY_CONFIG.chat;
+    const [copied, setCopied] = useState(false);
 
     const avatarClass = isUser
         ? (isDark ? 'bg-white/[0.08] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200')
@@ -147,14 +148,42 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
     const imgs = message._imgs || [];
     const docs = message._docs || [];
 
+    const handleCopy = () => {
+        const text = displayText || '';
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }).catch(() => {});
+    };
+
     return (
-        <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
+        <div className="group flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
             <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0 mt-0.5 ${avatarClass} [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4`}>
                 {isUser ? (userName?.[0]?.toUpperCase() || 'U') : catCfg.icon}
             </div>
             <div className="flex-1 min-w-0">
-                <div className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.08em] mb-1 sm:mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    {isUser ? (userName || 'You') : 'UltrAI'}
+                <div className={`flex items-center gap-2 mb-1 sm:mb-1.5`}>
+                    <span className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.08em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {isUser ? (userName || 'You') : 'UltrAI'}
+                    </span>
+                    {/* Copy button — only for assistant messages with content */}
+                    {!isUser && displayText && (
+                        <button
+                            onClick={handleCopy}
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${
+                                copied
+                                    ? 'text-emerald-400'
+                                    : isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title={copied ? 'Tersalin!' : 'Salin'}
+                        >
+                            {copied ? (
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                            ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            )}
+                        </button>
+                    )}
                 </div>
 
                 {/* User image attachment indicators */}
