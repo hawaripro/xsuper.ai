@@ -143,8 +143,9 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
 
     // Get display text (plain string for rendering)
     const displayText = typeof message.content === 'string' ? message.content : (message._display || '');
-    // Get user attachments for preview
-    const atts = message._attachments || [];
+    // Get user attachment display info
+    const imgs = message._imgs || [];
+    const docs = message._docs || [];
 
     return (
         <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full animate-msg-in">
@@ -156,19 +157,22 @@ function ChatMessage({ message, userName, isDark, categoryColor }) {
                     {isUser ? (userName || 'You') : 'UltrAI'}
                 </div>
 
-                {/* User image attachments */}
-                {atts.filter(a => a.type === 'image').length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-2">
-                        {atts.filter(a => a.type === 'image').map(a => (
-                            <img key={a.id} src={a.base64} alt={a.name} className={`max-w-[180px] sm:max-w-[240px] max-h-[180px] rounded-xl border object-cover ${isDark ? 'border-white/[0.08]' : 'border-gray-200'}`} />
+                {/* User image attachment indicators */}
+                {imgs.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {imgs.map(a => (
+                            <span key={a.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${isDark ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                                {a.name}
+                            </span>
                         ))}
                     </div>
                 )}
 
-                {/* User doc attachments */}
-                {atts.filter(a => a.type === 'doc').length > 0 && (
+                {/* User doc attachment indicators */}
+                {docs.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
-                        {atts.filter(a => a.type === 'doc').map(a => (
+                        {docs.map(a => (
                             <span key={a.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.06] text-gray-300 border border-white/[0.06]' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                                 {a.name}
@@ -578,24 +582,56 @@ export default function ChatFullPage() {
     };
 
     // Send message
-    // Build clean messages for API — only plain strings, no objects/DOM refs
+    // Build clean messages for API — only serializable primitives
+    // For older messages with attachments: only send text (not base64 images again)
+    // Only the LAST user message keeps multimodal content
     const buildApiMessages = (msgs) => {
-        return msgs
-            .filter(m => m.role && m.content)
-            .map(m => ({
-                role: String(m.role),
-                content: typeof m.content === 'string' ? m.content
-                    : Array.isArray(m.content) ? m.content.map(p =>
-                        p?.type === 'image_url' ? { type: 'image_url', image_url: { url: String(p.image_url?.url || '') } }
-                        : { type: 'text', text: String(p?.text || '') }
-                    )
-                    : String(m.content),
-            }))
-            .filter(m => typeof m.content === 'string' ? m.content.trim().length > 0 : true);
+        const result = [];
+        const lastIdx = msgs.length - 1;
+        for (let i = 0; i <= lastIdx; i++) {
+            const m = msgs[i];
+            if (!m.role || !m.content) continue;
+            const role = String(m.role);
+
+            if (typeof m.content === 'string') {
+                if (m.content.trim()) result.push({ role, content: m.content });
+            } else if (Array.isArray(m.content)) {
+                if (i === lastIdx) {
+                    // Last message: keep full multimodal (images + text)
+                    const parts = m.content.map(p => {
+                        if (p?.type === 'image_url') return { type: 'image_url', image_url: { url: String(p.image_url?.url || '') } };
+                        return { type: 'text', text: String(p?.text || '') };
+                    }).filter(p => p.type === 'image_url' || (p.text && p.text.trim()));
+                    if (parts.length > 0) result.push({ role, content: parts });
+                } else {
+                    // Older messages: extract text only (skip heavy base64 images)
+                    const textParts = m.content
+                        .filter(p => p?.type === 'text')
+                        .map(p => String(p?.text || ''))
+                        .join('\n').trim();
+                    if (textParts) result.push({ role, content: textParts });
+                }
+            } else {
+                const s = String(m.content || '').trim();
+                if (s) result.push({ role, content: s });
+            }
+        }
+        return result;
     };
 
     // Stream chat response with proper buffer handling
     const streamChat = async (apiMessages, model, convId) => {
+        let body;
+        try {
+            body = JSON.stringify({
+                model: String(model),
+                messages: apiMessages,
+                conversation_id: String(convId || ''),
+            });
+        } catch (e) {
+            throw new Error('Gagal memproses pesan. Coba mulai chat baru.');
+        }
+
         const res = await fetch('/api/c/s', {
             method: 'POST',
             credentials: 'same-origin',
@@ -604,11 +640,7 @@ export default function ChatFullPage() {
                 'Accept': 'text/event-stream',
                 'X-XSRF-TOKEN': getCsrfToken(),
             },
-            body: JSON.stringify({
-                model: String(model),
-                messages: apiMessages,
-                conversation_id: String(convId || ''),
-            }),
+            body,
         });
 
         if (!res.ok) {
@@ -678,12 +710,13 @@ export default function ChatFullPage() {
                 }
             }
             userContent = parts;
-            // Display: text + attachment names
-            const attNames = currentAtts.map(a => a.name).join(', ');
-            userDisplay = text ? `${text}\n[${attNames}]` : `[${attNames}]`;
+            userDisplay = text || '';
         }
 
-        const userMsg = { role: 'user', content: userContent, _display: userDisplay, _attachments: currentAtts };
+        // Store message — _imgs only keeps small thumbnail info for display, not full base64
+        const displayImgs = currentAtts.filter(a => a.type === 'image').map(a => ({ id: a.id, name: a.name, thumb: a.base64.length < 50000 ? a.base64 : a.base64.substring(0, 100) + '...' }));
+        const displayDocs = currentAtts.filter(a => a.type === 'doc').map(a => ({ id: a.id, name: a.name }));
+        const userMsg = { role: 'user', content: userContent, _display: userDisplay, _imgs: displayImgs, _docs: displayDocs };
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
         setInput('');
@@ -696,6 +729,19 @@ export default function ChatFullPage() {
             const apiMessages = buildApiMessages(newMessages);
             await streamChat(apiMessages, selectedModel, currentConvId);
             loadConversations();
+
+            // After send: flatten multimodal content to text-only in state
+            // This prevents huge base64 from accumulating in memory/state
+            setMessages(prev => prev.map(m => {
+                if (Array.isArray(m.content)) {
+                    const textOnly = m.content
+                        .filter(p => p?.type === 'text')
+                        .map(p => p.text || '')
+                        .join('\n').trim() || '[Attachment]';
+                    return { ...m, content: textOnly };
+                }
+                return m;
+            }));
         } catch (err) {
             setMessages(prev => [
                 ...prev.filter(m => m.content !== ''),
