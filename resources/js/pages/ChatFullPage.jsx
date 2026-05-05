@@ -621,16 +621,28 @@ export default function ChatFullPage() {
 
     // Stream chat response with proper buffer handling
     const streamChat = async (apiMessages, model, convId) => {
-        let body;
-        try {
-            body = JSON.stringify({
-                model: String(model),
-                messages: apiMessages,
-                conversation_id: String(convId || ''),
-            });
-        } catch (e) {
-            throw new Error('Gagal memproses pesan. Coba mulai chat baru.');
-        }
+        // Final safety: ensure all messages are serializable
+        const safeMessages = apiMessages.map(m => {
+            const role = String(m.role || 'user');
+            const content = m.content;
+            if (typeof content === 'string') return { role, content };
+            if (Array.isArray(content)) {
+                // Only keep safe primitive parts
+                const safeParts = content.filter(p => p && typeof p === 'object' && p.type).map(p => {
+                    if (p.type === 'text') return { type: 'text', text: String(p.text || '') };
+                    if (p.type === 'image_url' && p.image_url?.url) return { type: 'image_url', image_url: { url: String(p.image_url.url) } };
+                    return null;
+                }).filter(Boolean);
+                return { role, content: safeParts.length > 0 ? safeParts : '[content]' };
+            }
+            return { role, content: String(content || '') };
+        });
+
+        const body = JSON.stringify({
+            model: String(model),
+            messages: safeMessages,
+            conversation_id: String(convId || ''),
+        });
 
         const res = await fetch('/api/c/s', {
             method: 'POST',

@@ -155,36 +155,21 @@ class AiProxyService
                 CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse, $onChunk) {
                     $data = \App\Http\Controllers\Api\ExternalApiController::clean($data);
 
-                    // Fix: Filter out empty/malformed data lines that cause JSON parse errors
+                    // Forward data immediately (no validation delay)
+                    echo $data;
+                    if (ob_get_level()) ob_flush();
+                    flush();
+
+                    // Parse for collecting full response (non-blocking)
                     $lines = explode("\n", $data);
-                    $cleanedLines = [];
                     foreach ($lines as $line) {
-                        $trimmed = trim($line);
-                        // Skip empty "data: " lines (no JSON payload)
-                        if ($trimmed === 'data:' || $trimmed === 'data: ') {
-                            continue;
-                        }
-                        // Validate JSON in data lines before forwarding
-                        if (str_starts_with($trimmed, 'data: ') && $trimmed !== 'data: [DONE]') {
-                            $jsonStr = substr($trimmed, 6);
-                            $parsed = json_decode($jsonStr, true);
-                            if ($parsed === null && json_last_error() !== JSON_ERROR_NONE) {
-                                // Skip malformed JSON lines
-                                continue;
-                            }
-                            $content = $parsed['choices'][0]['delta']['content'] ?? null;
+                        if (str_starts_with($line, 'data: ') && $line !== 'data: [DONE]') {
+                            $json = json_decode(substr($line, 6), true);
+                            $content = $json['choices'][0]['delta']['content'] ?? null;
                             if ($content) {
                                 $fullResponse .= $content;
                             }
                         }
-                        $cleanedLines[] = $line;
-                    }
-
-                    $cleanedData = implode("\n", $cleanedLines);
-                    if (trim($cleanedData) !== '') {
-                        echo $cleanedData;
-                        if (ob_get_level()) ob_flush();
-                        flush();
                     }
 
                     return strlen($data);
