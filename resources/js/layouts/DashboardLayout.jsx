@@ -71,8 +71,9 @@ export default function DashboardLayout({ children }) {
 
     const perms = user?.permissions || {};
     const hasChat = isAdmin || (perms.chat !== false);
+    const hasChatPro = isAdmin || (perms.chat_ai_pro === true);
     const hasVideo = isAdmin || (perms.video_generator === true);
-    const hasDashboard = isAdmin || (perms.ai_dashboard === true);
+    const hasDashboardOfficial = isAdmin || (perms.ai_dashboard_official === true);
 
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: Icons.dashboard },
@@ -87,8 +88,10 @@ export default function DashboardLayout({ children }) {
 
     const externalLinks = [
         { name: 'Landing Page', href: '/', icon: Icons.home, internal: true },
-        ...(isAdmin ? [
+        ...(hasDashboardOfficial ? [
             { name: 'AI Dashboard Official', href: 'https://app.ultrai.id', icon: Icons.external },
+        ] : []),
+        ...(isAdmin ? [
             { name: 'AI API', href: 'https://api.ultrai.id', icon: Icons.api },
             { name: 'AI Dashboard', href: 'https://dash.ultrai.id', icon: Icons.external },
         ] : []),

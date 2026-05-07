@@ -18,6 +18,7 @@ class User extends Authenticatable
     const DEFAULT_PERMISSIONS = [
         'chat' => true,
         'chat_history' => true,
+        'chat_ai_pro' => false,
         'model_original' => true,
         'model_authentic' => false,
         'model_codex' => false,
@@ -27,6 +28,7 @@ class User extends Authenticatable
         'video_generator' => false,
         'ai_api' => false,
         'ai_dashboard' => false,
+        'ai_dashboard_official' => false,
     ];
 
     protected $fillable = [
