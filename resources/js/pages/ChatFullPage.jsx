@@ -695,8 +695,27 @@ export default function ChatFullPage() {
         const decoder = new TextDecoder();
         let buffer = '';
         let fullText = '';
+        let displayedText = '';
+        let typingQueue = '';
+        let typingTimer = null;
 
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+        // Typing animation: reveal characters gradually
+        const TYPING_SPEED = 8; // ms per character (fast but visible)
+        const typeNext = () => {
+            if (typingQueue.length === 0) { typingTimer = null; return; }
+            // Type multiple chars per tick for speed
+            const charsPerTick = Math.max(1, Math.min(5, Math.floor(typingQueue.length / 10)));
+            displayedText += typingQueue.slice(0, charsPerTick);
+            typingQueue = typingQueue.slice(charsPerTick);
+            setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(displayedText) };
+                return updated;
+            });
+            typingTimer = setTimeout(typeNext, TYPING_SPEED);
+        };
 
         for (;;) {
             const { done, value } = await reader.read();
@@ -704,28 +723,42 @@ export default function ChatFullPage() {
 
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
-            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+            buffer = lines.pop() || '';
 
             for (const line of lines) {
                 if (!line.startsWith('data: ')) continue;
                 const data = line.slice(6);
-                if (data === '[DONE]') return fullText;
+                if (data === '[DONE]') {
+                    // Flush remaining queue instantly
+                    if (typingTimer) clearTimeout(typingTimer);
+                    displayedText = fullText;
+                    setMessages(prev => {
+                        const updated = [...prev];
+                        updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
+                        return updated;
+                    });
+                    return fullText;
+                }
 
                 try {
                     const delta = JSON.parse(data).choices?.[0]?.delta;
                     if (delta?.content) {
                         fullText += delta.content;
-                        const display = rebrandText(fullText);
-                        setMessages(prev => {
-                            const updated = [...prev];
-                            updated[updated.length - 1] = { role: 'assistant', content: display };
-                            return updated;
-                        });
+                        typingQueue += delta.content;
+                        if (!typingTimer) typeNext();
                     }
-                } catch {
-                    // Skip malformed JSON chunks
-                }
+                } catch {}
             }
+        }
+
+        // Flush any remaining
+        if (typingTimer) clearTimeout(typingTimer);
+        if (displayedText !== fullText) {
+            setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
+                return updated;
+            });
         }
         return fullText;
     };
