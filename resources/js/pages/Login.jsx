@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Login() {
     const { login } = useAuth();
-    const { theme } = useTheme();
+    const { theme, toggleTheme } = useTheme();
     const isDark = theme === 'dark';
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -22,15 +22,11 @@ export default function Login() {
 
         try {
             await login(email, password);
-
-            // If redirected from dash.ultrai.id, redirect back after login
             const redirect = searchParams.get('redirect');
             if (redirect === 'dash') {
-                // Cookie dash_token sudah di-set oleh server saat login (admin only)
                 window.location.href = 'https://dash.ultrai.id';
                 return;
             }
-
             navigate('/dashboard');
         } catch (err) {
             setError(err.message || 'Login gagal. Periksa email dan password Anda.');
@@ -39,97 +35,164 @@ export default function Login() {
         }
     };
 
-    const inputClass = isDark
-        ? 'w-full px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-gray-600 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all'
-        : 'w-full px-4 py-3 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all';
-
-    const inputClassPr = isDark
-        ? 'w-full px-4 py-3 pr-12 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-gray-600 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all'
-        : 'w-full px-4 py-3 pr-12 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all';
+    const labelClass = `block text-xs font-bold uppercase tracking-[0.12em] mb-2 ${isDark ? 'text-gray-400' : 'text-slate-600'}`;
+    const inputWrap  = 'relative group';
+    const inputClass = `
+        w-full px-4 py-3 rounded-xl text-sm transition-all duration-200
+        ${isDark
+            ? 'bg-white/[0.04] border border-white/[0.08] text-white placeholder-gray-600 focus:bg-white/[0.06]'
+            : 'bg-gray-50/70 border border-gray-200 text-slate-900 placeholder-gray-400 focus:bg-white'
+        }
+        focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15
+        hover:border-red-400/30
+    `;
 
     return (
-        <div className={`min-h-screen flex items-center justify-center relative overflow-hidden px-4 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-            {/* Background effects */}
+        <div className={`min-h-dvh flex items-center justify-center relative overflow-hidden px-4 py-10 ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'}`}>
+            {/* =========================
+                Background
+               ========================= */}
             <div className="absolute inset-0 -z-10">
-                <div className={`absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full blur-[120px] animate-blob ${isDark ? 'bg-red-500/[0.07]' : 'bg-red-500/[0.05]'}`} />
-                <div className={`absolute bottom-1/4 left-1/4 w-[400px] h-[400px] rounded-full blur-[100px] animate-blob-reverse ${isDark ? 'bg-red-600/[0.05]' : 'bg-red-600/[0.04]'}`} />
-                <div className="absolute inset-0" style={{
-                    backgroundImage: isDark
-                        ? 'radial-gradient(circle, rgba(239,68,68,0.03) 1px, transparent 1px)'
-                        : 'radial-gradient(circle, rgba(239,68,68,0.06) 1px, transparent 1px)',
-                    backgroundSize: '32px 32px'
-                }} />
+                <div
+                    className={`absolute top-[-20%] right-[-15%] w-[560px] h-[560px] rounded-full blur-[120px] animate-aurora ${isDark ? 'bg-red-500/20' : 'bg-red-200/50'}`}
+                />
+                <div
+                    className={`absolute bottom-[-20%] left-[-10%] w-[480px] h-[480px] rounded-full blur-[120px] animate-aurora ${isDark ? 'bg-orange-500/15' : 'bg-orange-200/40'}`}
+                    style={{ animationDelay: '3s' }}
+                />
+                <div className="absolute inset-0 hero-dots opacity-60" />
+                <div className="absolute inset-0 ui-grid-bg opacity-60" />
             </div>
 
-            <div className="w-full max-w-[420px]">
+            {/* Theme toggle floating */}
+            <button
+                onClick={toggleTheme}
+                className={`absolute top-5 right-5 p-2.5 rounded-xl backdrop-blur-xl border transition-all duration-200 z-10 ${
+                    isDark
+                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
+                        : 'bg-white/80 border-gray-200 text-gray-500 hover:bg-white hover:text-red-500 hover:shadow-md'
+                }`}
+                aria-label="Toggle theme"
+            >
+                {isDark ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><line x1="12" y1="2" x2="12" y2="4" /><line x1="12" y1="20" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="6.34" y2="6.34" /><line x1="17.66" y1="17.66" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="4" y2="12" /><line x1="20" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="6.34" y2="17.66" /><line x1="17.66" y1="6.34" x2="19.07" y2="4.93" /></svg>
+                ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+                )}
+            </button>
+
+            <div className="w-full max-w-[440px] animate-fade-in-up">
                 {/* Logo */}
-                <div className="text-center mb-8">
-                    <a href="/" className="inline-flex items-center gap-[3px] text-3xl font-black tracking-tight mb-3">
-                        <span className={isDark ? 'text-white' : 'text-gray-900'}>Ultr</span>
-                        <span className="bg-gradient-to-r from-red-500 to-red-400 bg-clip-text text-transparent">AI</span>
+                <div className="text-center mb-8 animate-fade-in-down">
+                    <a href="/" className="inline-flex items-center gap-2.5 mb-4 group">
+                        <span className="relative inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_10px_28px_-6px_rgba(239,68,68,0.5)] group-hover:shadow-[0_16px_40px_-6px_rgba(239,68,68,0.6)] transition-all duration-300 group-hover:scale-105 group-hover:rotate-[-4deg]">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
+                                <path d="M12 22 V12" />
+                                <path d="M4 7 l8 5 l8 -5" />
+                            </svg>
+                            <span className="absolute inset-0 rounded-2xl ring-1 ring-white/30 pointer-events-none" />
+                        </span>
+                        <span className="text-3xl font-black tracking-tight flex items-center gap-[2px]">
+                            <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
+                            <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">AI</span>
+                        </span>
                     </a>
-                    <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Masuk ke dashboard Anda</p>
+                    <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Selamat Datang Kembali</h1>
+                    <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Masuk untuk mengakses dashboard UltrAI</p>
                 </div>
 
                 {/* Card */}
-                <div className="relative">
-                    {/* Glow behind card */}
-                    <div className={`absolute -inset-1 bg-gradient-to-r from-red-500/20 via-transparent to-red-500/20 rounded-3xl blur-xl ${isDark ? 'opacity-50' : 'opacity-30'}`} />
+                <div className="relative animate-scale-in">
+                    {/* Glow */}
+                    <div className={`absolute -inset-1 rounded-3xl blur-2xl transition-opacity ${
+                        isDark
+                            ? 'bg-gradient-to-r from-red-500/25 via-orange-500/15 to-red-500/25 opacity-70'
+                            : 'bg-gradient-to-r from-red-300/40 via-orange-200/30 to-red-300/40 opacity-80'
+                    }`} />
 
                     <form
                         onSubmit={handleSubmit}
-                        className={`relative backdrop-blur-2xl border rounded-2xl p-8 shadow-2xl ${
+                        className={`relative backdrop-blur-2xl border rounded-2xl p-7 sm:p-8 shadow-2xl ${
                             isDark
-                                ? 'bg-gray-900/80 border-white/[0.08]'
-                                : 'bg-white/90 border-gray-200'
+                                ? 'bg-gray-900/85 border-white/[0.08]'
+                                : 'bg-white/95 border-gray-200/80 shadow-[0_32px_64px_-16px_rgba(15,23,42,0.15)]'
                         }`}
                     >
                         {/* Error */}
                         {error && (
-                            <div className="mb-6 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-shake">
-                                {error}
+                            <div
+                                role="alert"
+                                aria-live="polite"
+                                className={`mb-5 p-3.5 rounded-xl border text-sm font-medium flex items-start gap-2.5 animate-shake ${
+                                    isDark
+                                        ? 'bg-red-500/10 border-red-500/25 text-red-300'
+                                        : 'bg-red-50 border-red-200 text-red-700'
+                                }`}
+                            >
+                                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                                </svg>
+                                <span className="flex-1">{error}</span>
                             </div>
                         )}
 
                         {/* Email */}
                         <div className="mb-5">
-                            <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                Email
-                            </label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="nama@email.com"
-                                required
-                                autoFocus
-                                className={inputClass}
-                            />
+                            <label htmlFor="login-email" className={labelClass}>Email</label>
+                            <div className={inputWrap}>
+                                <svg className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isDark ? 'text-gray-500 group-focus-within:text-red-400' : 'text-gray-400 group-focus-within:text-red-500'}`} fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                    <polyline points="22,6 12,13 2,6" />
+                                </svg>
+                                <input
+                                    id="login-email"
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="nama@email.com"
+                                    required
+                                    autoFocus
+                                    autoComplete="email"
+                                    className={`${inputClass} pl-10`}
+                                />
+                            </div>
                         </div>
 
                         {/* Password */}
                         <div className="mb-6">
-                            <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                Password
-                            </label>
-                            <div className="relative">
+                            <label htmlFor="login-password" className={labelClass}>Password</label>
+                            <div className={inputWrap}>
+                                <svg className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isDark ? 'text-gray-500 group-focus-within:text-red-400' : 'text-gray-400 group-focus-within:text-red-500'}`} fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
                                 <input
+                                    id="login-password"
                                     type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
                                     required
-                                    className={inputClassPr}
+                                    autoComplete="current-password"
+                                    className={`${inputClass} pl-10 pr-11`}
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 transition-colors ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${
+                                        isDark
+                                            ? 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
+                                            : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                                    }`}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                                 >
                                     {showPassword ? (
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                                     ) : (
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                                     )}
                                 </button>
                             </div>
@@ -139,23 +202,34 @@ export default function Login() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="relative w-full py-3.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-sm hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-500/25 hover:shadow-red-500/40 overflow-hidden btn-shimmer"
+                            className="ui-btn-primary w-full py-3.5 text-base"
                         >
                             {loading ? (
-                                <span className="flex items-center justify-center gap-2">
+                                <>
                                     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
-                                    Memproses...
-                                </span>
-                            ) : 'Masuk'}
+                                    <span>Memproses...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>Masuk</span>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+                                </>
+                            )}
                         </button>
 
-                        {/* Back to home */}
+                        {/* Back */}
                         <div className="mt-6 text-center">
-                            <a href="/" className={`text-sm transition-colors ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}>
-                                &larr; Kembali ke beranda
+                            <a
+                                href="/"
+                                className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                                    isDark ? 'text-gray-500 hover:text-gray-200' : 'text-gray-500 hover:text-red-500'
+                                }`}
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                                Kembali ke beranda
                             </a>
                         </div>
                     </form>
@@ -163,7 +237,7 @@ export default function Login() {
 
                 {/* Footer */}
                 <p className={`text-center text-xs mt-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                    &copy; 2026 UltrAI. All rights reserved.
+                    &copy; {new Date().getFullYear()} UltrAI. All rights reserved.
                 </p>
             </div>
         </div>

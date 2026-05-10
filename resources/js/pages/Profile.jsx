@@ -2,12 +2,109 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
+/* ============================================================
+   Small reusable field input
+   ============================================================ */
+function Field({ label, icon, type = 'text', value, onChange, required, minLength, placeholder, autoComplete, isDark, id }) {
+    const [focused, setFocused] = useState(false);
+
+    const inputClass = `
+        w-full py-3 rounded-xl text-sm transition-all duration-200
+        ${icon ? 'pl-10 pr-4' : 'px-4'}
+        ${isDark
+            ? 'bg-white/[0.04] border border-white/[0.08] text-white placeholder-gray-600 focus:bg-white/[0.06]'
+            : 'bg-gray-50/70 border border-gray-200 text-slate-900 placeholder-gray-400 focus:bg-white'
+        }
+        focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15
+        hover:border-red-400/30
+    `;
+
+    return (
+        <div>
+            <label
+                htmlFor={id}
+                className={`block text-xs font-bold uppercase tracking-[0.12em] mb-2 ${isDark ? 'text-gray-400' : 'text-slate-600'}`}
+            >
+                {label}
+            </label>
+            <div className="relative">
+                {icon && (
+                    <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
+                        focused
+                            ? 'text-red-500'
+                            : isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
+                        {icon}
+                    </span>
+                )}
+                <input
+                    id={id}
+                    type={type}
+                    value={value}
+                    onChange={onChange}
+                    required={required}
+                    minLength={minLength}
+                    placeholder={placeholder}
+                    autoComplete={autoComplete}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    className={inputClass}
+                />
+            </div>
+        </div>
+    );
+}
+
+/* ============================================================
+   Alert / feedback message
+   ============================================================ */
+function Alert({ type, text, isDark }) {
+    if (!text) return null;
+    const isSuccess = type === 'success';
+    const styles = isSuccess
+        ? (isDark
+            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+            : 'bg-emerald-50 border-emerald-200 text-emerald-700')
+        : (isDark
+            ? 'bg-red-500/10 border-red-500/25 text-red-300'
+            : 'bg-red-50 border-red-200 text-red-700');
+
+    return (
+        <div
+            role={isSuccess ? 'status' : 'alert'}
+            aria-live="polite"
+            className={`mb-4 p-3.5 rounded-xl border text-sm font-medium flex items-start gap-2.5 animate-fade-in-down ${styles}`}
+        >
+            {isSuccess ? (
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                </svg>
+            ) : (
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+            )}
+            <span className="flex-1">{text}</span>
+        </div>
+    );
+}
+
 export default function Profile() {
     const { user, refreshUser } = useAuth();
     const { theme } = useTheme();
     const isDark = theme === 'dark';
+
     const [name, setName] = useState(user?.name || '');
     const [email, setEmail] = useState('');
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [profileMsg, setProfileMsg] = useState({ type: '', text: '' });
+    const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
+    const [profileLoading, setProfileLoading] = useState(false);
+    const [passwordLoading, setPasswordLoading] = useState(false);
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -25,23 +122,14 @@ export default function Profile() {
         };
         loadProfile();
     }, []);
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [profileMsg, setProfileMsg] = useState({ type: '', text: '' });
-    const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
-    const [profileLoading, setProfileLoading] = useState(false);
-    const [passwordLoading, setPasswordLoading] = useState(false);
 
-    const getCsrfToken = () => {
-        return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
-    };
+    const getCsrfToken = () =>
+        decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
 
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
         setProfileMsg({ type: '', text: '' });
         setProfileLoading(true);
-
         try {
             const res = await fetch('/api/u/p', {
                 method: 'PUT',
@@ -53,10 +141,8 @@ export default function Profile() {
                 },
                 body: JSON.stringify({ name, email }),
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || Object.values(data.errors || {}).flat().join(', ') || 'Gagal update');
-
             setProfileMsg({ type: 'success', text: 'Profil berhasil diperbarui!' });
             refreshUser();
         } catch (err) {
@@ -69,14 +155,11 @@ export default function Profile() {
     const handlePasswordUpdate = async (e) => {
         e.preventDefault();
         setPasswordMsg({ type: '', text: '' });
-
         if (newPassword !== confirmPassword) {
-            setPasswordMsg({ type: 'error', text: 'Password baru tidak cocok' });
+            setPasswordMsg({ type: 'error', text: 'Password baru tidak cocok.' });
             return;
         }
-
         setPasswordLoading(true);
-
         try {
             const res = await fetch('/api/u/pw', {
                 method: 'PUT',
@@ -92,10 +175,8 @@ export default function Profile() {
                     password_confirmation: confirmPassword,
                 }),
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || Object.values(data.errors || {}).flat().join(', ') || 'Gagal update');
-
             setPasswordMsg({ type: 'success', text: 'Password berhasil diperbarui!' });
             setCurrentPassword('');
             setNewPassword('');
@@ -107,151 +188,195 @@ export default function Profile() {
         }
     };
 
-    // Shared input classes
-    const inputClass = isDark
-        ? 'w-full px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white placeholder-gray-600 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all'
-        : 'w-full px-4 py-3 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all';
+    const card = isDark
+        ? 'bg-gray-900/60 border-white/[0.06] backdrop-blur-xl'
+        : 'bg-white border-gray-200/80 shadow-[0_1px_3px_rgba(15,23,42,0.04)]';
+
+    const head = isDark ? 'text-white' : 'text-slate-900';
+    const muted = isDark ? 'text-gray-400' : 'text-gray-500';
+    const isAdmin = user?.role === 'admin';
 
     return (
-        <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
+        <div className="p-4 lg:p-6 space-y-5 max-w-3xl mx-auto">
             {/* Header */}
-            <div>
-                <h1 className={`text-2xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Profil Saya</h1>
-                <p className={`text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Kelola informasi akun dan keamanan Anda</p>
+            <div className="animate-fade-in-up">
+                <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${head}`}>Profil Saya</h1>
+                <p className={`text-sm mt-1 ${muted}`}>Kelola informasi akun dan keamanan Anda.</p>
             </div>
 
-            {/* Profile Card */}
-            <div className={`p-6 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-white/[0.06] backdrop-blur-xl' : 'bg-white border-gray-200 shadow-sm'}`}>
-                <div className={`flex items-center gap-4 mb-6 pb-6 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}`}>
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-red-500/20">
-                        {user?.name?.[0]?.toUpperCase() || 'U'}
-                    </div>
-                    <div>
-                        <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{user?.name}</div>
-                        <div className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{user?.email}</div>
-                        <span className={`inline-flex mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                            user?.role === 'admin'
-                                ? 'bg-red-500/15 text-red-400'
-                                : 'bg-blue-500/15 text-blue-400'
-                        }`}>
-                            {user?.role || 'member'}
+            {/* Profile summary */}
+            <section className={`relative overflow-hidden p-5 lg:p-6 rounded-2xl border ${card} animate-fade-in-up`}>
+                <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-red-500/10 blur-[80px] pointer-events-none" />
+
+                <div className="relative flex flex-col sm:flex-row sm:items-center gap-5 pb-5 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}">
+                    <div className="relative flex-shrink-0">
+                        <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white text-3xl font-black shadow-[0_12px_32px_-8px_rgba(239,68,68,0.5)]">
+                            {user?.name?.[0]?.toUpperCase() || 'U'}
+                            <span className="absolute inset-0 rounded-2xl ring-1 ring-white/30 pointer-events-none" />
+                        </div>
+                        <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-4 border-white dark:border-gray-900 flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                         </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className={`text-xl font-bold truncate ${head}`}>{user?.name || '—'}</div>
+                        <div className={`text-sm truncate ${muted}`}>{user?.email || email || '—'}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${
+                                isAdmin
+                                    ? (isDark ? 'bg-red-500/15 text-red-300 border-red-500/25' : 'bg-red-50 text-red-600 border-red-200')
+                                    : (isDark ? 'bg-blue-500/15 text-blue-300 border-blue-500/25' : 'bg-blue-50 text-blue-600 border-blue-200')
+                            }`}>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                                {user?.role || 'member'}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${
+                                isDark ? 'bg-white/[0.04] text-gray-300 border-white/[0.08]' : 'bg-gray-100 text-gray-600 border-gray-200'
+                            }`}>
+                                <span className="relative flex w-1.5 h-1.5">
+                                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 animate-ping" />
+                                    <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                </span>
+                                Akun aktif
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Profile Form */}
-                <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    <svg className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                    Informasi Profil
-                </h3>
+                {/* Profile form */}
+                <form onSubmit={handleProfileUpdate} className="relative pt-5 space-y-4">
+                    <h2 className={`text-sm font-bold flex items-center gap-2 ${head}`}>
+                        <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center shadow-md">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                        </span>
+                        Informasi Profil
+                    </h2>
 
-                {profileMsg.text && (
-                    <div className={`mb-4 p-3 rounded-xl text-sm font-medium ${
-                        profileMsg.type === 'success'
-                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-                            : 'bg-red-500/10 border border-red-500/20 text-red-400'
-                    }`}>
-                        {profileMsg.text}
-                    </div>
-                )}
+                    <Alert type={profileMsg.type} text={profileMsg.text} isDark={isDark} />
 
-                <form onSubmit={handleProfileUpdate} className="space-y-4">
-                    <div>
-                        <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Nama</label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            required
-                            className={inputClass}
-                        />
+                    <Field
+                        id="profile-name"
+                        label="Nama Lengkap"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        autoComplete="name"
+                        isDark={isDark}
+                        icon={<svg fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>}
+                    />
+
+                    <Field
+                        id="profile-email"
+                        label="Email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        autoComplete="email"
+                        isDark={isDark}
+                        icon={<svg fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>}
+                    />
+
+                    <div className="pt-2">
+                        <button
+                            type="submit"
+                            disabled={profileLoading}
+                            className="ui-btn-primary"
+                        >
+                            {profileLoading ? (
+                                <>
+                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                    Menyimpan...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Simpan Perubahan
+                                </>
+                            )}
+                        </button>
                     </div>
-                    <div>
-                        <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Email</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            className={inputClass}
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={profileLoading}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold hover:brightness-110 disabled:opacity-50 transition-all shadow-lg shadow-red-500/25"
-                    >
-                        {profileLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
-                    </button>
                 </form>
-            </div>
+            </section>
 
-            {/* Password Card */}
-            <div className={`p-6 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-white/[0.06] backdrop-blur-xl' : 'bg-white border-gray-200 shadow-sm'}`}>
-                <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    <svg className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-                    Ubah Password
-                </h3>
-
-                {passwordMsg.text && (
-                    <div className={`mb-4 p-3 rounded-xl text-sm font-medium ${
-                        passwordMsg.type === 'success'
-                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-                            : 'bg-red-500/10 border border-red-500/20 text-red-400'
-                    }`}>
-                        {passwordMsg.text}
-                    </div>
-                )}
-
+            {/* Password section */}
+            <section className={`p-5 lg:p-6 rounded-2xl border ${card} animate-fade-in-up`}>
                 <form onSubmit={handlePasswordUpdate} className="space-y-4">
-                    <div>
-                        <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Password Saat Ini</label>
-                        <input
-                            type="password"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                            required
-                            className={inputClass}
-                            placeholder="••••••••"
-                        />
+                    <h2 className={`text-sm font-bold flex items-center gap-2 ${head}`}>
+                        <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                        </span>
+                        Ubah Password
+                    </h2>
+
+                    <Alert type={passwordMsg.type} text={passwordMsg.text} isDark={isDark} />
+
+                    <Field
+                        id="current-password"
+                        label="Password Saat Ini"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        required
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        isDark={isDark}
+                        icon={<svg fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
+                    />
+                    <Field
+                        id="new-password"
+                        label="Password Baru"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        placeholder="Minimal 8 karakter"
+                        autoComplete="new-password"
+                        isDark={isDark}
+                        icon={<svg fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15v2" /><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
+                    />
+                    <Field
+                        id="confirm-password"
+                        label="Konfirmasi Password Baru"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        placeholder="Ulangi password baru"
+                        autoComplete="new-password"
+                        isDark={isDark}
+                        icon={<svg fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                    />
+
+                    <div className="pt-2">
+                        <button
+                            type="submit"
+                            disabled={passwordLoading}
+                            className="ui-btn-ghost"
+                        >
+                            {passwordLoading ? (
+                                <>
+                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                    Memperbarui...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15v2" /><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                    Ubah Password
+                                </>
+                            )}
+                        </button>
                     </div>
-                    <div>
-                        <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Password Baru</label>
-                        <input
-                            type="password"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            required
-                            minLength={8}
-                            className={inputClass}
-                            placeholder="Minimal 8 karakter"
-                        />
-                    </div>
-                    <div>
-                        <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Konfirmasi Password Baru</label>
-                        <input
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            required
-                            minLength={8}
-                            className={inputClass}
-                            placeholder="Ulangi password baru"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={passwordLoading}
-                        className={`px-6 py-2.5 rounded-xl border text-sm font-bold disabled:opacity-50 transition-all ${
-                            isDark
-                                ? 'bg-white/[0.05] border-white/[0.08] text-gray-300 hover:bg-white/[0.08]'
-                                : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
-                        }`}
-                    >
-                        {passwordLoading ? 'Memperbarui...' : 'Ubah Password'}
-                    </button>
                 </form>
-            </div>
+            </section>
         </div>
     );
 }

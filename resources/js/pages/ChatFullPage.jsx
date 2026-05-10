@@ -53,7 +53,7 @@ const CATEGORY_CONFIG = {
         border: 'border-red-500/20',
         text: 'text-red-400',
         ring: 'ring-red-500/30',
-        glow: 'shadow-red-500/20',
+        glow: 'shadow-[0_10px_24px_-6px_rgba(239,68,68,0.25)]',
     },
     audio: {
         label: 'Audio',
@@ -909,46 +909,58 @@ export default function ChatFullPage() {
     }, [models]);
 
     return (
-        <div className={`h-screen flex ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`} style={{ fontSize: '90%' }}>
+        <div className={`h-dvh flex ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'}`} style={{ fontSize: '90%' }}>
             {/* Mobile sidebar overlay */}
             {showSidebar && (
                 <div
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 lg:hidden"
+                    className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 lg:hidden animate-fade-in"
                     onClick={() => setShowSidebar(false)}
+                    aria-hidden="true"
                 />
             )}
 
             {/* ===== Sidebar ===== */}
             <div className={[
                 'fixed inset-y-0 left-0 z-40 flex flex-col',
-                'backdrop-blur-2xl border-r',
-                'transform transition-all duration-300',
+                'border-r',
+                'transform transition-all duration-300 ease-out',
                 'lg:static lg:z-auto',
                 sidebarCollapsed ? 'w-[60px]' : 'w-[280px]',
-                isDark ? 'bg-gray-900/95 border-white/[0.06]' : 'bg-white border-gray-200',
+                isDark ? 'bg-gray-900/75 border-white/[0.06] backdrop-blur-2xl' : 'bg-white/95 border-gray-200/80 backdrop-blur-xl',
                 showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
             ].join(' ')}>
                 {/* Sidebar Header */}
-                <div className={`flex items-center justify-between p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}`}>
+                <div className={`flex items-center justify-between p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
                     {!sidebarCollapsed && (
-                        <Link to="/dashboard" className="flex items-center gap-[3px] text-lg font-extrabold tracking-tight">
-                            <span className={isDark ? 'text-white' : 'text-gray-900'}>Ultr</span>
-                            <span className="bg-gradient-to-r from-red-500 to-red-400 bg-clip-text text-transparent">AI</span>
+                        <Link to="/dashboard" className="flex items-center gap-2 group">
+                            <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_6px_14px_-4px_rgba(239,68,68,0.45)] group-hover:shadow-[0_10px_22px_-4px_rgba(239,68,68,0.6)] transition-all duration-200 group-hover:scale-105">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
+                                    <path d="M12 22 V12" />
+                                    <path d="M4 7 l8 5 l8 -5" />
+                                </svg>
+                            </span>
+                            <span className="text-lg font-extrabold tracking-tight flex items-center gap-[1px]">
+                                <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
+                                <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent">AI</span>
+                            </span>
                         </Link>
                     )}
                     <button
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className={`p-1.5 rounded-lg transition-colors hidden lg:block ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                        className={`p-1.5 rounded-lg transition-colors hidden lg:block ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
+                        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                     >
-                        <svg className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <svg className={`w-4 h-4 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="15 18 9 12 15 6" />
                         </svg>
                     </button>
                     <button
                         onClick={() => setShowSidebar(false)}
-                        className={`p-1.5 rounded-lg transition-colors lg:hidden ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                        className={`p-1.5 rounded-lg transition-colors lg:hidden ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
+                        aria-label="Close sidebar"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round">
                             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                     </button>
@@ -1045,7 +1057,7 @@ export default function ChatFullPage() {
                     {/* User */}
                     {!sidebarCollapsed && (
                         <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl ${isDark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
-                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-red-500/20">
+                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-[0_10px_24px_-6px_rgba(239,68,68,0.25)]">
                                 {user?.name?.[0]?.toUpperCase() || 'U'}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1259,7 +1271,7 @@ export default function ChatFullPage() {
                                 <button
                                     onClick={sendMessage}
                                     disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-                                    className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 mr-2 mb-2 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
+                                    className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 mr-2 mb-2 rounded-lg sm:rounded-xl bg-gradient-to-r ${catCfg.gradient} text-white flex items-center justify-center hover:brightness-105 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-6px_rgba(239,68,68,0.45)] disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg ${catCfg.glow}`}
                                 >
                                     {isStreaming ? (
                                         <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>

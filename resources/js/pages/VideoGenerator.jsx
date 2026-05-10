@@ -151,7 +151,7 @@ export default function VideoGenerator() {
     };
 
     // Shared classes
-    const cardClass = isDark ? 'bg-gray-900/50 border-white/[0.06] backdrop-blur-xl' : 'bg-white border-gray-200 shadow-sm';
+    const cardClass = isDark ? 'bg-gray-900/60 border-white/[0.06] backdrop-blur-xl' : 'bg-white border-gray-200/80 shadow-[0_1px_3px_rgba(15,23,42,0.04)]';
     const inputClass = isDark ? 'bg-white/[0.05] border-white/[0.08] text-white placeholder-gray-600' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400';
     const labelClass = isDark ? 'text-gray-400' : 'text-gray-500';
     const textClass = isDark ? 'text-white' : 'text-gray-900';
@@ -159,42 +159,63 @@ export default function VideoGenerator() {
     const optBg = isDark ? 'bg-gray-900' : 'bg-white';
 
     return (
-        <div className="p-4 lg:p-6 space-y-6 max-w-6xl mx-auto">
+        <div className="p-4 lg:p-6 space-y-5 max-w-6xl mx-auto">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-fade-in-up">
                 <div>
-                    <h1 className={`text-2xl font-extrabold tracking-tight ${textClass}`}>Video Generator</h1>
-                    <p className={`text-sm mt-1 ${subTextClass}`}>Buat video AI berkualitas tinggi dari prompt atau detail produk</p>
+                    <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${textClass}`}>
+                        Video <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">Generator</span>
+                    </h1>
+                    <p className={`text-sm mt-1 ${subTextClass}`}>Buat video AI berkualitas tinggi dari prompt atau detail produk.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-gray-50 border-gray-200'}`}>
-                        <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-                        <span className={`text-sm font-bold ${textClass}`}>{tokenBalance}</span>
+                    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all ${isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-white border-gray-200/80 shadow-[0_1px_3px_rgba(15,23,42,0.04)]'}`}>
+                        <span className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-sm">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                        </span>
+                        <span className={`text-sm font-bold tabular-nums ${textClass}`}>{tokenBalance}</span>
                         <span className={`text-xs ${subTextClass}`}>Token</span>
                     </div>
-                    <button onClick={() => { setShowTokenHistory(true); loadTokenHistory(); }} className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    <button onClick={() => { setShowTokenHistory(true); loadTokenHistory(); }} className="ui-btn-ghost px-3 py-2.5 text-xs">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         Riwayat
                     </button>
                 </div>
             </div>
 
             {/* Tab Selector */}
-            <div className={`flex rounded-xl p-1 ${isDark ? 'bg-white/[0.05]' : 'bg-gray-100'}`}>
-                <button onClick={() => setActiveTab('prompt')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'prompt'
-                        ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
-                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
-                    }`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <div
+                role="tablist"
+                aria-label="Mode generator"
+                className={`inline-flex rounded-xl p-1 border w-full ${isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-gray-100/80 border-gray-200'}`}
+            >
+                <button
+                    onClick={() => setActiveTab('prompt')}
+                    role="tab"
+                    aria-selected={activeTab === 'prompt'}
+                    className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                        activeTab === 'prompt'
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-[0_10px_24px_-4px_rgba(239,68,68,0.35)]'
+                            : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-slate-900'
+                    }`}
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     Prompt Manual
                 </button>
-                <button onClick={() => setActiveTab('ab_testing')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'ab_testing'
-                        ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
-                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                <button
+                    onClick={() => setActiveTab('ab_testing')}
+                    role="tab"
+                    aria-selected={activeTab === 'ab_testing'}
+                    className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                        activeTab === 'ab_testing'
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-[0_10px_24px_-4px_rgba(239,68,68,0.35)]'
+                            : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-slate-900'
                     }`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-                    A/B Testing <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400">NEW</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                    A/B Testing
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-wider ${
+                        activeTab === 'ab_testing' ? 'bg-white/25 text-white' : isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
+                    }`}>NEW</span>
                 </button>
             </div>
 
@@ -207,7 +228,7 @@ export default function VideoGenerator() {
                             <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${labelClass}`}>Input Prompt</label>
                             <p className={`text-xs mb-3 ${subTextClass}`}>Disarankan menggunakan bahasa Inggris untuk hasil terbaik</p>
                             <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} maxLength={2000}
-                                className={`w-full px-4 py-3 rounded-xl border text-sm resize-none focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all ${inputClass}`}
+                                className={`w-full px-4 py-3 rounded-xl border text-sm resize-none focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15 transition-all ${inputClass}`}
                                 placeholder="Describe your video scene in detail..." />
                             <div className="flex justify-between mt-2">
                                 <span className={`text-xs ${subTextClass}`}>{prompt.length}/2000 karakter</span>
@@ -272,13 +293,13 @@ export default function VideoGenerator() {
                                     <div>
                                         <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${labelClass}`}>Nama Produk *</label>
                                         <input type="text" value={productName} onChange={(e) => setProductName(e.target.value)}
-                                            className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all ${inputClass}`}
+                                            className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15 transition-all ${inputClass}`}
                                             placeholder="Cth: Seger Waras Foot Soak" />
                                     </div>
                                     <div>
                                         <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${labelClass}`}>Keunggulan / Key Feature</label>
                                         <input type="text" value={productFeatures} onChange={(e) => setProductFeatures(e.target.value)}
-                                            className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all ${inputClass}`}
+                                            className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15 transition-all ${inputClass}`}
                                             placeholder="Cth: meredakan pegal dalam 5 menit, aroma herbal" />
                                     </div>
                                 </div>
@@ -330,7 +351,7 @@ export default function VideoGenerator() {
                                 <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-1 ${labelClass}`}>Call-to-Action (CTA) — Opsional</label>
                                 <p className={`text-xs mb-3 ${subTextClass}`}>Talent akan mengucapkan CTA ini di akhir video + muncul sebagai teks overlay</p>
                                 <input type="text" value={cta} onChange={(e) => setCta(e.target.value)} maxLength={500}
-                                    className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all ${inputClass}`}
+                                    className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15 transition-all ${inputClass}`}
                                     placeholder="Cth: Pesan sekarang di Shopee, diskon 50%!" />
                                 <span className={`text-xs mt-1 block ${subTextClass}`}>{cta.length}/500</span>
                             </div>
@@ -444,7 +465,7 @@ export default function VideoGenerator() {
                         )}
 
                         <button onClick={handleGenerate} disabled={!canGenerate || generating}
-                            className="mt-4 w-full py-3.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-500/25">
+                            className="mt-4 w-full py-3.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold hover:brightness-105 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-6px_rgba(239,68,68,0.45)] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_10px_24px_-4px_rgba(239,68,68,0.35)]">
                             {generating ? (
                                 <span className="flex items-center justify-center gap-2">
                                     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -503,7 +524,7 @@ export default function VideoGenerator() {
             {showTokenHistory && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowTokenHistory(false)} />
-                    <div className={`relative w-full max-w-md max-h-[80vh] overflow-y-auto rounded-2xl border p-6 ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`}>
+                    <div className={`relative w-full max-w-md max-h-[80vh] overflow-y-auto rounded-2xl border p-6 ${isDark ? 'bg-gray-900/95 border-white/[0.08] backdrop-blur-2xl' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className={`text-lg font-bold ${textClass}`}>Riwayat Token</h3>
                             <button onClick={() => setShowTokenHistory(false)} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
@@ -535,7 +556,7 @@ export default function VideoGenerator() {
             {showHistory && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
-                    <div className={`relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl border p-6 ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`}>
+                    <div className={`relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl border p-6 ${isDark ? 'bg-gray-900/95 border-white/[0.08] backdrop-blur-2xl' : 'bg-white border-gray-200'}`}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className={`text-lg font-bold ${textClass}`}>Riwayat Video</h3>
                             <button onClick={() => setShowHistory(false)} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
