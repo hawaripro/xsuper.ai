@@ -12,6 +12,7 @@ import FAQ from '../components/landing/FAQ';
 import Stats from '../components/landing/Stats';
 import Cta from '../components/landing/Cta';
 import Footer from '../components/landing/Footer';
+import PurchaseNotification from '../components/landing/PurchaseNotification';
 
 export default function Landing() {
     return (
@@ -29,6 +30,7 @@ export default function Landing() {
             <FAQ />
             <Cta />
             <Footer />
+            <PurchaseNotification />
         </div>
     );
 }

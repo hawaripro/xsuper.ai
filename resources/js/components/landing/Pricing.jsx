@@ -1,4 +1,5 @@
 import React from 'react';
+import Carousel from './Carousel';
 
 /* ============================================================
    Pricing section — 6 plans, monthly-equivalent savings, VIP feel.
@@ -236,15 +237,13 @@ export default function Pricing() {
                     </p>
                 </div>
 
-                {/* Plans — horizontal snap-scroll, user swipes/drags */}
-                <div className="relative -mx-4 md:-mx-6 mb-10">
-                    <div className="flex items-stretch gap-4 lg:gap-5 px-4 md:px-6 py-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin scroll-smooth">
+                {/* Plans — carousel, 1 per 1 with prev/next */}
+                <div className="max-w-[360px] mx-auto mb-10">
+                    <Carousel autoPlay interval={6000}>
                         {PLANS.map((plan, i) => (
-                            <div key={plan.key} className="snap-start shrink-0 w-[280px] sm:w-[300px] md:w-[320px]">
-                                <PlanCard plan={plan} index={i} />
-                            </div>
+                            <PlanCard key={plan.key} plan={plan} index={i} />
                         ))}
-                    </div>
+                    </Carousel>
                 </div>
 
                 {/* Bottom note */}

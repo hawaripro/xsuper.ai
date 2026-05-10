@@ -1,4 +1,5 @@
 import React from 'react';
+import Carousel from './Carousel';
 
 /* ============================================================
    Testimonials — social proof cards with avatar + rating.
@@ -120,15 +121,13 @@ export default function Testimonials() {
                     </p>
                 </div>
 
-                {/* Testimonials — horizontal snap-scroll, single row */}
-                <div className="relative -mx-4 md:-mx-6">
-                    <div className="flex items-stretch gap-4 lg:gap-5 px-4 md:px-6 py-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin scroll-smooth">
+                {/* Testimonials — carousel, 1 per 1 */}
+                <div className="max-w-[400px] mx-auto">
+                    <Carousel autoPlay interval={5000}>
                         {TESTIMONIALS.map((t, i) => (
-                            <div key={i} className="snap-start shrink-0 w-[280px] sm:w-[320px] md:w-[360px]">
-                                <TestimonialCard t={t} />
-                            </div>
+                            <TestimonialCard key={i} t={t} />
                         ))}
-                    </div>
+                    </Carousel>
                 </div>
 
                 {/* Footer stats */}

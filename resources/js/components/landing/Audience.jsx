@@ -1,4 +1,5 @@
 import React from 'react';
+import Carousel from './Carousel';
 
 /* ============================================================
    Audience section — "Tepat untuk kamu yang..."
@@ -211,27 +212,27 @@ export default function Audience() {
                     </p>
                 </div>
 
-                <div className="relative -mx-4 md:-mx-6">
-                    <div className="flex items-stretch gap-4 lg:gap-5 px-4 md:px-6 py-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin scroll-smooth">
-                        {AUDIENCES.map((a, i) => (
+                <div className="max-w-[340px] mx-auto">
+                    <Carousel autoPlay interval={4500}>
+                        {AUDIENCES.map((a) => (
                             <div
                                 key={a.key}
-                                className={`snap-start shrink-0 w-[260px] sm:w-[280px] md:w-[300px] group relative p-6 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-1.5 ${ACCENT_RING[a.accent]}`}
+                                className={`group relative p-6 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 ${ACCENT_RING[a.accent]}`}
                             >
-                                <div className="mb-4">
-                                    <div className="w-16 h-16 transition-transform duration-300 group-hover:scale-110">
+                                <div className="mb-4 flex justify-center">
+                                    <div className="w-16 h-16">
                                         <a.Icon className="w-full h-full" />
                                     </div>
                                 </div>
-                                <h3 className="text-base font-extrabold tracking-tight text-slate-900 mb-1.5 group-hover:text-red-500 transition-colors">
+                                <h3 className="text-base font-extrabold tracking-tight text-slate-900 mb-1.5 text-center">
                                     {a.title}
                                 </h3>
-                                <p className="text-sm text-slate-600 leading-relaxed">
+                                <p className="text-sm text-slate-600 leading-relaxed text-center">
                                     {a.desc}
                                 </p>
                             </div>
                         ))}
-                    </div>
+                    </Carousel>
                 </div>
             </div>
         </section>
