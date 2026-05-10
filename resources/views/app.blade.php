@@ -39,6 +39,7 @@
     <div id="app"></div>
 
     {{-- JSON-LD Structured Data for SEO --}}
+    @verbatim
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
@@ -97,5 +98,6 @@
         ]
     }
     </script>
+    @endverbatim
 </body>
 </html>
