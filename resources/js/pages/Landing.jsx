@@ -1,22 +1,32 @@
 import React from 'react';
 import Header from '../components/landing/Header';
 import Hero from '../components/landing/Hero';
-import Stats from '../components/landing/Stats';
-import Services from '../components/landing/Services';
+import Pricing from '../components/landing/Pricing';
+import Comparison from '../components/landing/Comparison';
 import Features from '../components/landing/Features';
-import AiSection from '../components/landing/AiSection';
+import Audience from '../components/landing/Audience';
+import Services from '../components/landing/Services';
+import PaymentMethods from '../components/landing/PaymentMethods';
+import Testimonials from '../components/landing/Testimonials';
+import FAQ from '../components/landing/FAQ';
+import Stats from '../components/landing/Stats';
 import Cta from '../components/landing/Cta';
 import Footer from '../components/landing/Footer';
 
 export default function Landing() {
     return (
-        <div className="min-h-screen bg-white font-sans antialiased">
+        <div className="min-h-screen bg-white font-sans antialiased text-slate-900 overflow-x-hidden">
             <Header />
             <Hero />
-            <Stats />
-            <Services />
+            <Pricing />
+            <Comparison />
             <Features />
-            <AiSection />
+            <Audience />
+            <Services />
+            <PaymentMethods />
+            <Testimonials />
+            <Stats />
+            <FAQ />
             <Cta />
             <Footer />
         </div>
