@@ -236,6 +236,66 @@ export default function Pricing() {
                     </p>
                 </div>
 
+                {/* ============================================
+                    Price marquee — side-scrolling price strip
+                   ============================================ */}
+                <div
+                    className="relative mb-12 -mx-4 md:-mx-6 overflow-hidden"
+                    aria-hidden="true"
+                >
+                    {/* Edge fade masks */}
+                    <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-white via-white/80 to-transparent z-10" />
+                    <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-white via-white/80 to-transparent z-10" />
+
+                    <div className="group">
+                        <div
+                            className="marquee-track flex items-center gap-3 w-max animate-marquee hover:[animation-play-state:paused]"
+                            style={{ animationDuration: '40s' }}
+                        >
+                            {/* Duplicate the list twice for seamless loop */}
+                            {[...Array(2)].map((_, copyIdx) => (
+                                <div key={copyIdx} className="flex items-center gap-3 pr-3">
+                                    {PLANS.map((p) => (
+                                        <div
+                                            key={`${copyIdx}-${p.key}`}
+                                            className={`
+                                                shrink-0 inline-flex items-center gap-3 px-5 py-3 rounded-2xl border
+                                                ${p.highlight
+                                                    ? 'bg-gradient-to-r from-red-500 via-red-500 to-orange-500 border-red-600 text-white shadow-[0_10px_24px_-6px_rgba(239,68,68,0.4)]'
+                                                    : 'bg-white border-gray-200 text-slate-700 shadow-[0_4px_12px_-4px_rgba(15,23,42,0.08)]'
+                                                }
+                                            `}
+                                        >
+                                            <span className={`text-[10px] font-black uppercase tracking-[0.14em] px-2 py-0.5 rounded-md ${
+                                                p.highlight ? 'bg-white/20 text-white' : 'bg-red-50 text-red-600'
+                                            }`}>
+                                                {p.name}
+                                            </span>
+                                            <span className="text-base font-black tabular-nums whitespace-nowrap">
+                                                Rp {fmt.format(p.price)}
+                                            </span>
+                                            {p.saving && (
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                                    p.highlight ? 'bg-amber-300 text-amber-950' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                                }`}>
+                                                    Hemat {p.saving}%
+                                                </span>
+                                            )}
+                                            {p.highlight && !p.saving && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-300 text-amber-950">
+                                                    Populer
+                                                </span>
+                                            )}
+                                            {/* Separator dot */}
+                                            <span className={`w-1.5 h-1.5 rounded-full ${p.highlight ? 'bg-white/60' : 'bg-slate-300'}`} />
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Plans grid */}
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6 mb-10">
                     {PLANS.map((plan, i) => (

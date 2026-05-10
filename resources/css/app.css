@@ -117,6 +117,11 @@
     --animate-wiggle:           wiggle 1.5s ease-in-out infinite;
     --animate-type-blink:       type-blink 1s step-end infinite;
     --animate-count-up:         count-up 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    --animate-orbit:            orbit 20s linear infinite;
+    --animate-orbit-reverse:    orbit 26s linear infinite reverse;
+    --animate-marquee:          marquee 40s linear infinite;
+    --animate-marquee-slow:     marquee 60s linear infinite;
+    --animate-marquee-reverse:  marquee 50s linear infinite reverse;
 }
 
 /* ============================================================
@@ -266,6 +271,27 @@
     10%  { opacity: 0.6; }
     90%  { opacity: 0.6; }
     100% { transform: translate(var(--dx, 30px), var(--dy, -60px)); opacity: 0; }
+}
+
+/* Orbit — move a child around a circular path while keeping the
+   child upright. Apply to parent with `--orbit-radius` and
+   `--orbit-delay` custom properties; child should be absolutely
+   positioned at the parent center. */
+@keyframes orbit {
+    from {
+        transform: rotate(var(--orbit-start, 0deg)) translateX(var(--orbit-radius, 120px)) rotate(calc(var(--orbit-start, 0deg) * -1));
+    }
+    to {
+        transform: rotate(calc(var(--orbit-start, 0deg) + 360deg)) translateX(var(--orbit-radius, 120px)) rotate(calc((var(--orbit-start, 0deg) + 360deg) * -1));
+    }
+}
+
+/* Horizontal marquee loop — duplicate the track content twice,
+   then translate the inner track by -50% (exactly one full copy).
+   Pause on hover via `.marquee-track:hover { animation-play-state }`. */
+@keyframes marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
 }
 
 /* ============================================================
