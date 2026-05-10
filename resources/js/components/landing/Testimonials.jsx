@@ -67,6 +67,38 @@ function StarRating({ value = 5 }) {
     );
 }
 
+function TestimonialCard({ t, ...rest }) {
+    return (
+        <figure
+            {...rest}
+            className="group shrink-0 w-[300px] md:w-[360px] relative p-6 lg:p-7 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] hover:shadow-[0_24px_56px_-16px_rgba(15,23,42,0.18)] hover:-translate-y-1 hover:border-red-200 transition-all duration-300 overflow-hidden"
+        >
+            <span className="absolute top-5 right-5 text-7xl font-black text-red-500/10 leading-none select-none pointer-events-none">
+                &ldquo;
+            </span>
+
+            <div className="relative mb-4">
+                <StarRating value={t.rating} />
+            </div>
+
+            <blockquote className="relative text-sm md:text-[15px] text-slate-700 leading-relaxed mb-6">
+                &ldquo;{t.quote}&rdquo;
+            </blockquote>
+
+            <figcaption className="relative flex items-center gap-3">
+                <div className={`relative w-11 h-11 rounded-xl bg-gradient-to-br ${t.grad} text-white font-black flex items-center justify-center shadow-md ring-4 ring-white group-hover:scale-110 transition-transform duration-200`}>
+                    {t.avatar}
+                    <span className="absolute inset-0 rounded-xl ring-1 ring-white/30 pointer-events-none" />
+                </div>
+                <div>
+                    <div className="text-sm font-bold text-slate-900">{t.name}</div>
+                    <div className="text-xs text-slate-500">{t.role}</div>
+                </div>
+            </figcaption>
+        </figure>
+    );
+}
+
 export default function Testimonials() {
     return (
         <section id="testimonials" className="relative py-20 md:py-24 overflow-hidden">
@@ -88,39 +120,65 @@ export default function Testimonials() {
                     </p>
                 </div>
 
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
-                    {TESTIMONIALS.map((t, i) => (
-                        <figure
-                            key={i}
-                            className="group relative p-6 lg:p-7 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] hover:shadow-[0_24px_56px_-16px_rgba(15,23,42,0.18)] hover:-translate-y-1.5 hover:border-red-200 transition-all duration-300 overflow-hidden"
-                            style={{ animation: 'fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both', animationDelay: `${80 + i * 70}ms` }}
-                        >
-                            {/* Decorative quote mark */}
-                            <span className="absolute top-5 right-5 text-7xl font-black text-red-500/10 leading-none select-none pointer-events-none">
-                                &ldquo;
-                            </span>
+                {/* ============================================
+                    Testimonials — two-row horizontal marquee.
+                    Row 1 scrolls left (standard); row 2 scrolls
+                    right (reverse) to add visual interest.
+                    Cards duplicated twice for seamless loop.
+                    Hover pauses both rows.
+                   ============================================ */}
+                {(() => {
+                    const half = Math.ceil(TESTIMONIALS.length / 2);
+                    const rowA = TESTIMONIALS.slice(0, half);
+                    const rowB = TESTIMONIALS.slice(half);
+                    return (
+                        <div className="relative -mx-4 md:-mx-6 space-y-5 md:space-y-6">
+                            {/* Edge fade masks covering both rows */}
+                            <div className="pointer-events-none absolute inset-y-0 left-0 w-20 md:w-32 bg-gradient-to-r from-white via-white/90 to-transparent z-10" />
+                            <div className="pointer-events-none absolute inset-y-0 right-0 w-20 md:w-32 bg-gradient-to-l from-white via-white/90 to-transparent z-10" />
 
-                            <div className="relative mb-4">
-                                <StarRating value={t.rating} />
+                            {/* Row A — forward */}
+                            <div className="overflow-hidden">
+                                <div
+                                    className="marquee-track flex items-stretch gap-5 lg:gap-6 w-max animate-marquee hover:[animation-play-state:paused] py-4"
+                                    style={{ animationDuration: '55s' }}
+                                >
+                                    {[...Array(2)].map((_, copyIdx) => (
+                                        <div key={copyIdx} className="flex items-stretch gap-5 lg:gap-6 pr-5 lg:pr-6">
+                                            {rowA.map((t, i) => (
+                                                <TestimonialCard
+                                                    key={`a-${copyIdx}-${i}`}
+                                                    t={t}
+                                                    aria-hidden={copyIdx === 1 ? 'true' : undefined}
+                                                />
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
-                            <blockquote className="relative text-sm md:text-[15px] text-slate-700 leading-relaxed mb-6">
-                                &ldquo;{t.quote}&rdquo;
-                            </blockquote>
-
-                            <figcaption className="relative flex items-center gap-3">
-                                <div className={`relative w-11 h-11 rounded-xl bg-gradient-to-br ${t.grad} text-white font-black flex items-center justify-center shadow-md ring-4 ring-white group-hover:scale-110 transition-transform duration-200`}>
-                                    {t.avatar}
-                                    <span className="absolute inset-0 rounded-xl ring-1 ring-white/30 pointer-events-none" />
+                            {/* Row B — reverse */}
+                            <div className="overflow-hidden">
+                                <div
+                                    className="marquee-track flex items-stretch gap-5 lg:gap-6 w-max animate-marquee-reverse hover:[animation-play-state:paused] py-4"
+                                    style={{ animationDuration: '55s' }}
+                                >
+                                    {[...Array(2)].map((_, copyIdx) => (
+                                        <div key={copyIdx} className="flex items-stretch gap-5 lg:gap-6 pr-5 lg:pr-6">
+                                            {rowB.map((t, i) => (
+                                                <TestimonialCard
+                                                    key={`b-${copyIdx}-${i}`}
+                                                    t={t}
+                                                    aria-hidden={copyIdx === 1 ? 'true' : undefined}
+                                                />
+                                            ))}
+                                        </div>
+                                    ))}
                                 </div>
-                                <div>
-                                    <div className="text-sm font-bold text-slate-900">{t.name}</div>
-                                    <div className="text-xs text-slate-500">{t.role}</div>
-                                </div>
-                            </figcaption>
-                        </figure>
-                    ))}
-                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Footer stats */}
                 <div className="mt-12 grid grid-cols-3 gap-4 max-w-3xl mx-auto">

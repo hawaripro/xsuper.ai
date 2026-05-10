@@ -1,4 +1,6 @@
 import React from 'react';
+import UltrLogo from '../UltrLogo';
+import { ChatGPTLogo } from './BrandIcons';
 
 /* ============================================================
    Comparison table — UltrAI vs ChatGPT Plus.
@@ -79,11 +81,7 @@ export default function Comparison() {
                                         <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
                                         <div className="relative">
                                             <div className="inline-flex items-center gap-2">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
-                                                    <path d="M12 22 V12" />
-                                                    <path d="M4 7 l8 5 l8 -5" />
-                                                </svg>
+                                                <UltrLogo className="w-7 h-7 !shadow-none !ring-0" />
                                                 <span className="text-base font-black tracking-tight">UltrAI</span>
                                             </div>
                                             <div className="mt-1 text-[11px] font-bold uppercase tracking-wider opacity-90">Rp 55rb / bulan</div>
@@ -91,7 +89,12 @@ export default function Comparison() {
                                         <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-b-md bg-amber-400 text-amber-950 text-[9px] font-black uppercase tracking-wider shadow-md">Populer</span>
                                     </th>
                                     <th className="text-center px-6 py-5 text-slate-600 border-b border-gray-200 bg-gray-50/80">
-                                        <div className="text-base font-bold text-slate-700">ChatGPT Plus</div>
+                                        <div className="inline-flex items-center gap-2">
+                                            <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center p-1">
+                                                <ChatGPTLogo className="w-full h-full" />
+                                            </span>
+                                            <span className="text-base font-bold text-slate-700">ChatGPT Plus</span>
+                                        </div>
                                         <div className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 line-through">Rp 300rb / bulan</div>
                                     </th>
                                 </tr>

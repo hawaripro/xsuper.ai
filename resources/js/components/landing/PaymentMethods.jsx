@@ -1,8 +1,11 @@
 import React from 'react';
-import { QRISLogo, BCALogo, MandiriLogo, BRILogo, GopayLogo, ShopeePayLogo, LogoChip } from './BrandIcons';
+import { QRISLogo, BCALogo, MandiriLogo, BRILogo, GopayLogo, ShopeePayLogo } from './BrandIcons';
 
 /* ============================================================
-   PaymentMethods — accepted payment methods strip.
+   PaymentMethods — uniform grid of brand logos.
+   Each logo lives inside a fixed-size slot (same aspect + size)
+   so the row looks tidy regardless of each brand's intrinsic
+   logo proportions.
    ============================================================ */
 
 const METHODS = [
@@ -10,9 +13,28 @@ const METHODS = [
     { key: 'bca',       name: 'BCA',       Logo: BCALogo },
     { key: 'mandiri',   name: 'Mandiri',   Logo: MandiriLogo },
     { key: 'bri',       name: 'BRI',       Logo: BRILogo },
-    { key: 'gopay',     name: 'Gopay',     Logo: GopayLogo },
+    { key: 'gopay',     name: 'GoPay',     Logo: GopayLogo },
     { key: 'shopeepay', name: 'ShopeePay', Logo: ShopeePayLogo },
 ];
+
+function PaymentSlot({ name, Logo, index }) {
+    return (
+        <div
+            className="group flex flex-col items-center gap-2"
+            style={{ animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both', animationDelay: `${120 + index * 60}ms` }}
+        >
+            {/* Uniform slot — 2.6:1 aspect, consistent padding, max-content
+               hugs inside. All brand SVGs use object-contain so every one
+               scales to fit the same box without distortion. */}
+            <div className="relative w-full aspect-[2.6/1] rounded-2xl bg-white border border-gray-200 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.06)] transition-all duration-300 group-hover:border-red-200 group-hover:shadow-[0_10px_24px_-6px_rgba(239,68,68,0.18)] group-hover:-translate-y-0.5 flex items-center justify-center px-3 py-2.5">
+                <span className="inline-flex items-center justify-center w-full h-full max-w-[90%]">
+                    <Logo className="w-full h-full" />
+                </span>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">{name}</span>
+        </div>
+    );
+}
 
 export default function PaymentMethods() {
     return (
@@ -41,20 +63,10 @@ export default function PaymentMethods() {
                         aria-hidden="true"
                     />
 
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3 md:gap-4">
+                    {/* Uniform grid — 2 cols mobile, 3 cols tablet, 6 cols desktop */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-5">
                         {METHODS.map(({ key, name, Logo }, i) => (
-                            <div
-                                key={key}
-                                className="group flex flex-col items-center gap-2"
-                                style={{ animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both', animationDelay: `${120 + i * 60}ms` }}
-                            >
-                                <div
-                                    className="relative w-full aspect-[2/1] rounded-xl bg-gray-50/80 border border-gray-200 flex items-center justify-center p-2.5 transition-all duration-300 group-hover:border-red-200 group-hover:bg-white group-hover:shadow-[0_6px_18px_-4px_rgba(239,68,68,0.15)] group-hover:-translate-y-0.5"
-                                >
-                                    <Logo className="max-w-full max-h-full" />
-                                </div>
-                                <span className="text-[11px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">{name}</span>
-                            </div>
+                            <PaymentSlot key={key} name={name} Logo={Logo} index={i} />
                         ))}
                     </div>
 

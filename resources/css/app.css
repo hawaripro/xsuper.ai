@@ -298,6 +298,8 @@
    Chained / delayed animations that @theme can't express
    ============================================================ */
 .animate-spin-slow-reverse { animation: spin-slow 50s linear infinite reverse; }
+.animate-orbit-reverse     { animation: orbit 26s linear infinite reverse; }
+.animate-marquee-reverse   { animation: marquee 55s linear infinite reverse; }
 .animate-blob-reverse      { animation: blob 20s ease-in-out infinite reverse; }
 .animate-blob-delay        { animation: blob 18s ease-in-out infinite 2s; }
 .animate-gradient          { background-size: 300% 100% !important; animation: gradient-shift 3s ease infinite !important; }

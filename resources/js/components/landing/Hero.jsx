@@ -50,12 +50,14 @@ function FloatingDots() {
    Orbital constellation — UltrAI at center surrounded by 6
    AI brand logos on two rings.
    ============================================================ */
-function OrbitalConstellation() {
-    // Two rings: 3 brands on outer (larger radius, forward), 3 on inner
-    // (smaller radius, reverse). Each brand gets a staggered orbit-start
-    // so they don't clump.
-    const outerRadius = 152;
-    const innerRadius = 104;
+function OrbitalConstellation({ variant = 'inline' }) {
+    const isBackdrop = variant === 'backdrop';
+
+    const outerRadius = isBackdrop ? 220 : 140;
+    const innerRadius = isBackdrop ? 150 : 96;
+    const centerSize  = isBackdrop ? 168 : 116;
+    const outerBadge  = isBackdrop ? 72  : 56;
+    const innerBadge  = isBackdrop ? 58  : 46;
 
     const OUTER = [
         { Logo: ClaudeLogo,   name: 'Claude',   angle: 0   },
@@ -79,44 +81,53 @@ function OrbitalConstellation() {
 
             {/* Ring circles — decorative */}
             <div
-                className="absolute rounded-full border border-red-200/60"
+                className="absolute rounded-full"
                 style={{
                     width: outerRadius * 2,
                     height: outerRadius * 2,
-                    borderStyle: 'dashed',
+                    border: '1px dashed rgba(239, 68, 68, 0.28)',
                 }}
             />
             <div
-                className="absolute rounded-full border border-orange-200/70"
+                className="absolute rounded-full"
                 style={{
                     width: innerRadius * 2,
                     height: innerRadius * 2,
-                    borderStyle: 'dashed',
+                    border: '1px dashed rgba(251, 146, 60, 0.32)',
                 }}
             />
 
-            {/* Pulsing rings behind center logo */}
-            <div className="absolute w-32 h-32 rounded-full bg-red-500/10 animate-ping" style={{ animationDuration: '3s' }} />
-            <div className="absolute w-40 h-40 rounded-full bg-red-500/8 animate-ping" style={{ animationDuration: '4s', animationDelay: '0.8s' }} />
+            {/* Pulsing rings behind center */}
+            <div
+                className="absolute rounded-full bg-red-500/10 animate-ping"
+                style={{ width: centerSize * 1.3, height: centerSize * 1.3, animationDuration: '3s' }}
+            />
+            <div
+                className="absolute rounded-full bg-red-500/8 animate-ping"
+                style={{ width: centerSize * 1.6, height: centerSize * 1.6, animationDuration: '4s', animationDelay: '0.8s' }}
+            />
 
-            {/* Center UltrAI logo — large with shadow */}
+            {/* Center UltrAI */}
             <div className="relative z-20 animate-pulse-glow rounded-[28px]">
-                <span className="relative inline-flex items-center justify-center rounded-[28px] overflow-hidden bg-white shadow-[0_20px_48px_-8px_rgba(239,68,68,0.55),0_8px_20px_-4px_rgba(239,68,68,0.35)]" style={{ width: 128, height: 128 }}>
+                <span
+                    className="relative inline-flex items-center justify-center rounded-[28px] overflow-hidden bg-white shadow-[0_20px_48px_-8px_rgba(239,68,68,0.55),0_8px_20px_-4px_rgba(239,68,68,0.35)]"
+                    style={{ width: centerSize, height: centerSize }}
+                >
                     <img
                         src="/ultr-icons.png"
                         alt="UltrAI"
                         className="w-full h-full object-cover"
                         loading="eager"
                         decoding="async"
-                        width={128}
-                        height={128}
+                        width={centerSize}
+                        height={centerSize}
                     />
                     <span className="absolute inset-0 rounded-[28px] ring-2 ring-white/50 pointer-events-none" />
                     <span className="absolute inset-0 rounded-[28px] bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none" />
                 </span>
             </div>
 
-            {/* Outer ring — 3 brands, forward orbit */}
+            {/* Outer ring — forward orbit */}
             {OUTER.map((brand, i) => (
                 <div
                     key={brand.name}
@@ -124,15 +135,15 @@ function OrbitalConstellation() {
                     style={{
                         '--orbit-radius': `${outerRadius}px`,
                         '--orbit-start': `${brand.angle}deg`,
-                        animationDuration: '24s',
+                        animationDuration: '26s',
                         animationDelay: `${i * -1}s`,
                     }}
                 >
-                    <OrbitBrand Logo={brand.Logo} name={brand.name} size={58} />
+                    <OrbitBadge Logo={brand.Logo} name={brand.name} size={outerBadge} />
                 </div>
             ))}
 
-            {/* Inner ring — 3 brands, reverse orbit */}
+            {/* Inner ring — reverse orbit */}
             {INNER.map((brand, i) => (
                 <div
                     key={brand.name}
@@ -140,21 +151,21 @@ function OrbitalConstellation() {
                     style={{
                         '--orbit-radius': `${innerRadius}px`,
                         '--orbit-start': `${brand.angle}deg`,
-                        animationDuration: '18s',
+                        animationDuration: '20s',
                         animationDelay: `${i * -0.8}s`,
                     }}
                 >
-                    <OrbitBrand Logo={brand.Logo} name={brand.name} size={48} />
+                    <OrbitBadge Logo={brand.Logo} name={brand.name} size={innerBadge} />
                 </div>
             ))}
         </div>
     );
 }
 
-function OrbitBrand({ Logo, name, size }) {
+function OrbitBadge({ Logo, name, size }) {
     return (
         <span
-            className="inline-flex items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_-4px_rgba(15,23,42,0.18),0_4px_10px_-2px_rgba(15,23,42,0.08)] ring-1 ring-gray-200 p-2.5 hover:scale-110 transition-transform"
+            className="inline-flex items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_-4px_rgba(15,23,42,0.18),0_4px_10px_-2px_rgba(15,23,42,0.08)] ring-1 ring-gray-200 p-2.5"
             style={{ width: size, height: size }}
             title={name}
         >
@@ -193,6 +204,15 @@ export default function Hero() {
                 }}
             />
             <FloatingDots />
+
+            {/* ===== Desktop-only orbital backdrop (behind heading) ===== */}
+            <div
+                className="hidden lg:block absolute top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ zIndex: 0, left: '-6%' }}
+                aria-hidden="true"
+            >
+                <OrbitalConstellation variant="backdrop" />
+            </div>
 
             <div className="relative max-w-7xl mx-auto px-4 md:px-6 w-full" style={{ zIndex: 2 }}>
                 <div className="grid lg:grid-cols-[1.1fr,1fr] items-center gap-12 lg:gap-16">
@@ -278,20 +298,20 @@ export default function Hero() {
                                 50+ AI Models
                             </span>
                         </div>
+
+                        {/* Mobile-only inline orbital */}
+                        <div className="lg:hidden mt-10 animate-fade-in-up" style={{ animationDelay: '260ms' }}>
+                            <OrbitalConstellation variant="inline" />
+                        </div>
                     </div>
 
-                    {/* Right — Orbital constellation + price teaser stacked */}
+                    {/* Right — Price teaser card */}
                     <div className="relative animate-fade-in-right" style={{ animationDelay: '120ms' }}>
-                        {/* Orbital UltrAI */}
-                        <div className="mb-8">
-                            <OrbitalConstellation />
-                        </div>
-
                         {/* Price teaser card */}
                         <div className="relative">
                             <div className="absolute -inset-4 bg-gradient-to-br from-red-400/30 via-orange-300/20 to-red-300/30 rounded-3xl blur-3xl" aria-hidden="true" />
 
-                            <div className="relative p-5 md:p-6 rounded-3xl bg-white/90 backdrop-blur-xl border border-gray-200/80 shadow-[0_20px_60px_-12px_rgba(15,23,42,0.18),0_8px_24px_-8px_rgba(239,68,68,0.12)]">
+                            <div className="relative p-5 md:p-6 rounded-3xl bg-white/92 backdrop-blur-xl border border-gray-200/80 shadow-[0_20px_60px_-12px_rgba(15,23,42,0.18),0_8px_24px_-8px_rgba(239,68,68,0.12)]">
                                 <div className="flex items-center justify-between mb-4">
                                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 text-[10px] font-black uppercase tracking-[0.15em] shadow-[0_4px_14px_-2px_rgba(245,158,11,0.35)]">
                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2 14.39 8.26 21 9.27 16 14.14 17.18 21.02 12 17.77 6.82 21.02 8 14.14 3 9.27 9.61 8.26 12 2Z"/></svg>

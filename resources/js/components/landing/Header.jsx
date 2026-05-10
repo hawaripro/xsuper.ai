@@ -7,11 +7,11 @@ const WA_NUMBER = '6287786866648';
 const WA_REGISTER_URL = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Halo UltrAI, saya ingin mendaftar akun UltrAI.')}`;
 
 const NAV_ITEMS = [
-    ['pricing', 'Harga'],
-    ['why-ultrai', 'Keunggulan'],
-    ['for-you', 'Untuk Kamu'],
-    ['services', 'Layanan'],
-    ['faq', 'FAQ'],
+    ['pricing', 'Harga', <svg key="i" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 14.39 8.26 21 9.27 16 14.14 17.18 21.02 12 17.77 6.82 21.02 8 14.14 3 9.27 9.61 8.26 12 2Z"/></svg>],
+    ['why-ultrai', 'Keunggulan', <svg key="i" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>],
+    ['for-you', 'Untuk Kamu', <svg key="i" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>],
+    ['services', 'Layanan', <svg key="i" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>],
+    ['faq', 'FAQ', <svg key="i" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>],
 ];
 
 export default function Header() {
@@ -56,12 +56,13 @@ export default function Header() {
 
                 {/* Desktop nav */}
                 <nav className="hidden lg:flex items-center gap-1">
-                    {NAV_ITEMS.map(([id, label]) => (
+                    {NAV_ITEMS.map(([id, label, icon]) => (
                         <button
                             key={id}
                             onClick={() => scrollTo(id)}
-                            className="px-3.5 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-red-500 hover:bg-red-50/70 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-red-500 hover:bg-red-50/70 transition-colors"
                         >
+                            {icon}
                             {label}
                         </button>
                     ))}
@@ -125,12 +126,13 @@ export default function Header() {
                 }`}
             >
                 <div className="px-4 py-4 space-y-1">
-                    {NAV_ITEMS.map(([id, label]) => (
+                    {NAV_ITEMS.map(([id, label, icon]) => (
                         <button
                             key={id}
                             onClick={() => scrollTo(id)}
-                            className="block w-full text-left px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 hover:text-red-500 hover:bg-red-50 transition-colors"
                         >
+                            {icon}
                             {label}
                         </button>
                     ))}
