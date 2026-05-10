@@ -158,11 +158,10 @@ export const QRISLogo = ({ className = 'w-full h-full' }) => (
 /* ---------- BCA ---------- */
 export const BCALogo = ({ className = 'w-full h-full' }) => (
     <BrandSlot name="bca" alt="BCA" className={className}>
-        <svg viewBox="0 0 140 56" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" aria-hidden="true">
-            <rect x="4" y="8" width="132" height="40" rx="6" fill="#0060AF"/>
-            {/* Tonal sheen */}
-            <rect x="4" y="8" width="132" height="20" rx="6" fill="#1478C8" opacity="0.55"/>
-            <text x="70" y="37" fontFamily="Georgia, 'Times New Roman', serif" fontStyle="italic" fontWeight="900" fontSize="24" fill="#FFFFFF" textAnchor="middle" letterSpacing="1.5">BCA</text>
+        <svg viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" aria-hidden="true">
+            <rect x="2" y="2" width="96" height="36" rx="5" fill="#0060AF"/>
+            <rect x="2" y="2" width="96" height="18" rx="5" fill="#1478C8" opacity="0.45"/>
+            <text x="50" y="27" fontFamily="Georgia, 'Times New Roman', serif" fontStyle="italic" fontWeight="900" fontSize="20" fill="#FFFFFF" textAnchor="middle" letterSpacing="1.5">BCA</text>
         </svg>
     </BrandSlot>
 );
@@ -212,14 +211,14 @@ export const GopayLogo = ({ className = 'w-full h-full' }) => (
 /* ---------- ShopeePay ---------- */
 export const ShopeePayLogo = ({ className = 'w-full h-full' }) => (
     <BrandSlot name="shopeepay" alt="ShopeePay" className={className}>
-        <svg viewBox="0 0 210 56" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" aria-hidden="true">
+        <svg viewBox="0 0 160 40" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" aria-hidden="true">
             {/* Bag icon */}
-            <g transform="translate(4 10)">
-                <rect x="2" y="10" width="32" height="30" rx="4" fill="#EE4D2D"/>
-                <path d="M9 10 V7 a9 9 0 0 1 18 0 V10" fill="none" stroke="#EE4D2D" strokeWidth="3" strokeLinecap="round"/>
-                <text x="18" y="32" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="17" fill="#FFFFFF" textAnchor="middle">S</text>
+            <g transform="translate(2 4)">
+                <rect x="1" y="9" width="28" height="26" rx="3.5" fill="#EE4D2D"/>
+                <path d="M7 9 V6 a8 8 0 0 1 16 0 V9" fill="none" stroke="#EE4D2D" strokeWidth="2.8" strokeLinecap="round"/>
+                <text x="15" y="27" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="15" fill="#FFFFFF" textAnchor="middle">S</text>
             </g>
-            <text x="46" y="38" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="24" fill="#EE4D2D" letterSpacing="-0.4">ShopeePay</text>
+            <text x="36" y="27" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="19" fill="#EE4D2D" letterSpacing="-0.3">ShopeePay</text>
         </svg>
     </BrandSlot>
 );

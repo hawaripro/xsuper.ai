@@ -297,10 +297,10 @@ export default function Hero() {
                         </div>
                     </div>
 
-                    {/* Right column — orbital (desktop) + price card */}
+                    {/* Right column — orbital on top + price card below */}
                     <div className="relative animate-fade-in-right" style={{ animationDelay: '120ms' }}>
-                        {/* Desktop orbital — visible beside the heading */}
-                        <div className="hidden lg:block mb-8">
+                        {/* Desktop orbital — above price card */}
+                        <div className="hidden lg:block mb-6">
                             <OrbitalConstellation variant="inline" />
                         </div>
 
