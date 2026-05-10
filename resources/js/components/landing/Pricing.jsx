@@ -297,27 +297,12 @@ export default function Pricing() {
                 </div>
 
                 {/* Plans grid */}
-                {/* Plans — single-row horizontal marquee */}
-                <div className="relative -mx-4 md:-mx-6 mb-10 overflow-hidden">
-                    {/* Edge fade masks */}
-                    <div className="pointer-events-none absolute inset-y-0 left-0 w-16 md:w-28 bg-gradient-to-r from-white via-white/90 to-transparent z-10" />
-                    <div className="pointer-events-none absolute inset-y-0 right-0 w-16 md:w-28 bg-gradient-to-l from-white via-white/90 to-transparent z-10" />
-
-                    <div
-                        className="marquee-track flex items-stretch gap-5 lg:gap-6 w-max animate-marquee hover:[animation-play-state:paused] py-6"
-                        style={{ animationDuration: '55s' }}
-                    >
-                        {[...Array(2)].map((_, copyIdx) => (
-                            <div key={copyIdx} className="flex items-stretch gap-5 lg:gap-6 pr-5 lg:pr-6">
-                                {PLANS.map((plan, i) => (
-                                    <div
-                                        key={`${copyIdx}-${plan.key}`}
-                                        className="shrink-0 w-[300px] md:w-[340px]"
-                                        aria-hidden={copyIdx === 1 ? 'true' : undefined}
-                                    >
-                                        <PlanCard plan={plan} index={i} />
-                                    </div>
-                                ))}
+                {/* Plans — horizontal scroll, user drags manually */}
+                <div className="relative -mx-4 md:-mx-6 mb-10 overflow-x-auto scrollbar-thin scroll-smooth">
+                    <div className="flex items-stretch gap-5 lg:gap-6 px-4 md:px-6 py-4 w-max">
+                        {PLANS.map((plan, i) => (
+                            <div key={plan.key} className="w-[300px] md:w-[340px]">
+                                <PlanCard plan={plan} index={i} />
                             </div>
                         ))}
                     </div>

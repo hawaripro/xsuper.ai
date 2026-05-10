@@ -215,10 +215,10 @@ export default function Hero() {
                                 <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
                                 <span className="relative inline-flex w-2 h-2 rounded-full bg-red-500" />
                             </span>
-                            Akses Premium AI · Mulai dari Rp 5 ribu
+                            Akses Premium AI
                         </div>
 
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black tracking-[-0.02em] leading-[1.05] text-slate-900 animate-fade-in-up">
+                        <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-[-0.02em] leading-[1.08] text-slate-900 animate-fade-in-up">
                             Akses AI Premium
                             <br />
                             <span className="relative inline-block">
@@ -297,70 +297,9 @@ export default function Hero() {
                         </div>
                     </div>
 
-                    {/* Right column — orbital on top + price card below */}
-                    <div className="relative animate-fade-in-right" style={{ animationDelay: '120ms' }}>
-                        {/* Desktop orbital — above price card */}
-                        <div className="hidden lg:block mb-6">
-                            <OrbitalConstellation variant="inline" />
-                        </div>
-
-                        {/* Price teaser card */}
-                        <div className="relative">
-                            <div className="absolute -inset-4 bg-gradient-to-br from-red-400/30 via-orange-300/20 to-red-300/30 rounded-3xl blur-3xl" aria-hidden="true" />
-
-                            <div className="relative p-5 md:p-6 rounded-3xl bg-white/92 backdrop-blur-xl border border-gray-200/80 shadow-[0_20px_60px_-12px_rgba(15,23,42,0.18),0_8px_24px_-8px_rgba(239,68,68,0.12)]">
-                                <div className="flex items-center justify-between mb-4">
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 text-[10px] font-black uppercase tracking-[0.15em] shadow-[0_4px_14px_-2px_rgba(245,158,11,0.35)]">
-                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2 14.39 8.26 21 9.27 16 14.14 17.18 21.02 12 17.77 6.82 21.02 8 14.14 3 9.27 9.61 8.26 12 2Z"/></svg>
-                                        Hemat 82%
-                                    </span>
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Bandingkan</span>
-                                </div>
-
-                                <div className="flex items-baseline justify-between pb-3 border-b border-dashed border-gray-200">
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center opacity-60">
-                                            <ChatGPTLogo className="w-5 h-5" />
-                                        </span>
-                                        <div className="min-w-0">
-                                            <div className="text-xs font-semibold text-slate-500 truncate">ChatGPT Plus</div>
-                                            <div className="text-[10px] text-slate-400">1 model</div>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-lg font-black text-slate-400 line-through decoration-red-500 decoration-[3px]">Rp 300.000</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-baseline justify-between pt-3">
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                        <UltrLogo className="flex-shrink-0 w-10 h-10" />
-                                        <div className="min-w-0">
-                                            <div className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                                                UltrAI
-                                                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-white">VIP</span>
-                                            </div>
-                                            <div className="text-[11px] text-slate-500">50+ model · Unlimited</div>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
-                                            <span className="text-3xl font-black tracking-tight bg-gradient-to-br from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient tabular-nums">55.000</span>
-                                        </div>
-                                        <div className="text-[10px] text-slate-500">/ bulan · paling laris</div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => scrollTo('pricing')}
-                                    className="mt-4 w-full py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold shadow-[0_10px_28px_-6px_rgba(239,68,68,0.45)] hover:shadow-[0_16px_40px_-8px_rgba(239,68,68,0.6)] hover:brightness-105 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
-                                >
-                                    Lihat semua paket
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                </button>
-                            </div>
-                        </div>
+                    {/* Right column — orbital only */}
+                    <div className="hidden lg:block relative animate-fade-in-right" style={{ animationDelay: '120ms' }}>
+                        <OrbitalConstellation variant="inline" />
                     </div>
                 </div>
             </div>
