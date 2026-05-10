@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import UltrLogo from '../components/UltrLogo';
 
 export default function Login() {
     const { login } = useAuth();
@@ -85,14 +86,7 @@ export default function Login() {
                 {/* Logo */}
                 <div className="text-center mb-8 animate-fade-in-down">
                     <a href="/" className="inline-flex items-center gap-2.5 mb-4 group">
-                        <span className="relative inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_10px_28px_-6px_rgba(239,68,68,0.5)] group-hover:shadow-[0_16px_40px_-6px_rgba(239,68,68,0.6)] transition-all duration-300 group-hover:scale-105 group-hover:rotate-[-4deg]">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
-                                <path d="M12 22 V12" />
-                                <path d="M4 7 l8 5 l8 -5" />
-                            </svg>
-                            <span className="absolute inset-0 rounded-2xl ring-1 ring-white/30 pointer-events-none" />
-                        </span>
+                        <UltrLogo className="w-11 h-11 group-hover:scale-105 group-hover:-rotate-3 transition-transform duration-300" />
                         <span className="text-3xl font-black tracking-tight flex items-center gap-[2px]">
                             <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
                             <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">AI</span>

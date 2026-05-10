@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import UltrLogo from '../UltrLogo';
 
 /* ============================================================
    Hero — premium, VIP-grade landing hero.
@@ -220,14 +221,7 @@ export default function Hero() {
                             {/* UltrAI — highlighted */}
                             <div className="flex items-baseline justify-between pt-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(239,68,68,0.5)]">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
-                                            <path d="M12 22 V12" />
-                                            <path d="M4 7 l8 5 l8 -5" />
-                                        </svg>
-                                        <span className="absolute inset-0 rounded-xl ring-1 ring-white/30 pointer-events-none" />
-                                    </div>
+                                    <UltrLogo className="w-10 h-10" />
                                     <div>
                                         <div className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
                                             UltrAI

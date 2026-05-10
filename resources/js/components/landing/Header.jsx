@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import UltrLogo from '../UltrLogo';
 
 const WA_NUMBER = '6287786866648';
 const WA_REGISTER_URL = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('Halo UltrAI, saya ingin mendaftar akun UltrAI.')}`;
@@ -46,14 +47,7 @@ export default function Header() {
             <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
                 {/* Logo */}
                 <Link to="/" className="flex items-center gap-2 group" aria-label="UltrAI home">
-                    <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_8px_20px_-4px_rgba(239,68,68,0.45)] group-hover:shadow-[0_12px_28px_-4px_rgba(239,68,68,0.6)] transition-all duration-300 group-hover:scale-105 group-hover:rotate-[-3deg]">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
-                            <path d="M12 22 V12" />
-                            <path d="M4 7 l8 5 l8 -5" />
-                        </svg>
-                        <span className="absolute inset-0 rounded-xl ring-1 ring-white/30 pointer-events-none" />
-                    </span>
+                    <UltrLogo className="w-9 h-9 group-hover:scale-105 group-hover:-rotate-3 transition-transform duration-300" />
                     <span className="text-[1.4rem] font-black tracking-tight flex items-center gap-[1px]">
                         <span className="text-slate-900">Ultr</span>
                         <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">AI</span>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import UltrLogo from '../components/UltrLogo';
 
 /* ============================================================
    Icons — single, consistent stroke family
@@ -234,14 +235,7 @@ export default function DashboardLayout({ children }) {
                         className="flex items-center gap-2 group"
                         aria-label="UltrAI home"
                     >
-                        <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_6px_16px_-4px_rgba(239,68,68,0.45)] group-hover:shadow-[0_10px_22px_-4px_rgba(239,68,68,0.55)] transition-all duration-300 group-hover:scale-105">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
-                                <path d="M12 22 V12" />
-                                <path d="M4 7 l8 5 l8 -5" />
-                            </svg>
-                            <span className="absolute inset-0 rounded-xl ring-1 ring-white/30 pointer-events-none" />
-                        </span>
+                        <UltrLogo className="w-9 h-9 group-hover:scale-105 transition-transform duration-300" />
                         <span className="text-xl font-extrabold tracking-tight flex items-center gap-[2px]">
                             <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
                             <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">AI</span>

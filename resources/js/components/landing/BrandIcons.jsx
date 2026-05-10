@@ -126,67 +126,97 @@ export const OpenCodeLogo = ({ className = 'w-6 h-6' }) =>
         className
     );
 
-/* ------------------------------------------------------------
-   PAYMENT METHODS
-   ------------------------------------------------------------ */
+/* ============================================================
+   PAYMENT METHODS — proper brand logomarks (not just colored
+   text boxes). Artwork redrawn to match each brand's logomark
+   shape at glanceable accuracy on small sizes.
+   ============================================================ */
 
-export const QRISLogo = ({ className = 'w-6 h-6' }) =>
-    wrap(
-        <svg viewBox="0 0 64 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
-            <rect x="0" y="2" width="18" height="18" rx="2" fill="#ED1C24" />
-            <rect x="3" y="5" width="4" height="4" fill="#FFF" />
-            <rect x="11" y="5" width="4" height="4" fill="#FFF" />
-            <rect x="3" y="13" width="4" height="4" fill="#FFF" />
-            <rect x="11" y="13" width="4" height="4" fill="#FFF" />
-            <text x="22" y="16" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="13" fill="#ED1C24">QRIS</text>
-        </svg>,
-        className
-    );
+/* QRIS — QR dot icon + bold black wordmark (official style) */
+export const QRISLogo = ({ className = 'w-full h-full' }) => (
+    <span className={`inline-flex items-center justify-center ${className}`}>
+        <svg viewBox="0 0 140 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
+            <g transform="translate(4 6)">
+                <rect x="0"  y="0"  width="14" height="14" fill="#E3061A" rx="1.5"/>
+                <rect x="3"  y="3"  width="3"  height="3"  fill="#fff"/>
+                <rect x="8"  y="3"  width="3"  height="3"  fill="#fff"/>
+                <rect x="3"  y="8"  width="3"  height="3"  fill="#fff"/>
+                <rect x="22" y="0"  width="14" height="14" fill="#E3061A" rx="1.5"/>
+                <rect x="25" y="3"  width="3"  height="3"  fill="#fff"/>
+                <rect x="30" y="3"  width="3"  height="3"  fill="#fff"/>
+                <rect x="25" y="8"  width="3"  height="3"  fill="#fff"/>
+                <rect x="0"  y="22" width="14" height="14" fill="#E3061A" rx="1.5"/>
+                <rect x="3"  y="25" width="3"  height="3"  fill="#fff"/>
+                <rect x="8"  y="25" width="3"  height="3"  fill="#fff"/>
+                <rect x="3"  y="30" width="3"  height="3"  fill="#fff"/>
+            </g>
+            <text x="52" y="34" fontFamily="Inter, system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="26" fill="#1E1E1E" letterSpacing="1.2">QRIS</text>
+        </svg>
+    </span>
+);
 
-export const BCALogo = ({ className = 'w-6 h-6' }) =>
-    wrap(
-        <svg viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
-            <rect width="60" height="24" rx="4" fill="#0060AF" />
-            <text x="30" y="17" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="13" fill="#FFF" textAnchor="middle" letterSpacing="1">BCA</text>
-        </svg>,
-        className
-    );
+/* BCA — blue chip with italic serif BCA wordmark */
+export const BCALogo = ({ className = 'w-full h-full' }) => (
+    <span className={`inline-flex items-center justify-center ${className}`}>
+        <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
+            <rect x="4" y="6" width="112" height="36" rx="6" fill="#0060AF"/>
+            <rect x="4" y="6" width="112" height="18" rx="6" fill="#0774CC" opacity="0.35"/>
+            <text x="60" y="33" fontFamily="Georgia, 'Times New Roman', serif" fontWeight="900" fontStyle="italic" fontSize="22" fill="#FFFFFF" textAnchor="middle" letterSpacing="2">BCA</text>
+        </svg>
+    </span>
+);
 
-export const MandiriLogo = ({ className = 'w-6 h-6' }) =>
-    wrap(
-        <svg viewBox="0 0 80 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
-            <rect width="80" height="24" rx="4" fill="#003D79" />
-            <text x="40" y="16" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="11" fill="#FFD100" textAnchor="middle">mandiri</text>
-        </svg>,
-        className
-    );
+/* Mandiri — yellow sun arc + blue italic serif wordmark */
+export const MandiriLogo = ({ className = 'w-full h-full' }) => (
+    <span className={`inline-flex items-center justify-center ${className}`}>
+        <svg viewBox="0 0 180 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
+            <g transform="translate(6 10)">
+                <path d="M2 22 a14 14 0 0 1 28 0" fill="none" stroke="#FFB800" strokeWidth="3.2" strokeLinecap="round"/>
+                <path d="M7 15 l-3 -4" stroke="#FFB800" strokeWidth="2.6" strokeLinecap="round"/>
+                <path d="M16 10 l0 -5" stroke="#FFB800" strokeWidth="2.6" strokeLinecap="round"/>
+                <path d="M25 15 l3 -4" stroke="#FFB800" strokeWidth="2.6" strokeLinecap="round"/>
+            </g>
+            <text x="46" y="32" fontFamily="Georgia, serif" fontWeight="700" fontStyle="italic" fontSize="22" fill="#003D79" letterSpacing="-0.5">mandiri</text>
+        </svg>
+    </span>
+);
 
-export const BRILogo = ({ className = 'w-6 h-6' }) =>
-    wrap(
-        <svg viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
-            <rect width="60" height="24" rx="4" fill="#00529B" />
-            <text x="30" y="17" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="13" fill="#FFF" textAnchor="middle" letterSpacing="1">BRI</text>
-        </svg>,
-        className
-    );
+/* BRI — dark blue chip with white wordmark + gold accent line */
+export const BRILogo = ({ className = 'w-full h-full' }) => (
+    <span className={`inline-flex items-center justify-center ${className}`}>
+        <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
+            <rect x="4" y="6" width="112" height="36" rx="6" fill="#003D8C"/>
+            <text x="60" y="31" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontStyle="italic" fontSize="22" fill="#FFFFFF" textAnchor="middle" letterSpacing="2">BRI</text>
+            <rect x="34" y="36" width="52" height="2.2" fill="#F59E0B" rx="1"/>
+        </svg>
+    </span>
+);
 
-export const GopayLogo = ({ className = 'w-6 h-6' }) =>
-    wrap(
-        <svg viewBox="0 0 80 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
-            <rect width="80" height="24" rx="4" fill="#FFF" />
-            <text x="40" y="16" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="11" fill="#00AED6" textAnchor="middle">GoPay</text>
-        </svg>,
-        className
-    );
+/* GoPay — cyan ring icon + dark blue wordmark */
+export const GopayLogo = ({ className = 'w-full h-full' }) => (
+    <span className={`inline-flex items-center justify-center ${className}`}>
+        <svg viewBox="0 0 160 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
+            <circle cx="22" cy="24" r="14" fill="#00A9E0"/>
+            <circle cx="22" cy="24" r="8"  fill="#FFFFFF"/>
+            <circle cx="22" cy="24" r="4"  fill="#00A9E0"/>
+            <text x="44" y="32" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="22" fill="#001A72" letterSpacing="-0.5">gopay</text>
+        </svg>
+    </span>
+);
 
-export const ShopeePayLogo = ({ className = 'w-6 h-6' }) =>
-    wrap(
-        <svg viewBox="0 0 96 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
-            <rect width="96" height="24" rx="4" fill="#EE4D2D" />
-            <text x="48" y="16" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="10" fill="#FFF" textAnchor="middle">ShopeePay</text>
-        </svg>,
-        className
-    );
+/* ShopeePay — shopping bag icon + orange wordmark */
+export const ShopeePayLogo = ({ className = 'w-full h-full' }) => (
+    <span className={`inline-flex items-center justify-center ${className}`}>
+        <svg viewBox="0 0 190 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="w-full h-full">
+            <g transform="translate(4 8)">
+                <rect x="2" y="10" width="26" height="24" rx="3" fill="#EE4D2D"/>
+                <path d="M8 10 V7 a7 7 0 0 1 14 0 V10" fill="none" stroke="#EE4D2D" strokeWidth="2.6" strokeLinecap="round"/>
+                <text x="15" y="28" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="15" fill="#FFFFFF" textAnchor="middle">S</text>
+            </g>
+            <text x="38" y="32" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="20" fill="#EE4D2D" letterSpacing="-0.3">ShopeePay</text>
+        </svg>
+    </span>
+);
 
 /* ------------------------------------------------------------
    ROUND BADGE WRAPPER — for consistent display inside chips
