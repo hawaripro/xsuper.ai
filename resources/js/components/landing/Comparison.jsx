@@ -52,15 +52,15 @@ function CellValue({ value, isUltrai }) {
 
 export default function Comparison() {
     return (
-        <section id="compare" className="relative py-20 md:py-24 overflow-hidden">
+        <section id="compare" className="relative py-16 md:py-20 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-white via-gray-50/60 to-white pointer-events-none" />
 
             <div className="relative max-w-5xl mx-auto px-4 md:px-6">
-                <div className="text-center mb-12 animate-fade-in-up">
+                <div className="text-center mb-10 animate-fade-in-up">
                     <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-50 text-red-600 text-xs font-black uppercase tracking-[0.15em] border border-red-200/80 mb-5">
                         Perbandingan
                     </span>
-                    <h2 className="text-3xl md:text-5xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
+                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
                         Kenapa UltrAI <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">5× lebih hemat</span>
                     </h2>
                     <p className="mt-4 text-base md:text-lg text-slate-600 max-w-2xl mx-auto">
@@ -122,27 +122,36 @@ export default function Comparison() {
                     </div>
                 </div>
 
-                {/* Mobile stacked */}
-                <div className="md:hidden space-y-3">
-                    {ROWS.map((row, i) => (
-                        <div
-                            key={i}
-                            className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.05)] animate-fade-in-up"
-                            style={{ animationDelay: `${i * 40}ms` }}
-                        >
-                            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">{row.feature}</div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="p-3 rounded-xl bg-gradient-to-br from-red-50 to-orange-50 border border-red-200">
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-red-600 mb-1">UltrAI</div>
-                                    <CellValue value={row.ultrai} isUltrai />
-                                </div>
-                                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">ChatGPT Plus</div>
-                                    <CellValue value={row.chatgpt === 'Tidak' ? false : row.chatgpt} />
-                                </div>
-                            </div>
+                {/* Mobile — horizontal scrollable table (same as desktop but compact) */}
+                <div className="md:hidden overflow-x-auto -mx-4 scrollbar-thin scroll-smooth snap-x snap-mandatory">
+                    <div className="min-w-[520px] px-4">
+                        <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-[0_12px_32px_-12px_rgba(15,23,42,0.12)]">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr>
+                                        <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 bg-gray-50/80 border-b border-gray-200">Fitur</th>
+                                        <th className="text-center px-4 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white border-b border-red-600">
+                                            <span className="text-xs font-black">UltrAI</span>
+                                            <div className="text-[9px] opacity-80 mt-0.5">Rp 55rb/bln</div>
+                                        </th>
+                                        <th className="text-center px-4 py-3 text-slate-600 bg-gray-50/80 border-b border-gray-200">
+                                            <span className="text-xs font-bold">ChatGPT+</span>
+                                            <div className="text-[9px] text-slate-400 line-through mt-0.5">Rp 300rb/bln</div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {ROWS.map((row, i) => (
+                                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}>
+                                            <td className="px-4 py-2.5 text-xs font-semibold text-slate-800 border-b border-gray-100">{row.feature}</td>
+                                            <td className="px-4 py-2.5 text-center border-b border-gray-100"><CellValue value={row.ultrai} isUltrai /></td>
+                                            <td className="px-4 py-2.5 text-center border-b border-gray-100"><CellValue value={row.chatgpt === 'Tidak' ? false : row.chatgpt} /></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                    ))}
+                    </div>
                 </div>
             </div>
         </section>

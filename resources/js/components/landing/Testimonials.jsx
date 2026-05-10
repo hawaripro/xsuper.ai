@@ -101,18 +101,18 @@ function TestimonialCard({ t, ...rest }) {
 
 export default function Testimonials() {
     return (
-        <section id="testimonials" className="relative py-20 md:py-24 overflow-hidden">
+        <section id="testimonials" className="relative py-16 md:py-20 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-white via-red-50/20 to-white" />
             <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full bg-orange-400/10 blur-[120px] pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full bg-red-400/10 blur-[120px] pointer-events-none" />
 
             <div className="relative max-w-7xl mx-auto px-4 md:px-6">
-                <div className="text-center mb-12 animate-fade-in-up">
+                <div className="text-center mb-10 animate-fade-in-up">
                     <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 text-amber-700 text-xs font-black uppercase tracking-[0.15em] border border-amber-200/80 mb-5">
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2 14.39 8.26 21 9.27 16 14.14 17.18 21.02 12 17.77 6.82 21.02 8 14.14 3 9.27 9.61 8.26 12 2Z"/></svg>
                         Dipercaya 1000+ pengguna
                     </span>
-                    <h2 className="text-3xl md:text-5xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
+                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
                         Apa kata mereka yang sudah <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">pakai UltrAI</span>
                     </h2>
                     <p className="mt-4 text-base md:text-lg text-slate-600 max-w-2xl mx-auto">
@@ -120,32 +120,14 @@ export default function Testimonials() {
                     </p>
                 </div>
 
-                {/* ============================================
-                    Testimonials — single-row horizontal marquee.
-                    Hover pauses animation.
-                   ============================================ */}
+                {/* Testimonials — horizontal snap-scroll, single row */}
                 <div className="relative -mx-4 md:-mx-6">
-                    {/* Edge fade masks */}
-                    <div className="pointer-events-none absolute inset-y-0 left-0 w-20 md:w-32 bg-gradient-to-r from-white via-white/90 to-transparent z-10" />
-                    <div className="pointer-events-none absolute inset-y-0 right-0 w-20 md:w-32 bg-gradient-to-l from-white via-white/90 to-transparent z-10" />
-
-                    <div className="overflow-hidden">
-                        <div
-                            className="marquee-track flex items-stretch gap-5 lg:gap-6 w-max animate-marquee hover:[animation-play-state:paused] py-4"
-                            style={{ animationDuration: '60s' }}
-                        >
-                            {[...Array(2)].map((_, copyIdx) => (
-                                <div key={copyIdx} className="flex items-stretch gap-5 lg:gap-6 pr-5 lg:pr-6">
-                                    {TESTIMONIALS.map((t, i) => (
-                                        <TestimonialCard
-                                            key={`${copyIdx}-${i}`}
-                                            t={t}
-                                            aria-hidden={copyIdx === 1 ? 'true' : undefined}
-                                        />
-                                    ))}
-                                </div>
-                            ))}
-                        </div>
+                    <div className="flex items-stretch gap-4 lg:gap-5 px-4 md:px-6 py-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin scroll-smooth">
+                        {TESTIMONIALS.map((t, i) => (
+                            <div key={i} className="snap-start shrink-0 w-[280px] sm:w-[320px] md:w-[360px]">
+                                <TestimonialCard t={t} />
+                            </div>
+                        ))}
                     </div>
                 </div>
 

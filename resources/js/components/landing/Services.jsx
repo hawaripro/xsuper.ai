@@ -99,15 +99,15 @@ export default function Services() {
     };
 
     return (
-        <section id="services" className="relative py-20 md:py-24 overflow-hidden">
+        <section id="services" className="relative py-16 md:py-20 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-white via-gray-50/40 to-white pointer-events-none" />
 
             <div className="relative max-w-7xl mx-auto px-4 md:px-6">
-                <div className="text-center mb-12 animate-fade-in-up">
+                <div className="text-center mb-10 animate-fade-in-up">
                     <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-50 text-red-600 text-xs font-black uppercase tracking-[0.15em] border border-red-200/80 mb-5">
                         Layanan Lainnya
                     </span>
-                    <h2 className="text-3xl md:text-5xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
+                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
                         Ekosistem <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">Digital Lengkap</span>
                     </h2>
                     <p className="mt-4 text-base md:text-lg text-slate-600 max-w-2xl mx-auto">

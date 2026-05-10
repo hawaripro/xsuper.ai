@@ -209,7 +209,7 @@ function PlanCard({ plan, index }) {
 
 export default function Pricing() {
     return (
-        <section id="pricing" className="relative py-20 md:py-28 overflow-hidden">
+        <section id="pricing" className="relative py-16 md:py-20 overflow-hidden">
             {/* Background */}
             <div className="absolute inset-0 bg-gradient-to-b from-white via-red-50/30 to-white pointer-events-none" />
             <div className="absolute inset-0 hero-dots opacity-30 pointer-events-none" />
@@ -217,12 +217,12 @@ export default function Pricing() {
 
             <div className="relative max-w-7xl mx-auto px-4 md:px-6">
                 {/* Header */}
-                <div className="text-center mb-14 animate-fade-in-up">
+                <div className="text-center mb-10 animate-fade-in-up">
                     <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-50 text-red-600 text-xs font-black uppercase tracking-[0.15em] border border-red-200/80 mb-5">
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2 14.39 8.26 21 9.27 16 14.14 17.18 21.02 12 17.77 6.82 21.02 8 14.14 3 9.27 9.61 8.26 12 2Z"/></svg>
                         Harga Spesial Indonesia
                     </span>
-                    <h2 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
+                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
                         Lebih murah dari{' '}
                         <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
                             secangkir kopi
@@ -236,11 +236,11 @@ export default function Pricing() {
                     </p>
                 </div>
 
-                {/* Plans — horizontal scroll, user drags manually */}
-                <div className="relative -mx-4 md:-mx-6 mb-10 overflow-x-auto scrollbar-thin scroll-smooth">
-                    <div className="flex items-stretch gap-5 lg:gap-6 px-4 md:px-6 py-4 w-max">
+                {/* Plans — horizontal snap-scroll, user swipes/drags */}
+                <div className="relative -mx-4 md:-mx-6 mb-10">
+                    <div className="flex items-stretch gap-4 lg:gap-5 px-4 md:px-6 py-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin scroll-smooth">
                         {PLANS.map((plan, i) => (
-                            <div key={plan.key} className="w-[300px] md:w-[340px]">
+                            <div key={plan.key} className="snap-start shrink-0 w-[280px] sm:w-[300px] md:w-[320px]">
                                 <PlanCard plan={plan} index={i} />
                             </div>
                         ))}

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UltrAI — Akses 50+ AI Premium Mulai Rp 5.000 | ChatGPT, Claude, Gemini, DeepSeek</title>
+    <title>UltrAI — AI-Powered Platform for UMKM Indonesia</title>
     <meta name="description" content="Akses 50+ model AI premium (GPT-4o, Claude Sonnet, Gemini Pro, DeepSeek, Qwen) mulai Rp 5.000/hari. Unlimited usage, akun pribadi, support API key untuk VSCode & Cursor. Lebih hemat 82% dari ChatGPT Plus.">
     <meta name="keywords" content="UltrAI, AI murah Indonesia, ChatGPT murah, Claude Indonesia, Gemini Pro, DeepSeek, akses AI premium, API key AI, unlimited AI, alternatif ChatGPT Plus">
     <meta name="author" content="UltrAI">

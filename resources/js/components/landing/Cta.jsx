@@ -7,7 +7,7 @@ export default function Cta() {
     const scrollToPricing = () => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
 
     return (
-        <section className="relative py-20 md:py-28 overflow-hidden">
+        <section className="relative py-16 md:py-20 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-white to-gray-50 pointer-events-none" />
 
             <div className="relative max-w-5xl mx-auto px-4 md:px-6">
@@ -26,7 +26,7 @@ export default function Cta() {
                             Aktivasi instan &middot; Garansi refund
                         </span>
 
-                        <h2 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-[-0.02em] leading-[1.05] mb-4">
+                        <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-[-0.02em] leading-[1.05] mb-4">
                             Siap upgrade cara kamu pakai AI?
                         </h2>
                         <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-8">

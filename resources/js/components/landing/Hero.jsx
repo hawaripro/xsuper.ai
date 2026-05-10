@@ -17,14 +17,11 @@ import {
 
 function FloatingDots() {
     const dots = [
-        { top: '12%', left: '6%',  dur: 3.2, del: 0.0, size: 6 },
-        { top: '22%', left: '84%', dur: 4.0, del: 0.4, size: 5 },
-        { top: '58%', left: '4%',  dur: 3.6, del: 0.9, size: 7 },
-        { top: '70%', left: '88%', dur: 4.4, del: 1.3, size: 4 },
-        { top: '38%', left: '16%', dur: 5.0, del: 1.8, size: 5 },
-        { top: '78%', left: '74%', dur: 3.8, del: 0.7, size: 6 },
-        { top: '8%',  left: '55%', dur: 4.2, del: 1.1, size: 4 },
-        { top: '48%', left: '92%', dur: 3.2, del: 0.2, size: 5 },
+        { top: '15%', left: '8%',  dur: 3.5, del: 0.0, size: 5 },
+        { top: '25%', left: '85%', dur: 4.2, del: 0.5, size: 4 },
+        { top: '60%', left: '5%',  dur: 3.8, del: 1.0, size: 6 },
+        { top: '72%', left: '90%', dur: 4.6, del: 1.5, size: 4 },
+        { top: '42%', left: '18%', dur: 5.2, del: 2.0, size: 4 },
     ];
     return dots.map((d, i) => (
         <span
@@ -56,8 +53,8 @@ function OrbitalConstellation({ variant = 'inline' }) {
     const outerRadius = isBackdrop ? 220 : 140;
     const innerRadius = isBackdrop ? 150 : 96;
     const centerSize  = isBackdrop ? 168 : 116;
-    const outerBadge  = isBackdrop ? 72  : 56;
-    const innerBadge  = isBackdrop ? 58  : 46;
+    const outerBadge  = isBackdrop ? 72  : 52;
+    const innerBadge  = isBackdrop ? 58  : 42;
 
     const OUTER = [
         { Logo: ClaudeLogo,   name: 'Claude',   angle: 0   },
@@ -72,8 +69,8 @@ function OrbitalConstellation({ variant = 'inline' }) {
 
     return (
         <div
-            className="relative mx-auto flex items-center justify-center"
-            style={{ width: outerRadius * 2 + 48, height: outerRadius * 2 + 48, maxWidth: '100%' }}
+            className="relative mx-auto flex items-center justify-center will-change-transform"
+            style={{ width: outerRadius * 2 + 48, height: outerRadius * 2 + 48, maxWidth: '100%', contain: 'layout style paint' }}
             aria-hidden="true"
         >
             {/* Glow behind everything */}
@@ -165,7 +162,7 @@ function OrbitalConstellation({ variant = 'inline' }) {
 function OrbitBadge({ Logo, name, size }) {
     return (
         <span
-            className="inline-flex items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_-4px_rgba(15,23,42,0.18),0_4px_10px_-2px_rgba(15,23,42,0.08)] ring-1 ring-gray-200 p-2.5"
+            className="inline-flex items-center justify-center rounded-2xl bg-white shadow-[0_8px_20px_-4px_rgba(15,23,42,0.15)] ring-1 ring-gray-200 p-2 will-change-transform"
             style={{ width: size, height: size }}
             title={name}
         >

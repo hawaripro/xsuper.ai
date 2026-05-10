@@ -194,16 +194,16 @@ const ACCENT_RING = {
 
 export default function Audience() {
     return (
-        <section id="for-you" className="relative py-20 md:py-24 overflow-hidden">
+        <section id="for-you" className="relative py-16 md:py-20 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-white via-gray-50/60 to-white" />
             <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-red-400/10 blur-[120px] pointer-events-none" />
 
             <div className="relative max-w-7xl mx-auto px-4 md:px-6">
-                <div className="text-center mb-12 animate-fade-in-up">
+                <div className="text-center mb-10 animate-fade-in-up">
                     <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-50 text-red-600 text-xs font-black uppercase tracking-[0.15em] border border-red-200/80 mb-5">
                         Target Pengguna
                     </span>
-                    <h2 className="text-3xl md:text-5xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
+                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-[-0.02em] text-slate-900 leading-[1.05]">
                         Tepat untuk <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">kamu yang</span>...
                     </h2>
                     <p className="mt-4 text-base md:text-lg text-slate-600 max-w-2xl mx-auto">
@@ -211,30 +211,27 @@ export default function Audience() {
                     </p>
                 </div>
 
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
-                    {AUDIENCES.map((a, i) => (
-                        <div
-                            key={a.key}
-                            className={`group relative p-6 lg:p-7 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-1.5 ${ACCENT_RING[a.accent]}`}
-                            style={{ animation: 'fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both', animationDelay: `${60 + i * 80}ms` }}
-                        >
-                            <div className="mb-5">
-                                <div className="w-20 h-20 transition-transform duration-300 group-hover:scale-110">
-                                    <a.Icon className="w-full h-full" />
+                <div className="relative -mx-4 md:-mx-6">
+                    <div className="flex items-stretch gap-4 lg:gap-5 px-4 md:px-6 py-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin scroll-smooth">
+                        {AUDIENCES.map((a, i) => (
+                            <div
+                                key={a.key}
+                                className={`snap-start shrink-0 w-[260px] sm:w-[280px] md:w-[300px] group relative p-6 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-1.5 ${ACCENT_RING[a.accent]}`}
+                            >
+                                <div className="mb-4">
+                                    <div className="w-16 h-16 transition-transform duration-300 group-hover:scale-110">
+                                        <a.Icon className="w-full h-full" />
+                                    </div>
                                 </div>
+                                <h3 className="text-base font-extrabold tracking-tight text-slate-900 mb-1.5 group-hover:text-red-500 transition-colors">
+                                    {a.title}
+                                </h3>
+                                <p className="text-sm text-slate-600 leading-relaxed">
+                                    {a.desc}
+                                </p>
                             </div>
-                            <h3 className="text-lg font-extrabold tracking-tight text-slate-900 mb-2 group-hover:text-red-500 transition-colors">
-                                {a.title}
-                            </h3>
-                            <p className="text-sm text-slate-600 leading-relaxed">
-                                {a.desc}
-                            </p>
-                            <div className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300">
-                                Cocok untukmu
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                            </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </div>
         </section>
