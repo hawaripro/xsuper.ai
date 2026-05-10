@@ -23,11 +23,9 @@ function PaymentSlot({ name, Logo, index }) {
             className="group flex flex-col items-center gap-2"
             style={{ animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both', animationDelay: `${120 + index * 60}ms` }}
         >
-            {/* Uniform slot — 2.6:1 aspect, consistent padding, max-content
-               hugs inside. All brand SVGs use object-contain so every one
-               scales to fit the same box without distortion. */}
-            <div className="relative w-full aspect-[2.6/1] rounded-2xl bg-white border border-gray-200 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.06)] transition-all duration-300 group-hover:border-red-200 group-hover:shadow-[0_10px_24px_-6px_rgba(239,68,68,0.18)] group-hover:-translate-y-0.5 flex items-center justify-center px-3 py-2.5">
-                <span className="inline-flex items-center justify-center w-full h-full max-w-[90%]">
+            {/* Uniform slot — fixed height, all same size in one row */}
+            <div className="relative w-full h-16 rounded-2xl bg-white border border-gray-200 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.06)] transition-all duration-300 group-hover:border-red-200 group-hover:shadow-[0_10px_24px_-6px_rgba(239,68,68,0.18)] group-hover:-translate-y-0.5 flex items-center justify-center px-4">
+                <span className="inline-flex items-center justify-center w-full h-8">
                     <Logo className="w-full h-full" />
                 </span>
             </div>

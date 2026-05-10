@@ -121,64 +121,33 @@ export default function Testimonials() {
                 </div>
 
                 {/* ============================================
-                    Testimonials — two-row horizontal marquee.
-                    Row 1 scrolls left (standard); row 2 scrolls
-                    right (reverse) to add visual interest.
-                    Cards duplicated twice for seamless loop.
-                    Hover pauses both rows.
+                    Testimonials — single-row horizontal marquee.
+                    Hover pauses animation.
                    ============================================ */}
-                {(() => {
-                    const half = Math.ceil(TESTIMONIALS.length / 2);
-                    const rowA = TESTIMONIALS.slice(0, half);
-                    const rowB = TESTIMONIALS.slice(half);
-                    return (
-                        <div className="relative -mx-4 md:-mx-6 space-y-5 md:space-y-6">
-                            {/* Edge fade masks covering both rows */}
-                            <div className="pointer-events-none absolute inset-y-0 left-0 w-20 md:w-32 bg-gradient-to-r from-white via-white/90 to-transparent z-10" />
-                            <div className="pointer-events-none absolute inset-y-0 right-0 w-20 md:w-32 bg-gradient-to-l from-white via-white/90 to-transparent z-10" />
+                <div className="relative -mx-4 md:-mx-6">
+                    {/* Edge fade masks */}
+                    <div className="pointer-events-none absolute inset-y-0 left-0 w-20 md:w-32 bg-gradient-to-r from-white via-white/90 to-transparent z-10" />
+                    <div className="pointer-events-none absolute inset-y-0 right-0 w-20 md:w-32 bg-gradient-to-l from-white via-white/90 to-transparent z-10" />
 
-                            {/* Row A — forward */}
-                            <div className="overflow-hidden">
-                                <div
-                                    className="marquee-track flex items-stretch gap-5 lg:gap-6 w-max animate-marquee hover:[animation-play-state:paused] py-4"
-                                    style={{ animationDuration: '55s' }}
-                                >
-                                    {[...Array(2)].map((_, copyIdx) => (
-                                        <div key={copyIdx} className="flex items-stretch gap-5 lg:gap-6 pr-5 lg:pr-6">
-                                            {rowA.map((t, i) => (
-                                                <TestimonialCard
-                                                    key={`a-${copyIdx}-${i}`}
-                                                    t={t}
-                                                    aria-hidden={copyIdx === 1 ? 'true' : undefined}
-                                                />
-                                            ))}
-                                        </div>
+                    <div className="overflow-hidden">
+                        <div
+                            className="marquee-track flex items-stretch gap-5 lg:gap-6 w-max animate-marquee hover:[animation-play-state:paused] py-4"
+                            style={{ animationDuration: '60s' }}
+                        >
+                            {[...Array(2)].map((_, copyIdx) => (
+                                <div key={copyIdx} className="flex items-stretch gap-5 lg:gap-6 pr-5 lg:pr-6">
+                                    {TESTIMONIALS.map((t, i) => (
+                                        <TestimonialCard
+                                            key={`${copyIdx}-${i}`}
+                                            t={t}
+                                            aria-hidden={copyIdx === 1 ? 'true' : undefined}
+                                        />
                                     ))}
                                 </div>
-                            </div>
-
-                            {/* Row B — reverse */}
-                            <div className="overflow-hidden">
-                                <div
-                                    className="marquee-track flex items-stretch gap-5 lg:gap-6 w-max animate-marquee-reverse hover:[animation-play-state:paused] py-4"
-                                    style={{ animationDuration: '55s' }}
-                                >
-                                    {[...Array(2)].map((_, copyIdx) => (
-                                        <div key={copyIdx} className="flex items-stretch gap-5 lg:gap-6 pr-5 lg:pr-6">
-                                            {rowB.map((t, i) => (
-                                                <TestimonialCard
-                                                    key={`b-${copyIdx}-${i}`}
-                                                    t={t}
-                                                    aria-hidden={copyIdx === 1 ? 'true' : undefined}
-                                                />
-                                            ))}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            ))}
                         </div>
-                    );
-                })()}
+                    </div>
+                </div>
 
                 {/* Footer stats */}
                 <div className="mt-12 grid grid-cols-3 gap-4 max-w-3xl mx-auto">

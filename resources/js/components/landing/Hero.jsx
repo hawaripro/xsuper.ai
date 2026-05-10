@@ -205,15 +205,7 @@ export default function Hero() {
             />
             <FloatingDots />
 
-            {/* ===== Desktop-only orbital backdrop (behind heading) ===== */}
-            <div
-                className="hidden lg:block absolute top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ zIndex: 0, left: '-6%' }}
-                aria-hidden="true"
-            >
-                <OrbitalConstellation variant="backdrop" />
-            </div>
-
+            {/* ===== Content ===== */}
             <div className="relative max-w-7xl mx-auto px-4 md:px-6 w-full" style={{ zIndex: 2 }}>
                 <div className="grid lg:grid-cols-[1.1fr,1fr] items-center gap-12 lg:gap-16">
                     {/* Left — headline + CTA */}
@@ -305,8 +297,13 @@ export default function Hero() {
                         </div>
                     </div>
 
-                    {/* Right — Price teaser card */}
+                    {/* Right column — orbital (desktop) + price card */}
                     <div className="relative animate-fade-in-right" style={{ animationDelay: '120ms' }}>
+                        {/* Desktop orbital — visible beside the heading */}
+                        <div className="hidden lg:block mb-8">
+                            <OrbitalConstellation variant="inline" />
+                        </div>
+
                         {/* Price teaser card */}
                         <div className="relative">
                             <div className="absolute -inset-4 bg-gradient-to-br from-red-400/30 via-orange-300/20 to-red-300/30 rounded-3xl blur-3xl" aria-hidden="true" />
