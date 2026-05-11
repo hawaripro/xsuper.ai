@@ -14,6 +14,7 @@ import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
 import VideoGenerator from './pages/VideoGenerator';
 import TokenUsage from './pages/TokenUsage';
+import ErrorPage from './pages/ErrorPage';
 
 // Layout
 import DashboardLayout from './layouts/DashboardLayout';
@@ -24,22 +25,22 @@ function ProtectedRoute({ children, adminOnly = false, permission = null }) {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="min-h-screen bg-[#fafbfc] flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-10 h-10 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-gray-400 text-sm">Memuat...</span>
+                    <span className="text-gray-500 text-sm">Memuat...</span>
                 </div>
             </div>
         );
     }
 
     if (!user) return <Navigate to="/login" replace />;
-    if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+    if (adminOnly && user.role !== 'admin') return <ErrorPage code={403} />;
 
     // Check specific permission (admin always has access)
     if (permission && user.role !== 'admin') {
         const perms = user.permissions || {};
-        if (!perms[permission]) return <Navigate to="/dashboard" replace />;
+        if (!perms[permission]) return <ErrorPage code={403} />;
     }
 
     return children;
@@ -93,8 +94,8 @@ function App() {
                         <ProtectedRoute adminOnly><DashboardLayout><TokenUsage /></DashboardLayout></ProtectedRoute>
                     } />
 
-                    {/* Catch all */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
+                    {/* Catch all — 404 */}
+                    <Route path="*" element={<ErrorPage code={404} />} />
                 </Routes>
             </BrowserRouter>
         </AuthProvider>
