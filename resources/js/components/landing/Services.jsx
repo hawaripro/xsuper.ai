@@ -125,7 +125,7 @@ export default function Services() {
                                 onClick={scrollToTop}
                                 type="button"
                                 aria-label={`${s.title} — akan segera hadir`}
-                                className="group relative block text-left w-full p-7 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] hover:shadow-[0_24px_48px_-12px_rgba(15,23,42,0.18)] hover:-translate-y-1.5 transition-all duration-300 overflow-hidden cursor-pointer"
+                                className="group relative block text-center w-full p-7 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] hover:shadow-[0_24px_48px_-12px_rgba(15,23,42,0.18)] hover:-translate-y-1.5 transition-all duration-300 overflow-hidden cursor-pointer"
                                 style={{ animation: 'fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both', animationDelay: `${80 + i * 80}ms` }}
                             >
                                 {/* Accent glow */}
@@ -145,13 +145,13 @@ export default function Services() {
                                 </span>
 
                                 <div className="relative">
-                                    <div className={`w-20 h-20 mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3`}>
+                                    <div className="flex justify-center mb-5"><div className="w-20 h-20 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3">
                                         <s.Icon className="w-full h-full" />
-                                    </div>
+                                    </div></div>
                                     <h3 className="text-xl font-extrabold tracking-tight text-slate-900 mb-2">{s.title}</h3>
                                     <p className="text-sm text-slate-600 leading-relaxed mb-5">{s.desc}</p>
 
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 group-hover:text-red-500 transition-colors">
+                                    <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-500 group-hover:text-red-500 transition-colors">
                                         <svg className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="19 12 5 12"/><polyline points="12 19 5 12 12 5"/></svg>
                                         Kembali ke UltrAI
                                     </div>
