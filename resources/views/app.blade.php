@@ -12,13 +12,16 @@
     <meta property="og:description" content="50+ model AI (GPT-4o, Claude, Gemini, DeepSeek) dalam satu akun. Unlimited usage, akun pribadi, garansi refund. Mulai Rp 5.000/hari.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://ultrai.id">
-    <meta property="og:image" content="https://ultrai.id/ultr-icons.png">
+    <meta property="og:image" content="https://ultrai.id/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:type" content="image/png">
     <meta property="og:site_name" content="UltrAI">
     <meta property="og:locale" content="id_ID">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="UltrAI — Akses 50+ AI Premium Mulai Rp 5.000">
     <meta name="twitter:description" content="50+ model AI premium dalam satu akun. Unlimited usage, garansi refund. Lebih hemat 82% dari ChatGPT Plus.">
-    <meta name="twitter:image" content="https://ultrai.id/ultr-icons.png">
+    <meta name="twitter:image" content="https://ultrai.id/og-image.png">
     <link rel="canonical" href="https://ultrai.id">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="/ultr-icons.png">
