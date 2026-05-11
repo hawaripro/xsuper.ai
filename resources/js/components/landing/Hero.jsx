@@ -30,7 +30,7 @@ export default function Hero() {
             {/* Content — all centered */}
             <div className="relative max-w-3xl mx-auto px-5 md:px-6 text-center">
                 {/* Eyebrow */}
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 border border-red-200/80 backdrop-blur-sm text-red-600 text-[11px] font-bold uppercase tracking-[0.15em] mb-12 animate-fade-in-down shadow-[0_4px_16px_-4px_rgba(239,68,68,0.15)]">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 border border-red-200/80 backdrop-blur-sm text-red-600 text-[11px] font-bold uppercase tracking-[0.15em] mb-10 animate-fade-in-down shadow-[0_4px_16px_-4px_rgba(239,68,68,0.15)]">
                     <span className="relative flex w-2 h-2">
                         <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
                         <span className="relative inline-flex w-2 h-2 rounded-full bg-red-500" />
@@ -71,7 +71,7 @@ export default function Hero() {
                 </h1>
 
                 {/* Subtitle */}
-                <p className="mt-10 text-sm md:text-base lg:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto animate-fade-in-up" style={{ animationDelay: '80ms' }}>
+                <p className="mt-8 text-sm md:text-base lg:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto animate-fade-in-up" style={{ animationDelay: '80ms' }}>
                     50+ model AI (GPT-4o, Claude, Gemini, DeepSeek, Qwen, GLM) dalam satu akun.
                     <span className="font-semibold text-slate-900"> Unlimited usage.</span> Support API key untuk VSCode, Cursor, OpenCode.
                 </p>

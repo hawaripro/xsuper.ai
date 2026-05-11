@@ -81,8 +81,8 @@ export default function Carousel({ children, className = '', autoPlay = false, i
             onMouseEnter={pause}
             onMouseLeave={resume}
         >
-            {/* Track */}
-            <div className="overflow-hidden px-[10%] sm:px-[2.5%] lg:px-0">
+            {/* Track — padded so active item centers with equal peek left/right */}
+            <div className="overflow-hidden" style={{ padding: '0 calc((100% - var(--carousel-item-w)) / 2)' }}>
                 <div
                     ref={trackRef}
                     className={`carousel-track flex items-stretch ${isTransitioning ? 'transition-transform duration-500 ease-out' : ''}`}
@@ -90,7 +90,7 @@ export default function Carousel({ children, className = '', autoPlay = false, i
                 >
                     {duplicated.map((item, i) => (
                         <div key={i} className="carousel-item shrink-0 px-2 flex">
-                            <div className="w-full">{item}</div>
+                            <div className="w-full flex flex-col">{item}</div>
                         </div>
                     ))}
                 </div>

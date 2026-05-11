@@ -133,9 +133,9 @@ export default function Services() {
                                 {/* Soft grayscale veil to signal "not active yet" */}
                                 <div className="absolute inset-0 bg-gradient-to-br from-white/0 via-white/0 to-slate-100/40 pointer-events-none" aria-hidden="true" />
 
-                                {/* Coming Soon ribbon (top-right) */}
+                                {/* Coming Soon ribbon (centered) */}
                                 <span
-                                    className="absolute top-5 right-5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.12em] bg-gradient-to-r from-amber-400 to-orange-500 text-amber-950 shadow-[0_4px_14px_-2px_rgba(245,158,11,0.35)]"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.12em] bg-gradient-to-r from-amber-400 to-orange-500 text-amber-950 shadow-[0_4px_14px_-2px_rgba(245,158,11,0.35)] mb-4"
                                 >
                                     <span className={`relative flex w-1.5 h-1.5`}>
                                         <span className={`absolute inline-flex h-full w-full rounded-full ${a.pulse} opacity-70 animate-ping`} />

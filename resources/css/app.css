@@ -301,13 +301,16 @@
 .animate-orbit-reverse     { animation: orbit 26s linear infinite reverse; }
 .animate-marquee-reverse   { animation: marquee 55s linear infinite reverse; }
 
-/* Carousel item responsive widths — centered with peek */
-.carousel-item { width: 80%; margin: 0 auto; }
-@media (min-width: 640px) { .carousel-item { width: 45%; } }
+/* Carousel item responsive widths — centered with equal peek left/right */
+.carousel-item { width: 75%; }
+@media (min-width: 640px) { .carousel-item { width: 42%; } }
 @media (min-width: 1024px) { .carousel-item { width: 33.333%; } }
-:root { --carousel-item-w: 80%; }
-@media (min-width: 640px) { :root { --carousel-item-w: 45%; } }
+:root { --carousel-item-w: 75%; }
+@media (min-width: 640px) { :root { --carousel-item-w: 42%; } }
 @media (min-width: 1024px) { :root { --carousel-item-w: 33.333%; } }
+
+/* Force equal height on all carousel children */
+.carousel-item > div { height: 100%; display: flex; flex-direction: column; }
 .animate-blob-reverse      { animation: blob 20s ease-in-out infinite reverse; }
 .animate-blob-delay        { animation: blob 18s ease-in-out infinite 2s; }
 .animate-gradient          { background-size: 300% 100% !important; animation: gradient-shift 3s ease infinite !important; }
