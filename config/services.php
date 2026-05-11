@@ -45,4 +45,10 @@ return [
         'url' => env('UMAMI_SCRIPT_URL', 'https://cloud.umami.is/script.js'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+    ],
+
 ];

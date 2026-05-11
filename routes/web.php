@@ -111,6 +111,10 @@ Route::prefix('api')->middleware('web')->group(function () {
     });
 });
 
+// Google OAuth routes
+Route::get('/auth/google', [\App\Http\Controllers\GoogleAuthController::class, 'redirect'])->name('auth.google');
+Route::get('/auth/google/callback', [\App\Http\Controllers\GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+
 // SPA catch-all — must be last
 Route::get('/{any?}', function () {
     return view('app');

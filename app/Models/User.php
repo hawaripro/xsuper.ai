@@ -40,6 +40,7 @@ class User extends Authenticatable
         'is_active',
         'expires_at',
         'permissions',
+        'google_id',
     ];
 
     protected $hidden = [
