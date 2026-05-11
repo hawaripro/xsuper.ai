@@ -121,10 +121,12 @@ export default function Testimonials() {
                     </p>
                 </div>
 
-                {/* Testimonials grid */}
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+                {/* Testimonials — single row */}
+                <div className="flex gap-4 lg:gap-5 overflow-x-auto pb-4 scrollbar-thin scroll-smooth snap-x snap-mandatory">
                     {TESTIMONIALS.map((t, i) => (
-                        <TestimonialCard key={i} t={t} />
+                        <div key={i} className="snap-center shrink-0 w-[280px] sm:w-[320px]">
+                            <TestimonialCard t={t} />
+                        </div>
                     ))}
                 </div>
 

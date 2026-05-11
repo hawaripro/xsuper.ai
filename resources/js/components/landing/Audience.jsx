@@ -212,11 +212,11 @@ export default function Audience() {
                     </p>
                 </div>
 
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+                <div className="flex gap-4 lg:gap-5 overflow-x-auto pb-4 scrollbar-thin scroll-smooth snap-x snap-mandatory">
                     {AUDIENCES.map((a) => (
                         <div
                             key={a.key}
-                            className={`group relative p-6 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-1.5 ${ACCENT_RING[a.accent]}`}
+                            className={`snap-center shrink-0 w-[240px] sm:w-[260px] group relative p-6 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-1.5 ${ACCENT_RING[a.accent]}`}
                         >
                             <div className="mb-4 flex justify-center">
                                 <div className="w-16 h-16">
