@@ -19,7 +19,7 @@ export default function Hero() {
     const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
     return (
-        <section className="relative pt-28 pb-16 md:pt-32 md:pb-20 overflow-hidden">
+        <section className="relative min-h-dvh flex items-center justify-center overflow-hidden">
             {/* Background — simplified for mobile perf */}
             <div className="absolute inset-0 hero-dots opacity-40 pointer-events-none" />
             <div

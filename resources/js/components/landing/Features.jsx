@@ -181,9 +181,9 @@ export default function Features() {
                     >
                         <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-emerald-400/15 blur-3xl" />
 
-                        <div className="relative flex flex-col md:flex-row md:items-center gap-6">
+                        <div className="relative flex flex-col items-center gap-5 text-center">
                             <div className="flex-shrink-0">
-                                <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-[0_14px_32px_-6px_rgba(16,185,129,0.5)] ring-8 ring-emerald-500/15 flex items-center justify-center group-hover:scale-105 group-hover:rotate-3 transition-all duration-300">
+                                <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-[0_14px_32px_-6px_rgba(16,185,129,0.5)] ring-8 ring-emerald-500/15 flex items-center justify-center group-hover:scale-105 group-hover:rotate-3 transition-all duration-300">
                                     <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                                         <path d="M9 12l2 2 4-4"/>
@@ -198,7 +198,7 @@ export default function Features() {
                                 <p className="text-slate-600 leading-relaxed text-center mb-4 max-w-2xl mx-auto">
                                     Kalau ada kendala — <span className="font-semibold text-slate-900">akun habis di tengah jalan, kena limit, atau token error</span> — langsung kami refund atau replace akun baru. Tanpa drama.
                                 </p>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap justify-center gap-2">
                                     {[
                                         'Akun habis → replace gratis',
                                         'Kena limit → refund pro-rata',

@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 
 /* ============================================================
-   Carousel — shows multiple items visible, scrolls 1 at a time.
-   - Mobile: ~1.15 items visible (peek next)
-   - Tablet: ~2.2 items visible
-   - Desktop: 3 items visible
-   - Prev/Next arrows + dot indicators
+   Carousel — infinite seamless loop.
+   - Multiple items visible (responsive via CSS --carousel-item-w)
+   - Scrolls 1 item at a time
+   - When reaching the end, seamlessly wraps to start (no jump)
+   - Items are duplicated internally for the illusion
+   - Prev/Next arrows + dots
    - Optional auto-play with pause on hover
    ============================================================ */
 
@@ -13,16 +14,51 @@ export default function Carousel({ children, className = '', autoPlay = false, i
     const items = React.Children.toArray(children);
     const total = items.length;
     const [current, setCurrent] = useState(0);
+    const [isTransitioning, setIsTransitioning] = useState(true);
     const timerRef = useRef(null);
+    const trackRef = useRef(null);
+
+    // We duplicate items: [items... items...] so when we scroll past
+    // the original set, we silently reset position without animation.
+    const duplicated = [...items, ...items];
 
     const next = useCallback(() => {
-        setCurrent((prev) => (prev >= total - 1 ? 0 : prev + 1));
-    }, [total]);
+        setIsTransitioning(true);
+        setCurrent((prev) => prev + 1);
+    }, []);
 
     const prev = useCallback(() => {
-        setCurrent((prev) => (prev <= 0 ? total - 1 : prev - 1));
-    }, [total]);
+        setIsTransitioning(true);
+        setCurrent((prev) => prev - 1);
+    }, []);
 
+    // When current goes past total, silently reset
+    useEffect(() => {
+        if (current >= total) {
+            const timer = setTimeout(() => {
+                setIsTransitioning(false);
+                setCurrent(0);
+            }, 520); // wait for transition to finish
+            return () => clearTimeout(timer);
+        }
+        if (current < 0) {
+            const timer = setTimeout(() => {
+                setIsTransitioning(false);
+                setCurrent(total - 1);
+            }, 520);
+            return () => clearTimeout(timer);
+        }
+    }, [current, total]);
+
+    // Re-enable transition after silent reset
+    useEffect(() => {
+        if (!isTransitioning) {
+            const raf = requestAnimationFrame(() => setIsTransitioning(true));
+            return () => cancelAnimationFrame(raf);
+        }
+    }, [isTransitioning]);
+
+    // Auto-play
     useEffect(() => {
         if (!autoPlay) return;
         timerRef.current = setInterval(next, interval);
@@ -36,6 +72,9 @@ export default function Carousel({ children, className = '', autoPlay = false, i
         timerRef.current = setInterval(next, interval);
     };
 
+    // Dot index (always 0..total-1)
+    const dotIndex = ((current % total) + total) % total;
+
     return (
         <div
             className={`relative ${className}`}
@@ -45,14 +84,12 @@ export default function Carousel({ children, className = '', autoPlay = false, i
             {/* Track */}
             <div className="overflow-hidden">
                 <div
-                    className="carousel-track flex transition-transform duration-500 ease-out"
+                    ref={trackRef}
+                    className={`carousel-track flex ${isTransitioning ? 'transition-transform duration-500 ease-out' : ''}`}
                     style={{ transform: `translateX(calc(-${current} * var(--carousel-item-w)))` }}
                 >
-                    {items.map((item, i) => (
-                        <div
-                            key={i}
-                            className="carousel-item shrink-0 px-2"
-                        >
+                    {duplicated.map((item, i) => (
+                        <div key={i} className="carousel-item shrink-0 px-2">
                             {item}
                         </div>
                     ))}
@@ -64,10 +101,10 @@ export default function Carousel({ children, className = '', autoPlay = false, i
                 {items.map((_, i) => (
                     <button
                         key={i}
-                        onClick={() => setCurrent(i)}
+                        onClick={() => { setIsTransitioning(true); setCurrent(i); }}
                         aria-label={`Slide ${i + 1}`}
                         className={`rounded-full transition-all duration-300 ${
-                            i === current
+                            i === dotIndex
                                 ? 'w-6 h-2 bg-gradient-to-r from-red-500 to-orange-500'
                                 : 'w-2 h-2 bg-slate-300 hover:bg-slate-400'
                         }`}
