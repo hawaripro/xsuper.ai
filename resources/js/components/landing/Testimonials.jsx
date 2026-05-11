@@ -121,13 +121,11 @@ export default function Testimonials() {
                     </p>
                 </div>
 
-                {/* Testimonials — carousel, multiple visible, scroll 1 */}
-                <div>
-                    <Carousel autoPlay interval={5000}>
-                        {TESTIMONIALS.map((t, i) => (
-                            <TestimonialCard key={i} t={t} />
-                        ))}
-                    </Carousel>
+                {/* Testimonials grid */}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+                    {TESTIMONIALS.map((t, i) => (
+                        <TestimonialCard key={i} t={t} />
+                    ))}
                 </div>
 
                 {/* Footer stats */}

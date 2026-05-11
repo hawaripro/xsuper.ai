@@ -237,13 +237,11 @@ export default function Pricing() {
                     </p>
                 </div>
 
-                {/* Plans — carousel, multiple visible, scroll 1 at a time */}
-                <div className="mb-10">
-                    <Carousel autoPlay interval={6000}>
-                        {PLANS.map((plan, i) => (
-                            <PlanCard key={plan.key} plan={plan} index={i} />
-                        ))}
-                    </Carousel>
+                {/* Plans grid */}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6 mb-10">
+                    {PLANS.map((plan, i) => (
+                        <PlanCard key={plan.key} plan={plan} index={i} />
+                    ))}
                 </div>
 
                 {/* Bottom note */}

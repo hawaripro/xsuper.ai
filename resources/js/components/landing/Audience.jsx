@@ -212,27 +212,25 @@ export default function Audience() {
                     </p>
                 </div>
 
-                <div>
-                    <Carousel autoPlay interval={4500}>
-                        {AUDIENCES.map((a) => (
-                            <div
-                                key={a.key}
-                                className={`group relative p-6 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 ${ACCENT_RING[a.accent]}`}
-                            >
-                                <div className="mb-4 flex justify-center">
-                                    <div className="w-16 h-16">
-                                        <a.Icon className="w-full h-full" />
-                                    </div>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+                    {AUDIENCES.map((a) => (
+                        <div
+                            key={a.key}
+                            className={`group relative p-6 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-1.5 ${ACCENT_RING[a.accent]}`}
+                        >
+                            <div className="mb-4 flex justify-center">
+                                <div className="w-16 h-16">
+                                    <a.Icon className="w-full h-full" />
                                 </div>
-                                <h3 className="text-base font-extrabold tracking-tight text-slate-900 mb-1.5 text-center">
-                                    {a.title}
-                                </h3>
-                                <p className="text-sm text-slate-600 leading-relaxed text-center">
-                                    {a.desc}
-                                </p>
                             </div>
-                        ))}
-                    </Carousel>
+                            <h3 className="text-base font-extrabold tracking-tight text-slate-900 mb-1.5 text-center">
+                                {a.title}
+                            </h3>
+                            <p className="text-sm text-slate-600 leading-relaxed text-center">
+                                {a.desc}
+                            </p>
+                        </div>
+                    ))}
                 </div>
             </div>
         </section>
