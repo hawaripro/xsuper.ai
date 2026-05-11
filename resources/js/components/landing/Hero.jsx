@@ -30,7 +30,7 @@ export default function Hero() {
             {/* Content — all centered */}
             <div className="relative max-w-3xl mx-auto px-5 md:px-6 text-center">
                 {/* Eyebrow */}
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 border border-red-200/80 backdrop-blur-sm text-red-600 text-[11px] font-bold uppercase tracking-[0.15em] mb-10 animate-fade-in-down shadow-[0_4px_16px_-4px_rgba(239,68,68,0.15)]">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 border border-red-200/80 backdrop-blur-sm text-red-600 text-[11px] font-bold uppercase tracking-[0.15em] mb-14 animate-fade-in-down shadow-[0_4px_16px_-4px_rgba(239,68,68,0.15)]">
                     <span className="relative flex w-2 h-2">
                         <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
                         <span className="relative inline-flex w-2 h-2 rounded-full bg-red-500" />
@@ -48,13 +48,13 @@ export default function Hero() {
                 </h1>
 
                 {/* Subtitle */}
-                <p className="mt-8 text-sm md:text-base lg:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto animate-fade-in-up" style={{ animationDelay: '80ms' }}>
+                <p className="mt-12 text-sm md:text-base lg:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto animate-fade-in-up" style={{ animationDelay: '80ms' }}>
                     50+ model AI (GPT-4o, Claude, Gemini, DeepSeek, Qwen, GLM) dalam satu akun.
                     <span className="font-semibold text-slate-900"> Unlimited usage.</span> Support API key untuk VSCode, Cursor, OpenCode.
                 </p>
 
                 {/* CTA */}
-                <div className="mt-10 flex flex-wrap justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '140ms' }}>
+                <div className="mt-14 flex flex-wrap justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '140ms' }}>
                     <button
                         onClick={() => scrollTo('pricing')}
                         className="ui-btn-primary px-7 py-3.5 text-base"
@@ -74,7 +74,7 @@ export default function Hero() {
                 </div>
 
                 {/* Trust badges */}
-                <div className="mt-10 flex flex-wrap justify-center items-center gap-x-4 gap-y-2 text-[11px] text-slate-500 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+                <div className="mt-14 flex flex-wrap justify-center items-center gap-x-4 gap-y-2 text-[11px] text-slate-500 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
                     {['Garansi Refund', 'Akun Pribadi', 'Unlimited Usage', '50+ AI Models'].map((t) => (
                         <span key={t} className="inline-flex items-center gap-1.5">
                             <svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
@@ -84,7 +84,7 @@ export default function Hero() {
                 </div>
 
                 {/* 6 AI brand logos — floating/swaying gently */}
-                <div className="mt-12 flex items-center justify-center gap-3 md:gap-5 animate-fade-in-up" style={{ animationDelay: '280ms' }}>
+                <div className="mt-16 flex items-center justify-center gap-3 md:gap-5 animate-fade-in-up" style={{ animationDelay: '280ms' }}>
                     {[
                         { Logo: ClaudeLogo,   name: 'Claude',   delay: '0s' },
                         { Logo: ChatGPTLogo,  name: 'ChatGPT',  delay: '0.4s' },
