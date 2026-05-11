@@ -42,8 +42,31 @@ export default function Hero() {
                 <h1 className="text-3xl md:text-4xl lg:text-5xl font-black tracking-[-0.02em] leading-[1.1] text-slate-900 animate-fade-in-up">
                     Akses AI Premium
                     <br />
-                    <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
-                        Harga UMKM.
+                    <span className="relative inline-block">
+                        <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
+                            Harga UMKM.
+                        </span>
+                        <svg
+                            className="absolute -bottom-3 left-0 w-full"
+                            viewBox="0 0 300 12"
+                            preserveAspectRatio="none"
+                            aria-hidden="true"
+                            style={{ height: 10 }}
+                        >
+                            <path
+                                d="M2 8 Q 80 2, 150 6 T 298 4"
+                                fill="none"
+                                stroke="url(#underline-g)"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                            />
+                            <defs>
+                                <linearGradient id="underline-g" x1="0" y1="0" x2="1" y2="0">
+                                    <stop offset="0%" stopColor="#ef4444" />
+                                    <stop offset="100%" stopColor="#f97316" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
                     </span>
                 </h1>
 
