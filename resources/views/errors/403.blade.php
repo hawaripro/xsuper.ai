@@ -3,122 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>403 — UltrAI</title>
+    <title>403 — Akses Ditolak | UltrAI</title>
+    <link rel="icon" type="image/png" href="/ultr-icons.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            min-height: 100vh;
-            background: #030712;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #fff;
-            overflow: hidden;
-        }
-        .bg-glow {
-            position: fixed;
-            width: 500px; height: 500px;
-            border-radius: 50%;
-            filter: blur(120px);
-            opacity: 0.07;
-            pointer-events: none;
-        }
-        .bg-glow-1 { top: -200px; right: -100px; background: #f59e0b; }
-        .bg-glow-2 { bottom: -200px; left: -100px; background: #ef4444; }
-        .container {
-            text-align: center;
-            position: relative;
-            z-index: 1;
-            padding: 2rem;
-        }
-        .error-code {
-            font-size: clamp(6rem, 20vw, 12rem);
-            font-weight: 900;
-            line-height: 1;
-            background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            letter-spacing: -0.04em;
-            margin-bottom: 0.5rem;
-        }
-        .title {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #f9fafb;
-            margin-bottom: 0.75rem;
-            letter-spacing: -0.02em;
-        }
-        .desc {
-            font-size: 0.95rem;
-            color: #6b7280;
-            max-width: 400px;
-            margin: 0 auto 2rem;
-            line-height: 1.6;
-        }
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 2rem;
-            border-radius: 0.875rem;
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            color: #fff;
-            font-weight: 700;
-            font-size: 0.875rem;
-            text-decoration: none;
-            transition: all 0.2s;
-            box-shadow: 0 8px 24px rgba(239,68,68,0.25);
-        }
-        .btn:hover {
-            filter: brightness(1.1);
-            box-shadow: 0 12px 32px rgba(239,68,68,0.35);
-            transform: translateY(-1px);
-        }
-        .logo {
-            margin-bottom: 2rem;
-            font-size: 1.5rem;
-            font-weight: 900;
-            letter-spacing: -0.03em;
-        }
-        .logo span:first-child { color: #fff; }
-        .logo span:last-child { color: #ef4444; }
-        .grid-bg {
-            position: fixed;
-            inset: 0;
-            background-image: radial-gradient(circle, rgba(239,68,68,0.03) 1px, transparent 1px);
-            background-size: 32px 32px;
-            pointer-events: none;
-        }
-        .shield {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 64px; height: 64px;
-            border-radius: 1rem;
-            background: rgba(245,158,11,0.1);
-            border: 1px solid rgba(245,158,11,0.2);
-            margin-bottom: 1.5rem;
-        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fafbfc;font-family:'Inter',-apple-system,sans-serif;overflow:hidden;position:relative}
+        .bg-dots{position:absolute;inset:0;background-image:radial-gradient(circle,rgba(239,68,68,0.1) 1px,transparent 1px);background-size:28px 28px;opacity:.7}
+        .glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none}
+        .glow-1{top:-15%;left:50%;transform:translateX(-50%);width:600px;height:600px;background:rgba(239,68,68,0.15);animation:pulse 4s ease-in-out infinite}
+        .glow-2{bottom:-20%;right:-10%;width:400px;height:400px;background:rgba(251,146,60,0.12);animation:pulse 5s ease-in-out infinite 1s}
+        .container{position:relative;text-align:center;max-width:520px;padding:2rem}
+        .error-num{position:relative;margin-bottom:2rem}
+        .error-num .bg-num{font-size:clamp(140px,30vw,240px);font-weight:900;letter-spacing:-0.05em;line-height:1;background:linear-gradient(135deg,#ef4444,#f97316,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:.12;animation:float 6s ease-in-out infinite;user-select:none}
+        .error-num .fg-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(80px,18vw,150px);font-weight:900;letter-spacing:-0.04em;background:linear-gradient(135deg,#ef4444 0%,#f97316 50%,#ef4444 100%);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:glow-text 3s ease-in-out infinite,gradient-shift 4s ease infinite}
+        .icon-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80px;height:80px;border-radius:24px;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;box-shadow:0 24px 48px -12px rgba(239,68,68,0.5),0 0 0 1px rgba(255,255,255,0.1) inset;animation:bounce-icon 2.5s ease-in-out infinite}
+        .icon-box svg{width:36px;height:36px;color:white;stroke-width:2}
+        .shield{animation:shake 4s ease-in-out infinite}
+        .particles span{position:absolute;border-radius:50%;animation:particle 4s ease-in-out infinite}
+        .particles span:nth-child(1){width:8px;height:8px;background:#ef4444;top:15%;left:20%;animation-delay:0s}
+        .particles span:nth-child(2){width:6px;height:6px;background:#f97316;top:25%;right:15%;animation-delay:.5s}
+        .particles span:nth-child(3){width:10px;height:10px;background:#dc2626;bottom:20%;left:15%;animation-delay:1s}
+        .particles span:nth-child(4){width:5px;height:5px;background:#fb923c;bottom:30%;right:20%;animation-delay:1.5s}
+        .particles span:nth-child(5){width:7px;height:7px;background:#ef4444;top:60%;left:8%;animation-delay:2s}
+        .particles span:nth-child(6){width:4px;height:4px;background:#f97316;top:40%;right:8%;animation-delay:2.5s}
+        h1{font-size:1.75rem;font-weight:900;color:#0f172a;margin-bottom:10px;animation:fade-up .6s ease-out both .2s}
+        p{font-size:1rem;color:#64748b;margin-bottom:2rem;line-height:1.7;animation:fade-up .6s ease-out both .35s}
+        .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;animation:fade-up .6s ease-out both .5s}
+        .btn{display:inline-flex;align-items:center;gap:8px;padding:14px 28px;border-radius:14px;font-size:.9rem;font-weight:700;text-decoration:none;transition:all .25s ease}
+        .btn-primary{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 12px 28px -6px rgba(239,68,68,0.45)}
+        .btn-primary:hover{transform:translateY(-3px);box-shadow:0 18px 36px -6px rgba(239,68,68,0.55)}
+        .btn-ghost{background:#fff;color:#334155;border:1.5px solid #e2e8f0;box-shadow:0 4px 12px -2px rgba(15,23,42,0.06)}
+        .btn-ghost:hover{transform:translateY(-2px);border-color:#cbd5e1;box-shadow:0 8px 20px -4px rgba(15,23,42,0.1)}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-16px)}}
+        @keyframes glow-text{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
+        @keyframes gradient-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+        @keyframes bounce-icon{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-10px)}}
+        @keyframes shake{0%,85%,100%{transform:rotate(0)}88%{transform:rotate(-4deg)}91%{transform:rotate(4deg)}94%{transform:rotate(-3deg)}97%{transform:rotate(2deg)}}
+        @keyframes pulse{0%,100%{opacity:.6;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.08)}}
+        @keyframes particle{0%,100%{transform:translate(0,0) scale(1);opacity:.4}25%{transform:translate(10px,-15px) scale(1.3);opacity:.8}50%{transform:translate(-5px,-25px) scale(.8);opacity:.6}75%{transform:translate(8px,-10px) scale(1.1);opacity:.5}}
+        @keyframes fade-up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important}}
     </style>
 </head>
 <body>
-    <div class="bg-glow bg-glow-1"></div>
-    <div class="bg-glow bg-glow-2"></div>
-    <div class="grid-bg"></div>
+    <div class="bg-dots"></div>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+    <div class="particles"><span></span><span></span><span></span><span></span><span></span><span></span></div>
     <div class="container">
-        <div class="logo"><span>Ultr</span><span>AI</span></div>
-        <div class="shield">
-            <svg width="28" height="28" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <div class="error-num">
+            <div class="bg-num">403</div>
+            <div class="fg-num">403</div>
+            <div class="icon-box shield">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
         </div>
-        <div class="error-code">403</div>
-        <h1 class="title">Akses Ditolak</h1>
-        <p class="desc">Anda tidak memiliki izin untuk mengakses halaman ini. Silakan hubungi administrator.</p>
-        <a href="/" class="btn">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-            Kembali ke Beranda
-        </a>
+        <h1>Akses Ditolak</h1>
+        <p>Kamu tidak punya izin untuk mengakses halaman ini. Hubungi admin jika kamu merasa ini kesalahan.</p>
+        <div class="actions">
+            <a href="/" class="btn btn-primary">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Beranda
+            </a>
+            <a href="javascript:history.back()" class="btn btn-ghost">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                Kembali
+            </a>
+        </div>
     </div>
 </body>
 </html>
