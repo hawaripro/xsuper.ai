@@ -20,8 +20,8 @@ class GoogleAuthController extends Controller
 
     /**
      * Handle callback from Google.
-     * - If user with that email exists → login
-     * - If not → create new user → login
+     * - Only allow login if user already exists in the system
+     * - If email not registered → reject (admin must add user first)
      */
     public function callback()
     {
@@ -36,20 +36,14 @@ class GoogleAuthController extends Controller
             ->orWhere('google_id', $googleUser->getId())
             ->first();
 
-        if ($user) {
-            // Update google_id if not set yet
-            if (!$user->google_id) {
-                $user->update(['google_id' => $googleUser->getId()]);
-            }
-        } else {
-            // Create new user
-            $user = User::create([
-                'name' => $googleUser->getName(),
-                'email' => $googleUser->getEmail(),
-                'google_id' => $googleUser->getId(),
-                'password' => bcrypt(Str::random(24)), // random password (won't be used)
-                'role' => 'member',
-            ]);
+        if (!$user) {
+            // User not registered — reject
+            return redirect('/login?error=not_registered');
+        }
+
+        // Update google_id if not set yet
+        if (!$user->google_id) {
+            $user->update(['google_id' => $googleUser->getId()]);
         }
 
         Auth::login($user, true);

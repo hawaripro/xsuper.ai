@@ -16,6 +16,17 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
+    // Check for Google OAuth error from URL params
+    React.useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const googleError = params.get('error');
+        if (googleError === 'not_registered') {
+            setError('Akun belum terdaftar. Hubungi admin untuk mendapatkan akses.');
+        } else if (googleError === 'google_failed') {
+            setError('Login Google gagal. Silakan coba lagi.');
+        }
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
