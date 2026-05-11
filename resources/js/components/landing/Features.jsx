@@ -46,27 +46,27 @@ export default function Features() {
                         <div className="relative grid md:grid-cols-2 gap-0">
                             {/* Unlimited side */}
                             <div className="p-7 lg:p-9 border-b md:border-b-0 md:border-r border-gray-200/70">
-                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_10px_24px_-6px_rgba(239,68,68,0.45)] ring-4 ring-red-500/20 mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all">
+                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_10px_24px_-6px_rgba(239,68,68,0.45)] ring-4 ring-red-500/20 mb-5 mx-auto group-hover:scale-110 group-hover:rotate-3 transition-all">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.74-8z"/>
                                     </svg>
                                 </div>
-                                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2">Unlimited Usage</h3>
-                                <p className="text-slate-600 leading-relaxed">
+                                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2 text-center">Unlimited Usage</h3>
+                                <p className="text-slate-600 leading-relaxed text-center">
                                     Pakai sepuasnya selama masa aktif. <span className="font-semibold text-slate-900">Tanpa limit token, tanpa rate limit harian.</span> Chat sebanyak apapun, generate kode berjam-jam — nggak ada hitungan.
                                 </p>
                             </div>
 
                             {/* Private side */}
                             <div className="p-7 lg:p-9">
-                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-[0_10px_24px_-6px_rgba(16,185,129,0.45)] ring-4 ring-emerald-500/20 mb-5 group-hover:scale-110 group-hover:rotate-3 transition-all">
+                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-[0_10px_24px_-6px_rgba(16,185,129,0.45)] ring-4 ring-emerald-500/20 mb-5 mx-auto group-hover:scale-110 group-hover:rotate-3 transition-all">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                                         <path d="M9 12l2 2 4-4"/>
                                     </svg>
                                 </div>
-                                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2">Akun Pribadi</h3>
-                                <p className="text-slate-600 leading-relaxed">
+                                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2 text-center">Akun Pribadi</h3>
+                                <p className="text-slate-600 leading-relaxed text-center">
                                     Akun khusus untuk kamu — <span className="font-semibold text-slate-900">bukan sharing, bukan pakai bareng.</span> Privasi chat terjamin, history aman, nggak bakal kena suspend karena aktivitas user lain.
                                 </p>
                             </div>
@@ -81,7 +81,7 @@ export default function Features() {
                         <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-blue-400/10 blur-3xl" />
 
                         <div className="relative">
-                            <div className="inline-flex items-center gap-3 mb-5">
+                            <div className="flex items-center justify-center gap-3 mb-5">
                                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-[0_10px_24px_-6px_rgba(59,130,246,0.45)] ring-4 ring-blue-500/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                         <rect x="4" y="4" width="16" height="16" rx="2"/>
@@ -96,8 +96,8 @@ export default function Features() {
                                     50+ Model
                                 </span>
                             </div>
-                            <h3 className="text-xl font-extrabold tracking-tight text-slate-900 mb-2">Semua Model AI Top</h3>
-                            <p className="text-slate-600 leading-relaxed mb-5">
+                            <h3 className="text-xl font-extrabold tracking-tight text-slate-900 mb-2 text-center">Semua Model AI Top</h3>
+                            <p className="text-slate-600 leading-relaxed text-center mb-5">
                                 Akses model premium dari berbagai provider. Pilih yang paling cocok untuk task kamu.
                             </p>
 
@@ -134,7 +134,7 @@ export default function Features() {
                         <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-violet-400/10 blur-3xl" />
 
                         <div className="relative">
-                            <div className="inline-flex items-center gap-3 mb-5">
+                            <div className="flex items-center justify-center gap-3 mb-5">
                                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-[0_10px_24px_-6px_rgba(139,92,246,0.45)] ring-4 ring-violet-500/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                         <polyline points="16 18 22 12 16 6"/>
@@ -145,8 +145,8 @@ export default function Features() {
                                     Dev Tools
                                 </span>
                             </div>
-                            <h3 className="text-xl font-extrabold tracking-tight text-slate-900 mb-2">Support API Key</h3>
-                            <p className="text-slate-600 leading-relaxed mb-5">
+                            <h3 className="text-xl font-extrabold tracking-tight text-slate-900 mb-2 text-center">Support API Key</h3>
+                            <p className="text-slate-600 leading-relaxed text-center mb-5">
                                 Integrasi langsung ke IDE kamu. Generate API key dari dashboard, pakai di tool favorit.
                             </p>
 
@@ -194,8 +194,8 @@ export default function Features() {
                                 <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-700 text-[10px] font-black uppercase tracking-wider mb-3">
                                     100% Safe
                                 </div>
-                                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2">Garansi Refund / Replace</h3>
-                                <p className="text-slate-600 leading-relaxed mb-4 max-w-2xl">
+                                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2 text-center">Garansi Refund / Replace</h3>
+                                <p className="text-slate-600 leading-relaxed text-center mb-4 max-w-2xl mx-auto">
                                     Kalau ada kendala — <span className="font-semibold text-slate-900">akun habis di tengah jalan, kena limit, atau token error</span> — langsung kami refund atau replace akun baru. Tanpa drama.
                                 </p>
                                 <div className="flex flex-wrap gap-2">

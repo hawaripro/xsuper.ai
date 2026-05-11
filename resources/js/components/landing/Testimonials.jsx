@@ -72,7 +72,7 @@ function TestimonialCard({ t, ...rest }) {
     return (
         <figure
             {...rest}
-            className="group shrink-0 w-[300px] md:w-[360px] relative p-6 lg:p-7 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] hover:shadow-[0_24px_56px_-16px_rgba(15,23,42,0.18)] hover:-translate-y-1 hover:border-red-200 transition-all duration-300 overflow-hidden"
+            className="group relative p-6 lg:p-7 rounded-3xl bg-white border border-gray-200/80 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] hover:shadow-[0_24px_56px_-16px_rgba(15,23,42,0.18)] hover:border-red-200 transition-all duration-300 overflow-hidden text-center"
         >
             <span className="absolute top-5 right-5 text-7xl font-black text-red-500/10 leading-none select-none pointer-events-none">
                 &ldquo;
@@ -86,7 +86,7 @@ function TestimonialCard({ t, ...rest }) {
                 &ldquo;{t.quote}&rdquo;
             </blockquote>
 
-            <figcaption className="relative flex items-center gap-3">
+            <figcaption className="relative flex items-center justify-center gap-3">
                 <div className={`relative w-11 h-11 rounded-xl bg-gradient-to-br ${t.grad} text-white font-black flex items-center justify-center shadow-md ring-4 ring-white group-hover:scale-110 transition-transform duration-200`}>
                     {t.avatar}
                     <span className="absolute inset-0 rounded-xl ring-1 ring-white/30 pointer-events-none" />

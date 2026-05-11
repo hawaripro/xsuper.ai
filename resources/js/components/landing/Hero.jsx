@@ -1,5 +1,8 @@
 import React from 'react';
 import UltrLogo from '../UltrLogo';
+import {
+    ClaudeLogo, ChatGPTLogo, GeminiLogo, DeepSeekLogo, QwenLogo, GLMLogo,
+} from './BrandIcons';
 
 /* ============================================================
    Hero — clean, centered, mobile-optimized.
@@ -84,6 +87,29 @@ export default function Hero() {
                             <svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                             {t}
                         </span>
+                    ))}
+                </div>
+
+                {/* 6 AI brand logos — floating/swaying gently */}
+                <div className="mt-10 flex items-center justify-center gap-4 md:gap-6 animate-fade-in-up" style={{ animationDelay: '280ms' }}>
+                    {[
+                        { Logo: ClaudeLogo,   name: 'Claude',   delay: '0s' },
+                        { Logo: ChatGPTLogo,  name: 'ChatGPT',  delay: '0.4s' },
+                        { Logo: GeminiLogo,   name: 'Gemini',   delay: '0.8s' },
+                        { Logo: DeepSeekLogo, name: 'DeepSeek', delay: '1.2s' },
+                        { Logo: QwenLogo,     name: 'Qwen',     delay: '1.6s' },
+                        { Logo: GLMLogo,      name: 'GLM',      delay: '2.0s' },
+                    ].map(({ Logo, name, delay }) => (
+                        <div
+                            key={name}
+                            className="animate-float"
+                            style={{ animationDelay: delay, animationDuration: '4s' }}
+                            title={name}
+                        >
+                            <span className="inline-flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white border border-gray-200/80 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.1)] p-2.5">
+                                <Logo className="w-full h-full" />
+                            </span>
+                        </div>
                     ))}
                 </div>
             </div>
