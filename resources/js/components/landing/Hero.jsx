@@ -29,13 +29,6 @@ export default function Hero() {
 
             {/* Content — all centered */}
             <div className="relative max-w-4xl mx-auto px-4 md:px-6 text-center">
-                {/* Logo with gentle sway */}
-                <div className="flex justify-center mb-8 animate-fade-in-down">
-                    <div className="animate-tilt">
-                        <UltrLogo className="w-20 h-20 md:w-24 md:h-24 !shadow-[0_20px_48px_-8px_rgba(239,68,68,0.5)]" />
-                    </div>
-                </div>
-
                 {/* Eyebrow */}
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 border border-red-200/80 backdrop-blur-sm text-red-600 text-[11px] font-bold uppercase tracking-[0.15em] mb-6 animate-fade-in-down shadow-[0_4px_16px_-4px_rgba(239,68,68,0.15)]">
                     <span className="relative flex w-2 h-2">

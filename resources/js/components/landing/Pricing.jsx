@@ -237,8 +237,8 @@ export default function Pricing() {
                     </p>
                 </div>
 
-                {/* Plans — carousel, 1 per 1 with prev/next */}
-                <div className="max-w-[360px] mx-auto mb-10">
+                {/* Plans — carousel, multiple visible, scroll 1 at a time */}
+                <div className="mb-10">
                     <Carousel autoPlay interval={6000}>
                         {PLANS.map((plan, i) => (
                             <PlanCard key={plan.key} plan={plan} index={i} />

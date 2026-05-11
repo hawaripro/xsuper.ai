@@ -300,6 +300,14 @@
 .animate-spin-slow-reverse { animation: spin-slow 50s linear infinite reverse; }
 .animate-orbit-reverse     { animation: orbit 26s linear infinite reverse; }
 .animate-marquee-reverse   { animation: marquee 55s linear infinite reverse; }
+
+/* Carousel item responsive widths */
+.carousel-item { width: 85%; }
+@media (min-width: 640px) { .carousel-item { width: 48%; } }
+@media (min-width: 1024px) { .carousel-item { width: 33.333%; } }
+:root { --carousel-item-w: 85%; }
+@media (min-width: 640px) { :root { --carousel-item-w: 48%; } }
+@media (min-width: 1024px) { :root { --carousel-item-w: 33.333%; } }
 .animate-blob-reverse      { animation: blob 20s ease-in-out infinite reverse; }
 .animate-blob-delay        { animation: blob 18s ease-in-out infinite 2s; }
 .animate-gradient          { background-size: 300% 100% !important; animation: gradient-shift 3s ease infinite !important; }

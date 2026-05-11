@@ -212,7 +212,7 @@ export default function Audience() {
                     </p>
                 </div>
 
-                <div className="max-w-[340px] mx-auto">
+                <div>
                     <Carousel autoPlay interval={4500}>
                         {AUDIENCES.map((a) => (
                             <div

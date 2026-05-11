@@ -121,8 +121,8 @@ export default function Testimonials() {
                     </p>
                 </div>
 
-                {/* Testimonials — carousel, 1 per 1 */}
-                <div className="max-w-[400px] mx-auto">
+                {/* Testimonials — carousel, multiple visible, scroll 1 */}
+                <div>
                     <Carousel autoPlay interval={5000}>
                         {TESTIMONIALS.map((t, i) => (
                             <TestimonialCard key={i} t={t} />
