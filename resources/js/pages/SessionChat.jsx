@@ -10,20 +10,29 @@ export default function SessionChat() {
 
     const loadUsers = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
-        setError('');
+        if (!silent) setError('');
         try {
             const res = await fetch('/api/a/chat-pro/users', {
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' },
             });
             if (res.ok) {
-                const data = await res.json();
-                setUsers(data.users || []);
+                const text = await res.text();
+                try {
+                    const data = JSON.parse(text);
+                    const list = Array.isArray(data.users) ? data.users : Array.isArray(data) ? data : [];
+                    setUsers(list);
+                } catch {
+                    setUsers([]);
+                    if (!silent) setError('Response bukan JSON valid.');
+                }
             } else {
-                setError('Gagal memuat data. Pastikan OPENWEBUI_API_KEY sudah diisi.');
+                setUsers([]);
+                if (!silent) setError(`Gagal memuat data (${res.status}). Pastikan OPENWEBUI_API_KEY sudah diisi.`);
             }
-        } catch {
-            setError('Tidak dapat terhubung ke server.');
+        } catch (e) {
+            setUsers([]);
+            if (!silent) setError('Tidak dapat terhubung ke server.');
         } finally {
             if (!silent) setLoading(false);
         }
