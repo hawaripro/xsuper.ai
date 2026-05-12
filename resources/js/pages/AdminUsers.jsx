@@ -46,7 +46,6 @@ export default function AdminUsers() {
     const [deviceModal, setDeviceModal] = useState(null);
     const [devices, setDevices] = useState([]);
     const [deviceAction, setDeviceAction] = useState(null); // { id, action: 'block'|'delete', name }
-    const [chatProUsers, setChatProUsers] = useState([]);
 
     const getCsrfToken = () => {
         return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
@@ -247,48 +246,6 @@ export default function AdminUsers() {
             if (deviceModal) loadDevices(deviceModal.id);
         } catch {}
     };
-
-    // Chat AI Pro (OpenWebUI) session management
-    const loadChatProUsers = async () => {
-        try {
-            const res = await fetch('/api/a/chat-pro/users', {
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' },
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setChatProUsers(data.users || data || []);
-            }
-        } catch {}
-    };
-
-    const forceLogoutChatPro = async (userId, email) => {
-        try {
-            await fetch(`/api/a/chat-pro/logout/${userId}`, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
-            });
-            loadChatProUsers();
-        } catch {}
-    };
-
-    const deleteChatProUser = async (userId, email) => {
-        if (!confirm(`Hapus user "${email}" dari Chat AI Pro?`)) return;
-        try {
-            await fetch(`/api/a/chat-pro/user/${userId}`, {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
-            });
-            loadChatProUsers();
-        } catch {}
-    };
-
-    // Load chat pro users on mount
-    useEffect(() => {
-        loadChatProUsers();
-    }, []);
 
     const filteredUsers = users.filter(u =>
         u.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -866,77 +823,6 @@ export default function AdminUsers() {
                     </div>
                 </div>
             )}
-
-            {/* Chat AI Pro Sessions (OpenWebUI) */}
-            <div className={`rounded-2xl border overflow-hidden animate-fade-in-up ${isDark ? 'border-white/[0.06] bg-gray-900/60 backdrop-blur-xl' : 'border-gray-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]'}`}>
-                <div className={`px-5 py-4 border-b flex items-center justify-between ${isDark ? 'border-white/[0.06]' : 'border-gray-200'}`}>
-                    <div>
-                        <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 text-white flex items-center justify-center shadow-md">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                            </span>
-                            Chat AI Pro Sessions
-                        </h3>
-                        <p className={`text-xs mt-0.5 ml-9 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Kelola sesi Open WebUI per user</p>
-                    </div>
-                    <button
-                        onClick={loadChatProUsers}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                            isDark
-                                ? 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-slate-900'
-                        }`}
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                        Refresh
-                    </button>
-                </div>
-                <div className={`divide-y ${isDark ? 'divide-white/[0.04]' : 'divide-gray-100'}`}>
-                    {chatProUsers.filter(u => u.role !== 'admin').map(u => (
-                        <div key={u.id} className={`group px-5 py-3.5 flex items-center justify-between transition-colors ${isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-red-50/40'}`}>
-                            <div className="flex items-center gap-3 min-w-0">
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold bg-gradient-to-br from-violet-500 to-purple-500 text-white shadow-[0_4px_12px_-2px_rgba(139,92,246,0.35)]`}>
-                                    {u.name?.[0]?.toUpperCase() || '?'}
-                                </div>
-                                <div className="min-w-0">
-                                    <div className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{u.name}</div>
-                                    <div className={`text-xs truncate ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{u.email}</div>
-                                </div>
-                            </div>
-                            <div className="flex gap-2 flex-shrink-0">
-                                <button
-                                    onClick={() => forceLogoutChatPro(u.id, u.email)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                                        isDark
-                                            ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/20'
-                                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                                    }`}
-                                    title="Force logout user dari Chat AI Pro"
-                                >
-                                    Force Logout
-                                </button>
-                                <button
-                                    onClick={() => deleteChatProUser(u.id, u.email)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                                        isDark
-                                            ? 'bg-red-500/10 text-red-300 hover:bg-red-500/20 border border-red-500/20'
-                                            : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                                    }`}
-                                    title="Hapus user dari Chat AI Pro"
-                                >
-                                    Hapus
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                    {chatProUsers.filter(u => u.role !== 'admin').length === 0 && (
-                        <div className={`px-5 py-10 text-center ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                            <svg className="w-8 h-8 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                            <p className="text-xs font-medium">Belum ada user Chat AI Pro</p>
-                        </div>
-                    )}
-                </div>
-            </div>
         </div>
     );
 }
