@@ -148,6 +148,9 @@ export default function DashboardLayout({ children }) {
 
     const externalLinks = [
         { name: 'Landing Page', href: '/', icon: Icons.home, internal: true },
+        ...(hasChat ? [
+            { name: 'Chat AI Pro', href: 'https://chat.ultrai.id', icon: Icons.external },
+        ] : []),
         ...(hasDashboardOfficial ? [
             { name: 'AI Dashboard Official', href: 'https://app.ultrai.id', icon: Icons.external },
         ] : []),
