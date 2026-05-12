@@ -30,7 +30,7 @@ class ChatProController extends Controller
             ])->get($this->baseUrl() . '/api/v1/users/');
 
             if ($response->successful()) {
-                return response()->json(['users' => $response->json()]);
+                return response()->json($response->json());
             }
 
             return response()->json(['users' => [], 'error' => 'Failed to fetch'], $response->status());
