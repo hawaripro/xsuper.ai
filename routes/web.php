@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\ChatProController;
 
 /*
 |--------------------------------------------------------------------------
@@ -106,6 +107,11 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/a/u', [AdminController::class, 'store']);
             Route::put('/a/u/{user}', [AdminController::class, 'update']);
             Route::delete('/a/u/{user}', [AdminController::class, 'destroy']);
+
+            // Chat AI Pro (OpenWebUI) session management
+            Route::get('/a/chat-pro/users', [ChatProController::class, 'users']);
+            Route::post('/a/chat-pro/logout/{userId}', [ChatProController::class, 'forceLogout']);
+            Route::delete('/a/chat-pro/user/{userId}', [ChatProController::class, 'deleteUser']);
         });
 
     });

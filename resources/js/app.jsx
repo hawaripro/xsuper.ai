@@ -14,6 +14,7 @@ import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
 import VideoGenerator from './pages/VideoGenerator';
 import TokenUsage from './pages/TokenUsage';
+import SessionChat from './pages/SessionChat';
 import ErrorPage from './pages/ErrorPage';
 
 // Layout
@@ -92,6 +93,9 @@ function App() {
                     } />
                     <Route path="/usage" element={
                         <ProtectedRoute adminOnly><DashboardLayout><TokenUsage /></DashboardLayout></ProtectedRoute>
+                    } />
+                    <Route path="/sessions" element={
+                        <ProtectedRoute adminOnly><DashboardLayout><SessionChat /></DashboardLayout></ProtectedRoute>
                     } />
 
                     {/* Catch all — 404 */}

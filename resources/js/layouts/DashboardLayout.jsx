@@ -142,6 +142,7 @@ export default function DashboardLayout({ children }) {
         ...(isAdmin ? [
             { name: 'Kelola Users', href: '/admin', icon: Icons.users },
             { name: 'Token Usage', href: '/usage', icon: Icons.chart },
+            { name: 'Session Chat', href: '/sessions', icon: Icons.chat },
         ] : []),
         { name: 'Profil', href: '/profile', icon: Icons.profile },
     ];
