@@ -159,9 +159,9 @@ class AiProxyService
                 CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse, $onChunk) {
                     $data = \App\Http\Controllers\Api\ExternalApiController::clean($data);
 
-                    // Forward data immediately (no validation delay)
+                    // Disable all output buffering and flush immediately
+                    while (ob_get_level()) ob_end_flush();
                     echo $data;
-                    if (ob_get_level()) ob_flush();
                     flush();
 
                     // Parse for collecting full response (non-blocking)
