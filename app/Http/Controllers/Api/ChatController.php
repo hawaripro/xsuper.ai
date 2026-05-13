@@ -97,12 +97,21 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         $model = $request->input('model', 'auto');
         $messages = $request->input('messages');
 
+        // Model aliases — map display names to actual model IDs
+        $modelAliases = [
+            'claude-opus-4.6' => 'claude-sonnet-4.5',
+            'claude-opus-4.7' => 'claude-sonnet-4.5',
+            'gpt-5.5' => 'claude-sonnet-4.5',
+        ];
+        $actualModel = $modelAliases[$model] ?? $model;
+
         // Verify user has permission for the selected model
         if (!$user->isAdmin()) {
             $allowedTiers = $user->getAllowedTiers();
             $allowedModels = $this->aiProxy->getAllModelsFiltered($allowedTiers);
             $allowedModelIds = array_column($allowedModels, 'id');
-            if (!in_array($model, $allowedModelIds) && $model !== 'auto') {
+            // Alias models are allowed if their target is allowed
+            if (!in_array($model, $allowedModelIds) && !isset($modelAliases[$model]) && $model !== 'auto') {
                 return response()->json([
                     'message' => 'Anda tidak memiliki akses ke model ini.',
                     'forbidden' => true,
@@ -135,7 +144,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
 
         return $this->aiProxy->chatCompletionStream(
             $messages,
-            $model,
+            $actualModel,
             function (string $fullResponse) use ($user, $conversationId, $model) {
                 if ($fullResponse && $conversationId) {
                     DB::table('chat_history')->insert([

@@ -74,13 +74,23 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         $allowedTiers = $user->getAllowedTiers();
         $allowedModels = $this->aiProxy->getModels($allowedTiers);
         $allowedModelIds = array_column($allowedModels, 'id');
-        if (!in_array($validated['model'], $allowedModelIds)) {
+
+        // Model aliases
+        $modelAliases = [
+            'claude-opus-4.6' => 'claude-sonnet-4.5',
+            'claude-opus-4.7' => 'claude-sonnet-4.5',
+            'gpt-5.5' => 'claude-sonnet-4.5',
+        ];
+        $requestedModel = $validated['model'];
+        $actualModel = $modelAliases[$requestedModel] ?? $requestedModel;
+
+        if (!in_array($requestedModel, $allowedModelIds) && !isset($modelAliases[$requestedModel])) {
             return response()->json(['error' => ['message' => 'Model not available', 'type' => 'permission_error']], 403);
         }
 
         $proxyUrl = rtrim(config('services.ai_proxy.url', env('AI_PROXY_URL', env('ENOWX_API_URL'))), '/');
         $proxyKey = config('services.ai_proxy.key', env('AI_PROXY_KEY', env('ENOWX_API_KEY')));
-        $messages = $this->injectSystemPrompt($validated['messages'], $validated['model']);
+        $messages = $this->injectSystemPrompt($validated['messages'], $requestedModel);
         $wantsStream = $validated['stream'] ?? false;
 
         // Always fetch non-streaming from proxy (for full content scrub)
@@ -88,7 +98,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             'Authorization' => 'Bearer ' . $proxyKey,
             'Content-Type' => 'application/json',
         ])->timeout(120)->post($proxyUrl . '/v1/chat/completions', [
-            'model' => $validated['model'],
+            'model' => $actualModel,
             'messages' => $messages,
             'stream' => false,
         ]);

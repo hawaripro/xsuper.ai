@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 
@@ -54,6 +55,9 @@ class AdminController extends Controller
             'expires_at' => $expiresAt,
             'permissions' => $permissions,
         ]);
+
+        // Auto-create user di OpenWebUI (chat.ultrai.id)
+        $this->syncCreateOpenWebUI($validated['name'], $validated['email'], $validated['password'], $validated['role']);
 
         return response()->json(['user' => $user, 'message' => 'User berhasil dibuat'], 201);
     }
@@ -108,6 +112,9 @@ class AdminController extends Controller
             return response()->json(['message' => 'Tidak bisa menghapus akun sendiri'], 403);
         }
 
+        // Auto-delete user dari OpenWebUI
+        $this->syncDeleteOpenWebUI($user->email);
+
         $user->delete();
 
         return response()->json(['message' => 'User berhasil dihapus']);
@@ -125,5 +132,66 @@ class AdminController extends Controller
             '365d' => $base->copy()->addYear(),
             default => $base->copy()->addMonth(),
         };
+    }
+
+    /**
+     * Create user di OpenWebUI dengan email + password yang sama.
+     */
+    private function syncCreateOpenWebUI(string $name, string $email, string $password, string $role): void
+    {
+        try {
+            $baseUrl = rtrim(config('services.openwebui.url', 'https://chat.ultrai.id'), '/');
+            $apiKey = config('services.openwebui.key', '');
+
+            if (empty($apiKey)) return;
+
+            Http::withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Content-Type' => 'application/json',
+            ])->post($baseUrl . '/api/v1/auths/add', [
+                'name' => $name,
+                'email' => $email,
+                'password' => $password,
+                'role' => $role === 'admin' ? 'admin' : 'user',
+            ]);
+        } catch (\Exception $e) {
+            // Silently fail — don't block user creation
+            \Log::warning('OpenWebUI sync create failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete user dari OpenWebUI berdasarkan email.
+     */
+    private function syncDeleteOpenWebUI(string $email): void
+    {
+        try {
+            $baseUrl = rtrim(config('services.openwebui.url', 'https://chat.ultrai.id'), '/');
+            $apiKey = config('services.openwebui.key', '');
+
+            if (empty($apiKey)) return;
+
+            // First find user ID by email
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey,
+            ])->get($baseUrl . '/api/v1/users/');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $users = $data['users'] ?? $data ?? [];
+
+                foreach ($users as $u) {
+                    if (($u['email'] ?? '') === $email) {
+                        // Delete by ID
+                        Http::withHeaders([
+                            'Authorization' => 'Bearer ' . $apiKey,
+                        ])->delete($baseUrl . '/api/v1/users/' . $u['id']);
+                        break;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::warning('OpenWebUI sync delete failed: ' . $e->getMessage());
+        }
     }
 }
