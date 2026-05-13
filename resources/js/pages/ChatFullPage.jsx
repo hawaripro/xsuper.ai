@@ -1082,13 +1082,7 @@ export default function ChatFullPage() {
                         <ModelSelector
                             models={models}
                             selectedModel={selectedModel}
-                            onSelect={(modelId) => {
-                                if (modelId !== selectedModel && messages.length > 0) {
-                                    // Auto new conversation when switching model mid-chat
-                                    newConversation();
-                                }
-                                setSelectedModel(modelId);
-                            }}
+                            onSelect={setSelectedModel}
                             selectedCategory={selectedCategory}
                             onCategoryChange={setSelectedCategory}
                             isDark={isDark}
