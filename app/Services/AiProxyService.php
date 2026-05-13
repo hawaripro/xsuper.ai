@@ -300,13 +300,7 @@ class AiProxyService
      */
     private function getAliasModels(array $allowedTiers): array
     {
-        if (!in_array('Standard', $allowedTiers)) return [];
-
-        return [
-            ['id' => 'claude-opus-4-6', 'name' => 'Claude Opus 4-6', 'tier' => 'Original', 'category' => 'chat'],
-            ['id' => 'claude-opus-4-7', 'name' => 'Claude Opus 4-7', 'tier' => 'Original', 'category' => 'chat'],
-            ['id' => 'gpt-5-5', 'name' => 'GPT-5-5', 'tier' => 'Original', 'category' => 'chat'],
-        ];
+        return [];
     }
 
     /**

@@ -702,12 +702,12 @@ export default function ChatFullPage() {
 
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-        // Typing animation: reveal characters gradually
-        const TYPING_SPEED = 8; // ms per character (fast but visible)
+        // Typing animation: reveal characters gradually but keep up with stream
+        const TYPING_SPEED = 12; // ms per tick
         const typeNext = () => {
             if (typingQueue.length === 0) { typingTimer = null; return; }
-            // Type multiple chars per tick for speed
-            const charsPerTick = Math.max(1, Math.min(5, Math.floor(typingQueue.length / 10)));
+            // Adaptive: more chars per tick when queue is large (prevents falling behind)
+            const charsPerTick = Math.max(3, Math.ceil(typingQueue.length / 5));
             displayedText += typingQueue.slice(0, charsPerTick);
             typingQueue = typingQueue.slice(charsPerTick);
             setMessages(prev => {
