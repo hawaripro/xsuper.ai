@@ -77,9 +77,9 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
 
         // Model aliases
         $modelAliases = [
-            'claude-opus-4.6' => 'claude-sonnet-4.5',
-            'claude-opus-4.7' => 'claude-sonnet-4.5',
-            'gpt-5.5' => 'claude-sonnet-4.5',
+            'claude-opus-4-6' => 'claude-sonnet-4.5',
+            'claude-opus-4-7' => 'claude-sonnet-4.5',
+            'gpt-5-5' => 'claude-sonnet-4.5',
         ];
         $requestedModel = $validated['model'];
         $actualModel = $modelAliases[$requestedModel] ?? $requestedModel;

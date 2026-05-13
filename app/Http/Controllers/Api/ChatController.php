@@ -99,9 +99,9 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
 
         // Model aliases — map display names to actual model IDs
         $modelAliases = [
-            'claude-opus-4.6' => 'claude-sonnet-4.5',
-            'claude-opus-4.7' => 'claude-sonnet-4.5',
-            'gpt-5.5' => 'claude-sonnet-4.5',
+            'claude-opus-4-6' => 'claude-sonnet-4.5',
+            'claude-opus-4-7' => 'claude-sonnet-4.5',
+            'gpt-5-5' => 'claude-sonnet-4.5',
         ];
         $actualModel = $modelAliases[$model] ?? $model;
 

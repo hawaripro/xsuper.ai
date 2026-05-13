@@ -53,7 +53,6 @@ class AiProxyService
                     ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
-                    ->filter(fn($m) => !in_array($m['id'] ?? '', ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5']))
                     ->map(fn($m) => $this->scrubModel($m, $tierMap))
                     ->values()
                     ->toArray();
@@ -270,7 +269,6 @@ class AiProxyService
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'default'))
-                    ->filter(fn($m) => !in_array($m['id'] ?? '', ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5']))
                     ->map(fn($m) => $this->scrubModelFull($m, $tierMap))
                     ->values()
                     ->push(...$this->getAliasModels($allowedTiers))
@@ -302,13 +300,12 @@ class AiProxyService
      */
     private function getAliasModels(array $allowedTiers): array
     {
-        // Show aliases if user has Standard tier (Original)
         if (!in_array('Standard', $allowedTiers)) return [];
 
         return [
-            ['id' => 'claude-opus-4.6', 'name' => 'Claude Opus 4.6', 'tier' => 'Original', 'category' => 'chat'],
-            ['id' => 'claude-opus-4.7', 'name' => 'Claude Opus 4.7', 'tier' => 'Original', 'category' => 'chat'],
-            ['id' => 'gpt-5.5', 'name' => 'GPT-5.5', 'tier' => 'Original', 'category' => 'chat'],
+            ['id' => 'claude-opus-4-6', 'name' => 'Claude Opus 4-6', 'tier' => 'Original', 'category' => 'chat'],
+            ['id' => 'claude-opus-4-7', 'name' => 'Claude Opus 4-7', 'tier' => 'Original', 'category' => 'chat'],
+            ['id' => 'gpt-5-5', 'name' => 'GPT-5-5', 'tier' => 'Original', 'category' => 'chat'],
         ];
     }
 
