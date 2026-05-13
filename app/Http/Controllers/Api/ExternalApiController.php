@@ -93,7 +93,12 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         $messages = $this->injectSystemPrompt($validated['messages'], $requestedModel);
         $wantsStream = $validated['stream'] ?? false;
 
-        // Always fetch non-streaming from proxy (for full content scrub)
+        // ─── REAL STREAMING PATH ───
+        if ($wantsStream) {
+            return $this->handleStreamingRequest($user, $validated, $proxyUrl, $proxyKey, $actualModel, $requestedModel, $messages);
+        }
+
+        // ─── NON-STREAMING PATH (unchanged — deepClean active) ───
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $proxyKey,
             'Content-Type' => 'application/json',
@@ -116,7 +121,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             }
         }
         if (isset($data['model'])) {
-            $data['model'] = $requestedModel; // Show the model name user requested, not internal
+            $data['model'] = $requestedModel;
         }
 
         // Log usage
@@ -124,46 +129,207 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             UsageLog::record($user->id, $validated['model'], $data['usage'], 'api');
         }
 
-        // If client wants streaming, convert to SSE format
-        if ($wantsStream) {
-            $content = $data['choices'][0]['message']['content'] ?? '';
-            $id = $data['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(12));
-            $model = $data['model'] ?? $validated['model'];
+        return response()->json($data);
+    }
 
-            // If content empty after scrub, send minimal response
-            if (trim($content) === '') {
-                $content = 'Saya siap membantu Anda.';
+    /**
+     * Real SSE streaming: forward stream=true to upstream, apply clean() per-chunk
+     * with 30-char carryover buffer to catch split words like "eno" + "wx labs".
+     */
+    private function handleStreamingRequest($user, array $validated, string $proxyUrl, string $proxyKey, string $actualModel, string $requestedModel, array $messages): StreamedResponse
+    {
+        return new StreamedResponse(function () use ($user, $validated, $proxyUrl, $proxyKey, $actualModel, $requestedModel, $messages) {
+            // Carryover buffer size — must be longer than longest pattern in clean()
+            $bufferSize = 30;
+            $buffer = '';
+            $usageData = null;
+
+            $emitSse = function (string $raw) {
+                echo $raw;
+                if (ob_get_level()) ob_flush();
+                flush();
+            };
+
+            $emitChunk = function (array $data) use ($emitSse) {
+                $emitSse('data: ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n");
+            };
+
+            try {
+                // Open streaming connection to upstream
+                $client = new \GuzzleHttp\Client();
+                $upstreamResponse = $client->post($proxyUrl . '/v1/chat/completions', [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $proxyKey,
+                        'Content-Type' => 'application/json',
+                        'Accept' => 'text/event-stream',
+                    ],
+                    'json' => [
+                        'model' => $actualModel,
+                        'messages' => $messages,
+                        'stream' => true,
+                    ],
+                    'stream' => true,
+                    'timeout' => 120,
+                    'read_timeout' => 120,
+                ]);
+
+                $body = $upstreamResponse->getBody();
+                $lineBuffer = '';
+
+                // Read SSE stream byte-by-byte via line parsing
+                while (!$body->eof()) {
+                    $chunk = $body->read(8192);
+                    if ($chunk === '' || $chunk === false) {
+                        break;
+                    }
+
+                    $lineBuffer .= $chunk;
+                    $lines = explode("\n", $lineBuffer);
+                    // Last element is incomplete line — keep in buffer
+                    $lineBuffer = array_pop($lines);
+
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if ($line === '') continue;
+
+                        // SSE done signal
+                        if ($line === 'data: [DONE]') {
+                            // Flush remaining buffer with clean()
+                            if ($buffer !== '') {
+                                $cleaned = self::clean($buffer);
+                                if ($cleaned !== '') {
+                                    $emitChunk([
+                                        'id' => 'chatcmpl-' . bin2hex(random_bytes(4)),
+                                        'object' => 'chat.completion.chunk',
+                                        'created' => time(),
+                                        'model' => $requestedModel,
+                                        'choices' => [['index' => 0, 'delta' => ['content' => $cleaned], 'finish_reason' => null]],
+                                    ]);
+                                }
+                                $buffer = '';
+                            }
+                            // Emit stop + DONE
+                            $emitChunk([
+                                'id' => 'chatcmpl-' . bin2hex(random_bytes(4)),
+                                'object' => 'chat.completion.chunk',
+                                'created' => time(),
+                                'model' => $requestedModel,
+                                'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => 'stop']],
+                            ]);
+                            $emitSse("data: [DONE]\n\n");
+                            break 2; // Exit both loops
+                        }
+
+                        // Parse SSE data line
+                        if (!str_starts_with($line, 'data: ')) continue;
+                        $json = substr($line, 6);
+                        $event = json_decode($json, true);
+                        if (!$event) continue;
+
+                        // Capture usage if present (usually in last chunk)
+                        if (isset($event['usage'])) {
+                            $usageData = $event['usage'];
+                        }
+
+                        // Extract delta content
+                        $delta = $event['choices'][0]['delta'] ?? [];
+
+                        // Forward role chunk immediately (no buffering needed)
+                        if (isset($delta['role'])) {
+                            $emitChunk([
+                                'id' => $event['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(4)),
+                                'object' => 'chat.completion.chunk',
+                                'created' => $event['created'] ?? time(),
+                                'model' => $requestedModel,
+                                'choices' => [['index' => 0, 'delta' => ['role' => $delta['role']], 'finish_reason' => null]],
+                            ]);
+                            continue;
+                        }
+
+                        // Content delta — apply carryover buffer + clean()
+                        if (isset($delta['content'])) {
+                            $buffer .= $delta['content'];
+
+                            // Only emit when buffer exceeds carryover size
+                            if (mb_strlen($buffer) > $bufferSize) {
+                                $emitPart = mb_substr($buffer, 0, mb_strlen($buffer) - $bufferSize);
+                                $buffer = mb_substr($buffer, mb_strlen($buffer) - $bufferSize);
+
+                                $cleaned = self::clean($emitPart);
+                                if ($cleaned !== '') {
+                                    $emitChunk([
+                                        'id' => $event['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(4)),
+                                        'object' => 'chat.completion.chunk',
+                                        'created' => $event['created'] ?? time(),
+                                        'model' => $requestedModel,
+                                        'choices' => [['index' => 0, 'delta' => ['content' => $cleaned], 'finish_reason' => null]],
+                                    ]);
+                                }
+                            }
+                            continue;
+                        }
+
+                        // finish_reason without content (stop signal from upstream without [DONE])
+                        if (isset($event['choices'][0]['finish_reason']) && $event['choices'][0]['finish_reason'] !== null) {
+                            // Flush buffer
+                            if ($buffer !== '') {
+                                $cleaned = self::clean($buffer);
+                                if ($cleaned !== '') {
+                                    $emitChunk([
+                                        'id' => $event['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(4)),
+                                        'object' => 'chat.completion.chunk',
+                                        'created' => $event['created'] ?? time(),
+                                        'model' => $requestedModel,
+                                        'choices' => [['index' => 0, 'delta' => ['content' => $cleaned], 'finish_reason' => null]],
+                                    ]);
+                                }
+                                $buffer = '';
+                            }
+                            $emitChunk([
+                                'id' => $event['id'] ?? 'chatcmpl-' . bin2hex(random_bytes(4)),
+                                'object' => 'chat.completion.chunk',
+                                'created' => $event['created'] ?? time(),
+                                'model' => $requestedModel,
+                                'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => $event['choices'][0]['finish_reason']]],
+                            ]);
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Flush any remaining buffer on error
+                if ($buffer !== '') {
+                    $cleaned = self::clean($buffer);
+                    if ($cleaned !== '') {
+                        $emitChunk([
+                            'id' => 'chatcmpl-' . bin2hex(random_bytes(4)),
+                            'object' => 'chat.completion.chunk',
+                            'created' => time(),
+                            'model' => $requestedModel,
+                            'choices' => [['index' => 0, 'delta' => ['content' => $cleaned], 'finish_reason' => null]],
+                        ]);
+                    }
+                }
+                // Emit error as SSE then close
+                $emitChunk([
+                    'id' => 'chatcmpl-' . bin2hex(random_bytes(4)),
+                    'object' => 'chat.completion.chunk',
+                    'created' => time(),
+                    'model' => $requestedModel,
+                    'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => 'stop']],
+                ]);
+                $emitSse("data: [DONE]\n\n");
             }
 
-            return new StreamedResponse(function () use ($content, $id, $model) {
-                $json = function($data) {
-                    return 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
-                };
-
-                // Role chunk
-                echo $json(['id' => $id, 'object' => 'chat.completion.chunk', 'created' => time(), 'model' => $model, 'choices' => [['index' => 0, 'delta' => ['role' => 'assistant'], 'finish_reason' => null]]]);
-                if (ob_get_level()) ob_flush();
-                flush();
-
-                // Content chunks — send entire content in one chunk to avoid splitting issues
-                echo $json(['id' => $id, 'object' => 'chat.completion.chunk', 'created' => time(), 'model' => $model, 'choices' => [['index' => 0, 'delta' => ['content' => $content], 'finish_reason' => null]]]);
-                if (ob_get_level()) ob_flush();
-                flush();
-
-                // Finish + DONE
-                echo $json(['id' => $id, 'object' => 'chat.completion.chunk', 'created' => time(), 'model' => $model, 'choices' => [['index' => 0, 'delta' => new \stdClass(), 'finish_reason' => 'stop']]]);
-                echo "data: [DONE]\n\n";
-                if (ob_get_level()) ob_flush();
-                flush();
-            }, 200, [
-                'Content-Type' => 'text/event-stream',
-                'Cache-Control' => 'no-cache',
-                'Connection' => 'keep-alive',
-                'X-Accel-Buffering' => 'no',
-            ]);
-        }
-
-        return response()->json($data);
+            // Log usage
+            if ($usageData) {
+                UsageLog::record($user->id, $validated['model'], $usageData, 'api');
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     private function injectSystemPrompt(array $messages, string $modelId = ''): array
