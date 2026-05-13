@@ -53,6 +53,7 @@ class AiProxyService
                     ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
+                    ->filter(fn($m) => !in_array($m['id'] ?? '', ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5']))
                     ->map(fn($m) => $this->scrubModel($m, $tierMap))
                     ->values()
                     ->toArray();
@@ -269,6 +270,7 @@ class AiProxyService
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'default'))
+                    ->filter(fn($m) => !in_array($m['id'] ?? '', ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5']))
                     ->map(fn($m) => $this->scrubModelFull($m, $tierMap))
                     ->values()
                     ->push(...$this->getAliasModels($allowedTiers))
