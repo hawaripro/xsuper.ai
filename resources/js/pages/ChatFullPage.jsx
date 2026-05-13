@@ -696,8 +696,25 @@ export default function ChatFullPage() {
         const decoder = new TextDecoder();
         let buffer = '';
         let fullText = '';
+        let displayedLen = 0;
+        let animFrame = null;
 
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+        // Smooth typing: use requestAnimationFrame for 60fps text reveal
+        const revealText = () => {
+            if (displayedLen >= fullText.length) { animFrame = null; return; }
+            // Reveal 2-8 chars per frame depending on backlog
+            const remaining = fullText.length - displayedLen;
+            const step = remaining > 100 ? 8 : remaining > 30 ? 4 : 2;
+            displayedLen = Math.min(displayedLen + step, fullText.length);
+            setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText.slice(0, displayedLen)) };
+                return updated;
+            });
+            animFrame = requestAnimationFrame(revealText);
+        };
 
         for (;;) {
             const { done, value } = await reader.read();
@@ -710,21 +727,35 @@ export default function ChatFullPage() {
             for (const line of lines) {
                 if (!line.startsWith('data: ')) continue;
                 const data = line.slice(6);
-                if (data === '[DONE]') return fullText;
+                if (data === '[DONE]') {
+                    // Wait for animation to finish then flush
+                    if (animFrame) cancelAnimationFrame(animFrame);
+                    setMessages(prev => {
+                        const updated = [...prev];
+                        updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
+                        return updated;
+                    });
+                    return fullText;
+                }
 
                 try {
                     const delta = JSON.parse(data).choices?.[0]?.delta;
                     if (delta?.content) {
                         fullText += delta.content;
-                        setMessages(prev => {
-                            const updated = [...prev];
-                            updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
-                            return updated;
-                        });
+                        // Start animation if not running
+                        if (!animFrame) animFrame = requestAnimationFrame(revealText);
                     }
                 } catch {}
             }
         }
+
+        // Flush full text at end
+        if (animFrame) cancelAnimationFrame(animFrame);
+        setMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
+            return updated;
+        });
         return fullText;
     };
 
