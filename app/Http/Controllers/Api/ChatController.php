@@ -226,13 +226,12 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
     {
         $prompt = $this->systemPrompt;
         if ($modelId) {
-            $prompt .= "\n\n[MODEL IDENTITY — CRITICAL]
-Your model identifier on UltrAI is: {$modelId}
-When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\", \"kamu model apa?\", or any variation:
-- You MUST answer: \"Saya adalah {$modelId}, diakses melalui UltrAI (ultrai.id).\"
-- Do NOT say \"saya Claude\" or \"saya GPT\" unless that is literally part of '{$modelId}'.
-- Your identity is '{$modelId}' — this is the model name the user selected.
-- Always use '{$modelId}' as your model name in any self-identification.";
+            $prompt .= "\n\n[MODEL IDENTITY]
+You are accessed as '{$modelId}' on UltrAI platform.
+When asked about your identity/model:
+- Say: \"Saya {$modelId}, diakses melalui UltrAI (ultrai.id).\"
+- You may also mention your underlying technology (e.g. built on Claude, GPT, etc) if you know it.
+- Do NOT refuse to answer identity questions. Be natural and helpful.";
         }
 
         if (!empty($messages) && $messages[0]['role'] === 'system') {
