@@ -51,7 +51,7 @@ class AiProxyService
                 // Models that should only appear in Authentic (MAX), not Original (Standard)
                 $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
 
-                return collect($data['data'] ?? [])
+                $models = collect($data['data'] ?? [])
                     ->filter(fn($m) => in_array($m['category'] ?? '', $allowedCategories))
                     ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
@@ -60,6 +60,16 @@ class AiProxyService
                     ->map(fn($m) => $this->scrubModel($m, $tierMap))
                     ->values()
                     ->toArray();
+
+                // Inject alias models for API key users too
+                $aliases = $this->getAliasModels($allowedTiers);
+                if (!empty($aliases)) {
+                    foreach ($aliases as $alias) {
+                        $models[] = ['id' => $alias['id'], 'name' => $alias['name'], 'category' => $alias['tier'] ?? 'Original'];
+                    }
+                }
+
+                return $models;
             }
 
             Log::warning('AI Proxy models request failed', [
