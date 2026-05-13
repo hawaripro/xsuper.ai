@@ -93,7 +93,8 @@ function rebrandText(text) {
         .replace(new RegExp(p + 'ai', 'gi'), 'UltrAI')
         .replace(new RegExp(p + '\\s*labs', 'gi'), 'UltrAI')
         .replace(new RegExp(p, 'gi'), 'UltrAI')
-        .replace(/UltrAI\s*Labs/gi, 'UltrAI');
+        .replace(/UltrAI\s*Labs/gi, 'UltrAI')
+        .replace(/\bKiro\b/gi, 'UltrAI');
 }
 
 // ============================================

@@ -195,6 +195,7 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
         $text = preg_replace('/enowx/i', 'UltrAI', $text);
         $text = preg_replace('/UltrAI\s*Labs/i', 'UltrAI', $text);
         $text = preg_replace('/\bLabs\b/', '', $text);
+        $text = preg_replace('/\bKiro\b/i', 'UltrAI', $text);
         return $text;
     }
 
