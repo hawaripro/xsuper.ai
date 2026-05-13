@@ -237,6 +237,9 @@ export default function Dashboard() {
     const [time, setTime] = useState(new Date());
     const [aiStatus, setAiStatus] = useState({ online: null, total_models: 0, chat_models: 0 });
     const [chatCount, setChatCount] = useState(0);
+    const [showDurasiModal, setShowDurasiModal] = useState(false);
+    const [orderLoading, setOrderLoading] = useState(false);
+    const [orderMsg, setOrderMsg] = useState('');
 
     useEffect(() => {
         const timer = setInterval(() => setTime(new Date()), 60000);
@@ -460,6 +463,23 @@ export default function Dashboard() {
                                 isDark={isDark}
                                 accent="emerald"
                             />
+                            <button
+                                onClick={() => setShowDurasiModal(true)}
+                                className={`group flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 text-left w-full ${
+                                    isDark
+                                        ? 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1]'
+                                        : 'bg-gray-50/70 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm'
+                                }`}
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 border border-amber-400/20 flex items-center justify-center text-white flex-shrink-0 group-hover:scale-110 transition-transform shadow-md">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className={`text-sm font-semibold group-hover:text-amber-500 transition-colors ${isDark ? 'text-white' : 'text-slate-900'}`}>Tambah Durasi</div>
+                                    <div className={`text-xs truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Perpanjang masa aktif akun</div>
+                                </div>
+                                <svg className={`w-4 h-4 group-hover:translate-x-0.5 transition-all flex-shrink-0 ${isDark ? 'text-gray-600 group-hover:text-gray-400' : 'text-gray-300 group-hover:text-gray-500'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+                            </button>
                         </div>
                     </div>
 
@@ -561,6 +581,96 @@ export default function Dashboard() {
                     </div>
                 </div>
             </section>
+
+            {/* Tambah Durasi Modal */}
+            {showDurasiModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowDurasiModal(false); setOrderMsg(''); }} />
+                    <div className={`relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border p-6 shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`} style={{ animation: 'scale-in 0.2s ease-out' }}>
+                        <div className="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Tambah Durasi</h3>
+                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Pilih paket untuk perpanjang masa aktif
+                                    {user?.days_remaining != null && user.days_remaining > 0 && (
+                                        <span className="ml-1 font-semibold text-emerald-500">· Sisa {user.days_remaining} hari</span>
+                                    )}
+                                </p>
+                            </div>
+                            <button onClick={() => { setShowDurasiModal(false); setOrderMsg(''); }} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        {orderMsg && (
+                            <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium ${
+                                orderMsg.includes('berhasil') ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200')
+                                : (isDark ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-red-50 text-red-600 border border-red-200')
+                            }`}>
+                                {orderMsg}
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {[
+                                { key: '1_day', label: '1 Hari', price: 5000, color: 'from-slate-500 to-slate-600' },
+                                { key: '1_week', label: '1 Minggu', price: 20000, color: 'from-blue-500 to-blue-600' },
+                                { key: '1_month', label: '1 Bulan', price: 55000, color: 'from-red-500 to-orange-500', popular: true },
+                                { key: '3_months', label: '3 Bulan', price: 135000, color: 'from-emerald-500 to-teal-500' },
+                                { key: '6_months', label: '6 Bulan', price: 299000, color: 'from-violet-500 to-purple-500' },
+                                { key: '12_months', label: '12 Bulan', price: 499000, color: 'from-amber-500 to-orange-500' },
+                            ].map(pkg => (
+                                <button
+                                    key={pkg.key}
+                                    disabled={orderLoading}
+                                    onClick={async () => {
+                                        setOrderLoading(true);
+                                        setOrderMsg('');
+                                        try {
+                                            const csrf = (() => { try { const m = document.cookie.match(/XSRF-TOKEN=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; } catch { return ''; } })();
+                                            const res = await fetch('/api/period/order', {
+                                                method: 'POST',
+                                                credentials: 'same-origin',
+                                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+                                                body: JSON.stringify({ package: pkg.key }),
+                                            });
+                                            const data = await res.json();
+                                            if (res.ok) {
+                                                setOrderMsg(data.message || 'Order berhasil! Menunggu persetujuan admin.');
+                                            } else {
+                                                setOrderMsg(data.message || 'Gagal membuat order.');
+                                            }
+                                        } catch { setOrderMsg('Terjadi kesalahan.'); }
+                                        finally { setOrderLoading(false); }
+                                    }}
+                                    className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border transition-all duration-200 hover:scale-[1.03] disabled:opacity-50 ${
+                                        pkg.popular
+                                            ? (isDark ? 'bg-red-500/10 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'bg-red-50 border-red-300 shadow-md')
+                                            : (isDark ? 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]' : 'bg-gray-50 border-gray-200 hover:bg-white hover:border-gray-300')
+                                    }`}
+                                >
+                                    {pkg.popular && (
+                                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg">
+                                            Populer
+                                        </span>
+                                    )}
+                                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center text-white shadow-lg`}>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    </div>
+                                    <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{pkg.label}</div>
+                                    <div className={`text-xs font-semibold ${pkg.popular ? 'text-red-500' : (isDark ? 'text-gray-400' : 'text-gray-500')}`}>
+                                        Rp {new Intl.NumberFormat('id-ID').format(pkg.price)}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <p className={`text-center text-[10px] mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            Setelah order, admin akan memproses dalam hitungan menit. Durasi ditambahkan ke sisa waktu aktif Anda.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

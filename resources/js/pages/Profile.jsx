@@ -3,6 +3,72 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 /* ============================================================
+   Duration Countdown — shows remaining time for member
+   For ≤5 days: shows HH:MM:SS countdown
+   For >5 days: shows X hari Y jam
+   ============================================================ */
+function DurationCountdown({ user, isDark }) {
+    const [now, setNow] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    if (!user?.expires_at) {
+        return (
+            <div className={`mt-2 text-xs font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                ∞ Unlimited
+            </div>
+        );
+    }
+
+    const expiry = new Date(user.expires_at);
+    const diff = expiry - now;
+
+    if (diff <= 0) {
+        return (
+            <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-bold ${isDark ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                ⚠️ Expired
+            </div>
+        );
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    // For ≤5 days: show countdown timer (HH:MM:SS)
+    const isUrgent = days <= 5;
+    const pad = (n) => String(n).padStart(2, '0');
+
+    let display;
+    if (days === 0) {
+        display = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    } else if (isUrgent) {
+        display = `${days} hari ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    } else {
+        display = `${days} hari ${hours} jam`;
+    }
+
+    const colorClass = days <= 1
+        ? (isDark ? 'bg-red-500/15 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200')
+        : days <= 5
+            ? (isDark ? 'bg-amber-500/15 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200')
+            : (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200');
+
+    return (
+        <div className={`mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${colorClass}`}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+            {display}
+        </div>
+    );
+}
+
+/* ============================================================
    Small reusable field input
    ============================================================ */
 function Field({ label, icon, type = 'text', value, onChange, required, minLength, placeholder, autoComplete, isDark, id }) {
@@ -240,6 +306,8 @@ export default function Profile() {
                                 Akun aktif
                             </span>
                         </div>
+                        {/* Duration countdown */}
+                        {!isAdmin && <DurationCountdown user={user} isDark={isDark} />}
                     </div>
                 </div>
 
