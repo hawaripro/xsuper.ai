@@ -703,11 +703,11 @@ export default function ChatFullPage() {
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
         // Typing animation: reveal characters gradually but keep up with stream
-        const TYPING_SPEED = 12; // ms per tick
+        const TYPING_SPEED = 10; // ms per tick
         const typeNext = () => {
             if (typingQueue.length === 0) { typingTimer = null; return; }
-            // Adaptive: more chars per tick when queue is large (prevents falling behind)
-            const charsPerTick = Math.max(3, Math.ceil(typingQueue.length / 5));
+            // Aggressive adaptive: flush faster when queue builds up
+            const charsPerTick = typingQueue.length <= 20 ? 3 : Math.ceil(typingQueue.length / 3);
             displayedText += typingQueue.slice(0, charsPerTick);
             typingQueue = typingQueue.slice(charsPerTick);
             setMessages(prev => {
@@ -715,7 +715,11 @@ export default function ChatFullPage() {
                 updated[updated.length - 1] = { role: 'assistant', content: rebrandText(displayedText) };
                 return updated;
             });
-            typingTimer = setTimeout(typeNext, TYPING_SPEED);
+            if (typingQueue.length > 0) {
+                typingTimer = setTimeout(typeNext, TYPING_SPEED);
+            } else {
+                typingTimer = null;
+            }
         };
 
         for (;;) {
@@ -752,15 +756,13 @@ export default function ChatFullPage() {
             }
         }
 
-        // Flush any remaining
+        // Flush any remaining — always show full text at end
         if (typingTimer) clearTimeout(typingTimer);
-        if (displayedText !== fullText) {
-            setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
-                return updated;
-            });
-        }
+        setMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
+            return updated;
+        });
         return fullText;
     };
 
