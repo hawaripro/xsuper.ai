@@ -48,11 +48,15 @@ class AiProxyService
                     $allowedCategories[] = 'canva';
                 }
 
+                // Models that should only appear in Authentic (MAX), not Original (Standard)
+                $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
+
                 return collect($data['data'] ?? [])
                     ->filter(fn($m) => in_array($m['category'] ?? '', $allowedCategories))
                     ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
+                    ->filter(fn($m) => !(in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
                     ->map(fn($m) => $this->scrubModel($m, $tierMap))
                     ->values()
                     ->toArray();
@@ -264,11 +268,15 @@ class AiProxyService
                     $allowedTiers = ['Standard', 'MAX'];
                 }
 
+                // Models that should only appear in Authentic (MAX), not Original (Standard)
+                $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
+
                 return collect($data['data'] ?? [])
                     ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
                     ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
                     ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'default'))
+                    ->filter(fn($m) => !(in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
                     ->map(fn($m) => $this->scrubModelFull($m, $tierMap))
                     ->values()
                     ->push(...$this->getAliasModels($allowedTiers))
