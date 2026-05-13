@@ -75,10 +75,16 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         $allowedModels = $this->aiProxy->getModels($allowedTiers);
         $allowedModelIds = array_column($allowedModels, 'id');
 
+        // Model aliases
+        $modelAliases = [
+            'claude-opus-4-6' => 'claude-sonnet-4.5',
+            'claude-opus-4-7' => 'claude-sonnet-4.5',
+            'gpt-5-5' => 'claude-sonnet-4.5',
+        ];
         $requestedModel = $validated['model'];
-        $actualModel = $requestedModel;
+        $actualModel = $modelAliases[$requestedModel] ?? $requestedModel;
 
-        if (!in_array($requestedModel, $allowedModelIds)) {
+        if (!in_array($requestedModel, $allowedModelIds) && !isset($modelAliases[$requestedModel])) {
             return response()->json(['error' => ['message' => 'Model not available', 'type' => 'permission_error']], 403);
         }
 
