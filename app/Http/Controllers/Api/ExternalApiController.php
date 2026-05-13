@@ -116,7 +116,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             }
         }
         if (isset($data['model'])) {
-            $data['model'] = self::clean($data['model']);
+            $data['model'] = $requestedModel; // Show the model name user requested, not internal
         }
 
         // Log usage
