@@ -300,13 +300,13 @@ class AiProxyService
      */
     private function getAliasModels(array $allowedTiers): array
     {
-        // Only show aliases if user has MAX tier (Authentic)
-        if (!in_array('MAX', $allowedTiers)) return [];
+        // Show aliases if user has Standard tier (Original)
+        if (!in_array('Standard', $allowedTiers)) return [];
 
         return [
-            ['id' => 'claude-opus-4.6', 'name' => 'Claude Opus 4.6', 'tier' => 'Authentic', 'category' => 'chat'],
-            ['id' => 'claude-opus-4.7', 'name' => 'Claude Opus 4.7', 'tier' => 'Authentic', 'category' => 'chat'],
-            ['id' => 'gpt-5.5', 'name' => 'GPT-5.5', 'tier' => 'Authentic', 'category' => 'chat'],
+            ['id' => 'claude-opus-4.6', 'name' => 'Claude Opus 4.6', 'tier' => 'Original', 'category' => 'chat'],
+            ['id' => 'claude-opus-4.7', 'name' => 'Claude Opus 4.7', 'tier' => 'Original', 'category' => 'chat'],
+            ['id' => 'gpt-5.5', 'name' => 'GPT-5.5', 'tier' => 'Original', 'category' => 'chat'],
         ];
     }
 
