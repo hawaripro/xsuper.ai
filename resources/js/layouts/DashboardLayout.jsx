@@ -40,6 +40,12 @@ const Icons = {
             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
         </svg>
     ),
+    clock: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+        </svg>
+    ),
     profile: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -141,6 +147,7 @@ export default function DashboardLayout({ children }) {
         ...(hasVideo ? [{ name: 'Video Generator', href: '/video', icon: Icons.video }] : []),
         ...(isAdmin ? [
             { name: 'Kelola Users', href: '/admin', icon: Icons.users },
+            { name: 'Period Management', href: '/periods', icon: Icons.clock },
             { name: 'Token Usage', href: '/usage', icon: Icons.chart },
             { name: 'Session Chat', href: '/sessions', icon: Icons.chat },
         ] : []),

@@ -446,19 +446,17 @@ export default function Dashboard() {
                             )}
                             <QuickAction
                                 icon={Icon.ig}
-                                title="SMM Panel"
-                                desc="Social media marketing services"
-                                href="https://smm.superpanelpedia.com"
-                                external
+                                title="Chat AI Pro"
+                                desc="Akses model AI premium"
+                                href="/chat"
                                 isDark={isDark}
                                 accent="violet"
                             />
                             <QuickAction
                                 icon={Icon.card}
-                                title="PPOB"
-                                desc="Pembayaran online & produk digital"
-                                href="https://ppob.superpanelpedia.com"
-                                external
+                                title="Video Generator"
+                                desc="Generate video dengan AI"
+                                href="/video"
                                 isDark={isDark}
                                 accent="emerald"
                             />
@@ -485,7 +483,7 @@ export default function Dashboard() {
                             </Link>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 stagger">
-                            {['GPT-4o', 'Claude Sonnet', 'Gemini Pro', 'DeepSeek V3', 'Llama 3.1', 'Mistral Large'].map((model) => (
+                            {['Claude Opus 4.7', 'Claude Opus 4.6', 'Claude Sonnet', 'GPT 5.5', 'DeepSeek V3', 'Qwen3 Coder'].map((model) => (
                                 <div
                                     key={model}
                                     className={`
@@ -522,19 +520,6 @@ export default function Dashboard() {
                         </h2>
                         <div>
                             <ServiceStatus name="UltrAI Platform" url="https://ultrai.id" status="online" isDark={isDark} />
-                            {isAdmin && (
-                                <>
-                                    <ServiceStatus
-                                        name="AI API"
-                                        url="https://api.ultrai.id"
-                                        status={aiStatus.online === null ? 'checking' : aiStatus.online ? 'online' : 'offline'}
-                                        isDark={isDark}
-                                    />
-                                    <ServiceStatus name="AI Dashboard" url="https://dash.ultrai.id" status="online" isDark={isDark} />
-                                </>
-                            )}
-                            <ServiceStatus name="SMM Panel" url="https://smm.superpanelpedia.com" status="online" isDark={isDark} />
-                            <ServiceStatus name="PPOB" url="https://ppob.superpanelpedia.com" status="online" isDark={isDark} />
                         </div>
                     </div>
 

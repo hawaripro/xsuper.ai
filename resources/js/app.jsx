@@ -15,6 +15,7 @@ import Profile from './pages/Profile';
 import VideoGenerator from './pages/VideoGenerator';
 import TokenUsage from './pages/TokenUsage';
 import SessionChat from './pages/SessionChat';
+import PeriodManagement from './pages/PeriodManagement';
 import ErrorPage from './pages/ErrorPage';
 
 // Layout
@@ -96,6 +97,9 @@ function App() {
                     } />
                     <Route path="/sessions" element={
                         <ProtectedRoute adminOnly><DashboardLayout><SessionChat /></DashboardLayout></ProtectedRoute>
+                    } />
+                    <Route path="/periods" element={
+                        <ProtectedRoute adminOnly><DashboardLayout><PeriodManagement /></DashboardLayout></ProtectedRoute>
                     } />
 
                     {/* Catch all — 404 */}

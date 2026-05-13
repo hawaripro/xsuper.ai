@@ -112,7 +112,18 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/a/chat-pro/users', [ChatProController::class, 'users']);
             Route::post('/a/chat-pro/logout/{userId}', [ChatProController::class, 'forceLogout']);
             Route::delete('/a/chat-pro/user/{userId}', [ChatProController::class, 'deleteUser']);
+
+            // Period Management (admin)
+            Route::get('/a/period', [\App\Http\Controllers\Api\PeriodController::class, 'index']);
+            Route::post('/a/period/approve/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'approve']);
+            Route::post('/a/period/reject/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'reject']);
+            Route::post('/a/period/add-duration', [\App\Http\Controllers\Api\PeriodController::class, 'addDuration']);
         });
+
+        // Member: duration orders (authenticated, not admin-only)
+        Route::get('/period/packages', [\App\Http\Controllers\Api\PeriodController::class, 'packages']);
+        Route::post('/period/order', [\App\Http\Controllers\Api\PeriodController::class, 'store']);
+        Route::get('/period/my-orders', [\App\Http\Controllers\Api\PeriodController::class, 'myOrders']);
 
     });
 });
