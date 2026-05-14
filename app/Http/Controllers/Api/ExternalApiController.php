@@ -63,8 +63,16 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             'model' => 'required|string',
             'messages' => 'required|array|min:1',
             'messages.*.role' => 'required|string',
-            'messages.*.content' => 'required|string',
+            'messages.*.content' => 'present',
             'stream' => 'nullable|boolean',
+            'tools' => 'nullable|array',
+            'tool_choice' => 'nullable',
+            'temperature' => 'nullable|numeric',
+            'max_tokens' => 'nullable|integer',
+            'top_p' => 'nullable|numeric',
+            'frequency_penalty' => 'nullable|numeric',
+            'presence_penalty' => 'nullable|numeric',
+            'stop' => 'nullable',
         ]);
 
         if ($apiKey->allowed_models && !in_array($validated['model'], $apiKey->allowed_models)) {
@@ -99,14 +107,20 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         }
 
         // ─── NON-STREAMING PATH (unchanged — deepClean active) ───
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $proxyKey,
-            'Content-Type' => 'application/json',
-        ])->timeout(120)->post($proxyUrl . '/v1/chat/completions', [
+        $payload = [
             'model' => $actualModel,
             'messages' => $messages,
             'stream' => false,
-        ]);
+        ];
+        // Forward optional parameters
+        foreach (['tools', 'tool_choice', 'temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty', 'stop'] as $param) {
+            if (isset($validated[$param])) $payload[$param] = $validated[$param];
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $proxyKey,
+            'Content-Type' => 'application/json',
+        ])->timeout(120)->post($proxyUrl . '/v1/chat/completions', $payload);
 
         $data = json_decode($response->body(), true);
         if (!$data || !isset($data['choices'])) {
@@ -155,7 +169,16 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             };
 
             try {
-                // Open streaming connection to upstream
+                $upstreamPayload = [
+                    'model' => $actualModel,
+                    'messages' => $messages,
+                    'stream' => true,
+                ];
+                // Forward optional parameters for tool calling etc.
+                foreach (['tools', 'tool_choice', 'temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty', 'stop'] as $param) {
+                    if (isset($validated[$param])) $upstreamPayload[$param] = $validated[$param];
+                }
+
                 $client = new \GuzzleHttp\Client();
                 $upstreamResponse = $client->post($proxyUrl . '/v1/chat/completions', [
                     'headers' => [
@@ -163,11 +186,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
                         'Content-Type' => 'application/json',
                         'Accept' => 'text/event-stream',
                     ],
-                    'json' => [
-                        'model' => $actualModel,
-                        'messages' => $messages,
-                        'stream' => true,
-                    ],
+                    'json' => $upstreamPayload,
                     'stream' => true,
                     'timeout' => 120,
                     'read_timeout' => 120,
