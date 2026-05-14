@@ -295,20 +295,39 @@ export default function Dashboard() {
     const [orderId, setOrderId] = useState(null);
     const [qrExpiry, setQrExpiry] = useState(null);
     const [devicePending, setDevicePending] = useState(null); // {device_name}
+    const [deviceApproved, setDeviceApproved] = useState(false);
 
-    // Check device status on mount
+    // Check device status on mount + poll every 3s if pending
     useEffect(() => {
         const checkDevice = async () => {
             try {
                 const res = await fetch('/api/c/m', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
                 if (res.status === 403) {
                     const data = await res.json();
-                    if (data.device_pending) setDevicePending(data);
+                    if (data.device_pending) {
+                        setDevicePending(data);
+                        return true; // still pending
+                    }
+                    if (data.device_blocked) {
+                        setDevicePending({ device_name: 'Blocked', blocked: true });
+                        return true;
+                    }
                 }
-            } catch {}
+                // If was pending but now OK → approved!
+                if (devicePending && !deviceApproved) {
+                    setDeviceApproved(true);
+                    setTimeout(() => { setDevicePending(null); setDeviceApproved(false); }, 3000);
+                }
+                return false;
+            } catch { return false; }
         };
         checkDevice();
-    }, []);
+        const interval = setInterval(async () => {
+            const stillPending = await checkDevice();
+            if (!stillPending && !deviceApproved) clearInterval(interval);
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [devicePending, deviceApproved]);
 
     useEffect(() => {
         const timer = setInterval(() => setTime(new Date()), 60000);
@@ -674,33 +693,52 @@ export default function Dashboard() {
                 </div>
             </section>
 
-            {/* Device Pending Modal */}
-            {devicePending && (
+            {/* Device Pending Modal — LOCKED SCREEN (cannot dismiss) */}
+            {devicePending && !deviceApproved && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
                     <div className={`relative w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`} style={{ animation: 'scale-in 0.2s ease-out' }}>
-                        <div className="w-14 h-14 rounded-2xl bg-amber-500/15 flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                        <div className="w-16 h-16 rounded-2xl bg-amber-500/15 flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                 <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
                             </svg>
                         </div>
-                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Perangkat Baru Terdeteksi</h3>
+                        <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Perangkat Baru Terdeteksi</h3>
                         <p className={`text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Perangkat <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{devicePending.device_name || 'Unknown'}</span> menunggu persetujuan admin.
+                            {devicePending.blocked
+                                ? 'Perangkat ini telah diblokir oleh admin.'
+                                : <>Perangkat <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{devicePending.device_name || 'Unknown'}</span> menunggu persetujuan admin.</>
+                            }
                         </p>
                         <p className={`text-xs mb-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            Maksimal 2 perangkat aktif. Hubungi admin untuk persetujuan.
+                            {devicePending.blocked
+                                ? 'Hubungi admin untuk membuka akses.'
+                                : 'Maksimal 2 perangkat aktif. Menunggu admin approve...'
+                            }
                         </p>
-                        <div className="flex items-center justify-center gap-2 mb-4">
-                            <svg className={`w-4 h-4 animate-spin ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                            <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>Menunggu persetujuan...</span>
+                        {!devicePending.blocked && (
+                            <div className="flex flex-col items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <svg className={`w-5 h-5 animate-spin ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    <span className={`text-sm font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>Menunggu persetujuan...</span>
+                                </div>
+                                <p className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Auto-checking setiap 3 detik</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Device Approved — Success animation */}
+            {deviceApproved && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className={`relative w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`} style={{ animation: 'scale-in 0.3s ease-out' }}>
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 flex items-center justify-center mx-auto mb-4" style={{ animation: 'scale-in 0.4s ease-out 0.1s both' }}>
+                            <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                         </div>
-                        <button
-                            onClick={() => setDevicePending(null)}
-                            className={`w-full py-2.5 rounded-xl border text-sm font-medium transition-all ${isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'}`}
-                        >
-                            Tutup
-                        </button>
+                        <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Perangkat Disetujui!</h3>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Akses telah diberikan. Halaman akan dimuat ulang...</p>
                     </div>
                 </div>
             )}
