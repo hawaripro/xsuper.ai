@@ -36,7 +36,7 @@ class AuthController extends Controller
             // Set dash_token cookie for admin users (allows access to dash.ultrai.id)
             if ($user->isAdmin()) {
                 $token = hash('sha256', $user->id . '|' . config('app.key') . '|dash');
-                $response->withCookie(cookie('dash_token', $token, 120, '/', '.ultrai.id', true, true, false, 'Lax'));
+                $response->withCookie(cookie('dash_token', $token, 10080, '/', '.ultrai.id', true, true, false, 'Lax'));
             }
 
             return $response;

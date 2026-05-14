@@ -929,13 +929,7 @@ export default function ChatFullPage() {
                 <div className={`flex items-center justify-between p-3 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
                     {!sidebarCollapsed && (
                         <Link to="/dashboard" className="flex items-center gap-2 group">
-                            <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 text-white shadow-[0_6px_14px_-4px_rgba(239,68,68,0.45)] group-hover:shadow-[0_10px_22px_-4px_rgba(239,68,68,0.6)] transition-all duration-200 group-hover:scale-105">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M12 2 L4 7 v10 l8 5 l8 -5 V7 Z" />
-                                    <path d="M12 22 V12" />
-                                    <path d="M4 7 l8 5 l8 -5" />
-                                </svg>
-                            </span>
+                            <img src="/ultr-icons.png" alt="UltrAI" className="w-8 h-8 rounded-lg shadow-[0_6px_14px_-4px_rgba(239,68,68,0.45)] group-hover:shadow-[0_10px_22px_-4px_rgba(239,68,68,0.6)] transition-all duration-200 group-hover:scale-105 object-cover" />
                             <span className="text-lg font-extrabold tracking-tight flex items-center gap-[1px]">
                                 <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
                                 <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent">AI</span>
