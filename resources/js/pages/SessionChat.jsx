@@ -7,6 +7,7 @@ export default function SessionChat() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [actionModal, setActionModal] = useState(null); // {type:'logout'|'delete', userId, name}
 
     const loadUsers = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -48,27 +49,32 @@ export default function SessionChat() {
         decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
 
     const forceLogout = async (userId, name) => {
-        if (!confirm(`Force logout "${name}" dari Chat AI Pro?`)) return;
-        try {
-            await fetch(`/api/a/chat-pro/logout/${userId}`, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
-            });
-            loadUsers(true);
-        } catch {}
+        setActionModal({ type: 'logout', userId, name });
     };
 
     const deleteUser = async (userId, name) => {
-        if (!confirm(`Hapus "${name}" dari Chat AI Pro? Aksi ini tidak bisa dibatalkan.`)) return;
+        setActionModal({ type: 'delete', userId, name });
+    };
+
+    const confirmAction = async () => {
+        if (!actionModal) return;
         try {
-            await fetch(`/api/a/chat-pro/user/${userId}`, {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
-            });
+            if (actionModal.type === 'logout') {
+                await fetch(`/api/a/chat-pro/logout/${actionModal.userId}`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
+                });
+            } else {
+                await fetch(`/api/a/chat-pro/user/${actionModal.userId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
+                });
+            }
             loadUsers(true);
         } catch {}
+        setActionModal(null);
     };
 
     const nonAdminUsers = users.filter(u => u.role !== 'admin');
@@ -273,6 +279,43 @@ export default function SessionChat() {
                     </div>
                 )}
             </div>
+
+            {/* Action Confirmation Modal */}
+            {actionModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setActionModal(null)} />
+                    <div className={`relative w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`} style={{ animation: 'scale-in 0.2s ease-out' }}>
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
+                            actionModal.type === 'delete' ? 'bg-red-500/15' : 'bg-amber-500/15'
+                        }`}>
+                            {actionModal.type === 'delete' ? (
+                                <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                            ) : (
+                                <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                            )}
+                        </div>
+                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {actionModal.type === 'delete' ? 'Hapus User?' : 'Force Logout?'}
+                        </h3>
+                        <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {actionModal.type === 'delete'
+                                ? <>Yakin hapus <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{actionModal.name}</span> dari Chat AI Pro? Aksi ini tidak bisa dibatalkan.</>
+                                : <>Yakin force logout <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{actionModal.name}</span> dari Chat AI Pro?</>
+                            }
+                        </p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setActionModal(null)} className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                                isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
+                            }`}>Batal</button>
+                            <button onClick={confirmAction} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all ${
+                                actionModal.type === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
+                            }`}>
+                                {actionModal.type === 'delete' ? 'Hapus' : 'Logout'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -87,8 +87,11 @@ class AdminController extends Controller
             $user->permissions = null;
         } else {
             if (!empty($validated['duration'])) {
-                if ($validated['duration'] === 'clear' || $validated['duration'] === 'unlimited') {
+                if ($validated['duration'] === 'unlimited') {
                     $user->expires_at = null;
+                } elseif ($validated['duration'] === 'clear') {
+                    // Reset to expired (set to past time)
+                    $user->expires_at = now()->subMinute();
                 } else {
                     $base = ($user->expires_at && $user->expires_at->isFuture()) ? $user->expires_at : now();
                     $user->expires_at = $this->calcExpiry($validated['duration'], $base);

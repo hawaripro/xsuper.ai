@@ -290,10 +290,25 @@ export default function Dashboard() {
     const [chatCount, setChatCount] = useState(0);
     const [showDurasiModal, setShowDurasiModal] = useState(false);
     const [orderLoading, setOrderLoading] = useState(false);
-    const [orderStep, setOrderStep] = useState('select'); // select, qris, pending, success
+    const [orderStep, setOrderStep] = useState('select');
     const [selectedPkg, setSelectedPkg] = useState(null);
     const [orderId, setOrderId] = useState(null);
     const [qrExpiry, setQrExpiry] = useState(null);
+    const [devicePending, setDevicePending] = useState(null); // {device_name}
+
+    // Check device status on mount
+    useEffect(() => {
+        const checkDevice = async () => {
+            try {
+                const res = await fetch('/api/c/m', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+                if (res.status === 403) {
+                    const data = await res.json();
+                    if (data.device_pending) setDevicePending(data);
+                }
+            } catch {}
+        };
+        checkDevice();
+    }, []);
 
     useEffect(() => {
         const timer = setInterval(() => setTime(new Date()), 60000);
@@ -658,6 +673,37 @@ export default function Dashboard() {
                     </div>
                 </div>
             </section>
+
+            {/* Device Pending Modal */}
+            {devicePending && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+                    <div className={`relative w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`} style={{ animation: 'scale-in 0.2s ease-out' }}>
+                        <div className="w-14 h-14 rounded-2xl bg-amber-500/15 flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                            </svg>
+                        </div>
+                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Perangkat Baru Terdeteksi</h3>
+                        <p className={`text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Perangkat <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{devicePending.device_name || 'Unknown'}</span> menunggu persetujuan admin.
+                        </p>
+                        <p className={`text-xs mb-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            Maksimal 2 perangkat aktif. Hubungi admin untuk persetujuan.
+                        </p>
+                        <div className="flex items-center justify-center gap-2 mb-4">
+                            <svg className={`w-4 h-4 animate-spin ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>Menunggu persetujuan...</span>
+                        </div>
+                        <button
+                            onClick={() => setDevicePending(null)}
+                            className={`w-full py-2.5 rounded-xl border text-sm font-medium transition-all ${isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'}`}
+                        >
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Tambah Durasi Modal — Multi-step */}
             {showDurasiModal && (
