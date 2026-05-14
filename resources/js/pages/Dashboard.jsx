@@ -3,6 +3,57 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
+/* QR Countdown — 60 min timer */
+function QrCountdown({ expiry, isDark, onExpired }) {
+    const [remaining, setRemaining] = useState('');
+    useEffect(() => {
+        const tick = () => {
+            const diff = expiry - Date.now();
+            if (diff <= 0) { setRemaining('Expired'); onExpired?.(); return; }
+            const m = Math.floor(diff / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            setRemaining(`QR expires in ${m}:${String(s).padStart(2,'0')}`);
+        };
+        tick();
+        const timer = setInterval(tick, 1000);
+        return () => clearInterval(timer);
+    }, [expiry]);
+    return <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{remaining}</p>;
+}
+
+/* Pending Approval — polls every 3s */
+function PendingApproval({ orderId, isDark, onApproved }) {
+    const [checking, setChecking] = useState(true);
+    useEffect(() => {
+        const poll = setInterval(async () => {
+            try {
+                const res = await fetch('/api/period/my-orders', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+                if (res.ok) {
+                    const data = await res.json();
+                    const order = data.orders?.find(o => `ULTR-${String(o.id).padStart(4,'0')}` === orderId);
+                    if (order?.status === 'approved') { clearInterval(poll); onApproved?.(); }
+                }
+            } catch {}
+        }, 3000);
+        return () => clearInterval(poll);
+    }, [orderId]);
+
+    return (
+        <div className="text-center py-4">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/15 flex items-center justify-center">
+                <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            </div>
+            <h3 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Pending Approval</h3>
+            <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Waiting for admin approval...</p>
+            <p className={`text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Your order has been submitted. An admin will review it shortly.</p>
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-bold ${isDark ? 'bg-white/[0.05] text-gray-300 border border-white/[0.08]' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+                Order: {orderId}-checking
+            </div>
+            <p className={`text-[10px] mt-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Auto-checking every 3 seconds...</p>
+        </div>
+    );
+}
+
 /* ============================================================
    Shared icons
    ============================================================ */
@@ -239,7 +290,10 @@ export default function Dashboard() {
     const [chatCount, setChatCount] = useState(0);
     const [showDurasiModal, setShowDurasiModal] = useState(false);
     const [orderLoading, setOrderLoading] = useState(false);
-    const [orderMsg, setOrderMsg] = useState('');
+    const [orderStep, setOrderStep] = useState('select'); // select, qris, pending, success
+    const [selectedPkg, setSelectedPkg] = useState(null);
+    const [orderId, setOrderId] = useState(null);
+    const [qrExpiry, setQrExpiry] = useState(null);
 
     useEffect(() => {
         const timer = setInterval(() => setTime(new Date()), 60000);
@@ -451,7 +505,8 @@ export default function Dashboard() {
                                 icon={Icon.ig}
                                 title="Chat AI Pro"
                                 desc="Akses model AI premium"
-                                href="/chat"
+                                href="https://chat.ultrai.id"
+                                external
                                 isDark={isDark}
                                 accent="violet"
                             />
@@ -566,6 +621,28 @@ export default function Dashboard() {
                                     {user?.role || 'member'}
                                 </span>
                             </div>
+                            {!isAdmin && (
+                                <div className={`flex items-center justify-between p-3 rounded-xl ${isDark ? 'bg-white/[0.03]' : 'bg-gray-50/80'}`}>
+                                    <span className={`text-xs font-medium ${muted}`}>Masa Aktif</span>
+                                    {user?.is_expired ? (
+                                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/20">Expired</span>
+                                    ) : user?.days_remaining === null ? (
+                                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">∞ Unlimited</span>
+                                    ) : user?.days_remaining !== undefined ? (
+                                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
+                                            user.days_remaining <= 3
+                                                ? 'bg-red-500/15 text-red-400 border-red-500/20'
+                                                : user.days_remaining <= 7
+                                                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                                                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+                                        }`}>
+                                            {user.days_remaining} hari tersisa
+                                        </span>
+                                    ) : (
+                                        <span className={`text-xs ${muted}`}>-</span>
+                                    )}
+                                </div>
+                            )}
                             <Link
                                 to="/profile"
                                 className={`mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
@@ -582,92 +659,136 @@ export default function Dashboard() {
                 </div>
             </section>
 
-            {/* Tambah Durasi Modal */}
+            {/* Tambah Durasi Modal — Multi-step */}
             {showDurasiModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowDurasiModal(false); setOrderMsg(''); }} />
-                    <div className={`relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border p-6 shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`} style={{ animation: 'scale-in 0.2s ease-out' }}>
-                        <div className="flex items-center justify-between mb-5">
-                            <div>
-                                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Tambah Durasi</h3>
-                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    Pilih paket untuk perpanjang masa aktif
-                                    {user?.days_remaining != null && user.days_remaining > 0 && (
-                                        <span className="ml-1 font-semibold text-emerald-500">· Sisa {user.days_remaining} hari</span>
-                                    )}
-                                </p>
-                            </div>
-                            <button onClick={() => { setShowDurasiModal(false); setOrderMsg(''); }} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
-                        </div>
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { if (orderStep === 'select' || orderStep === 'success') { setShowDurasiModal(false); setOrderStep('select'); setSelectedPkg(null); }}} />
+                    <div className={`relative w-full max-w-md rounded-2xl border p-6 shadow-2xl ${isDark ? 'bg-gray-900 border-white/[0.08]' : 'bg-white border-gray-200'}`} style={{ animation: 'scale-in 0.2s ease-out' }}>
 
-                        {orderMsg && (
-                            <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium ${
-                                orderMsg.includes('berhasil') ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200')
-                                : (isDark ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-red-50 text-red-600 border border-red-200')
-                            }`}>
-                                {orderMsg}
+                        {/* Step 1: Select Package */}
+                        {orderStep === 'select' && (
+                            <>
+                                <div className="flex items-center justify-between mb-5">
+                                    <div>
+                                        <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Tambah Durasi</h3>
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            Pilih paket
+                                            {user?.days_remaining != null && user.days_remaining > 0 && (
+                                                <span className="ml-1 font-semibold text-emerald-500">· Sisa {user.days_remaining} hari</span>
+                                            )}
+                                        </p>
+                                    </div>
+                                    <button onClick={() => setShowDurasiModal(false)} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { key: '1_day', label: '1 Hari', price: 5000, color: 'from-slate-500 to-slate-600' },
+                                        { key: '1_week', label: '1 Minggu', price: 20000, color: 'from-blue-500 to-blue-600' },
+                                        { key: '1_month', label: '1 Bulan', price: 55000, color: 'from-red-500 to-orange-500', popular: true },
+                                        { key: '3_months', label: '3 Bulan', price: 135000, color: 'from-emerald-500 to-teal-500' },
+                                        { key: '6_months', label: '6 Bulan', price: 299000, color: 'from-violet-500 to-purple-500' },
+                                        { key: '12_months', label: '12 Bulan', price: 499000, color: 'from-amber-500 to-orange-500' },
+                                    ].map(pkg => (
+                                        <button
+                                            key={pkg.key}
+                                            onClick={() => { setSelectedPkg(pkg); setOrderStep('qris'); setQrExpiry(Date.now() + 60 * 60 * 1000); }}
+                                            className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border transition-all duration-200 hover:scale-[1.03] ${
+                                                pkg.popular
+                                                    ? (isDark ? 'bg-red-500/10 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'bg-red-50 border-red-300 shadow-md')
+                                                    : (isDark ? 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]' : 'bg-gray-50 border-gray-200 hover:bg-white hover:border-gray-300')
+                                            }`}
+                                        >
+                                            {pkg.popular && (
+                                                <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg">Populer</span>
+                                            )}
+                                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center text-white shadow-lg`}>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                            </div>
+                                            <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{pkg.label}</div>
+                                            <div className={`text-xs font-semibold ${pkg.popular ? 'text-red-500' : (isDark ? 'text-gray-400' : 'text-gray-500')}`}>
+                                                Rp {new Intl.NumberFormat('id-ID').format(pkg.price)}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {/* Step 2: QRIS Payment */}
+                        {orderStep === 'qris' && selectedPkg && (
+                            <div className="text-center">
+                                <h3 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Scan QRIS to Pay</h3>
+                                <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedPkg.label} — Rp {new Intl.NumberFormat('id-ID').format(selectedPkg.price)}</p>
+                                
+                                <div className={`inline-block p-4 rounded-2xl border mb-4 ${isDark ? 'bg-white' : 'bg-white border-gray-200 shadow-sm'}`}>
+                                    <img src="/qris-payment.png" alt="QRIS" className="w-[250px] h-[250px] object-contain" onError={(e) => { e.target.style.display='none'; e.target.parentElement.innerHTML='<div style="width:250px;height:250px;display:flex;align-items:center;justify-content:center;background:#f3f4f6;border-radius:12px;color:#6b7280;font-size:12px;">QRIS Image</div>'; }} />
+                                </div>
+
+                                <div className="flex items-center justify-center gap-2 mb-2">
+                                    <svg className={`w-4 h-4 animate-spin ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    <span className={`text-sm font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>Waiting for payment...</span>
+                                </div>
+                                <QrCountdown expiry={qrExpiry} isDark={isDark} onExpired={() => setOrderStep('select')} />
+
+                                <div className="flex gap-3 mt-5">
+                                    <button
+                                        onClick={() => { setOrderStep('select'); setSelectedPkg(null); }}
+                                        className={`flex-1 py-2.5 rounded-xl border text-sm font-medium ${isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-500'}`}
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        disabled={orderLoading}
+                                        onClick={async () => {
+                                            setOrderLoading(true);
+                                            try {
+                                                const csrf = (() => { try { const m = document.cookie.match(/XSRF-TOKEN=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; } catch { return ''; } })();
+                                                const res = await fetch('/api/period/order', {
+                                                    method: 'POST', credentials: 'same-origin',
+                                                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
+                                                    body: JSON.stringify({ package: selectedPkg.key }),
+                                                });
+                                                const data = await res.json();
+                                                if (res.ok) {
+                                                    setOrderId(data.order?.id ? `ULTR-${String(data.order.id).padStart(4,'0')}` : 'ULTR-0001');
+                                                    setOrderStep('pending');
+                                                } else {
+                                                    alert(data.message || 'Gagal membuat order');
+                                                }
+                                            } catch { alert('Terjadi kesalahan'); }
+                                            finally { setOrderLoading(false); }
+                                        }}
+                                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold hover:brightness-105 disabled:opacity-50 transition-all shadow-lg"
+                                    >
+                                        {orderLoading ? 'Processing...' : "I've Paid"}
+                                    </button>
+                                </div>
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {[
-                                { key: '1_day', label: '1 Hari', price: 5000, color: 'from-slate-500 to-slate-600' },
-                                { key: '1_week', label: '1 Minggu', price: 20000, color: 'from-blue-500 to-blue-600' },
-                                { key: '1_month', label: '1 Bulan', price: 55000, color: 'from-red-500 to-orange-500', popular: true },
-                                { key: '3_months', label: '3 Bulan', price: 135000, color: 'from-emerald-500 to-teal-500' },
-                                { key: '6_months', label: '6 Bulan', price: 299000, color: 'from-violet-500 to-purple-500' },
-                                { key: '12_months', label: '12 Bulan', price: 499000, color: 'from-amber-500 to-orange-500' },
-                            ].map(pkg => (
-                                <button
-                                    key={pkg.key}
-                                    disabled={orderLoading}
-                                    onClick={async () => {
-                                        setOrderLoading(true);
-                                        setOrderMsg('');
-                                        try {
-                                            const csrf = (() => { try { const m = document.cookie.match(/XSRF-TOKEN=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; } catch { return ''; } })();
-                                            const res = await fetch('/api/period/order', {
-                                                method: 'POST',
-                                                credentials: 'same-origin',
-                                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': csrf },
-                                                body: JSON.stringify({ package: pkg.key }),
-                                            });
-                                            const data = await res.json();
-                                            if (res.ok) {
-                                                setOrderMsg(data.message || 'Order berhasil! Menunggu persetujuan admin.');
-                                            } else {
-                                                setOrderMsg(data.message || 'Gagal membuat order.');
-                                            }
-                                        } catch { setOrderMsg('Terjadi kesalahan.'); }
-                                        finally { setOrderLoading(false); }
-                                    }}
-                                    className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border transition-all duration-200 hover:scale-[1.03] disabled:opacity-50 ${
-                                        pkg.popular
-                                            ? (isDark ? 'bg-red-500/10 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'bg-red-50 border-red-300 shadow-md')
-                                            : (isDark ? 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06]' : 'bg-gray-50 border-gray-200 hover:bg-white hover:border-gray-300')
-                                    }`}
-                                >
-                                    {pkg.popular && (
-                                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg">
-                                            Populer
-                                        </span>
-                                    )}
-                                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center text-white shadow-lg`}>
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                    </div>
-                                    <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{pkg.label}</div>
-                                    <div className={`text-xs font-semibold ${pkg.popular ? 'text-red-500' : (isDark ? 'text-gray-400' : 'text-gray-500')}`}>
-                                        Rp {new Intl.NumberFormat('id-ID').format(pkg.price)}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
+                        {/* Step 3: Pending Approval */}
+                        {orderStep === 'pending' && (
+                            <PendingApproval orderId={orderId} isDark={isDark} onApproved={() => setOrderStep('success')} />
+                        )}
 
-                        <p className={`text-center text-[10px] mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            Setelah order, admin akan memproses dalam hitungan menit. Durasi ditambahkan ke sisa waktu aktif Anda.
-                        </p>
+                        {/* Step 4: Success */}
+                        {orderStep === 'success' && (
+                            <div className="text-center py-4">
+                                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 flex items-center justify-center" style={{ animation: 'scale-in 0.3s ease-out' }}>
+                                    <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                </div>
+                                <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Successful!</h3>
+                                <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Durasi akun Anda telah ditambahkan.</p>
+                                <button
+                                    onClick={() => { setShowDurasiModal(false); setOrderStep('select'); setSelectedPkg(null); window.location.reload(); }}
+                                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold hover:brightness-105 transition-all shadow-lg"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

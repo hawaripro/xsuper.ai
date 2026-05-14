@@ -75,6 +75,19 @@ export default function PeriodManagement() {
         } catch {} finally { setActionLoading(null); }
     };
 
+    const handleDelete = async (orderId) => {
+        if (!confirm('Yakin hapus order ini?')) return;
+        setActionLoading(orderId);
+        try {
+            await fetch(`/api/a/period/${orderId}`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
+            });
+            fetchOrders();
+        } catch {} finally { setActionLoading(null); }
+    };
+
     const handleAddDuration = async () => {
         if (!addModal || !addDays) return;
         setActionLoading('add');
@@ -159,30 +172,41 @@ export default function PeriodManagement() {
                                 </div>
 
                                 {/* Actions */}
-                                {order.status === 'pending' && (
-                                    <div className="flex gap-2 flex-shrink-0">
-                                        <button
-                                            onClick={() => handleApprove(order.id)}
-                                            disabled={actionLoading === order.id}
-                                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 transition-all"
-                                        >
-                                            Approve
-                                        </button>
-                                        <button
-                                            onClick={() => handleReject(order.id)}
-                                            disabled={actionLoading === order.id}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
-                                        >
-                                            Tolak
-                                        </button>
+                                <div className="flex gap-2 flex-shrink-0">
+                                    {order.status === 'pending' && (
+                                        <>
+                                            <button
+                                                onClick={() => handleApprove(order.id)}
+                                                disabled={actionLoading === order.id}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 transition-all"
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                onClick={() => handleReject(order.id)}
+                                                disabled={actionLoading === order.id}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'}`}
+                                            >
+                                                Tolak
+                                            </button>
+                                        </>
+                                    )}
+                                    <button
+                                        onClick={() => handleDelete(order.id)}
+                                        disabled={actionLoading === order.id}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                                    >
+                                        Hapus
+                                    </button>
+                                    {order.status === 'pending' && (
                                         <button
                                             onClick={() => setAddModal({ user_id: order.user_id, name: order.user_name })}
                                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isDark ? 'bg-white/[0.06] text-gray-300 hover:bg-white/[0.1]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                                         >
                                             + Durasi
                                         </button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))

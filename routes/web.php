@@ -117,6 +117,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/a/period', [\App\Http\Controllers\Api\PeriodController::class, 'index']);
             Route::post('/a/period/approve/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'approve']);
             Route::post('/a/period/reject/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'reject']);
+            Route::delete('/a/period/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'destroy']);
             Route::post('/a/period/add-duration', [\App\Http\Controllers\Api\PeriodController::class, 'addDuration']);
         });
 

@@ -137,6 +137,15 @@ class PeriodController extends Controller
     }
 
     /**
+     * Admin deletes an order
+     */
+    public function destroy(DurationOrder $order)
+    {
+        $order->delete();
+        return response()->json(['message' => 'Order dihapus.']);
+    }
+
+    /**
      * Admin manually adds duration to a user
      */
     public function addDuration(Request $request)
