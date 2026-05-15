@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\ChatProController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\AdminStatsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -120,6 +121,11 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/a/period/reject/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'reject']);
             Route::delete('/a/period/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'destroy']);
             Route::post('/a/period/add-duration', [\App\Http\Controllers\Api\PeriodController::class, 'addDuration']);
+
+            // Admin Stats
+            Route::get('/a/stats/revenue', [AdminStatsController::class, 'revenue']);
+            Route::get('/a/stats/expiring', [AdminStatsController::class, 'expiringUsers']);
+            Route::get('/a/stats/orders', [AdminStatsController::class, 'orders']);
         });
 
         // Member: duration orders (authenticated, not admin-only)
