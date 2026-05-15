@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -498,6 +498,7 @@ export default function ChatFullPage() {
     const { user } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
+    const location = useLocation();
     const isDark = theme === 'dark';
 
     const [conversations, setConversations] = useState([]);
@@ -515,6 +516,16 @@ export default function ChatFullPage() {
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const fileInputRef = useRef(null);
+
+    // Prefill prompt from template navigation
+    useEffect(() => {
+        if (location.state?.prefillPrompt) {
+            setInput(location.state.prefillPrompt);
+            // Clear the state so it doesn't persist on refresh
+            window.history.replaceState({}, document.title);
+            setTimeout(() => inputRef.current?.focus(), 100);
+        }
+    }, [location.state]);
 
     // Auto-scroll — only when there are messages (not on welcome screen)
     const scrollToBottom = useCallback(() => {

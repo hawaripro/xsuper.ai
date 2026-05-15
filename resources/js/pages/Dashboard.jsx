@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import OnboardingWizard from '../components/OnboardingWizard';
 
 /* QR Countdown — 60 min timer */
 function QrCountdown({ expiry, isDark, onExpired }) {
@@ -296,6 +297,22 @@ export default function Dashboard() {
     const [qrExpiry, setQrExpiry] = useState(null);
     const [devicePending, setDevicePending] = useState(null); // {device_name}
     const [deviceApproved, setDeviceApproved] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(false);
+
+    // Check onboarding status on mount
+    useEffect(() => {
+        if (user?.role === 'admin') return;
+        const checkOnboarding = async () => {
+            try {
+                const res = await fetch('/api/onboarding/status', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!data.completed) setShowOnboarding(true);
+                }
+            } catch {}
+        };
+        checkOnboarding();
+    }, [user]);
 
     // Check device status on mount + poll every 3s if pending
     useEffect(() => {
@@ -390,9 +407,10 @@ export default function Dashboard() {
 
     return (
         <div className="p-4 lg:p-6 space-y-5 lg:space-y-6 max-w-7xl mx-auto">
-            {/* ============================================
-                Hero — Welcome banner
-               ============================================ */}
+            {/* Onboarding Wizard */}
+            {showOnboarding && (
+                <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+            )}
             <section
                 className={`
                     relative overflow-hidden rounded-3xl border
