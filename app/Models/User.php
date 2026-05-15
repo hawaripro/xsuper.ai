@@ -41,6 +41,7 @@ class User extends Authenticatable
         'expires_at',
         'permissions',
         'google_id',
+        'onboarding_mode',
     ];
 
     protected $hidden = [

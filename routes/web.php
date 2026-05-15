@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\ChatProController;
+use App\Http\Controllers\Api\OnboardingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -126,6 +127,10 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/period/order', [\App\Http\Controllers\Api\PeriodController::class, 'store']);
         Route::get('/period/my-orders', [\App\Http\Controllers\Api\PeriodController::class, 'myOrders']);
 
+        // Onboarding & Templates
+        Route::get('/onboarding/status', [OnboardingController::class, 'status']);
+        Route::post('/onboarding/mode', [OnboardingController::class, 'saveMode']);
+        Route::get('/templates', [OnboardingController::class, 'templates']);
     });
 });
 
