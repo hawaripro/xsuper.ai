@@ -1,0 +1,13 @@
+{
+  "scan": "Successful Chromium-backed scan of /en/models, /en, and /en/pricing after the final build.",
+  "remaining": [
+    {
+      "antipattern": "marquee",
+      "severity": "warning",
+      "selector": ".brand-track",
+      "disposition": "Intentional owner-requested model-logo rail. It pauses while hidden/offscreen and becomes static under reduced motion."
+    }
+  ],
+  "resolved": ["marketplace padding", "functional text size", "carousel card clipping", "workspace tab contrast", "dark sign-in contrast", "white AI tiles", "GoPay cutout artifact", "retired model identities"],
+  "result": "No unaddressed detector finding; one intentional motion warning remains."
+}

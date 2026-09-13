@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DurationOrder;
+use App\Models\DurationPackagePrice;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -58,7 +59,8 @@ class PeriodController extends Controller
         ]);
 
         $user = Auth::user();
-        $pkg = DurationOrder::PACKAGES[$validated['package']];
+        $pkg = DurationPackagePrice::catalog()[$validated['package']];
+        abort_unless($pkg['is_active'], 422, 'Paket tidak aktif.');
 
         // Check if user already has a pending order
         $existing = DurationOrder::where('user_id', $user->id)
@@ -142,6 +144,7 @@ class PeriodController extends Controller
     public function destroy(DurationOrder $order)
     {
         $order->delete();
+
         return response()->json(['message' => 'Order dihapus.']);
     }
 
@@ -203,6 +206,6 @@ class PeriodController extends Controller
      */
     public function packages()
     {
-        return response()->json(['packages' => DurationOrder::PACKAGES]);
+        return response()->json(['packages' => DurationPackagePrice::catalog()]);
     }
 }

@@ -1,0 +1,14 @@
+{
+  "scan": "Successful Chromium-backed scan of / and /pricing after final build.",
+  "findings": [
+    {
+      "antipattern": "marquee",
+      "severity": "warning",
+      "target": "/",
+      "selector": ".brand-track",
+      "disposition": "Retained because the product owner explicitly requested the moving AI-logo rail. It is a duplicated decorative brand list, runs only while its motion zone is visible, pauses when the page is hidden or offscreen, and becomes static under prefers-reduced-motion."
+    }
+  ],
+  "resolved": ["line-length", "low-contrast", "tiny-text", "dark-glow", "thin-border-wide-shadow"],
+  "result": "No unaddressed accessibility or layout finding; one intentional requested-motion warning remains."
+}

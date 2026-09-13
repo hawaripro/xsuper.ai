@@ -1,0 +1,14 @@
+{
+  "scan": "Successful Chromium-backed scan of Indonesian and English home/pricing variants after the final build.",
+  "targets": ["/", "/?lang=en", "/pricing", "/pricing?lang=en"],
+  "remaining": [
+    {
+      "antipattern": "marquee",
+      "severity": "warning",
+      "selector": ".brand-track",
+      "disposition": "Intentional owner-requested AI logo motion. The complete semantic list exists in HTML; the loop runs only while visible, pauses through the restored footer control and when hidden/offscreen, and becomes static under reduced motion."
+    }
+  ],
+  "resolved": ["footer wordmark contrast", "dark closing CTA contrast", "mobile wordmark clipping"],
+  "result": "No unaddressed accessibility or layout finding; one intentional requested-motion warning remains."
+}

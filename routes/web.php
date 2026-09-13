@@ -1,19 +1,25 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AdminController;
-use App\Http\Controllers\Api\VideoController;
-use App\Http\Controllers\Api\TokenController;
-use App\Http\Controllers\Api\ApiKeyController;
-use App\Http\Controllers\Api\UsageController;
-use App\Http\Controllers\Api\DeviceController;
-use App\Http\Controllers\Api\ChatProController;
-use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\AdminStatsController;
+use App\Http\Controllers\Api\ApiKeyController;
+use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\ChatProController;
+use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\PeriodController;
+use App\Http\Controllers\Api\PricingController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\TokenController;
+use App\Http\Controllers\Api\UsageController;
+use App\Http\Controllers\Api\VideoController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\PublicSiteController;
+use App\Services\AiProxyService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,14 +36,15 @@ Route::prefix('api')->middleware('web')->group(function () {
 
         // Check database
         try {
-            \Illuminate\Support\Facades\DB::connection()->getPdo();
+            DB::connection()->getPdo();
             $status['database'] = 'ok';
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $status['database'] = 'error';
             $status['status'] = 'degraded';
         }
 
         $code = $status['status'] === 'ok' ? 200 : 503;
+
         return response()->json($status, $code);
     });
 
@@ -53,6 +60,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         // Profile
         Route::get('/u/me', function (Request $request) {
             $u = $request->user();
+
             return response()->json(['name' => $u->name, 'email' => $u->email, 'role' => $u->role, 'created_at' => $u->created_at]);
         });
         Route::put('/u/p', [ProfileController::class, 'update']);
@@ -79,11 +87,20 @@ Route::prefix('api')->middleware('web')->group(function () {
         // Token
         Route::get('/t/balance', [TokenController::class, 'balance']);
         Route::get('/t/history', [TokenController::class, 'history']);
+        Route::get('/pricing/wallet', [PricingController::class, 'wallet']);
+        Route::get('/period/packages', [PeriodController::class, 'packages']);
+        Route::get('/pricing/catalog', [PricingController::class, 'catalog']);
 
         // Admin
         Route::middleware('admin')->group(function () {
             // Admin: topup tokens
             Route::post('/t/topup', [TokenController::class, 'topup']);
+            Route::get('/pricing/settings', [PricingController::class, 'index']);
+            Route::put('/pricing/durations/{package}', [PricingController::class, 'saveDuration']);
+            Route::post('/pricing/rates', [PricingController::class, 'saveUsageRate']);
+            Route::put('/pricing/rates/{usageRate}', [PricingController::class, 'saveUsageRate']);
+            Route::delete('/pricing/rates/{usageRate}', [PricingController::class, 'destroyUsageRate']);
+            Route::post('/pricing/wallet/topup', [PricingController::class, 'topupWallet']);
 
             // Admin: usage stats
             Route::get('/usage', [UsageController::class, 'index']);
@@ -101,7 +118,8 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::delete('/k/{apiKey}', [ApiKeyController::class, 'destroy']);
             // AI Status (admin only)
             Route::get('/s/info', function () {
-                $aiProxy = app(\App\Services\AiProxyService::class);
+                $aiProxy = app(AiProxyService::class);
+
                 return response()->json($aiProxy->getStatus());
             });
 
@@ -116,11 +134,11 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::delete('/a/chat-pro/user/{userId}', [ChatProController::class, 'deleteUser']);
 
             // Period Management (admin)
-            Route::get('/a/period', [\App\Http\Controllers\Api\PeriodController::class, 'index']);
-            Route::post('/a/period/approve/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'approve']);
-            Route::post('/a/period/reject/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'reject']);
-            Route::delete('/a/period/{order}', [\App\Http\Controllers\Api\PeriodController::class, 'destroy']);
-            Route::post('/a/period/add-duration', [\App\Http\Controllers\Api\PeriodController::class, 'addDuration']);
+            Route::get('/a/period', [PeriodController::class, 'index']);
+            Route::post('/a/period/approve/{order}', [PeriodController::class, 'approve']);
+            Route::post('/a/period/reject/{order}', [PeriodController::class, 'reject']);
+            Route::delete('/a/period/{order}', [PeriodController::class, 'destroy']);
+            Route::post('/a/period/add-duration', [PeriodController::class, 'addDuration']);
 
             // Admin Stats
             Route::get('/a/stats/revenue', [AdminStatsController::class, 'revenue']);
@@ -129,9 +147,9 @@ Route::prefix('api')->middleware('web')->group(function () {
         });
 
         // Member: duration orders (authenticated, not admin-only)
-        Route::get('/period/packages', [\App\Http\Controllers\Api\PeriodController::class, 'packages']);
-        Route::post('/period/order', [\App\Http\Controllers\Api\PeriodController::class, 'store']);
-        Route::get('/period/my-orders', [\App\Http\Controllers\Api\PeriodController::class, 'myOrders']);
+        Route::get('/period/packages', [PeriodController::class, 'packages']);
+        Route::post('/period/order', [PeriodController::class, 'store']);
+        Route::get('/period/my-orders', [PeriodController::class, 'myOrders']);
 
         // Onboarding & Templates
         Route::get('/onboarding/status', [OnboardingController::class, 'status']);
@@ -141,8 +159,25 @@ Route::prefix('api')->middleware('web')->group(function () {
 });
 
 // Google OAuth routes
-Route::get('/auth/google', [\App\Http\Controllers\GoogleAuthController::class, 'redirect'])->name('auth.google');
-Route::get('/auth/google/callback', [\App\Http\Controllers\GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+
+// Public pages are rendered on the server; Indonesian is unprefixed and English uses /en.
+Route::get('/', [PublicSiteController::class, 'home'])->defaults('locale', 'id')->name('home');
+Route::get('/pricing', [PublicSiteController::class, 'pricing'])->defaults('locale', 'id')->name('pricing');
+Route::get('/models', [PublicSiteController::class, 'models'])->defaults('locale', 'id')->name('models');
+Route::get('/privacy-policy', fn (Request $request, PublicSiteController $controller) => $controller->policy($request, 'privacy-policy'))->defaults('locale', 'id')->name('privacy-policy');
+Route::get('/terms-of-service', fn (Request $request, PublicSiteController $controller) => $controller->policy($request, 'terms-of-service'))->defaults('locale', 'id')->name('terms-of-service');
+Route::get('/refund-policy', fn (Request $request, PublicSiteController $controller) => $controller->policy($request, 'refund-policy'))->defaults('locale', 'id')->name('refund-policy');
+Route::prefix('en')->group(function () {
+    Route::get('/', [PublicSiteController::class, 'home'])->defaults('locale', 'en')->name('en.home');
+    Route::get('/pricing', [PublicSiteController::class, 'pricing'])->defaults('locale', 'en')->name('en.pricing');
+    Route::get('/models', [PublicSiteController::class, 'models'])->defaults('locale', 'en')->name('en.models');
+    Route::get('/privacy-policy', fn (Request $request, PublicSiteController $controller) => $controller->policy($request, 'privacy-policy'))->defaults('locale', 'en')->name('en.privacy-policy');
+    Route::get('/terms-of-service', fn (Request $request, PublicSiteController $controller) => $controller->policy($request, 'terms-of-service'))->defaults('locale', 'en')->name('en.terms-of-service');
+    Route::get('/refund-policy', fn (Request $request, PublicSiteController $controller) => $controller->policy($request, 'refund-policy'))->defaults('locale', 'en')->name('en.refund-policy');
+});
+Route::get('/sitemap.xml', [PublicSiteController::class, 'sitemap'])->name('sitemap');
 
 // SPA catch-all — must be last
 Route::get('/{any?}', function () {

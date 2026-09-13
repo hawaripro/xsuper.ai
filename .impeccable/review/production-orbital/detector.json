@@ -1,0 +1,75 @@
+{
+  "raw": "[\n  {\n    \"antipattern\": \"line-length\",\n    \"name\": \"Line length too long\",\n    \"description\": \"Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line. Add a max-width (65ch to 75ch) to text containers.\",\n    \"severity\": \"warning\",\n    \"category\": \"quality\",\n    \"file\": \"http://127.0.0.1:8017/\",\n    \"line\": 0,\n    \"snippet\": \"~195 chars/line (aim for <80)\"\n  },\n  {\n    \"antipattern\": \"line-length\",\n    \"name\": \"Line length too long\",\n    \"description\": \"Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line. Add a max-width (65ch to 75ch) to text containers.\",\n    \"severity\": \"warning\",\n    \"category\": \"quality\",\n    \"file\": \"http://127.0.0.1:8017/\",\n    \"line\": 0,\n    \"snippet\": \"~93 chars/line (aim for <80)\"\n  },\n  {\n    \"antipattern\": \"line-length\",\n    \"name\": \"Line length too long\",\n    \"description\": \"Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line. Add a max-width (65ch to 75ch) to text containers.\",\n    \"severity\": \"warning\",\n    \"category\": \"quality\",\n    \"file\": \"http://127.0.0.1:8017/\",\n    \"line\": 0,\n    \"snippet\": \"~112 chars/line (aim for <80)\"\n  },\n  {\n    \"antipattern\": \"low-contrast\",\n    \"name\": \"Low contrast text\",\n    \"description\": \"Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.\",\n    \"severity\": \"warning\",\n    \"category\": \"quality\",\n    \"file\": \"http://127.0.0.1:8017/\",\n    \"line\": 0,\n    \"snippet\": \"1.2:1 (need 3:1) — text #dbe6fa on #f8faff\"\n  },\n  {\n    \"antipattern\": \"low-contrast\",\n    \"name\": \"Low contrast text\",\n    \"description\": \"Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.\",\n    \"severity\": \"warning\",\n    \"category\": \"quality\",\n    \"file\": \"http://127.0.0.1:8017/\",\n    \"line\": 0,\n    \"snippet\": \"1.3:1 (need 3:1) — text #d6e2f7 on #f8faff\"\n  },\n  {\n    \"antipattern\": \"marquee\",\n    \"name\": \"Auto-scrolling marquee\",\n    \"description\": \"Continuously auto-scrolling content demands attention it has not earned and hides half its content at any moment. Reserve motion for content that changes; let readers move at their own pace.\",\n    \"severity\": \"warning\",\n    \"category\": \"slop\",\n    \"file\": \"http://127.0.0.1:8017/\",\n    \"line\": 0,\n    \"snippet\": \".brand-track — infinite horizontal loop animation \\\"brand-travel\\\"\"\n  },\n  {\n    \"antipattern\": \"dark-glow\",\n    \"name\": \"Glowing shadow accents\",\n    \"description\": \"Colored glow shadows — a zero-offset chromatic halo (box- or text-shadow) on any background, or any colored blurred shadow on a dark background — are the default \\\"cool\\\" look of AI-generated UIs. Use neutral elevation shadows and subtle, purposeful lighting instead.\",\n    \"severity\": \"warning\",\n    \"category\": \"slop\",\n    \"file\": \"http://127.0.0.1:8017/\",\n    \"line\": 0,\n    \"snippet\": \"Colored box-shadow glow (#102040) on dark page\"\n  }\n]\n\n\nWall time: 4.60 seconds",
+  "findings": [
+    {
+      "antipattern": "line-length",
+      "name": "Line length too long",
+      "description": "Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line. Add a max-width (65ch to 75ch) to text containers.",
+      "severity": "warning",
+      "category": "quality",
+      "file": "http://127.0.0.1:8017/",
+      "line": 0,
+      "snippet": "~195 chars/line (aim for <80)"
+    },
+    {
+      "antipattern": "line-length",
+      "name": "Line length too long",
+      "description": "Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line. Add a max-width (65ch to 75ch) to text containers.",
+      "severity": "warning",
+      "category": "quality",
+      "file": "http://127.0.0.1:8017/",
+      "line": 0,
+      "snippet": "~93 chars/line (aim for <80)"
+    },
+    {
+      "antipattern": "line-length",
+      "name": "Line length too long",
+      "description": "Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line. Add a max-width (65ch to 75ch) to text containers.",
+      "severity": "warning",
+      "category": "quality",
+      "file": "http://127.0.0.1:8017/",
+      "line": 0,
+      "snippet": "~112 chars/line (aim for <80)"
+    },
+    {
+      "antipattern": "low-contrast",
+      "name": "Low contrast text",
+      "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+      "severity": "warning",
+      "category": "quality",
+      "file": "http://127.0.0.1:8017/",
+      "line": 0,
+      "snippet": "1.2:1 (need 3:1) — text #dbe6fa on #f8faff"
+    },
+    {
+      "antipattern": "low-contrast",
+      "name": "Low contrast text",
+      "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+      "severity": "warning",
+      "category": "quality",
+      "file": "http://127.0.0.1:8017/",
+      "line": 0,
+      "snippet": "1.3:1 (need 3:1) — text #d6e2f7 on #f8faff"
+    },
+    {
+      "antipattern": "marquee",
+      "name": "Auto-scrolling marquee",
+      "description": "Continuously auto-scrolling content demands attention it has not earned and hides half its content at any moment. Reserve motion for content that changes; let readers move at their own pace.",
+      "severity": "warning",
+      "category": "slop",
+      "file": "http://127.0.0.1:8017/",
+      "line": 0,
+      "snippet": ".brand-track — infinite horizontal loop animation \"brand-travel\""
+    },
+    {
+      "antipattern": "dark-glow",
+      "name": "Glowing shadow accents",
+      "description": "Colored glow shadows — a zero-offset chromatic halo (box- or text-shadow) on any background, or any colored blurred shadow on a dark background — are the default \"cool\" look of AI-generated UIs. Use neutral elevation shadows and subtle, purposeful lighting instead.",
+      "severity": "warning",
+      "category": "slop",
+      "file": "http://127.0.0.1:8017/",
+      "line": 0,
+      "snippet": "Colored box-shadow glow (#102040) on dark page"
+    }
+  ]
+}

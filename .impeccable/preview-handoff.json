@@ -1,0 +1,11 @@
+{
+  "scope": "Interactive design alternatives, not production release",
+  "directions": ["atlas", "studio", "signal"],
+  "surfaces": ["landing", "workspace", "console"],
+  "entry": "http://127.0.0.1:4177/",
+  "sourceRoot": ".impeccable/mocks/provider",
+  "startCommand": "bun .impeccable/mocks/provider/server.mjs",
+  "userChoice": "studio",
+  "productionImplementationApproved": false,
+  "note": "Owner selected Studio and requested richer animation and original Chat AI feature depth. Refine Studio prototype before production migration; Atlas and Signal remain unchanged."
+}

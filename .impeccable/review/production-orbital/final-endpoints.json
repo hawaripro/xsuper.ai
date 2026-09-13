@@ -1,0 +1,8 @@
+{
+  "base": "http://127.0.0.1:8017",
+  "routes": {"/":200,"/pricing":200,"/privacy-policy":200,"/terms-of-service":200,"/refund-policy":200,"/sitemap.xml":200,"/login":200},
+  "sitemapType": "application/xml; charset=UTF-8",
+  "canonicalProductionOrigin": "https://ultrai.id",
+  "pricingCanonical": "https://ultrai.id/pricing",
+  "release": "Not performed. Preview is the real local Laravel application."
+}

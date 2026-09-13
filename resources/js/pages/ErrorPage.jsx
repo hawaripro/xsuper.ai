@@ -1,5 +1,3 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
 
 /* ============================================================
    Error page — animated 404 / 403.
@@ -91,8 +89,8 @@ export default function ErrorPage({ code = 404 }) {
 
                 {/* Actions */}
                 <div className="flex flex-wrap justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '160ms' }}>
-                    <Link
-                        to="/"
+                    <a
+                        href="/"
                         className="ui-btn-primary px-6 py-3"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
@@ -100,7 +98,7 @@ export default function ErrorPage({ code = 404 }) {
                             <polyline points="9 22 9 12 15 12 15 22" />
                         </svg>
                         Kembali ke Beranda
-                    </Link>
+                    </a>
                     <button
                         onClick={() => window.history.back()}
                         className="ui-btn-ghost px-6 py-3"

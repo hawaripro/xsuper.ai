@@ -1,0 +1,14 @@
+{
+  "reference": "resources/js/pages/ChatFullPage.jsx",
+  "mapped": [
+    {"original":"CATEGORY_CONFIG Chat/Image/Video/Audio (9-75)","prototype":"Four functional mode tabs; chat uses stored examples, media modes prepare a clearly labeled local brief."},
+    {"original":"ModelSelector search/categories/grouped list (285-492)","prototype":"Searchable native dialog, maker groups, category filters, truthful sample catalog."},
+    {"original":"conversation state and history (504-582)","prototype":"Local conversations, search/delete/new; no server call."},
+    {"original":"attachments MAX_FILES5/MAX_SIZE20MiB (850-907)","prototype":"Same count/size/type boundaries, file picker/drag-drop/paste, local image previews and removal."},
+    {"original":"animated chat messages and typing (137-246)","prototype":"Bounded response preview streaming, visible progress/status and stop; no claim of live AI."},
+    {"original":"sidebar collapse and light/dark (929-1065)","prototype":"Compact rail, mobile history, theme switch preserving drafts."},
+    {"original":"welcome animation/categories/prompts (1116-1190)","prototype":"Authored Studio sigil and four modes, strong hierarchy and substantial composer, useful prompt ideas."}
+  ],
+  "preserved": ["Studio palette and typography", "Original application source unchanged", "Developer console interactions", "All examples labeled local/demo"],
+  "notClaimed": ["Production feature migration complete", "Live model availability", "Generated images/video/audio", "Verified performance/uptime"]
+}

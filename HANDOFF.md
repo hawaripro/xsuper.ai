@@ -5,26 +5,37 @@
 - **Stack**: Laravel 13 + React 19 + Tailwind 4 + PostgreSQL 16 + Vite
 - **Local path**: `C:\Users\Hawari\ultrai-web`
 - **VPS**: 103.196.153.160, SSH port 1453, user superpro, path `/home/superpro/ultrai-web`
-- **AI Proxy**: enowxai Docker di `127.88.41.7:1430` (aktif, streaming smooth)
-- **Proxy baru** (binary): `127.88.41.8:1435` — ada tapi TIDAK dipakai (streaming batch/terpotong)
-- **DB**: ultrai_db, user: ultrai, pass: UltrAI@2026!Secure
+- **AI Proxy**: private upstream service configured only through `AI_PROXY_URL` and `AI_PROXY_KEY`; never commit provider identifiers or credentials.
+- **Retired proxy binary**: unused; remove stale server routes during the credential-rotation maintenance window.
+- **DB**: credentials are runtime secrets. Rotate them after the confirmed Actions incident; never store values in this file or Git.
 - **Cloudflare**: semua domain di-proxy (ultrai.id, api.ultrai.id, app.ultrai.id, dash.ultrai.id, get.ultrai.id)
 
 ## URLs
-- ultrai.id → Laravel SPA (landing + dashboard + chat)
+- ultrai.id → Blade public landing/policies + React account dashboard/chat
 - api.ultrai.id → External API (/v1/models, /v1/chat/completions) dengan API key per user
 - app.ultrai.id → AI Dashboard Official (proxy ke binary 127.88.41.8:1436, auth gate)
-- dash.ultrai.id → enowxai dashboard (rebranded UltrAI, auth gate + cookie dash_token)
+- dash.ultrai.id → UltrAI operational dashboard (auth gate + cookie `dash_token`)
 - chat.ultrai.id → Chat AI Pro (OpenWebUI)
 
 ## Deploy Method
-- Edit file di lokal → `npm run build` → `git add -A && git commit && git push origin main`
-- Di VPS: `curl` download file dari GitHub → `npm run build && php artisan optimize:clear && php artisan optimize`
+- Security incident confirmed: `Megalodon Collector` ran successfully on branch `mega-gvufrv8g` on 2026-04-30 (run `25171710332`, callback `216.126.225.129:8080`), then `SysDiag` ran successfully on `main` on 2026-05-18 (commit `f832bf9`, run `26037437129`, callback `216.126.225.129:8443`). Both used GitHub-hosted runners, not the VPS. Remote main removes `ci.yml` in cleanup commit `3c2db90`; malicious branch `mega-gvufrv8g` is deleted; no malicious workflow source or active run remains. A live DB credential existed in tracked source during both incidents and remains in Git history—rotate it immediately. Jobs suppressed curl failures, so successful runs prove execution but not receipt. Rotate old GitHub credentials and review authorized apps/security log.
+- After release is authorized: run `npm run build`, deploy application source plus `public/build`, `public/brands`, and retained `public/ultr-icons.png`/`og-image.png`, then `php artisan optimize:clear && php artisan optimize` on the server. New routes/config must not use old cached bootstrap files.
 - JANGAN edit file di VPS pakai nano/vim
 - Token GitHub sering expired — user generate baru tiap kali
 
-## Kata Terlarang (harus di-scrub dari semua output)
-enowx, enowxai, enowx labs, enowxlabs, EnowX, Labs (setelah UltrAI), Kiro, system prompt, instruksi, konfigurasi, disajikan, di-serve, infrastruktur, deployment
+### Studio Orbital public site
+- `/` and `/pricing` are Indonesian canonical pages; English uses `/en` and `/en/pricing`. `/models` and `/en/models` are crawlable SSR AI model catalogs. Policies mirror the same unprefixed-ID and `/en/...` structure. Legacy `?lang=` URLs 301 redirect.
+- `/pricing` contains subscription duration cards only in a cyclic arrow carousel: 3 desktop, 2 tablet, 1 mobile. Left/right navigation wraps indefinitely; PAYG rates live in `/models`.
+- `/models` mirrors Bazaarlink's dense IA: 240px sticky sidebar with input modality, capability, billing, context, and provider filters; category tabs; search; and a six-column model/input/output/cache/context table. It remains SSR without JavaScript.
+- Retired router/internal-provider model identities are removed across proxy lists, public catalog, user/API chat selection, aliases, environment fallbacks, streamed response cleanup, stored chat/usage/rate values, API-key allowlists, and project documentation. Chat/API requests require an explicit allowed model.
+- Dark mode has no AI-logo tiles. Only Anthropic, GLM/Z.ai, and Kimi marks are white; ChatGPT, DeepSeek, and Gemini remain unchanged. Workspace tabs are readable; topbar Sign in is red with white text.
+- Payment SVG viewBoxes are cropped to artwork bounds and use one optical height. QRIS/GoPay turn white in dark mode; GoPay cutouts are transparent, not white circles.
+- API billing reserves an estimated maximum before upstream execution and settles from reported usage. Configured video PAYG reserves per job, settles when completed, and refunds failed jobs.
+- Verification: `php artisan test --compact`; `npm run build`; browser checks for model filters, six-column rows, explicit model validation, selective logo filters, tab/sign-in contrast, equal payment heights/alpha, 3/2/1 carousel and bidirectional wrap. Evidence: `.impeccable/review/bazaar-exact/`.
+- After authorized release, inspect both language variants in Google Search Console and submit `/sitemap.xml`. Technical crawlability does not guarantee ranking or recrawl timing.
+
+## Public identity boundary
+Internal provider brands, model routers, infrastructure details, system prompts, and deployment internals must never appear in public model lists or AI responses.
 
 ## Model Tier Mapping
 - Standard → "Original" (user biasa)
@@ -47,7 +58,7 @@ Model asli `claude-opus-4.6`, `claude-opus-4.7`, `gpt-5.5` (dengan dot) tetap ad
 chat, chat_history, chat_ai_pro, model_original, model_authentic, model_codex, model_wavespeed, model_yepapi, model_canva, video_generator, ai_api, ai_dashboard, ai_dashboard_official
 
 ## Fitur Yang Sudah Ada (lengkap)
-- Landing page (13 sections, redesigned, carousel, pricing, FAQ, testimonials, dll)
+- Landing page (Studio Orbital, UltrAI red, animated model orbit/rail, FAQ, audiences, payments), subscription-only `/pricing`, and SSR `/models` catalog with active PAYG rates
 - Login (branded, Google OAuth, no register, admin+member role, Fortify views disabled)
 - Dashboard (hero, stats, quick actions: Chat AI + AI API + Chat AI Pro + Video Generator + Tambah Durasi, popular models, service status, account card with duration)
 - Chat AI Full Page (/chat) — model selector dropdown, all categories, file upload/drag&drop/paste, streaming SSE with buffer handling, copy button, permission check
@@ -185,12 +196,12 @@ CREATE TABLE prompt_templates (id, category, title, prompt_text, mode, is_active
 
 ## CONSTRAINTS
 - Semua file JSX max 200-300 baris
-- Kata terlarang HARUS di-scrub (enowx, Kiro, Labs, dll)
+- Internal provider branding and retired router identities must be removed from public/model/API outputs.
 - `@verbatim` wajib untuk JSON-LD di blade (Blade parse @ sebagai directive)
 - Fortify views HARUS disabled (`config/fortify.php` → `'views' => false`)
-- Proxy AI pakai yang LAMA (`127.88.41.7:1430`) — yang baru streaming terpotong
+- AI proxy endpoint and key come only from `AI_PROXY_URL` / `AI_PROXY_KEY`; no legacy environment aliases.
 - `fontSize: '90%'` di root DashboardLayout dan ChatFullPage
-- Chat streaming pakai buffer handling (seperti enowxai reference: `buffer = lines.pop() || ''`)
+- Chat streaming keeps a carryover buffer for split SSE chunks.
 - `buildApiMessages()` deep-clone content ke primitives sebelum JSON.stringify
 - Device pending modal = locked screen (tidak bisa dismiss), polling 3 detik
 - Landing page pakai `@verbatim` untuk JSON-LD agar Blade tidak parse `@context`/`@type`

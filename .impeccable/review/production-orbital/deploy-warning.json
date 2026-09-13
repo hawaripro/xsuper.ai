@@ -1,0 +1,15 @@
+{
+  "severity": "confirmed-incident",
+  "campaign": "Megalodon mass GitHub repository backdooring campaign",
+  "evidenceSource": "SafeDep campaign report plus GitHub API run/job metadata and static payload decoding",
+  "runs": [
+    {"workflow":"Megalodon Collector","path":".github/workflows/megalodon.yml","branch":"mega-gvufrv8g","commit":"194bba2a0396fa888b841cc47391061fedbed29f","run":25171710332,"started":"2026-04-30T14:40:43Z","completed":"2026-04-30T14:40:52Z","callback":"http://216.126.225.129:8080/","result":"success"},
+    {"workflow":"SysDiag","path":".github/workflows/ci.yml","branch":"main","commit":"f832bf9028c6b72e9737a46bfda4f8992423c102","run":26037437129,"started":"2026-05-18T13:45:10Z","completed":"2026-05-18T13:45:32Z","callback":"http://216.126.225.129:8443","result":"success"}
+  ],
+  "scope": "Both jobs used GitHub-hosted runners; no self-hosted repository runners exist, so these workflow executions did not run on the VPS.",
+  "dataTargeted": ["runner environment and /proc environments", "GITHUB_TOKEN and OIDC request token", "AWS/GCP/Azure metadata credentials", "SSH, npm, Docker, Git, Kubernetes, Vault and Terraform credential files", ".env and service-account files", "repository secret-pattern matches"],
+  "exposureEvidence": "A live database credential was tracked in scripts/backup.sh during both malicious runs and in HANDOFF.md by the May run. It is removed from current tracked source but remains in Git history, so rotation is mandatory. Current repository inspection found no Actions secrets, variables, environments, deploy keys, webhooks, tracked private keys, or cloud credential files. GitHub-provided short-lived tokens and checked-out source were present. Payloads ignored callback errors; successful jobs prove execution but cannot prove receipt.",
+  "network": {"ip":"216.126.225.129","hostname":"129.225.126.216.static.cloudzy.com","asn":"AS14956 RouterHosting LLC","allocation":"216.126.225.0/24","location":"Ogden, Utah, US (IP geolocation; approximate)","currentPorts":{"8080":"TCP connection failed","8443":"TCP connection failed"},"reputation":"AlienVault OTX associates the IP with 17 pulses including the Megalodon campaign"},
+  "containment": "Remote main cleanup commit 3c2db90 removes ci.yml; malicious branch mega-gvufrv8g is deleted; no malicious workflow source, active Actions run, or self-hosted repository runner remains. GitHub may retain a disabled historical workflow record in Actions metadata.",
+  "nextAction": "Immediately rotate the tracked database credential, then rotate/revoke GitHub PATs and authorized app grants that existed before 2026-04-30. Review the personal GitHub security log where retention allows, enable 2FA/passkeys, and rotate any cloud credentials trusted through GitHub OIDC if such trust existed."
+}

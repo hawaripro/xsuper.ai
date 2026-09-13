@@ -1,0 +1,40 @@
+{
+  "approval": "User explicitly requested real project modifications and selected Studio Orbital. No production deploy/push authorized.",
+  "goal": "Ship a complete red Studio Orbital landing plus Red Ribbon Chamber pricing page while preserving crawlable content, canonical URLs, working account app, and true commercial terms.",
+  "architecture": "Laravel Blade server renders public home, /pricing, and three legal pages. A separate Vite vanilla JavaScript/CSS entry progressively enhances motion and controls. React remains for login, dashboard, Chat AI, and admin. Root never becomes a JavaScript-only shell.",
+  "seo": ["Keep https://ultrai.id canonical home and https://ultrai.id/pricing canonical pricing", "Preserve incumbent homepage title and core Indonesian product intent", "Server HTML contains landing H1/model names/FAQ and pricing H1/all six prices", "Page-specific canonical/title/description for pricing and policies", "Pricing JSON-LD offers match DurationOrder::PACKAGES; homepage FAQ schema matches visible content", "No unsupported aggregate rating or fake purchase notifications", "robots remains crawlable and sitemap includes /pricing", "No-JavaScript visitors receive the same real content", "JavaScript never sets noindex/canonical or hides content pending animation"],
+  "motion": {
+    "direction":"Red Studio Orbital landing plus Red Ribbon Chamber pricing",
+    "hero":"Landing keeps the actual UltrAI logo at the center of six branded model orbits. Pricing uses six selectable tickets around a layered red ribbon chamber.",
+    "story":"Landing preserves the approved composition without inline pricing. Dedicated pricing moves from interactive ribbon selection through six authoritative cards, payment methods, and a closing ribbon.",
+    "safety":"No manual motion control. Reduced-motion creates a static composition; offscreen/hidden animations pause; real text stays present; no scroll hijacking or infinite offscreen work."
+  },
+  "ownership": {
+    "Main":"routes/web.php, React root-route cutover, Vite config, public asset acquisition, header/footer partials, public/home.blade.php, resources/css/landing.css, resources/js/landing.js, browser integration and final validation",
+    "PublicSeo":"app/Http/Controllers/PublicSiteController.php, config/marketing.php, resources/views/layouts/public.blade.php, resources/views/public/policy.blade.php, resources/views/public/sitemap.blade.php, tests/Feature/PublicSiteTest.php; replace obsolete ExampleTest only if behavior test replaces it"
+  },
+  "contract": {
+    "controller":"PublicSiteController::home(), ::pricing(), ::policy(string $policy), ::sitemap()",
+    "routes":"GET / named home; GET /pricing named pricing; three policy routes; GET /sitemap.xml; all before the existing catch-all",
+    "homeView":"public.home extending layouts.public; contains no pricing cards or Offer schema and links to /pricing",
+    "pricingView":"public.pricing extending layouts.public; contains Red Ribbon Chamber, six server-rendered plans, and matching Offer schema",
+    "layout":"head metadata, @vite public CSS/JavaScript, shared header/footer, yielded content, safe JSON-LD, optional incumbent analytics",
+    "sharedData":"$site=config('marketing'), $plans normalized DurationOrder::PACKAGES, $page metadata, $structuredData array",
+    "siteKeys":"name,url,description,support,models,faqs,payments,audiences,policies",
+    "planKeys":"id,label,days,price,priceLabel,perDayLabel,description,featured,checkoutUrl",
+    "pageKeys":"title,description,canonical,robots,indexable,type",
+    "logoPaths":"/brands/ai/*.svg; actual UltrAI marks under /brands/ultrai/; payment marks under /brands/*.svg",
+    "policyClasses":"policy-page, container, policy-hero, policy-layout, policy-toc, policy-content, policy-section, policy-contact",
+    "siteFont":"Locally hosted Manrope and DM Sans; IBM Plex Mono for code. No runtime font CDN.",
+    "appBoundary":"Server-rendered public routes; React login/dashboard/chat/admin behavior retained; return-home navigation performs a normal document request"
+  },
+  "commercialFacts": {
+    "packageSource":"app/Models/DurationOrder.php::PACKAGES",
+    "pricesIDR":[5000,20000,55000,135000,299000,499000],
+    "refund":"Existing FAQ: unused new package full refund within24h; technical issue replacement or prorated refund via WhatsApp.",
+    "payments":"QRIS,BCA,Mandiri,BRI,GoPay,ShopeePay. Existing duration orders require admin approval; do not promise automatic/instant confirmation.",
+    "limits":"Capabilities depend on permissions/model availability; do not copy contradictory claims of no limits while backend uses tokens/expiry/device limits.",
+    "support":"WhatsApp6287786866648"
+  },
+  "verification":"Feature regression checks raw server HTML/SEO offers/policies/sitemap/status and app boundary; production Vite build; browser desktop/mobile/reduced-motion/no-JS; actual timed animation and interaction; no ranking or live Google index guarantee."
+}

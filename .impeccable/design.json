@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "title": "UltrAI — red Studio Orbital public site, subscription pricing, and AI model catalog",
+  "scope": "Server-rendered localized landing, subscription pricing, model catalog, and policy pages; authenticated React surfaces retain their existing product behavior plus database-managed pricing controls.",
+  "source": ["resources/css/landing.css", "resources/js/landing.js"],
+  "tokens": {
+    "colors": {"paper":"#f8faff","white":"#ffffff","ink":"#14284b","muted":"#526581","accent":"#d92d3e","accentDeep":"#b91c2b","pale":"#fdecef","line":"#d7e1f0","navy":"#112444"},
+    "typography": {"display":"Manrope, sans-serif","body":"DM Sans, sans-serif","code":"IBM Plex Mono, monospace","hero":"clamp(48px,5.05vw,76px)","bodySize":"16px","bodyLineHeight":1.65,"displayTracking":"-0.04em"},
+    "rounded": {"button":"8px","panel":"12px","showcase":"16px"},
+    "layout": {"container":"min(1320px, calc(100% - 112px))","mobileGutter":"20px","sections":"55px–118px vertical spacing, responsive"}
+  },
+  "extensions": {
+    "motion": [
+      {"name":"ease","value":"cubic-bezier(.16,1,.3,1)","purpose":"Interactive state transitions"},
+      {"name":"orbit-turn","value":"44s linear infinite","purpose":"Six AI marks orbit actual UltrAI identity; reverse counterrotation keeps marks upright"},
+      {"name":"brand-travel","value":"36s linear infinite","purpose":"Moving model logo rail; static list without JavaScript or under reduced motion"},
+      {"name":"flow-send","value":"2.4s linear infinite","purpose":"API request visualization"},
+      {"name":"payment-scan","value":"5s linear infinite","purpose":"Payment pathway graphic"},
+      {"name":"closing-rotate","value":"55s linear infinite","purpose":"Shared landing and pricing closing orbital frames"},
+      {"name":"ribbon-chamber-turn","value":"30s linear infinite","purpose":"Dedicated pricing hero ribbon chamber"}
+    ],
+    "breakpoints": [{"name":"wide","value":"1600px"},{"name":"desktop-small","value":"1180px"},{"name":"tablet","value":"960px"},{"name":"mobile","value":"767px"},{"name":"phone","value":"460px"}],
+    "accessibility": "Loops run only in visible motion zones, pause when hidden or offscreen, and become static under reduced motion. There is no manual motion preference. Indonesian and English remain server-rendered. The sticky header, tabs, tickets, theme and language controls retain keyboard behavior.",
+    "assets": "Local AI and payment SVGs; optimized WebP derivatives of the existing UltrAI mark; locally bundled Vite fonts with licenses."
+  },
+  "rules": ["Actual UltrAI logo, no invented replacement", "Model catalog mirrors Bazaarlink IA: sticky filter sidebar, modality/capability/billing/context/provider controls, category tabs, compact six-column rows", "Retired router/internal-provider identities never appear in listing APIs, chat defaults, aliases, stored data, response output, env fallbacks, or public pages", "Subscription pricing is an infinite 3/2/1-card arrow carousel", "Only Anthropic, GLM/Z.ai, and Kimi become white in dark mode; no AI-logo tiles", "ChatGPT, DeepSeek, and Gemini retain native treatment", "Workspace tabs remain readable and topbar Sign in is red in dark mode", "Payment SVG artwork is tightly cropped and shares one optical height; QRIS/GoPay are white with transparent backgrounds in dark mode", "Page-specific FAQ, Offer, and ItemList schema remain authoritative"],
+  "documentation": "PRODUCT.md, HANDOFF.md, and implementation records reflect exact Bazaar-style IA, end-to-end retired model cleanup, selective logo treatment, cyclic pricing carousel, optically normalized payments, database billing, and the confirmed workflow incident."
+}

@@ -1,0 +1,10 @@
+{
+  "design": "UltrAI red Studio Orbital landing, Bazaar-style AI model catalog, and cyclic subscription pricing",
+  "implementation": "Real Laravel public-site and billing source; no application release performed",
+  "preview": "http://127.0.0.1:8017/",
+  "includes": ["Bazaar-style sticky model filter sidebar", "Input modality/capability/billing/context/provider filters", "Compact six-column comparison rows", "Retired model identities removed across API/chat/storage/config/docs", "Selective white AI marks without tiles", "Readable dark workspace tabs", "Red dark-mode sign-in", "Cropped equal-height payment artwork", "White transparent QRIS/GoPay in dark mode", "Infinite 3/2/1-card pricing carousel", "Database-managed IDR/USD and PAYG rates", "Micro-USD wallet and ledger", "Bilingual subdirectory routes"],
+  "seo": "Indonesian canonical paths remain unprefixed; English uses /en subdirectories; legacy query URLs redirect; sanitized SSR model rows, subscription offers, canonical/hreflang/Content-Language and sitemap remain page-specific",
+  "proof": "27 tests, 313 assertions; final Vite build passed; explicit allowed model selection, all-list sanitizer, stored-value/API-key purge, dense catalog filters/table, selective logo rules, workspace tabs, red sign-in, payment optical heights/GoPay alpha, cyclic 3/2/1 carousel and 37-step bidirectional wrap exercised",
+  "workflowSecurity": "Two malicious workflows ran historically on GitHub-hosted runners. Remote cleanup commit 3c2db90 removes ci.yml, branch mega-gvufrv8g is deleted, and no malicious workflow source or active run remains. Server credential rotation checklist is retained in memory.",
+  "handoff": "HANDOFF.md, PRODUCT.md, .impeccable/design.json, .impeccable/review/i18n-theme/, and .impeccable/review/production-orbital/deploy-warning.json"
+}

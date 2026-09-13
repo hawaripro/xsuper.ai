@@ -10,7 +10,8 @@
         "laravel/fortify": "^1.36",
         "laravel/framework": "^13.0",
         "laravel/socialite": "^5.27",
-        "laravel/tinker": "^3.0"
+        "laravel/tinker": "^3.0",
+        "nesbot/carbon": "3.x-dev as 3.11.5"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

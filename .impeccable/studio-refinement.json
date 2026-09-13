@@ -1,0 +1,32 @@
+{
+  "intent": "User selected Studio but rejects its plainness and lack of visible animation. Enrich the interactive prototype using original ChatFullPage.jsx, not production migration.",
+  "scope": ["Studio landing motion and demonstration", "Studio full-featured chat workspace", "Preserve working developer console", "Reflect selected direction in gallery"],
+  "originalReference": {
+    "path": "resources/js/pages/ChatFullPage.jsx",
+    "features": ["Chat/Image/Video/Audio categories", "Searchable grouped model selector", "New and existing conversations", "5 attachments up to 20 MiB each", "Image/doc upload, drag/drop and pasted images", "Message entrance and typing feedback", "Light/dark theme", "Collapsible history sidebar", "Copy responses", "Quick prompts"]
+  },
+  "productConstraints": ["No live AI or API request", "No real credentials or payments", "Demo and sample attribution stay visible", "Do not claim image/video/audio generation: those category prototypes edit and export a brief, not fabricate a generation result", "Only self-hosted existing fonts and local assets", "Do not change Atlas, Signal, source React or backend"],
+  "motion": {
+    "focalMoment": "A bounded authored Studio engine: aligned cobalt planes assemble around an UltrAI core while a task becomes a demo answer; replay and pause controls, six-second maximum autoplay.",
+    "continuity": "Category active rail, model picker, expandable history, message arrival, and light/dark states transition without discarding user input.",
+    "feedback": "Streaming a stored example has a visible stop action and status; attachment arrival/removal and copy acknowledge action.",
+    "budget": "CSS/WAAPI only, no new dependency; pause all nonessential motion when hidden/offscreen; respect reduced motion; never hide useful content behind animation."
+  },
+  "layout": {
+    "landing": "Keep Studio white/navy/cobalt, Manrope/DM Sans. Add an actual animated product mechanism and replay, strengthen workbench state transitions; preserve content and two user journeys.",
+    "workspace": "Real application shell: dark-navy contextual sidebar beside a calm light canvas; compact topbar with searchable model picker and theme switch. An authored Studio mark, large two-tone greeting, a four-mode action rail, substantial composer with files, and compact useful prompt tiles. Conversation mode retains composer and shows role, model attribution, code block and copy/stop actions. No fake online badge or invented metrics.",
+    "mobile": "Keep composer and model choices visible without wide header; sidebar as expandable region; picker constrained to viewport with focus containment; controls at least12px and44px touch targets where practical."
+  },
+  "ownership": {
+    "Main": "index.html, gallery selection, preview metadata, server allowlist, motion.js, browser verification",
+    "Engine": "app.js only; existing workspace functions and event handlers cleanly upgraded, console retained",
+    "Presentation": "style.css only; replace workspace styling and old conflicting responsive workspace rules, preserve console and landing grammar"
+  },
+  "domContract": {
+    "preserve": ["#view-workspace", "#workspace-rail-content", "#history-toggle", "#conversation-history", "#new-conversation", "#conversation-title", "#workspace-empty", "#conversation-thread", "#workspace-form", "#workspace-input", "#workspace-submit", "#workspace-model", "#workspace-error", "#composer-note", "#model-attribution", "#workspace-guide", "#workspace-guide-toggle", "#workspace-guide-close"],
+    "new": ["#workspace-mode-tabs [data-mode=chat|image|video|audio]", "#workspace-mode-title", "#workspace-mode-description", "#workspace-mode-label", "#workspace-theme", "#sidebar-collapse", "#history-search", "#workspace-file", "#attach-file", "#attachment-list", "#drop-overlay", "#generation-status", "#stop-generation", "#model-trigger", "#model-trigger-name", "#model-picker", "#model-search", "#model-list", "#model-empty", "#model-picker-close", "#picker-count", "#model-picker [data-model-filter=all|chat|image|video|audio]", "#media-note", "#workspace-prompt-ideas"],
+    "state": ["body[data-workspace-theme=light|dark]", "#view-workspace[data-mode=chat|image|video|audio]", "#view-workspace.is-responding", "#view-workspace.has-conversation", "#view-workspace.is-rail-collapsed", ".workspace-rail.is-open", ".workspace-main.is-dragging"],
+    "rendered": [".history-entry > .history-button + .history-delete", ".model-option[data-model-id] with .model-monogram and .model-option-copy", ".attachment-chip with .attachment-name and [data-remove-attachment]", ".chat-message.chat-user|chat-assistant", ".chat-message.is-streaming", ".generation-meter", ".media-brief"]
+  },
+  "previewValidation": ["Landing motion at t0/t1/t3 and pause/replay", "Workspace model search/group choice, empty search, Escape", "Theme and sidebar preserve unsent draft", "Chat submit streams demo, stop stable, copy", "File chooser/drop/paste accepts allowed types and enforces5/20MiB", "Image/video/audio mode shows honest brief workflow", "History search/delete/new", "Mobile390 and desktop1440, reduced-motion", "Console preserved, gallery full-size route current"]
+}

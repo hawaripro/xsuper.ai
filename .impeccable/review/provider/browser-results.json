@@ -1,0 +1,280 @@
+{
+  "round": 1,
+  "variants": [
+    {
+      "evidence": [
+        {
+          "variant": "atlas",
+          "view": "landing",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/atlas-landing-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 2073,
+          "title": "UltrAI — Dari satu ide. Ke banyak kemungkinan. · Atlas",
+          "headings": [
+            "Dari satu ide.\nKe banyak\nkemungkinan."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "atlas",
+          "view": "workspace",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/atlas-workspace-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 1010,
+          "title": "UltrAI — Workspace · Atlas",
+          "headings": [
+            "Mari mulai dari\nsebuah ide."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "atlas",
+          "view": "console",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/atlas-console-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 1389,
+          "title": "UltrAI — Developer console · Atlas",
+          "headings": [
+            "Dari percakapan\nke produk."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "atlas",
+          "view": "landing",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/atlas-landing-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 2963,
+          "title": "UltrAI — Dari satu ide. Ke banyak kemungkinan. · Atlas",
+          "headings": [
+            "Dari satu ide.\nKe banyak\nkemungkinan."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "atlas",
+          "view": "workspace",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/atlas-workspace-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 1115,
+          "title": "UltrAI — Workspace · Atlas",
+          "headings": [
+            "Mari mulai dari\nsebuah ide."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "atlas",
+          "view": "console",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/atlas-console-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 1834,
+          "title": "UltrAI — Developer console · Atlas",
+          "headings": [
+            "Dari percakapan\nke produk."
+          ],
+          "badElements": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "evidence": [
+        {
+          "variant": "studio",
+          "view": "landing",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/studio-landing-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 2371,
+          "title": "UltrAI — Studio",
+          "headings": [
+            "Ide jadi karya.\nKode jadi\nproduk."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "studio",
+          "view": "workspace",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/studio-workspace-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 1000,
+          "title": "UltrAI — Workspace · Studio",
+          "headings": [
+            "Apa yang ingin Anda\nkerjakan hari ini?"
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "studio",
+          "view": "console",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/studio-console-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 1031,
+          "title": "UltrAI — Developer console · Studio",
+          "headings": [
+            "Request pertama Anda."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "studio",
+          "view": "landing",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/studio-landing-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 3273,
+          "title": "UltrAI — Studio",
+          "headings": [
+            "Ide jadi karya.\nKode jadi\nproduk."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "studio",
+          "view": "workspace",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/studio-workspace-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 880,
+          "title": "UltrAI — Workspace · Studio",
+          "headings": [
+            "Apa yang ingin Anda\nkerjakan hari ini?"
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "studio",
+          "view": "console",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/studio-console-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 1519,
+          "title": "UltrAI — Developer console · Studio",
+          "headings": [
+            "Request pertama Anda."
+          ],
+          "badElements": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "evidence": [
+        {
+          "variant": "signal",
+          "view": "landing",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/signal-landing-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 2068,
+          "title": "UltrAI — Signal",
+          "headings": [
+            "Satu platform.\nBanyak kemungkinan."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "signal",
+          "view": "workspace",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/signal-workspace-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 1000,
+          "title": "UltrAI — Signal workspace",
+          "headings": [
+            "Apa yang ingin\nkamu kerjakan?"
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "signal",
+          "view": "console",
+          "viewport": "desktop",
+          "file": ".impeccable/review/provider/signal-console-desktop.png",
+          "width": 1440,
+          "scrollWidth": 1440,
+          "height": 1137,
+          "title": "UltrAI — Signal console",
+          "headings": [
+            "Bangun langkah berikutnya."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "signal",
+          "view": "landing",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/signal-landing-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 2631,
+          "title": "UltrAI — Signal",
+          "headings": [
+            "Satu platform.\nBanyak kemungkinan."
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "signal",
+          "view": "workspace",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/signal-workspace-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 844,
+          "title": "UltrAI — Signal workspace",
+          "headings": [
+            "Apa yang ingin\nkamu kerjakan?"
+          ],
+          "badElements": []
+        },
+        {
+          "variant": "signal",
+          "view": "console",
+          "viewport": "mobile",
+          "file": ".impeccable/review/provider/signal-console-mobile.png",
+          "width": 390,
+          "scrollWidth": 390,
+          "height": 1301,
+          "title": "UltrAI — Signal console",
+          "headings": [
+            "Bangun langkah berikutnya."
+          ],
+          "badElements": []
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "gallery": {
+    "desktop": ".impeccable/review/provider/gallery-desktop.png",
+    "mobile": {
+      "file": ".impeccable/review/provider/gallery-mobile.png",
+      "width": 390,
+      "height": 4107
+    }
+  }
+}

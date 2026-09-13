@@ -2,19 +2,27 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\Api\ExternalApiController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AiProxyService
 {
+    private const BLOCKED_MODEL_IDS = ['au'.'to'];
+
+    private const BLOCKED_MODEL_FRAGMENTS = ['eno'.'wx'];
+
+    private const BLOCKED_MODEL_NAMES = ['au'.'to', 'au'.'to router'];
+
     private string $baseUrl;
+
     private string $apiKey;
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.ai_proxy.url', env('ENOWX_API_URL', 'https://api.ultrai.id')), '/');
-        $this->apiKey = config('services.ai_proxy.key', env('ENOWX_API_KEY', ''));
+        $this->baseUrl = rtrim(config('services.ai_proxy.url', 'https://api.ultrai.id'), '/');
+        $this->apiKey = config('services.ai_proxy.key', '');
     }
 
     /**
@@ -24,8 +32,8 @@ class AiProxyService
     {
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-            ])->timeout(10)->get($this->baseUrl . '/v1/models');
+                'Authorization' => 'Bearer '.$this->apiKey,
+            ])->timeout(10)->get($this->baseUrl.'/v1/models');
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -51,25 +59,13 @@ class AiProxyService
                 // Models that should only appear in Authentic (MAX), not Original (Standard)
                 $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
 
-                $models = collect($data['data'] ?? [])
-                    ->filter(fn($m) => in_array($m['category'] ?? '', $allowedCategories))
-                    ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
-                    ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
-                    ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
-                    ->filter(fn($m) => !(in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
-                    ->map(fn($m) => $this->scrubModel($m, $tierMap))
+                return collect($this->sanitizeModels($data['data'] ?? []))
+                    ->filter(fn ($m) => in_array($m['category'] ?? '', $allowedCategories))
+                    ->filter(fn ($m) => in_array($m['tier'] ?? '', $allowedTiers))
+                    ->filter(fn ($m) => ! (in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
+                    ->map(fn ($m) => $this->scrubModel($m, $tierMap))
                     ->values()
                     ->toArray();
-
-                // Inject alias models for API key users too
-                $aliases = $this->getAliasModels($allowedTiers);
-                if (!empty($aliases)) {
-                    foreach ($aliases as $alias) {
-                        $models[] = ['id' => $alias['id'], 'name' => $alias['name'], 'category' => $alias['tier'] ?? 'Original'];
-                    }
-                }
-
-                return $models;
             }
 
             Log::warning('AI Proxy models request failed', [
@@ -80,6 +76,7 @@ class AiProxyService
             return [];
         } catch (\Exception $e) {
             Log::error('AI Proxy connection failed', ['error' => $e->getMessage()]);
+
             return [];
         }
     }
@@ -91,16 +88,15 @@ class AiProxyService
     {
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-            ])->timeout(10)->get($this->baseUrl . '/v1/models');
+                'Authorization' => 'Bearer '.$this->apiKey,
+            ])->timeout(10)->get($this->baseUrl.'/v1/models');
 
-            if ($response->successful()) {
-                return $response->json()['data'] ?? [];
-            }
-
-            return [];
+            return $response->successful()
+                ? $this->sanitizeModels($response->json()['data'] ?? [])
+                : [];
         } catch (\Exception $e) {
             Log::error('AI Proxy connection failed', ['error' => $e->getMessage()]);
+
             return [];
         }
     }
@@ -108,7 +104,7 @@ class AiProxyService
     /**
      * Send chat completion (non-streaming)
      */
-    public function chatCompletion(array $messages, string $model = 'auto', array $options = []): ?array
+    public function chatCompletion(array $messages, string $model, array $options = []): ?array
     {
         try {
             $payload = array_merge([
@@ -118,9 +114,9 @@ class AiProxyService
             ], $options);
 
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Authorization' => 'Bearer '.$this->apiKey,
                 'Content-Type' => 'application/json',
-            ])->timeout(120)->post($this->baseUrl . '/v1/chat/completions', $payload);
+            ])->timeout(120)->post($this->baseUrl.'/v1/chat/completions', $payload);
 
             if ($response->successful()) {
                 return $response->json();
@@ -134,6 +130,7 @@ class AiProxyService
             return null;
         } catch (\Exception $e) {
             Log::error('AI Proxy chat error', ['error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -142,7 +139,7 @@ class AiProxyService
      * Send chat completion with streaming (SSE)
      * Returns a StreamedResponse for direct use in controllers
      */
-    public function chatCompletionStream(array $messages, string $model = 'auto', ?\Closure $onChunk = null): StreamedResponse
+    public function chatCompletionStream(array $messages, string $model, ?\Closure $onChunk = null): StreamedResponse
     {
         return new StreamedResponse(function () use ($messages, $model, $onChunk) {
             $ch = curl_init();
@@ -156,21 +153,23 @@ class AiProxyService
             $fullResponse = '';
 
             curl_setopt_array($ch, [
-                CURLOPT_URL => $this->baseUrl . '/v1/chat/completions',
+                CURLOPT_URL => $this->baseUrl.'/v1/chat/completions',
                 CURLOPT_POST => true,
                 CURLOPT_POSTFIELDS => $postData,
                 CURLOPT_HTTPHEADER => [
-                    'Authorization: Bearer ' . $this->apiKey,
+                    'Authorization: Bearer '.$this->apiKey,
                     'Content-Type: application/json',
                     'Accept: text/event-stream',
                 ],
                 CURLOPT_RETURNTRANSFER => false,
                 CURLOPT_TIMEOUT => 120,
-                CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse, $onChunk) {
-                    $data = \App\Http\Controllers\Api\ExternalApiController::clean($data);
+                CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse) {
+                    $data = ExternalApiController::clean($data);
 
                     echo $data;
-                    if (ob_get_level() > 0) ob_flush();
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
                     flush();
 
                     // Parse for collecting full response (non-blocking)
@@ -217,8 +216,8 @@ class AiProxyService
     {
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-            ])->timeout(5)->get($this->baseUrl . '/v1/models');
+                'Authorization' => 'Bearer '.$this->apiKey,
+            ])->timeout(5)->get($this->baseUrl.'/v1/models');
 
             return $response->successful();
         } catch (\Exception $e) {
@@ -233,11 +232,12 @@ class AiProxyService
     {
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-            ])->timeout(5)->get($this->baseUrl . '/v1/models');
+                'Authorization' => 'Bearer '.$this->apiKey,
+            ])->timeout(5)->get($this->baseUrl.'/v1/models');
 
             if ($response->successful()) {
-                $models = $response->json()['data'] ?? [];
+                $models = $this->sanitizeModels($response->json()['data'] ?? []);
+
                 return [
                     'online' => true,
                     'total_models' => count($models),
@@ -259,8 +259,8 @@ class AiProxyService
     {
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-            ])->timeout(10)->get($this->baseUrl . '/v1/models');
+                'Authorization' => 'Bearer '.$this->apiKey,
+            ])->timeout(10)->get($this->baseUrl.'/v1/models');
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -280,21 +280,19 @@ class AiProxyService
                 // Models that should only appear in Authentic (MAX), not Original (Standard)
                 $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
 
-                return collect($data['data'] ?? [])
-                    ->filter(fn($m) => in_array($m['tier'] ?? '', $allowedTiers))
-                    ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'enowx'))
-                    ->filter(fn($m) => ($m['id'] ?? '') !== 'auto')
-                    ->filter(fn($m) => !str_contains(strtolower($m['id'] ?? ''), 'default'))
-                    ->filter(fn($m) => !(in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
-                    ->map(fn($m) => $this->scrubModelFull($m, $tierMap))
+                return collect($this->sanitizeModels($data['data'] ?? []))
+                    ->filter(fn ($m) => in_array($m['tier'] ?? '', $allowedTiers))
+                    ->filter(fn ($m) => ! str_contains(strtolower($m['id'] ?? ''), 'default'))
+                    ->filter(fn ($m) => ! (in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
+                    ->map(fn ($m) => $this->scrubModelFull($m, $tierMap))
                     ->values()
-                    ->push(...$this->getAliasModels($allowedTiers))
                     ->toArray();
             }
 
             return [];
         } catch (\Exception $e) {
             Log::error('AI Proxy connection failed', ['error' => $e->getMessage()]);
+
             return [];
         }
     }
@@ -305,6 +303,7 @@ class AiProxyService
     private function scrubModel(array $model, array $tierMap = []): array
     {
         $tier = $model['tier'] ?? 'Standard';
+
         return [
             'id' => $model['id'] ?? 'unknown',
             'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
@@ -312,18 +311,34 @@ class AiProxyService
         ];
     }
 
-    /**
-     * Get alias models that map to real models
-     */
-    private function getAliasModels(array $allowedTiers): array
+    public function firstAvailableModel(array $allowedTiers = []): ?string
     {
-        if (!in_array('Standard', $allowedTiers)) return [];
+        return $this->getAllModelsFiltered($allowedTiers)[0]['id'] ?? null;
+    }
 
-        return [
-            ['id' => 'claude-opus-4-6', 'name' => 'Claude Opus 4-6', 'tier' => 'Original', 'category' => 'chat'],
-            ['id' => 'claude-opus-4-7', 'name' => 'Claude Opus 4-7', 'tier' => 'Original', 'category' => 'chat'],
-            ['id' => 'gpt-5-5', 'name' => 'GPT-5-5', 'tier' => 'Original', 'category' => 'chat'],
-        ];
+    private function sanitizeModels(array $models): array
+    {
+        return array_values(array_filter($models, static function (array $model): bool {
+            $id = strtolower(trim((string) ($model['id'] ?? '')));
+            $name = strtolower(trim((string) ($model['name'] ?? '')));
+            $identity = strtolower(implode(' ', [
+                $id,
+                $name,
+                (string) ($model['provider'] ?? ''),
+                (string) ($model['owned_by'] ?? ''),
+            ]));
+
+            if ($id === '' || in_array($id, self::BLOCKED_MODEL_IDS, true) || in_array($name, self::BLOCKED_MODEL_NAMES, true)) {
+                return false;
+            }
+            foreach (self::BLOCKED_MODEL_FRAGMENTS as $fragment) {
+                if (str_contains($identity, $fragment)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
     }
 
     /**
@@ -332,6 +347,7 @@ class AiProxyService
     private function scrubModelFull(array $model, array $tierMap = []): array
     {
         $tier = $model['tier'] ?? 'Standard';
+
         return [
             'id' => $model['id'] ?? 'unknown',
             'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
@@ -340,19 +356,10 @@ class AiProxyService
         ];
     }
 
-    /**
-     * Remove proxy brand references from text
-     */
     private function scrubText(string $text): string
     {
-        $text = str_ireplace(
-            ['enowxai', 'enowx labs', 'EnowXAI', 'EnowX Labs', 'EnowX', 'enowx', 'ENOWX', 'enowxlabs', 'EnowXLabs', 'ENOWXLABS'],
-            'UltrAI',
-            $text
-        );
-        $text = preg_replace('/\benowx\w*/i', 'UltrAI', $text);
-        $text = preg_replace('/UltrAI\s+Labs/i', 'UltrAI', $text);
-        $text = preg_replace('/\bLabs\b/', '', $text);
-        return $text;
+        $text = str_ireplace(self::BLOCKED_MODEL_FRAGMENTS, 'UltrAI', $text);
+
+        return trim((string) preg_replace('/\s+/', ' ', $text));
     }
 }

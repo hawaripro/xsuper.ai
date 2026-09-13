@@ -3,11 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 
 class UsageLog extends Model
 {
-    protected $fillable = ['user_id', 'model', 'source', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'credit', 'device_id'];
+    protected $fillable = ['user_id', 'model', 'source', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'credit', 'cost_microusd', 'usage_rate_id', 'device_id'];
 
     public function user()
     {
@@ -24,6 +23,8 @@ class UsageLog extends Model
             'completion_tokens' => $usage['completion_tokens'] ?? 0,
             'total_tokens' => $usage['total_tokens'] ?? 0,
             'credit' => $usage['credit'] ?? 0,
+            'cost_microusd' => $usage['cost_microusd'] ?? 0,
+            'usage_rate_id' => $usage['usage_rate_id'] ?? null,
             'device_id' => $deviceId,
         ]);
     }

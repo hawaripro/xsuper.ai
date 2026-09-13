@@ -1,0 +1,33 @@
+@php
+    $paths = [
+        'arrow' => 'M4 12h16m-6-6 6 6-6 6',
+        'external' => 'M6 18 18 6M6 6h12v12',
+        'chevron' => 'm6 9 6 6 6-6',
+        'plus' => 'M12 5v14M5 12h14',
+        'minus' => 'M5 12h14',
+        'check' => 'm5 12 4 4L19 6',
+        'close' => 'm6 6 12 12M18 6 6 18',
+        'menu' => 'M4 6h16M4 12h16M4 18h16',
+        'pause' => 'M8 5v14M16 5v14',
+        'play' => 'm8 4 12 8-12 8V4Z',
+        'moon' => 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z',
+        'sun' => 'M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
+        'code' => 'm8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18',
+        'chat' => 'M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3V6a2 2 0 0 1 1-2Z',
+        'search' => 'm21 21-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
+        'copy' => 'M8 8h11a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Zm8 0V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h1',
+        'image' => 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm-2 14 6-6 4 4 3-3 5 5M8 7h.01',
+        'video' => 'M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm5 4 6 4-6 4V8ZM7 2v4m5-4v4m5-4v4',
+        'audio' => 'M4 10v4m4-8v12m4-15v18m4-15v12m4-8v4',
+        'copy' => 'M8 8h12v12H8V8ZM4 16H2V2h14v2',
+        'key' => 'M14 7a4 4 0 1 1-2 7l-7 7H2v-3l7-7a4 4 0 0 1 5-4Z',
+        'shield' => 'M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6L12 2Zm-4 10 3 3 5-6',
+        'wallet' => 'M4 6V4h15v4H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h17V8H4m12 4h6v4h-6v-4Z',
+        'book' => 'M12 5C8 3 5 3 2 4v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-3-1-6-1-10 1Zm0 0v15',
+        'briefcase' => 'M8 7V3h8v4M3 7h18v14H3V7Zm0 6 9 3 9-3m-9 1v4',
+        'pen' => 'm15 3 6 6-12 12H3v-6L15 3ZM12 6l6 6M3 21l6-1',
+        'research' => 'M10 3v5L3 20h18L14 8V3M8 3h8M7 14h10',
+        'file' => 'M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10L13 3Zm0 0v7h7M8 14h8m-8 3h5',
+    ];
+@endphp
+<svg class="icon {{ $class ?? '' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="{{ $paths[$name] ?? $paths['arrow'] }}" /></svg>

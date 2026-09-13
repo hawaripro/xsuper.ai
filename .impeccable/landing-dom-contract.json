@@ -1,0 +1,24 @@
+{
+  "purpose": "Progressive-enhancement contract for the Blade public landing, dedicated pricing page, and policies.",
+  "entry": "resources/js/landing.js is the Vite JavaScript entry; resources/css/landing.css is separate. Public pages do not import the React app entry.",
+  "navigation": {"toggle":"#site-menu-toggle (button hidden until JavaScript)","nav":"#site-nav","openClass":"is-open","closeOn":"same-page anchor, Escape, outside click; restore focus on Escape only","mobile":"max-width 767px"},
+  "motion": {
+    "state":"document.documentElement.classList.add('js'); body.dataset.motion='running'|'paused'|'reduced'",
+    "zones":"[data-motion-zone] adds .is-in-view while intersecting; CSS loops run only for running, visible zones",
+    "cssAnimations":".orbit-arm/.orbit-card, .brand-track, .flow-packet, .payment-signal, .closing-orbit, and .ribbon-path",
+    "loopControl":"automatic only: page-hidden and offscreen zones pause; reduced-motion overrides; there is no manual motion preference or storage key",
+    "reveal":"[data-reveal] values rise, line, wipe, stagger; WAAPI once on first intersection; default HTML/CSS remains visible",
+    "pointer":"optional bounded tilt on [data-orbit-stage]; disabled for coarse pointers and reduced motion"
+  },
+  "orbitSelection": {"nodes":"button[data-orbit-model]","targets":"#orbit-model-name, #orbit-description","state":"aria-pressed and .is-selected"},
+  "tabs": {"demo":"#demo-tabs with [data-demo-tab] and [data-demo-panel]","code":"#api-tabs with [data-code-tab] and [data-code-panel]","keyboard":"Arrow keys, Home, End; server content stays visible without JavaScript"},
+  "clipboard": {"buttons":"button[data-copy-target] hidden until JavaScript","content":"target textContent","status":"#site-status role=status; failures leave code selectable"},
+  "faq": {"selectors":"#faq details and .faq-answer","behavior":"native without JavaScript; enhancement never steals focus or scroll"},
+  "pricing": {"routes":"/pricing and /en/pricing","scope":"subscription duration packages only","carousel":"data-pricing-carousel with cyclic previous/next DOM rotation; 3 desktop, 2 tablet, 1 mobile","hero":"shared landing orbit system","source":"database-managed duration_package_prices"},
+  "localization": {"default":"unprefixed Indonesian routes","english":"/en and /en/*","legacy":"?lang=id|en permanently redirects","seo":"language-specific canonical, hreflang, Content-Language, sitemap entries","catalog":"lang/en.json"},
+  "theme": {"control":"#theme-toggle","storage":"ultrai-theme","values":"light|dark","darkLogoRule":"Anthropic/Z.ai/Kimi white; ChatGPT/DeepSeek/Gemini unchanged; no tiles","sharedWith":"React login theme"},
+  "pricingManagement": {"duration":"duration_package_prices with IDR and independent USD","usage":"usage_rates for API input/output and image/video unit meters","wallet":"micro-USD wallets and immutable transactions","admin":"/admin/settings persists changes through protected APIs without asset rebuild"},
+  "modelCatalog": {"routes":"/models and /en/models","source":"sanitized live AI proxy metadata with marketing fallback plus active usage_rates","filters":"search, input modality, capability, billing, context, provider","layout":"240px sticky sidebar plus compact six-column comparison table","seo":"SSR ItemList and crawlable model rows"},
+  "policy": "Shared public layout; landing/pricing selectors are null-safe and legal text remains readable without animation.",
+  "cleanup": "pagehide cancels transient work and listeners when appropriate; pageshow restores bfcache state."
+}

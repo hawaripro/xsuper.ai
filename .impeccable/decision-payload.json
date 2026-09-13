@@ -1,0 +1,59 @@
+{
+  "title": "Arah baru UltrAI",
+  "question": "Bandingkan prototype browser sebelum memilih arah implementasi. Setiap arah mencakup landing, workspace, dan developer console.",
+  "options": [
+    {
+      "id": "atlas",
+      "label": "Atlas",
+      "kicker": "THE ROLL",
+      "lineage": "Contemporary editorial atlas and research journal",
+      "thesis": "Platform AI dengan ketenangan dan kepercayaan diri sebuah institusi editorial.",
+      "palette": ["#F5F5F1", "#20352F", "#B4412C"],
+      "materials": ["open editorial planes", "precise horizontal rules"],
+      "viewport": "Judul serif besar di kiri; contoh pekerjaan AI di kanan; dua jalur jelas untuk memakai AI atau membangun lewat API.",
+      "risk": "Lebih editorial daripada teknikal.",
+      "raised": [{"from":"webgl-shader-portal","raise":"Whole-viewport commitment, not a decorated widget."},{"from":"paper-folds-pleats-deployable-akari-light-sculpture","raise":"One consistent material grammar across controls."},{"from":"light-shadow-caustics-rain-night-cityscape","raise":"Hierarchy survives focused work."},{"from":"graphic-worlds-publishing-sampler-alphabet-proof","raise":"Specimens carry real tasks."},{"from":"posters-covers-sleeves-weimar-cabaret-bill","raise":"One decisive typographic focal point."}],
+      "comp": ".impeccable/mocks/decision/atlas.png"
+    },
+    {
+      "id": "studio",
+      "label": "Studio",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Product-design workspace and contemporary software identity manuals",
+      "thesis": "Satu workspace produk yang menjembatani penggunaan AI sehari-hari dan developer.",
+      "palette": ["#F6F8FC", "#13264A", "#245BE8"],
+      "materials": ["open workbench", "precise type"],
+      "viewport": "Headline sans asimetris, workbench yang bisa dicoba, dan demonstrasi API lebar.",
+      "risk": "Paling familiar; detail produk harus mencegah template SaaS generik.",
+      "comp": ".impeccable/mocks/decision/studio.png"
+    },
+    {
+      "id": "signal",
+      "label": "Signal",
+      "verdict": "competitive",
+      "lineage": "Rail concourse split-flap information board",
+      "thesis": "Ruang kontrol AI yang memprioritaskan pekerjaan, kapabilitas, dan tindakan.",
+      "palette": ["#11191E", "#1A252B", "#E8EEE9", "#F6BE56"],
+      "materials": ["matte ink", "ruled capability rows"],
+      "viewport": "Judul besar, aksi amber, dan papan kapabilitas semantik sebagai komposisi utama.",
+      "risk": "Lebih teknikal bagi pengguna baru.",
+      "case": "Kuat untuk developer dan pemindaian informasi; Atlas lebih hangat untuk audiens luas.",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse.webp",
+      "comp": ".impeccable/mocks/decision/signal.png"
+    }
+  ],
+  "reroll": {"registers":["safer","bolder"]},
+  "buildPath": {"value":"code","toggle":true},
+  "canon": true,
+  "canonCard": {
+    "label":"Standar kategori",
+    "thesis":"Landing produk AI yang familiar dan mudah dipahami, tanpa identitas khusus.",
+    "palette":["#FFFFFF","#17253B","#2556C7"],
+    "materials":["standard product grid","clear typography"],
+    "viewport":"Headline, dua CTA, demonstrasi produk, dan panduan penggunaan.",
+    "risk":"Mudah dipahami tetapi mudah tertukar dengan kompetitor.",
+    "comp":".impeccable/mocks/decision/canon.png"
+  },
+  "steer": true
+}

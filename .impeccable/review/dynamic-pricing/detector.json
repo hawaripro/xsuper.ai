@@ -1,0 +1,14 @@
+{
+  "scan": "Successful Chromium-backed scan after sticky header, dark-theme, USD, and PAYG pricing changes.",
+  "targets": ["/?lang=en", "/pricing?lang=en"],
+  "remaining": [
+    {
+      "antipattern": "marquee",
+      "severity": "warning",
+      "selector": ".brand-track",
+      "disposition": "Intentional owner-requested AI model rail. Full content remains semantic, pauses when hidden/offscreen, and becomes static under reduced motion."
+    }
+  ],
+  "resolved": ["manual motion preference", "dark text collisions", "PAYG tiny labels", "sticky header", "currency mismatch"],
+  "result": "No unaddressed accessibility or layout finding; one intentional requested-motion warning remains."
+}

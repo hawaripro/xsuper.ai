@@ -1,0 +1,204 @@
+{
+  "round": 2,
+  "visual": {
+    "results": [
+      {
+        "view": "landing",
+        "size": "desktop",
+        "file": ".impeccable/review/studio-refined/landing-desktop.png",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "composer": 0,
+        "small": []
+      },
+      {
+        "view": "workspace",
+        "size": "desktop",
+        "file": ".impeccable/review/studio-refined/workspace-desktop.png",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "composer": 506.453125,
+        "small": []
+      },
+      {
+        "view": "workspace-dark",
+        "size": "desktop",
+        "file": ".impeccable/review/studio-refined/workspace-dark-desktop.png"
+      },
+      {
+        "view": "model-picker",
+        "size": "desktop",
+        "file": ".impeccable/review/studio-refined/model-picker-desktop.png"
+      },
+      {
+        "view": "console",
+        "size": "desktop",
+        "file": ".impeccable/review/studio-refined/console-desktop.png",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "composer": 0,
+        "small": []
+      },
+      {
+        "view": "landing",
+        "size": "mobile",
+        "file": ".impeccable/review/studio-refined/landing-mobile.png",
+        "width": 390,
+        "scrollWidth": 390,
+        "composer": 0,
+        "small": []
+      },
+      {
+        "view": "workspace",
+        "size": "mobile",
+        "file": ".impeccable/review/studio-refined/workspace-mobile.png",
+        "width": 390,
+        "scrollWidth": 390,
+        "composer": 496.4375,
+        "small": []
+      },
+      {
+        "view": "workspace-dark",
+        "size": "mobile",
+        "file": ".impeccable/review/studio-refined/workspace-dark-mobile.png"
+      },
+      {
+        "view": "model-picker",
+        "size": "mobile",
+        "file": ".impeccable/review/studio-refined/model-picker-mobile.png"
+      },
+      {
+        "view": "console",
+        "size": "mobile",
+        "file": ".impeccable/review/studio-refined/console-mobile.png",
+        "width": 390,
+        "scrollWidth": 390,
+        "composer": 0,
+        "small": []
+      }
+    ],
+    "errors": []
+  },
+  "motion": {
+    "start": {
+      "state": "playing",
+      "times": [
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537,
+        545.5450000041537
+      ]
+    },
+    "paused": {
+      "state": "paused",
+      "active": 0,
+      "times": [
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505,
+        557.6450000041505
+      ]
+    },
+    "pauseHeld": [
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505,
+      557.6450000041505
+    ],
+    "completed": {
+      "state": "complete",
+      "active": 0
+    },
+    "reduced": {
+      "disabled": true,
+      "state": "reduced",
+      "active": 0
+    }
+  },
+  "interactions": {
+    "errors": [],
+    "draftHeld": "Draft penting <img src=x onerror=alert(1)>",
+    "emptySearch": true,
+    "searched": [
+      "A\nClaude Sonnet\nChat · katalog contoh"
+    ],
+    "selected": "Claude Sonnet",
+    "focusAfter": "model-trigger",
+    "partialChars": 73,
+    "stopStable": true,
+    "stopped": "Pratinjau dihentikan. Teks yang sudah tampil tetap tersimpan.",
+    "safeText": {
+      "literal": true,
+      "unsafeImage": false
+    },
+    "conversationDraft": "draft follow up",
+    "brief": "BRIEF VIDEO — ULTRAI STUDIO\n\nArahan\nBrief video produk 15 detik: kopi diseduh perlahan, po",
+    "mediaNotice": "Brief lokal siap diedit, disalin, atau diunduh. Tidak ada media yang dihasilkan.",
+    "completedCode": true
+  },
+  "files": {
+    "rejected": {
+      "count": 0,
+      "error": "bad.svg: format tidak didukung. too-large.txt: ukuran melebihi 20 MB."
+    },
+    "limit": {
+      "count": 5,
+      "error": "Maksimal 5 lampiran."
+    },
+    "removed": 4,
+    "dropped": 5,
+    "pasted": {
+      "count": 5,
+      "image": true,
+      "submitEnabled": true
+    }
+  },
+  "mobile": {
+    "draft": "Draft mobile tidak hilang",
+    "audioCount": 3,
+    "mode": "audio",
+    "focus": {
+      "dialogOpen": false,
+      "id": "model-trigger"
+    },
+    "reducedComplete": "Contoh selesai. Tidak ada prompt atau file dikirim ke AI.",
+    "dimensions": {
+      "width": 390,
+      "scrollWidth": 380,
+      "composerY": 616.53125,
+      "siteNavHidden": true
+    },
+    "empty": "Tidak ada percakapan yang cocok.",
+    "historyDeleted": true
+  }
+}

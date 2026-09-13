@@ -1,0 +1,10 @@
+{
+  "scan": "Successful Chromium-backed URL scan; earlier missing-browser attempt was not counted as a clean result.",
+  "decisions": [
+    {"finding":"line-length","action":"Bound model disclaimer and pricing note to75ch, FAQ body to65ch, terminal footnote to75ch."},
+    {"finding":"low-contrast on decorative question mark/footer wordmark","action":"Intentionally decorative aria-hidden ornaments; not content or controls. Kept established muted visual layer."},
+    {"finding":"marquee","action":"Explicit user request for moving AI logo rail. Visible-zone only, globally pausable, static semantic list for reduced-motion/noJS."},
+    {"finding":"dark-glow","action":"Neutralized orbit-card shadow to rgb(24 24 24 /35%)."}
+  ],
+  "verification": "Final browser captures and motion/keyboard/noJS smoke checks; no second successful detector run."
+}

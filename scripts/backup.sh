@@ -14,6 +14,12 @@ DB_NAME="ultrai_db"
 DB_USER="ultrai"
 DATE=$(date +%Y%m%d_%H%M%S)
 KEEP_DAYS=7
+PGPASSFILE="${PGPASSFILE:-$HOME/.pgpass}"
+
+if [ ! -r "$PGPASSFILE" ]; then
+    echo "PostgreSQL password file not found: $PGPASSFILE" >&2
+    exit 1
+fi
 
 # Buat folder backup
 mkdir -p "$BACKUP_DIR"
@@ -22,7 +28,7 @@ echo "[$(date)] Starting backup..."
 
 # 1. Backup database PostgreSQL
 echo "[$(date)] Backing up database..."
-PGPASSWORD="UltrAI@2026!Secure" pg_dump -U "$DB_USER" -h 127.0.0.1 "$DB_NAME" | gzip > "$BACKUP_DIR/db_${DATE}.sql.gz"
+PGPASSFILE="$PGPASSFILE" pg_dump -U "$DB_USER" -h 127.0.0.1 "$DB_NAME" | gzip > "$BACKUP_DIR/db_${DATE}.sql.gz"
 
 # 2. Backup .env (contains secrets)
 echo "[$(date)] Backing up .env..."

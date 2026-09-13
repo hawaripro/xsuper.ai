@@ -1,0 +1,164 @@
+# UltrAI VPS Setup Summary
+# Tanggal: 27 April 2026
+# VPS: Biznet Gio NEO Lite MM 8.8
+
+## Server Info
+- IP: 103.196.153.160
+- OS: Ubuntu 24.04 LTS
+- SSH Port: 1453
+- User: superpro, hawaripro, root
+
+## Domain & DNS (Cloudflare)
+- ultrai.id → 103.196.153.160 (Landing Page)
+- api.ultrai.id → 103.196.153.160 (AI Proxy API)
+- dash.ultrai.id → 103.196.153.160 (Dashboard + Chat)
+
+## SSL
+- Provider: Let's Encrypt (Certbot)
+- Auto-renew: Aktif
+- Cert path: /etc/letsencrypt/live/api.ultrai.id/
+
+## Docker Containers
+1. Private AI proxy container (ports 1430 API, 1431 dashboard); confirm its current name on the VPS before maintenance.
+2. ultrai-chat (Port 3100)
+
+## File Locations (semua di /home/superpro/)
+- /home/superpro/ai-proxy/ → private AI proxy Docker configuration
+- /home/superpro/ultrai-chat/ → Chat app (Node.js)
+- /home/superpro/website/ → symlink ke /var/www/ultrai.id
+- /var/www/ultrai.id/ → Landing page files
+
+## AI Proxy Info
+- Runtime provider/version must be re-discovered on the VPS before maintenance.
+- License and API credentials are runtime secrets; rotate after the confirmed Actions incident.
+- Historical plaintext API key removed from this document and must be considered exposed.
+- Model inventory must be queried from the active proxy after credential rotation.
+
+## Chat App
+- Port: 3100
+- Auth: Multi-user (SQLite)
+- Admin: username=admin, password=Admin1234
+- Setup Key: ultrai-setup-2026
+- API Path: /chatapi/ (Nginx rewrite ke /api/)
+
+## Nginx Configs
+- /etc/nginx/sites-available/ai-proxy (api + dash)
+- /etc/nginx/sites-available/ultrai-landing (ultrai.id)
+- /etc/nginx/conf.d/security.conf (rate limit, bot block)
+
+## Firewall (UFW)
+- 1453/tcp (SSH)
+- 80/tcp (HTTP)
+- 443/tcp (HTTPS)
+
+## Security
+- Fail2ban: Aktif
+- Rate limiting: Nginx zones (general, api, login)
+- Bad bot blocking: Aktif
+- Brute force: 3x/hr block
+- Source protection: index.html blocked, CSS/JS referer check
+
+## Subdomain Links (E-Commerce)
+- SM Panel: sm.superpanelpedia.com
+- PPOB: ppob.superpanelpedia.com
+- Produk Digital: digital.superpanelpedia.com
+
+## Perintah Penting
+ssh -p 1453 superpro@103.196.153.160
+cd /home/superpro/ai-proxy && docker compose ps
+cd /home/superpro/ultrai-chat && docker compose ps
+docker compose -f /home/superpro/ai-proxy/docker-compose.yml ps
+# Discover the active proxy container name before running container-specific status/model commands.
+# Never print or paste the API key into project files, shell history, or chat.
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot renew --dry-run
+sudo ufw status
+sudo fail2ban-client status
+
+== PROGRESS ULTRAI ==
+Phase 1: SELESAI (PHP 8.4, Composer, Node 20, PostgreSQL 16, Laravel 11, React 19, Tailwind 4, Nginx)
+Phase 2: Landing page SELESAI (React components, background fix, responsive)
+
+== FILE LOCATIONS ==
+Laravel project: /home/superpro/ultrai-web/
+AI Proxy: /home/superpro/ai-proxy/
+Chat App: /home/superpro/ultrai-chat/
+Website lama: /var/www/ultrai.id/ (bisa dihapus)
+
+== URLS ==
+ultrai.id → Laravel landing page
+api.ultrai.id → AI Proxy (port 1430)
+dash.ultrai.id → UltrAI operational dashboard (port 1431)
+dash.ultrai.id/chat → Chat UI (port 3100)
+dash.ultrai.id/chatapi/ → Chat API (rewrite ke /api/)
+
+== DATABASE ==
+PostgreSQL 16
+DB: ultrai_db
+User: ultrai
+Pass: [ROTATE — never store credentials in project files]
+
+== YANG BELUM ==
+- Custom 404/403 page
+- Auth system (admin + member, no register)
+- Upgrade chat UI
+- Custom UltrAI dashboard UI
+- Monitoring + UptimeRobot
+- Auto backup
+- Umami Analytics
+- Email notification (superpanelpediaofficial@gmail.com)
+- Integrasi Laravel AiProxyService
+
+Email: superpanelpediaofficial@gmail.com
+Password: Admin@UltrAI2026!
+
+Cara Buat Member Baru (via tinker)
+cd /home/superpro/ultrai-web
+php artisan tinker
+\App\Models\User::create(['name' => 'Nama Member', 'email' => 'member@email.com', 'password' => bcrypt('password123')]);
+# reset
+php artisan tinker
+$u = \App\Models\User::where('role','admin')->first();
+$u->password = bcrypt('Admin@UltrAI2026');
+$u->save();
+echo $u->email;
+
+== PROGRESS ULTRAI - 28 April 2026 ==
+
+SELESAI:
+✅ Phase 1: PHP 8.4, Composer, Node 20, PostgreSQL 16, Laravel 11, React 19, Tailwind 4, Vite 6, Nginx
+✅ Phase 2: Landing page (React components), Custom 404/403/500
+✅ Phase 3: Auth (Login branded, no register, admin+member role)
+✅ Phase 4.1: Admin Dashboard + Kelola Users page
+
+FILE LOCATIONS:
+- Laravel: /home/superpro/ultrai-web/
+- AI Proxy: /home/superpro/ai-proxy/
+- Chat App (lama): /home/superpro/ultrai-chat/
+- Nginx configs: /etc/nginx/sites-available/
+
+DATABASE:
+- PostgreSQL 16 | DB credentials must be supplied through runtime secrets and rotated after the Actions incident.
+
+LOGIN:
+- URL: https://ultrai.id/login
+- Email: superpanelpediaofficial@gmail.com
+- Password: Admin@UltrAI2026!
+- Role: admin
+
+ROUTES:
+- / → Landing page
+- /login → Login
+- /dashboard → Dashboard (auth required)
+- /admin → Kelola Users (admin only)
+- /chat → Chat AI (belum dibuat)
+- /profile → Edit profil
+
+YANG BELUM:
+- Redesign Dashboard + Admin UI (lebih premium)
+- Chat AI page (integrasi ke Laravel)
+- Custom operational dashboard → UltrAI branding
+- Monitoring + UptimeRobot
+- Auto Backup
+- Umami Analytics
+- Email notification

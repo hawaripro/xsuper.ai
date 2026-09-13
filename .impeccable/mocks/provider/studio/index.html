@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#F6F8FC">
+<meta name="description" content="Studio — eksplorasi desain UltrAI. Prototype interaktif, seluruh aktivitas adalah contoh.">
+<title>UltrAI — Studio</title><link rel="stylesheet" href="/fonts.css"><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./motion.css"><script src="./app.js" defer></script><script src="./motion.js" defer></script>
+</head>
+<body data-view="landing">
+<svg class="svg-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V4H4v11h4"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H4l1.8-4A8 8 0 1 1 20 11.5Z"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="4.5"/><path d="m11.5 11.5 9 9m-3-3 3-3m-6 0 3-3"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-4-1-7-1-10 1Zm0 0v15"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l5-1L21 7l-5-5L4 14v6Z"/></symbol>
+<symbol id="i-mark" viewBox="0 0 32 32"><path d="M5 6v13c0 5 4 8 9 8s9-3 9-8V6h-6v13c0 2-1 3-3 3s-3-1-3-3V6H5Z" fill="currentColor" stroke="none"/><path d="M27 5h-4v6h6V7a2 2 0 0 0-2-2Z" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m4 18 6-6 4 4 3-3 4 5"/></symbol>
+<symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="m10 9 6 4-6 4V9ZM3 8h18M7 3v4m5-4v4m5-4v4"/></symbol>
+<symbol id="i-audio" viewBox="0 0 24 24"><path d="M4 10v4m4-8v12m4-15v18m4-15v12m4-8v4"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Zm0 0v7h7M8 14h8m-8 3h5"/></symbol>
+<symbol id="i-attach" viewBox="0 0 24 24"><path d="m8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2m-6 12 8-8"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></symbol>
+<symbol id="i-collapse" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16m7-11-3 3 3 3"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+<symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 3h6m-9 3 1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5ZM20 2v4m-2-2h4"/></symbol>
+</svg>
+<a class="skip-link" href="#main">Lewati ke konten</a>
+<div class="preview-bar" id="preview-bar"><a href="/" class="back-concepts">Semua konsep</a><span class="preview-name">Studio</span><nav aria-label="Tampilan prototype"><button type="button" data-view="landing">Landing</button><button type="button" data-view="workspace">Workspace</button><button type="button" data-view="console">Console</button></nav></div>
+<header class="product-header">
+<a href="?view=landing" data-view="landing" class="wordmark" aria-label="UltrAI, beranda"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>UltrAI<span class="wordmark-dot">.</span></span></a>
+<button type="button" class="menu-toggle icon-button" id="menu-toggle" aria-controls="product-navigation" aria-expanded="false" aria-label="Buka navigasi"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button>
+<nav id="product-navigation" class="product-navigation" aria-label="Navigasi UltrAI"><a href="?view=workspace" data-view="workspace">Workspace</a><a href="?view=console" data-view="console">Developer console</a><a href="?view=landing#models" data-scroll="models" class="landing-only">Pilihan model</a></nav>
+<a href="?view=workspace" data-view="workspace" class="button button-small header-cta landing-only">Mulai berkarya<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a><div class="account-indicator app-only"><span>Akun demo</span><span class="avatar" aria-hidden="true">S</span></div>
+</header>
+<main id="main" tabindex="-1">
+<section id="view-landing" class="view landing-view" aria-label="Beranda UltrAI">
+<div class="landing-container"><section class="hero" aria-labelledby="hero-title">
+<div class="hero-copy"><h1 id="hero-title">Ide jadi karya.<br>Kode jadi<br><span>produk.</span></h1><p class="hero-description">Satu ruang untuk berpikir, membuat, dan melangkah lebih jauh dengan AI.</p><div class="hero-actions"><a href="?view=workspace" data-view="workspace" class="button">Buka workspace<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="?view=console" data-view="console" class="text-link">Bangun dengan API<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></div><div class="hero-footnote"><span aria-hidden="true"></span><p>Dari halaman kosong<br>ke sesuatu yang berarti.</p></div></div>
+<div class="workbench" aria-label="Workbench contoh interaktif">
+<div class="studio-motion-stage" id="studio-motion-stage" aria-label="Visualisasi animasi ide menjadi karya">
+  <div class="motion-stage-header"><span class="motion-stage-brand"><svg class="icon" aria-hidden="true"><use href="#i-mark"/></svg>Studio in motion</span><div class="motion-controls"><button type="button" id="motion-toggle" aria-label="Jeda animasi" aria-pressed="false" title="Jeda animasi"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg></button><button type="button" id="motion-replay" aria-label="Putar ulang animasi" title="Putar ulang animasi"><svg class="icon" aria-hidden="true"><use href="#i-replay"/></svg></button></div></div>
+  <div class="motion-mechanism" aria-hidden="true">
+    <svg class="motion-wires" viewBox="0 0 560 140" preserveAspectRatio="none"><path class="wire-left" d="M55 76H173Q210 76 234 70"/><path class="wire-right" d="M320 70Q353 70 371 76H500"/><path class="wire-branch" d="M319 71Q357 71 369 112H460"/></svg>
+    <div class="motion-input"><svg class="icon"><use href="#i-spark"/></svg><span>Satu ide</span><span class="motion-input-line"></span></div>
+    <div class="motion-engine"><span class="motion-plane plane-back"></span><span class="motion-plane plane-middle"></span><span class="motion-plane plane-front"><svg viewBox="0 0 32 32"><use href="#i-mark"/></svg></span></div>
+    <div class="motion-output"><span class="output-line output-line-one"></span><span class="output-line output-line-two"></span><strong>Karya berikutnya.</strong><span class="output-line output-line-three"></span><span class="output-cursor"></span></div>
+    <span class="motion-packet packet-left"></span><span class="motion-packet packet-right"></span>
+  </div>
+  <div class="motion-stage-caption"><span id="motion-caption">Dari pikiran. Jadi kemungkinan.</span><span>Visualisasi · bukan proses AI</span></div>
+</div>
+<div class="workbench-heading"><div class="workbench-brand"><svg class="icon brand-icon" aria-hidden="true"><use href="#i-mark"/></svg><span>Coba idemu di sini</span></div><span class="demo-label">Contoh interaktif</span></div>
+<div class="workbench-tabs" role="tablist" aria-label="Jenis pekerjaan contoh"><button type="button" role="tab" id="task-writing" aria-controls="workbench-example" aria-selected="true" tabindex="0" data-task="writing"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Menulis</button><button type="button" role="tab" id="task-coding" aria-controls="workbench-example" aria-selected="false" tabindex="-1" data-task="coding"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg>Koding</button><button type="button" role="tab" id="task-planning" aria-controls="workbench-example" aria-selected="false" tabindex="-1" data-task="planning"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>Merencanakan</button></div>
+<div id="workbench-example" class="workbench-example" role="tabpanel" aria-labelledby="task-writing" tabindex="0"><div class="sample-prompt"><span class="sample-avatar" aria-hidden="true">A</span><p id="sample-prompt">Bantu tulis pembuka untuk brand kopi lokal. Hangat, sederhana, tidak berlebihan.</p></div><div class="sample-answer"><div class="answer-byline"><svg class="icon brand-icon" aria-hidden="true"><use href="#i-mark"/></svg><span>UltrAI</span><span>Jawaban contoh</span></div><div id="sample-content" class="sample-content"></div></div></div>
+<form id="workbench-form" class="workbench-form"><label class="sr-only" for="workbench-input">Ubah prompt contoh</label><textarea id="workbench-input" rows="2" maxlength="1000" placeholder="Coba tulis ide Anda sendiri…">Bantu tulis pembuka untuk brand kopi lokal.</textarea><div class="workbench-form-bottom"><span>Demo, bukan AI live</span><button class="button button-small" type="submit">Lihat contoh<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div></form>
+</div></section><div class="journey-caption"><span>Untuk yang ingin membuat.</span><span>Dan yang membangun cara baru untuk membuat.</span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></div></div>
+<section id="api" class="api-stage" aria-labelledby="api-title"><div class="api-stage-inner"><div class="api-story"><h2 id="api-title">Ide yang sama.<br>Kemungkinan<br>yang lebih luas.</h2><p>Bawa AI ke produk Anda. Mulai dari satu request, pilih model, lalu bangun pengalaman dengan cara Anda sendiri.</p><a href="?view=console" data-view="console" class="button button-white">Buka developer console<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a><p class="api-note">Endpoint UltrAI. Model dari pembuatnya.</p></div><div class="landing-code code-surface"><div class="code-topline"><span>Request pertama</span><span class="code-demo">CONTOH</span></div><div class="code-controls"><div class="code-tabs" role="tablist" aria-label="Bahasa contoh API beranda"><button type="button" role="tab" id="landing-curl" aria-controls="landing-code-panel" aria-selected="true" tabindex="0" data-code-scope="landing" data-language="curl">cURL</button><button type="button" role="tab" id="landing-python" aria-controls="landing-code-panel" aria-selected="false" tabindex="-1" data-code-scope="landing" data-language="python">Python</button></div><button class="copy-button" type="button" data-copy="landing-code" aria-label="Salin request contoh"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Salin</span></button></div><div role="tabpanel" id="landing-code-panel" aria-labelledby="landing-curl" tabindex="0"><pre><code id="landing-code"></code></pre></div><div class="code-endnote"><span class="method">POST</span><span>/v1/chat/completions</span><span>Tidak dikirim</span></div></div></div></section>
+<div class="landing-container"><section class="models-section" id="models" aria-labelledby="models-title"><div><h2 id="models-title">Model pilihan Anda.<br>Ruang kerja UltrAI.</h2><p>Gunakan cara kerja yang sama, dengan model yang sesuai kebutuhan Anda. Atribusi pembuat selalu jelas.</p><p class="small-note">Pilihan di prototype bersifat contoh. Ketersediaan model mengikuti akun dan konfigurasi layanan.</p></div><div class="model-list" aria-label="Contoh model pihak ketiga"><div class="model-list-heading"><span>Model contoh</span><span>Dikembangkan oleh</span></div><div class="model-row"><strong>GPT-4o</strong><span>OpenAI</span></div><div class="model-row"><strong>Claude Sonnet</strong><span>Anthropic</span></div><div class="model-row"><strong>Gemini Pro</strong><span>Google</span></div><p>UltrAI adalah platform. Model-model ini bukan model milik UltrAI.</p></div></section>
+<section class="closing-section" aria-labelledby="closing-title"><h2 id="closing-title">Mulai dari<br>satu ide.</h2><div><p>Tidak perlu tahu hasil akhirnya.<br>Cukup tahu langkah berikutnya.</p><a href="?view=workspace" data-view="workspace" class="button">Buka workspace<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="?view=console" data-view="console" class="text-link">Atau, mulai dengan API<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></div></section>
+<footer class="landing-footer"><a href="?view=landing" data-view="landing" class="wordmark"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>UltrAI<span class="wordmark-dot">.</span></span></a><span>Satu ruang. Banyak kemungkinan.</span><span>Eksplorasi desain Studio</span></footer></div>
+</section>
+<section id="view-workspace" class="view app-view" aria-label="Workspace UltrAI" data-mode="chat" hidden>
+  <aside class="workspace-rail app-rail" aria-label="Percakapan workspace">
+    <button type="button" class="rail-toggle" id="history-toggle" aria-controls="workspace-rail-content" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>Riwayat & percakapan<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+    <div class="rail-content" id="workspace-rail-content">
+      <div class="workspace-rail-brand"><a href="?view=landing" data-view="landing" class="wordmark" aria-label="UltrAI, beranda"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>UltrAI<span class="wordmark-dot">.</span></span></a><button type="button" class="icon-button" id="sidebar-collapse" aria-label="Ringkas sidebar" aria-expanded="true" title="Ringkas sidebar"><svg class="icon" aria-hidden="true"><use href="#i-collapse"/></svg></button></div>
+      <button type="button" class="new-chat-button" id="new-conversation" title="Percakapan baru"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg><span>Percakapan baru</span></button>
+      <label class="history-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Cari percakapan</span><input type="search" id="history-search" placeholder="Cari percakapan…" autocomplete="off"></label>
+      <div class="history-label"><span>Terakhir dikerjakan</span><span class="history-demo">Contoh</span></div>
+      <div id="conversation-history" class="conversation-history"></div>
+      <div class="rail-note"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg><p>Ide bagus nggak harus<br>dimulai dari nol.</p></div>
+      <div class="rail-bottom">
+        <button type="button" id="workspace-guide-toggle" aria-expanded="false" aria-controls="workspace-guide" title="Panduan workspace"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span>Panduan workspace</span></button>
+        <a href="?view=console" data-view="console" title="Developer console"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg><span>Developer console</span><svg class="icon trailing-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="workspace-account"><span class="avatar" aria-hidden="true">K</span><div><strong>Kreator</strong><span>Workspace pribadi · demo</span></div><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></div>
+    </div>
+  </aside>
+  <div class="workspace-main">
+    <div class="workspace-topline"><div class="workspace-breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><span id="conversation-title">Percakapan baru</span></div><div class="workspace-top-actions"><button type="button" id="model-trigger" class="model-trigger" aria-haspopup="dialog" aria-controls="model-picker"><span class="model-trigger-symbol" aria-hidden="true"><svg class="icon"><use href="#i-spark"/></svg></span><span id="model-trigger-name">GPT-4o</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button><button type="button" id="workspace-theme" class="icon-button" aria-label="Gunakan tema gelap" aria-pressed="false" title="Ganti tema"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></button></div></div>
+    <div id="workspace-guide" class="inline-guide" hidden><div><h2>Semua alat, satu ruang kerja.</h2><p>Cari model, pilih Chat / Image / Video / Audio, lalu mulai dengan prompt atau lampiran. Chat memutar respons contoh; mode media menyusun brief yang dapat disalin. Seluruh proses lokal—bukan AI live.</p></div><button type="button" class="text-link" id="workspace-guide-close">Tutup panduan</button></div>
+    <div class="workspace-canvas">
+      <div id="workspace-empty" class="workspace-empty">
+        <div class="studio-sigil workspace-sigil" aria-hidden="true"><span class="sigil-orbit orbit-back"></span><span class="sigil-orbit orbit-front"></span><span class="sigil-core"><svg viewBox="0 0 32 32"><use href="#i-mark"/></svg></span><span class="sigil-flare"></span></div>
+        <h1 id="workspace-mode-title">Halo, kreator.<br><span>Mau buat apa hari ini?</span></h1>
+        <p id="workspace-mode-description">Dari satu pertanyaan ke karya berikutnya.<br>Pilih alatnya. Bawa idemu.</p>
+      </div>
+      <div class="workspace-mode-tabs" id="workspace-mode-tabs" role="group" aria-label="Pilih alat AI">
+        <button type="button" data-mode="chat" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span><strong>Chat</strong><small>Ide, kode & riset</small></span></button>
+        <button type="button" data-mode="image" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span><strong>Image</strong><small>Eksplorasi visual</small></span></button>
+        <button type="button" data-mode="video" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-video"/></svg><span><strong>Video</strong><small>Cerita bergerak</small></span></button>
+        <button type="button" data-mode="audio" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-audio"/></svg><span><strong>Audio</strong><small>Suara & narasi</small></span></button>
+      </div>
+      <div id="conversation-thread" class="conversation-thread" aria-label="Isi percakapan contoh" aria-live="off"></div>
+      <div class="composer-area">
+        <form id="workspace-form" class="workspace-composer">
+          <div class="composer-context"><span id="workspace-mode-label">Chat AI</span><span class="composer-private"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>Preview lokal</span></div>
+          <div id="attachment-list" class="attachment-list" aria-label="Lampiran terpilih" hidden></div>
+          <label class="sr-only" for="workspace-input">Pesan Anda</label>
+          <textarea id="workspace-input" rows="3" maxlength="3000" placeholder="Tanya apa saja, atau jatuhkan file di sini…" aria-describedby="composer-note workspace-error"></textarea>
+          <div class="composer-toolbar"><div class="composer-tools"><button type="button" id="attach-file" class="attachment-button" aria-label="Lampirkan gambar atau dokumen" title="Lampirkan gambar atau dokumen"><svg class="icon" aria-hidden="true"><use href="#i-attach"/></svg><span>Lampirkan</span></button><span class="composer-shortcut">Enter kirim <span aria-hidden="true">·</span> Shift + Enter baris baru</span></div><div class="composer-send-actions"><button type="button" id="stop-generation" class="stop-button" hidden><svg class="icon" aria-hidden="true"><use href="#i-stop"/></svg><span>Hentikan</span></button><button type="submit" id="workspace-submit" class="button button-small" disabled><span>Kirim contoh</span><svg class="icon" aria-hidden="true"><use href="#i-send"/></svg></button></div></div>
+          <input type="file" id="workspace-file" multiple accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md" hidden>
+          <select id="workspace-model" aria-label="Model contoh" hidden><option value="gpt">GPT-4o · OpenAI</option><option value="claude">Claude Sonnet · Anthropic</option><option value="gemini">Gemini Pro · Google</option></select>
+        </form>
+        <p id="workspace-error" class="form-error" role="alert" hidden></p>
+        <p id="generation-status" class="generation-status" role="status" aria-live="polite"></p>
+        <p id="media-note" class="media-note" hidden>Mode ini menyusun brief lokal untuk dicoba. Tidak ada media yang dihasilkan.</p>
+        <div class="composer-notes"><p id="composer-note">Demo interaktif · tidak mengirim prompt atau file ke AI.</p><p id="model-attribution">GPT-4o dikembangkan oleh OpenAI.</p></div>
+      </div>
+      <div id="workspace-prompt-ideas" class="prompt-suggestions" aria-label="Ide untuk memulai">
+        <button type="button" data-suggestion="coding"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg><span><strong>Bangun sesuatu</strong><small>Dari ide ke komponen React</small></span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button type="button" data-suggestion="writing"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg><span><strong>Temukan kata yang tepat</strong><small>Bikin draft lebih berkarakter</small></span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button type="button" data-suggestion="planning"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg><span><strong>Urai rencanamu</strong><small>Langkah kecil, tujuan jelas</small></span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+      </div>
+    </div>
+    <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true"><svg class="icon"><use href="#i-attach"/></svg><strong>Taruh bahan idemu di sini.</strong><span>Gambar atau dokumen · maksimal 5 file, 20 MB per file</span></div>
+  </div>
+  <dialog id="model-picker" class="model-picker" aria-labelledby="model-picker-title"><div class="model-picker-header"><div><h2 id="model-picker-title">Pilih partner berpikirmu.</h2><p>Model berbeda, satu workspace UltrAI.</p></div><button type="button" class="icon-button" id="model-picker-close" aria-label="Tutup pemilih model"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><label class="model-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Cari model atau pembuat</span><input type="search" id="model-search" placeholder="Cari model atau pembuat…" autocomplete="off"></label><div class="model-filter-tabs" role="group" aria-label="Filter kategori model"><button type="button" data-model-filter="all" aria-pressed="true">Semua</button><button type="button" data-model-filter="chat" aria-pressed="false">Chat</button><button type="button" data-model-filter="image" aria-pressed="false">Image</button><button type="button" data-model-filter="video" aria-pressed="false">Video</button><button type="button" data-model-filter="audio" aria-pressed="false">Audio</button></div><div class="model-picker-count" id="picker-count" role="status"></div><div id="model-list" class="model-list-options"></div><p id="model-empty" class="model-empty" hidden>Model tidak ditemukan. Coba kata lain atau ganti kategori.</p><p class="model-picker-disclosure">Katalog contoh untuk eksplorasi UI. Ketersediaan model mengikuti layanan asli; tidak ada model yang dipanggil di prototype.</p></dialog>
+</section>
+<section id="view-console" class="view app-view console-view" aria-label="Developer console UltrAI" hidden>
+  <aside class="console-rail app-rail" aria-label="Menu developer console">
+    <div class="rail-title">Developer console</div>
+    <nav class="console-navigation" aria-label="Bagian console">
+      <button type="button" data-console-section="overview"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg>Mulai di sini</button>
+      <button type="button" data-console-section="keys"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>API keys</button>
+      <button type="button" data-console-section="usage"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>Penggunaan</button>
+      <button type="button" data-console-section="guide"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Panduan</button>
+    </nav>
+    <div class="console-rail-bottom"><span class="demo-label">Lingkungan contoh</span><p>Tidak terhubung ke API.<br>Tidak memakai kredensial asli.</p><a href="?view=workspace" data-view="workspace" class="text-link">Kembali ke workspace<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+  </aside>
+  <div class="console-main">
+    <div class="console-breadcrumb"><span>Studio / Developer</span><span class="demo-label">Console demo</span></div>
+    <section id="console-overview" class="console-section" aria-labelledby="console-title">
+      <div class="console-heading"><div><h1 id="console-title">Request pertama Anda.</h1><p>Alur yang singkat dari ide ke integrasi.</p></div><button class="text-link" type="button" data-console-section="guide">Baca panduan<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+      <div class="setup-layout">
+        <ol class="setup-steps">
+          <li><span class="step-number">1</span><div><h2>Siapkan API key</h2><p>Key asli adalah rahasia. Di sini, Anda hanya melihat dummy yang tidak berlaku.</p><button type="button" class="text-link" data-console-section="keys">Lihat key contoh<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div></li>
+          <li><span class="step-number">2</span><div><h2>Gunakan endpoint UltrAI</h2><code class="endpoint">https://api.ultrai.id/v1</code><p>Contoh menggunakan model <code>auto</code>. ID model mengikuti konfigurasi akun.</p></div></li>
+          <li><span class="step-number">3</span><div><h2>Mulai percakapan</h2><p>Salin contoh ke lingkungan Anda, lalu gunakan API key yang valid. Prototype tidak menjalankan request.</p><button type="button" class="text-link" id="show-response" aria-controls="sample-response" aria-expanded="false">Lihat respons contoh<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div></li>
+        </ol>
+        <div class="console-code code-surface">
+          <div class="code-topline"><span>chat/completions</span><span class="code-demo">CONTOH</span></div>
+          <div class="code-controls"><div class="code-tabs" role="tablist" aria-label="Bahasa request console"><button type="button" role="tab" id="console-curl" aria-controls="console-code-panel" aria-selected="true" tabindex="0" data-code-scope="console" data-language="curl">cURL</button><button type="button" role="tab" id="console-python" aria-controls="console-code-panel" aria-selected="false" tabindex="-1" data-code-scope="console" data-language="python">Python</button></div><button type="button" class="copy-button" data-copy="console-code" aria-label="Salin request console"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Salin</span></button></div>
+          <div id="console-code-panel" role="tabpanel" aria-labelledby="console-curl" tabindex="0"><pre><code id="console-code"></code></pre></div>
+          <div class="code-endnote"><span class="method">POST</span><span>api.ultrai.id/v1</span><span>Contoh lokal</span></div>
+        </div>
+      </div>
+      <div id="sample-response" class="sample-response" hidden><div><h2>Respons contoh</h2><span>Data buatan, bukan hasil request atau model live.</span></div><pre><code>{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": "Halo! Ini contoh respons untuk eksplorasi desain UltrAI."
+    }
+  }]
+}</code></pre><button type="button" class="text-link" id="hide-response">Tutup contoh respons</button></div>
+      <section class="recent-requests" aria-labelledby="recent-title"><div class="section-heading"><div><h2 id="recent-title">Aktivitas request contoh</h2><p>Data sintetis, bukan penggunaan akun.</p></div><button type="button" class="text-link" data-console-section="usage">Lihat semua<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div><div class="table-scroll"><table><caption class="sr-only">Tiga request sintetis; pilih request untuk melihat detail</caption><thead><tr><th>Request</th><th>Model</th><th>Status</th><th class="number-cell">Token contoh</th><th class="number-cell">Waktu contoh</th></tr></thead><tbody id="recent-request-rows"></tbody></table></div></section>
+    </section>
+    <section id="console-keys" class="console-section" aria-labelledby="keys-title" hidden>
+      <div class="console-heading"><div><h1 id="keys-title">Kunci ke produk Anda.</h1><p>Kelola contoh kredensial, tanpa menyentuh akun asli.</p></div></div>
+      <div class="key-notice"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><p><strong>Hanya key dummy.</strong> Semua nilai di halaman ini tidak valid dan tidak dapat mengakses API. Jangan masukkan API key asli.</p></div>
+      <form id="key-form" class="key-form"><div><label for="key-name">Nama key contoh</label><input id="key-name" maxlength="48" value="Studio playground" required autocomplete="off"></div><button type="submit" class="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Buat key contoh</button></form>
+      <div id="key-list" class="key-list" aria-live="polite"></div><p class="small-note">Semua perubahan lokal dan hilang saat halaman dimuat ulang.</p>
+    </section>
+    <section id="console-usage" class="console-section" aria-labelledby="usage-title" hidden>
+      <div class="console-heading"><div><h1 id="usage-title">Lihat apa yang berjalan.</h1><p>Telusuri request dan statusnya. Seluruh data di bawah adalah contoh sintetis.</p></div></div>
+      <div class="usage-toolbar"><div><label for="request-search">Cari request contoh</label><input type="search" id="request-search" placeholder="ID atau model…"></div><div><label for="request-status">Status</label><select id="request-status"><option value="all">Semua status</option><option value="200">200 · Berhasil</option><option value="401">401 · Tidak diizinkan</option></select></div></div>
+      <div class="table-scroll"><table><caption class="sr-only">Request sintetis yang sesuai filter</caption><thead><tr><th>Request</th><th>Model</th><th>Status</th><th class="number-cell">Token contoh</th><th class="number-cell">Waktu contoh</th></tr></thead><tbody id="all-request-rows"></tbody></table></div>
+      <p class="small-note" id="request-count"></p>
+    </section>
+    <section id="console-guide" class="console-section guide-section" aria-labelledby="guide-title" hidden>
+      <div class="console-heading"><div><h1 id="guide-title">Dari request ke produk.</h1><p>Dasar integrasi, dengan batas yang jelas.</p></div></div>
+      <div class="guide-intro"><h2>Mulai dari sisi server.</h2><p>Simpan API key dalam environment variable di server Anda, bukan di kode frontend, repository publik, atau tangkapan layar. Contoh memakai <code>ULTRAI_API_KEY</code>; isi dengan kredensial valid hanya di lingkungan Anda sendiri.</p><button type="button" class="button" data-console-section="overview">Lihat request pertama<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+      <details open><summary>Endpoint dan autentikasi</summary><div><p>Base URL yang ditunjukkan aplikasi adalah <code>https://api.ultrai.id/v1</code>. Contoh chat menggunakan <code>POST /chat/completions</code> dengan header <code>Authorization: Bearer &lt;API_KEY&gt;</code> dan <code>Content-Type: application/json</code>.</p><p>Di prototype ini tidak ada request yang benar-benar dikirim.</p></div></details>
+      <details><summary>Memilih model</summary><div><p>Parameter <code>model</code> pada contoh menggunakan <code>auto</code>, sesuai contoh integrasi aplikasi saat ini. Gunakan ID model yang tersedia untuk akun Anda saat integrasi sungguhan.</p><p>GPT-4o dibuat oleh OpenAI, Claude Sonnet oleh Anthropic, dan Gemini Pro oleh Google. UltrAI menyediakan pengalaman platform, bukan mengklaim kepemilikan model-model tersebut.</p></div></details>
+      <details><summary>Membaca respons dan error</summary><div><p>Contoh respons chat menempatkan teks di <code>choices[0].message.content</code>. Periksa HTTP status sebelum membaca hasil.</p><p>Contoh <code>401</code> menunjukkan autentikasi yang tidak valid. Jangan mengatasi error autentikasi dengan menanam kredensial ke frontend. Periksa key dan akses di sisi server.</p></div></details>
+      <details><summary>Apa yang nyata dalam prototype ini?</summary><div><p>Anda dapat berpindah halaman, menyusun percakapan contoh, menyalin kode, memfilter tabel, serta membuat atau mencabut key dummy. Semua data lokal dan sintetis. Tidak ada akun, tagihan, model, atau API nyata yang dipanggil.</p></div></details>
+    </section>
+    <section id="request-detail" class="request-detail" aria-labelledby="detail-title" hidden><div class="section-heading"><div><h2 id="detail-title">Detail request contoh</h2><p>Rekaman sintetis; tidak berasal dari server.</p></div><button type="button" class="text-link" id="close-request-detail">Tutup detail</button></div><dl id="request-detail-content"></dl></section>
+  </div>
+</section>
+</main>
+<div class="prototype-notice">Prototype · data contoh</div><div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

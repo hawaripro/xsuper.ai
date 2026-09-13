@@ -1,0 +1,83 @@
+{
+  "scope": "Owner-requested interactive design prototypes only; not a production frontend implementation",
+  "approval": {
+    "audience": "Both everyday AI users and developers, one platform",
+    "positioning": "UltrAI product identity with accurate third-party model attribution",
+    "buildPath": "code",
+    "productionDirection": "studio"
+  },
+  "seed": "981e613e",
+  "groundedCandidates": [
+    {"name":"Studio","world":"Product-design workspace and contemporary software identity manuals","reason":"Familiar tools for both makers and developers; show a real task becoming a working application."},
+    {"name":"Specimen","world":"Type foundry specimen and software reference manual","reason":"Shows differences between model capabilities with exact typographic hierarchy."},
+    {"name":"Observatory","world":"Scientific publication and instrument log","reason":"Makes careful AI experimentation legible without unverified science claims."},
+    {"name":"Workbench","world":"Creative production desk and project notebook","reason":"Moves from drafts to useful work for everyday AI users."},
+    {"name":"Index","world":"Industrial product catalog and component datasheet","reason":"Treats model discovery as an informed choice rather than an upstream logo wall."},
+    {"name":"Mixer","world":"Recording studio channel strip","reason":"Maps separate AI tools to a unified productive workspace with explicit controls."},
+    {"name":"Atlas","world":"Contemporary editorial atlas and research journal","reason":"Generous editorial entry, precise navigation, and a readable mapping from thinking to building."}
+  ],
+  "directions": [
+    {
+      "id":"atlas",
+      "kind":"assigned",
+      "position":7,
+      "name":"Atlas",
+      "thesis":"An AI platform with the confidence of an editorial institution, not a reseller landing page.",
+      "ownWorld":"Porcelain white #F5F5F1, dark pine ink #20352F, vermilion #B4412C. Newsreader display and DM Sans UI. Strong horizontal rules, deliberate asymmetric whitespace, very few containers.",
+      "story":"Understand UltrAI; see a real example of thinking with AI; enter a workspace or build through the API.",
+      "firstViewport":"Compact wordmark navigation above a large left-aligned serif proposition; a tall editorial live-demo sheet at right with three selectable work examples. A full-width two-journey row below. No eyebrow, fake metrics or model logo wall.",
+      "interaction":"A work-example selector rewrites the editorial demonstration without moving its frame.",
+      "crossSurface":"Workspace as a calm writing desk; console as a ruled research ledger with readable API setup.",
+      "risk":"Can feel too editorial for users who expect a dense technical dashboard.",
+      "raises":["Shader portal: commit to the whole viewport, not a decorative widget.","Akari: every control inherits the same material and spacing grammar.","Night city: hierarchy must survive a low-distraction focused workspace.","Sampler: specimens demonstrate real tasks with deliberate type hierarchy.","Cabaret: one emphatic typographic focal point, no competing hero fragments."]
+    },
+    {
+      "id":"studio",
+      "kind":"pick",
+      "position":1,
+      "name":"Studio",
+      "thesis":"One precise product workspace connecting everyday AI use to developer creation.",
+      "ownWorld":"Cool white #F6F8FC, deep navy #13264A, cobalt #245BE8. Manrope display and DM Sans UI. Broad open planes, restrained 12px panels, navy feature stage and luminous but flat blue controls.",
+      "story":"Choose use or build immediately, inspect the workspace, then explore the developer console.",
+      "firstViewport":"A large asymmetrical sans heading next to a full-size usable workspace sample, followed by one wide navy API demonstration rather than a repetitive card grid.",
+      "interaction":"User switches between writing, coding and planning examples in a task-oriented workbench.",
+      "crossSurface":"Workspace uses a purposeful left rail and central composer; console shows setup and request activity, not invented top-line business metrics.",
+      "risk":"The most familiar SaaS direction; disciplined typography and content must prevent generic-template drift."
+    },
+    {
+      "id":"signal",
+      "kind":"challenger",
+      "sourceId":"signals-instruments-split-flap-concourse",
+      "verdict":"competitive",
+      "name":"Signal",
+      "thesis":"An AI control room where capabilities, current task and system actions are immediately scannable.",
+      "ownWorld":"Ink navy #11191E, dark steel #1A252B, warm white #E8EEE9, amber #F6BE56. IBM Plex Sans display/UI, IBM Plex Mono for code and measured data only. Ruled rows, fixed columns, functional status labels.",
+      "story":"Discover available capabilities through a live capability board; open chat or the console without a proxy metaphor.",
+      "firstViewport":"Oversized left-aligned heading over a broad semantic capability board; amber action at the heading baseline. Selectable capability rows occupy the rest of the viewport, not small dashboard cards.",
+      "interaction":"Changing a capability triggers one bounded row-update cascade, reduced-motion safe.",
+      "crossSurface":"Workspace as a focused operator station; console as a queryable request board and readable API sample.",
+      "risk":"Strongest developer character; everyday-user friendliness must be retained with plain-language tasks and generous spacing.",
+      "case":"Wins on developer identification and scanning; does not beat Atlas for broad-audience warmth."
+    }
+  ],
+  "challengers": [
+    {"id":"signals-instruments-split-flap-concourse","verdict":"competitive","case":"Clear model capability rows resonate with developer work while keeping everyday tasks visible."},
+    {"id":"webgl-shader-portal","verdict":"declined","case":"Spectacle distracts from the two jobs; does not explain the product better.","kept":"Whole-viewport commitment."},
+    {"id":"paper-folds-pleats-deployable-akari-light-sculpture","verdict":"declined","case":"Craft object metaphor is remote from AI work and integration.","kept":"Consistent material grammar across all controls."},
+    {"id":"light-shadow-caustics-rain-night-cityscape","verdict":"declined","case":"Urban lighting cannot clarify AI product capabilities without becoming decorative.","kept":"Strict hierarchy under dark, low-distraction conditions."},
+    {"id":"graphic-worlds-publishing-sampler-alphabet-proof","verdict":"declined","case":"Textile learning artifact is not part of the audience's primary operating scene.","kept":"Every specimen carries a concrete task rather than decorative sample copy."},
+    {"id":"posters-covers-sleeves-weimar-cabaret-bill","verdict":"declined","case":"Expressionist performance conflicts with quiet daily operation and developer clarity.","kept":"One decisive typographic focal point."}
+  ],
+  "implementation": {
+    "root":".impeccable/mocks/provider",
+    "server":"Local-only Bun static server; serve this directory, never the repository or environment files",
+    "owner":"Main owns gallery, server, shared typefaces, validation and integration",
+    "variants":"Each direction owns its own subdirectory; three surfaces: landing, workspace, console",
+    "routeContract":"/{atlas|studio|signal}/?view={landing|workspace|console}&embed=1",
+    "storage":"Preview-only UI state; no backend calls, payment actions, real API keys or live credentials",
+    "content":"Indonesian; accurate provider/model makers; all sample content and usage labeled demo",
+    "assets":"Local self-hosted font files; inline authored geometric SVG icons; no raster assets needed",
+    "verification":"Browser desktop/mobile captures, overflow/error checks, navigation and primary controls exercised; one detector pass after implementation"
+  },
+  "finish":"Deliver three complete interactive prototype directions and comparison links; do not select or implement the production design on the owner's behalf."
+}

@@ -6,7 +6,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 
 // Pages
-import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ChatFullPage from './pages/ChatFullPage';
@@ -104,7 +103,6 @@ function App() {
             <BrowserRouter>
                 <Routes>
                     {/* Public */}
-                    <Route path="/" element={<Landing />} />
                     <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
 
                     {/* Protected - Full Page (no dashboard layout) */}

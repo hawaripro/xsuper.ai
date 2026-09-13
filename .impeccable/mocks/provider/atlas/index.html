@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F5F5F1">
+  <meta name="description" content="Atlas — eksplorasi desain UltrAI. Workspace dan developer console dengan data contoh.">
+  <title>UltrAI — Atlas</title>
+  <link rel="stylesheet" href="/fonts.css">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body data-view="landing">
+  <a class="skip-link" href="#main-content">Lewati ke konten</a>
+  <div class="preview-bar" aria-label="Navigasi prototype">
+    <a href="/">Semua konsep</a>
+    <span class="preview-name">Atlas <span>— Editorial</span></span>
+    <nav aria-label="Permukaan prototype">
+      <a href="?view=landing" data-view="landing" data-nav-view="landing">Landing</a>
+      <a href="?view=workspace" data-view="workspace" data-nav-view="workspace">Workspace</a>
+      <a href="?view=console" data-view="console" data-nav-view="console">Console</a>
+    </nav>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner shell">
+      <a class="wordmark" href="?view=landing" data-view="landing" aria-label="UltrAI, beranda">UltrAI<span class="wordmark-dot" aria-hidden="true">.</span></a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="product-nav">
+        Menu <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 13h14"/></svg>
+      </button>
+      <nav class="product-nav" id="product-nav" aria-label="Navigasi produk">
+        <a href="?view=landing#models" data-view="landing" data-scroll="models">Pilihan model</a>
+        <a href="?view=workspace" data-view="workspace" data-nav-view="workspace">Workspace</a>
+        <a href="?view=console" data-view="console" data-nav-view="console">Developer</a>
+        <a class="nav-cta" href="?view=workspace" data-view="workspace">Mulai berkarya <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="view landing-view" id="view-landing" aria-label="Beranda UltrAI">
+      <div class="hero shell">
+        <div class="hero-copy">
+          <h1 tabindex="-1">Dari satu ide.<br>Ke banyak<br><em>kemungkinan.</em></h1>
+          <p class="hero-description">Ruang untuk berpikir lebih jauh. Menulis, menemukan jawaban, dan membangun sesuatu yang berarti — bersama AI.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="?view=workspace" data-view="workspace">Jelajahi workspace <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></a>
+            <a class="text-link" href="?view=console" data-view="console">Bangun dengan API <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10"/></svg></a>
+          </div>
+          <div class="hero-footnote"><span class="short-rule" aria-hidden="true"></span>Pengalaman oleh UltrAI.<br>Pilihan model, di tangan Anda.</div>
+        </div>
+        <article class="specimen" aria-label="Contoh tugas interaktif">
+          <div class="specimen-top"><span>Catatan dari workspace</span><span class="demo-label">Demo interaktif</span></div>
+          <div class="specimen-tabs" role="tablist" aria-label="Pilih contoh tugas">
+            <button type="button" role="tab" id="specimen-tab-writing" aria-selected="true" aria-controls="specimen-content" data-specimen="writing">Menulis</button>
+            <button type="button" role="tab" id="specimen-tab-coding" aria-selected="false" aria-controls="specimen-content" data-specimen="coding" tabindex="-1">Membuat kode</button>
+            <button type="button" role="tab" id="specimen-tab-planning" aria-selected="false" aria-controls="specimen-content" data-specimen="planning" tabindex="-1">Merencanakan</button>
+          </div>
+          <div id="specimen-content" class="specimen-content" role="tabpanel" aria-labelledby="specimen-tab-writing" tabindex="0">
+            <div class="specimen-prompt"><span class="field-caption">Arahan Anda</span><p id="specimen-prompt">Tulis pembuka cerita tentang ide kecil yang mengubah keseharian.</p></div>
+            <div class="specimen-response">
+              <span class="field-caption">Contoh respons yang telah disiapkan</span>
+              <div id="specimen-answer"><h2>Hal kecil.<br>Arti yang besar.</h2><p>Setiap pagi, Nara melewati bangku kosong di ujung gang. Suatu hari, ia membawa sebuah buku dan meninggalkannya di sana.</p><p>Di halaman pertama, hanya ada satu kalimat: <em>“Kalau sudah selesai, ceritakan pada seseorang.”</em></p></div>
+            </div>
+          </div>
+          <div class="specimen-bottom"><span>Bukan respons AI langsung.</span><a href="?view=workspace" data-view="workspace" data-open-task="writing" id="specimen-continue">Coba tugas ini <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></a></div>
+        </article>
+      </div>
+
+      <section class="journeys shell" aria-label="Dua cara menggunakan UltrAI">
+        <article class="journey journey-workspace">
+          <div class="journey-title"><h2>Untuk pikiran<br>yang terus bergerak.</h2><svg class="journey-icon" viewBox="0 0 56 56" aria-hidden="true"><path d="M10 44h36M14 35l3-10L37 5l9 9-20 20-12 1Zm7-13 9 9M17 25l9 9"/></svg></div>
+          <p>Dari halaman kosong ke draf pertama. Gunakan workspace untuk menulis, menyusun rencana, dan mengurai pertanyaan.</p>
+          <a class="text-link" href="?view=workspace" data-view="workspace">Buka workspace <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></a>
+        </article>
+        <article class="journey journey-developer">
+          <div class="journey-title"><h2>Untuk ide<br>yang ingin dibangun.</h2><svg class="journey-icon" viewBox="0 0 56 56" aria-hidden="true"><path d="m17 15-12 13 12 13m22-26 12 13-12 13M33 9 23 47"/></svg></div>
+          <p>Temukan jalan dari eksperimen ke aplikasi. Jelajahi contoh integrasi API, pengelolaan key, dan pencatatan request.</p>
+          <a class="text-link" href="?view=console" data-view="console">Masuk ke developer console <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></a>
+        </article>
+      </section>
+
+      <section class="model-section shell" id="models" aria-labelledby="models-heading">
+        <div class="model-intro"><h2 id="models-heading">Beragam model.<br>Satu ruang kerja.</h2><p>UltrAI menyatukan pengalaman Anda. Model AI tetap dikembangkan oleh pembuatnya masing-masing.</p><p class="small-copy">Keluarga model di bawah adalah contoh. Ketersediaan mengikuti akun dan konfigurasi layanan.</p></div>
+        <div class="model-index" aria-label="Model dan pembuatnya">
+          <div class="model-row"><span class="model-name">Claude</span><span class="model-maker">Dikembangkan oleh<strong>Anthropic</strong></span></div>
+          <div class="model-row"><span class="model-name">GPT</span><span class="model-maker">Dikembangkan oleh<strong>OpenAI</strong></span></div>
+          <div class="model-row"><span class="model-name">Gemini</span><span class="model-maker">Dikembangkan oleh<strong>Google</strong></span></div>
+        </div>
+      </section>
+
+      <section class="final-invitation">
+        <div class="shell invitation-inner"><h2>Ide berikutnya<br>dimulai di sini.</h2><div><p>Bawa pertanyaan Anda.<br>Temukan cara Anda berkarya.</p><div class="invitation-actions"><a class="button button-paper" href="?view=workspace" data-view="workspace">Mulai di workspace <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></a><a class="text-link" href="?view=console" data-view="console">Atau jelajahi API</a></div></div></div>
+      </section>
+      <footer class="site-footer shell"><a class="wordmark" href="?view=landing" data-view="landing">UltrAI<span class="wordmark-dot" aria-hidden="true">.</span></a><p>Satu platform. Dua cara berkarya.</p><span>Eksplorasi desain · Atlas</span></footer>
+    </section>
+
+    <section class="view workspace-view" id="view-workspace" aria-label="Workspace demo" hidden>
+      <div class="workspace-layout">
+        <aside class="workspace-rail" id="workspace-rail" aria-label="Riwayat workspace">
+          <div class="rail-heading"><h2>Workspace</h2><span class="demo-label">Demo</span></div>
+          <button type="button" class="button new-conversation" id="new-conversation"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Percakapan baru</button>
+          <p class="rail-caption">Percakapan contoh</p>
+          <nav class="conversation-history" aria-label="Percakapan contoh">
+            <button type="button" data-history="writing"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12v10H8l-4 3V4Z"/></svg><span>Narasi sebuah ide</span></button>
+            <button type="button" data-history="coding"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 5-5 5 5 5m6-10 5 5-5 5"/></svg><span>Fungsi validasi email</span></button>
+            <button type="button" data-history="planning"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12v12H4V5Zm3-3v6m6-6v6M4 10h12"/></svg><span>Rencana pekan pertama</span></button>
+          </nav>
+          <div class="rail-bottom"><p>Dari ide ke integrasi.</p><a class="text-link" href="?view=console" data-view="console">Buka developer console <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10"/></svg></a><span>Semua percakapan adalah contoh lokal. Tidak disimpan ke akun.</span></div>
+        </aside>
+        <div class="workspace-main">
+          <div class="workspace-toolbar"><div><button type="button" class="rail-toggle" id="history-toggle" aria-expanded="false" aria-controls="workspace-rail"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h8"/></svg>Riwayat</button><span id="workspace-location">Catatan baru</span></div><span class="session-note">Sesi lokal · demo</span></div>
+          <div class="writing-desk">
+            <div id="workspace-welcome" class="workspace-welcome"><h1 tabindex="-1">Mari mulai dari<br>sebuah ide.</h1><p>Tidak harus sudah sempurna.<br>Tulis satu kalimat, lalu lihat ke mana ia membawa Anda.</p>
+              <div class="task-suggestions" aria-label="Pilih tugas contoh">
+                <button type="button" data-workspace-task="writing"><span class="task-name">Menulis</span><span>Temukan awal sebuah cerita</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
+                <button type="button" data-workspace-task="coding"><span class="task-name">Membuat kode</span><span>Urai sebuah fungsi sederhana</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
+                <button type="button" data-workspace-task="planning"><span class="task-name">Merencanakan</span><span>Susun langkah pekan pertama</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
+              </div>
+            </div>
+            <div class="conversation" id="conversation" hidden>
+              <div class="conversation-prompt"><span class="field-caption">Anda · percakapan contoh</span><p id="conversation-prompt"></p></div>
+              <article class="conversation-answer" aria-label="Respons demo"><div class="answer-heading"><span class="wordmark wordmark-small">UltrAI<span class="wordmark-dot" aria-hidden="true">.</span></span><span class="demo-label">Contoh yang telah disiapkan</span></div><p class="response-disclosure" id="response-disclosure"></p><div id="conversation-answer"></div><div class="response-actions"><button type="button" class="text-button" id="copy-response"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7h9v10H7V7ZM4 13H2V2h10v2"/></svg>Salin contoh</button><span id="response-copy-status" role="status"></span></div></article>
+            </div>
+            <form class="composer" id="workspace-form">
+              <div class="composer-label-row"><label for="workspace-prompt">Apa yang ingin Anda kerjakan?</label><span id="current-task-label">Contoh menulis</span></div>
+              <textarea id="workspace-prompt" name="prompt" rows="3" maxlength="3000" placeholder="Mulai dari satu kalimat…" aria-describedby="composer-disclosure composer-feedback"></textarea>
+              <div class="composer-controls"><div class="composer-selects"><label class="select-field" for="workspace-model"><span>Model pilihan</span><select id="workspace-model" name="model"><option value="claude">Claude — Anthropic</option><option value="gpt">GPT — OpenAI</option><option value="gemini">Gemini — Google</option></select></label><label class="select-field task-select-field" for="workspace-task"><span>Jenis contoh</span><select id="workspace-task" name="task"><option value="writing">Menulis</option><option value="coding">Membuat kode</option><option value="planning">Merencanakan</option></select></label></div><button class="button button-primary" id="submit-demo" type="submit" disabled>Tampilkan contoh <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5"/></svg></button></div>
+              <p id="composer-feedback" class="form-feedback" role="status"></p>
+            </form>
+            <p class="composer-disclosure" id="composer-disclosure">Demo tanpa koneksi AI. Teks dan pilihan model Anda tidak dikirim; respons merupakan contoh tetap untuk jenis tugas yang dipilih.</p>
+            <div class="workspace-endnote"><span>Ruang untuk berpikir.</span><a href="?view=console" data-view="console">Ingin membangun? Jelajahi API <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10"/></svg></a></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view console-view" id="view-console" aria-label="Developer console demo" hidden>
+      <div class="console-layout">
+        <aside class="console-rail" aria-label="Navigasi developer console">
+          <div class="rail-heading"><h2>Console</h2><span class="demo-label">Demo</span></div>
+          <div class="sample-project"><span>Proyek contoh</span><strong>Ruang Eksperimen</strong></div>
+          <nav class="console-nav" aria-label="Bagian console"><button type="button" data-console-panel="overview" aria-current="page">Overview <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button><button type="button" data-console-panel="keys">API keys</button><button type="button" data-console-panel="usage">Usage</button><button type="button" data-console-panel="docs">Docs</button></nav>
+          <div class="rail-bottom"><p>Lebih suka mulai dari percakapan?</p><a class="text-link" href="?view=workspace" data-view="workspace">Buka workspace <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10"/></svg></a><span>Lingkungan visual saja. Tidak ada request atau kredensial sungguhan.</span></div>
+        </aside>
+        <div class="console-main">
+          <div class="console-toolbar"><span>Developer <span class="breadcrumb-divider">/</span> Ruang Eksperimen</span><span class="session-note">Data contoh</span></div>
+          <section class="console-panel" id="console-overview" aria-labelledby="overview-heading">
+            <div class="console-heading"><h1 id="overview-heading" tabindex="-1">Dari percakapan<br>ke produk.</h1><p>Ruang untuk merangkai integrasi Anda.<br>Mulai dengan satu request, lalu bangun dari sana.</p></div>
+            <div class="endpoint-row"><div><span class="field-caption">Base URL · contoh konfigurasi</span><code>https://api.ultrai.id/v1</code></div><button type="button" class="text-button" data-copy-endpoint><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7h9v10H7V7ZM4 13H2V2h10v2"/></svg>Salin URL</button></div>
+            <div class="integration-layout">
+              <div class="code-specimen"><div class="code-toolbar"><div role="tablist" aria-label="Bahasa contoh API"><button type="button" role="tab" id="code-tab-python" aria-controls="api-code-panel" aria-selected="true" data-code-language="python">Python</button><button type="button" role="tab" id="code-tab-curl" aria-controls="api-code-panel" aria-selected="false" data-code-language="curl" tabindex="-1">cURL</button></div><button type="button" class="copy-code" id="copy-code"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7h9v10H7V7ZM4 13H2V2h10v2"/></svg>Salin kode</button></div><div id="api-code-panel" role="tabpanel" aria-labelledby="code-tab-python" tabindex="0"><pre><code id="api-code"></code></pre></div><div class="code-bottom"><span>Contoh request · tidak dieksekusi</span><span id="code-copy-status" role="status"></span></div></div>
+              <aside class="integration-notes"><h2>Catatan<br>sebelum mulai.</h2><ol><li><strong>Gunakan key Anda.</strong><p><code>YOUR_API_KEY</code> adalah placeholder, bukan kredensial.</p></li><li><strong>Pilih model yang tersedia.</strong><p>Ganti <code>MODEL_ID</code> dengan ID dari konfigurasi akun.</p></li><li><strong>Jaga di sisi server.</strong><p>Jangan sertakan API key rahasia di kode frontend.</p></li></ol><button type="button" class="text-button" data-console-panel="docs">Baca catatan integrasi <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button></aside>
+            </div>
+            <section class="request-ledger" aria-labelledby="request-heading"><div class="section-heading"><h2 id="request-heading">Catatan request</h2><span>Data contoh · bukan trafik aktual</span></div><div class="table-scroll"><table><caption class="sr-only">Tiga request ilustratif, bukan data operasional</caption><thead><tr><th scope="col">Request</th><th scope="col">Model / pembuat</th><th scope="col">Hasil contoh</th></tr></thead><tbody><tr><td><code>req_demo_003</code><span>Draf cerita · contoh</span></td><td>Claude<span>Anthropic</span></td><td><span class="table-result">200</span>OK</td></tr><tr><td><code>req_demo_002</code><span>Validasi email · contoh</span></td><td>GPT<span>OpenAI</span></td><td><span class="table-result">200</span>OK</td></tr><tr><td><code>req_demo_001</code><span>Rencana kerja · contoh</span></td><td>Gemini<span>Google</span></td><td><span class="table-result">200</span>OK</td></tr></tbody></table></div><button type="button" class="text-button ledger-link" data-console-panel="usage">Jelajahi data contoh <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button></section>
+          </section>
+
+          <section class="console-panel" id="console-keys" aria-labelledby="keys-heading" hidden>
+            <div class="console-heading"><h1 id="keys-heading" tabindex="-1">Akses dimulai<br>dengan satu key.</h1><p>Lihat bagaimana kredensial ditampilkan.<br>Key di halaman ini adalah dummy dan tidak dapat dipakai.</p></div>
+            <div class="dummy-key-sheet"><div class="section-heading"><h2>Kunci eksperimen</h2><span class="dummy-mark">DUMMY · bukan API key asli</span></div><p>Contoh untuk memahami antarmuka. Tidak dibuat atau disimpan di server.</p><label class="field-caption" for="dummy-key">Nilai dummy key</label><div class="dummy-key-value"><input id="dummy-key" type="text" value="sk-demo-ULTRAI-NOT-A-REAL-KEY" readonly spellcheck="false"><button type="button" class="text-button" id="toggle-key" aria-pressed="false">Sembunyikan</button></div><div class="dummy-key-footer"><span>Tidak berlaku untuk autentikasi</span><button type="button" class="button button-primary" id="copy-dummy-key">Salin dummy key <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7h9v10H7V7ZM4 13H2V2h10v2"/></svg></button></div><p role="status" id="key-copy-status" class="form-feedback"></p></div>
+            <div class="console-reading-note"><h2>Kredensial adalah milik Anda.</h2><p>Dalam implementasi sungguhan, simpan key sebagai environment variable di server. Jika bocor, cabut dan buat pengganti melalui pengelolaan akun yang sesuai.</p><button type="button" class="text-button" data-console-panel="overview">Lihat contoh penggunaan <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button></div>
+          </section>
+
+          <section class="console-panel" id="console-usage" aria-labelledby="usage-heading" hidden>
+            <div class="console-heading"><h1 id="usage-heading" tabindex="-1">Setiap request,<br>punya konteks.</h1><p>Jelajahi catatan ilustratif berdasarkan jenis tugas.<br>Tidak ada angka pemakaian akun sungguhan di prototype ini.</p></div>
+            <div class="usage-filter-row"><label class="select-field" for="usage-filter"><span>Filter data contoh</span><select id="usage-filter"><option value="all">Semua jenis tugas</option><option value="writing">Menulis</option><option value="coding">Membuat kode</option><option value="planning">Merencanakan</option></select></label><span id="usage-count" role="status">3 baris contoh</span></div>
+            <div class="request-ledger usage-ledger"><div class="section-heading"><h2>Ledger eksperimen</h2><span>Seluruh baris adalah data demo</span></div><div class="table-scroll"><table><caption class="sr-only">Request contoh berdasarkan filter jenis tugas</caption><thead><tr><th scope="col">Request / tugas</th><th scope="col">Model / pembuat</th><th scope="col">Hasil contoh</th></tr></thead><tbody id="usage-rows"><tr data-usage-task="writing"><td><code>req_demo_003</code><span>Draf cerita · contoh</span></td><td>Claude<span>Anthropic</span></td><td><span class="table-result">200</span>OK</td></tr><tr data-usage-task="coding"><td><code>req_demo_002</code><span>Validasi email · contoh</span></td><td>GPT<span>OpenAI</span></td><td><span class="table-result">200</span>OK</td></tr><tr data-usage-task="planning"><td><code>req_demo_001</code><span>Rencana kerja · contoh</span></td><td>Gemini<span>Google</span></td><td><span class="table-result">200</span>OK</td></tr></tbody></table></div></div>
+            <div class="usage-footnote"><span class="short-rule" aria-hidden="true"></span><p>Angka status pada tabel hanya menunjukkan bentuk catatan request. Biaya, jumlah token, saldo, dan kuota nyata tidak disimulasikan.</p></div>
+          </section>
+
+          <section class="console-panel" id="console-docs" aria-labelledby="docs-heading" hidden>
+            <div class="console-heading"><h1 id="docs-heading" tabindex="-1">Catatan untuk<br>request pertama.</h1><p>Orientasi singkat untuk developer.<br>Contoh visual ini bukan dokumentasi kontrak API yang terverifikasi.</p></div>
+            <ol class="docs-steps"><li><span class="step-number" aria-hidden="true">1</span><div><h2>Siapkan API key.</h2><p>Gunakan kredensial dari akun Anda pada implementasi nyata. Di prototype ini, Anda hanya akan menemukan dummy key dengan label yang jelas.</p><button type="button" class="text-button" data-console-panel="keys">Lihat dummy key <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button></div></li><li><span class="step-number" aria-hidden="true">2</span><div><h2>Tentukan model.</h2><p>Ganti <code>MODEL_ID</code> pada contoh dengan ID yang didukung akun Anda. Claude dikembangkan oleh Anthropic, GPT oleh OpenAI, dan Gemini oleh Google.</p></div></li><li><span class="step-number" aria-hidden="true">3</span><div><h2>Mulai dari server Anda.</h2><p>Gunakan <code>https://api.ultrai.id/v1</code> sebagai base URL pada cuplikan ilustratif. Periksa kontrak endpoint dan ketersediaan model sebelum integrasi nyata.</p><button type="button" class="text-button" data-console-panel="overview">Buka contoh Python dan cURL <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button></div></li></ol>
+            <div class="docs-questions"><h2>Yang perlu diketahui.</h2><details><summary>Apakah prototype ini mengirim request ke API?<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"/></svg></summary><p>Tidak. Semua respons, key, dan catatan request adalah contoh lokal. Tombol salin hanya menyalin teks ke clipboard bila browser mengizinkan.</p></details><details><summary>Apakah UltrAI membuat model-model ini?<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"/></svg></summary><p>UltrAI adalah identitas platform dan pengalaman produk. Claude dikembangkan oleh Anthropic, GPT oleh OpenAI, dan Gemini oleh Google.</p></details><details><summary>Di mana saya menyimpan API key?<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"/></svg></summary><p>Simpan sebagai secret atau environment variable di server. Jangan masukkan key asli ke HTML, JavaScript frontend, repositori publik, atau prototype ini.</p></details></div>
+          </section>
+          <div class="console-bottom"><span>Contoh visual. Bukan lingkungan operasional.</span><a href="?view=workspace" data-view="workspace">Kembali ke workspace <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></a></div>
+          <p class="global-copy-status" id="console-copy-status" role="status"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div class="prototype-notice">Prototype · data contoh</div>
+  <noscript><p class="noscript-note">Aktifkan JavaScript untuk beralih permukaan dan mencoba interaksi demo.</p></noscript>
+</body>
+</html>

@@ -1,0 +1,52 @@
+[
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "C:\\Users\\Hawari\\ultrai-web\\.impeccable\\mocks\\provider\\studio\\index.html",
+    "line": 0,
+    "snippet": "1.2:1 (need 4.5:1) — text #ffffff on #e7ecf5"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "C:\\Users\\Hawari\\ultrai-web\\.impeccable\\mocks\\provider\\studio\\index.html",
+    "line": 0,
+    "snippet": "1.2:1 (need 4.5:1) — text #ffffff on #e7ecf5"
+  },
+  {
+    "antipattern": "cramped-padding",
+    "name": "Cramped padding",
+    "description": "Text is too close to the edge of its container. Two shapes: (1) an element with its own text where the padding is too low for the font size, and (2) a wrapper with text-bearing children and near-zero padding against a visible boundary (border, outline, or non-transparent background) — children land flush against the boundary line. Add at least 8px (ideally 12–16px) of padding inside bordered, outlined, or colored containers.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "C:\\Users\\Hawari\\ultrai-web\\.impeccable\\mocks\\provider\\studio\\index.html",
+    "line": 0,
+    "snippet": "<div> \"preview-bar\": children flush against border-bottom+bg on top/bottom (no inset)"
+  },
+  {
+    "antipattern": "pulsing-dot",
+    "name": "Pulsing status dot",
+    "description": "Small pulsing status dots simulate liveness decoratively. Reserve pulse animation for indicators tied to genuinely live, changing data; a static indicator with clear labeling is honest and calmer.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\Hawari\\ultrai-web\\.impeccable\\mocks\\provider\\studio\\index.html",
+    "line": 0,
+    "snippet": ".generation-meter span — 4x12px dot with infinite \"studio-generation\" animation"
+  },
+  {
+    "antipattern": "dark-glow",
+    "name": "Glowing shadow accents",
+    "description": "Colored glow shadows — a zero-offset chromatic halo (box- or text-shadow) on any background, or any colored blurred shadow on a dark background — are the default \"cool\" look of AI-generated UIs. Use neutral elevation shadows and subtle, purposeful lighting instead.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\Hawari\\ultrai-web\\.impeccable\\mocks\\provider\\studio\\index.html",
+    "line": 0,
+    "snippet": "Colored box-shadow glow (#13264a) on dark page"
+  }
+]

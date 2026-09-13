@@ -1,0 +1,20 @@
+{
+  "selectedDirection": "studio",
+  "status": "Interactive refined prototype ready for owner review; production migration not started",
+  "entry": "http://127.0.0.1:4177/studio/?view=workspace",
+  "landing": "http://127.0.0.1:4177/studio/?view=landing",
+  "changes": [
+    "Richer workspace grounded in original ChatFullPage.jsx",
+    "Searchable grouped model picker and Chat/Image/Video/Audio modes",
+    "Attachments: chooser, drop, pasted images;5 files,20MiB; local only",
+    "History search/delete/new, per-conversation drafts, light/dark theme and collapsing sidebar",
+    "Stored chat response streaming, stop, copy and safe text rendering",
+    "Media modes prepare editable local briefs and downloadable text, never pretend media generation",
+    "Authored6-second landing sequence with pause/replay, workspace sigil and state transitions",
+    "Reduced motion, offscreen and hidden lifecycle behavior"
+  ],
+  "proof": ".impeccable/review/studio-refined/verification.json",
+  "reviewFixProof": ".impeccable/review/studio-refined/review-fixes.json",
+  "preserved": ["Original production frontend/backend", "App dependency manifests/lockfiles", "Developer console functionality", "Atlas/Signal alternatives"],
+  "deliberatelyUnchanged": "Root DESIGN.md remains uncreated: this is a prototype revision pending owner's approval of the refined system, not a production design cutover."
+}

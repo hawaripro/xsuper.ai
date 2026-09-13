@@ -1,0 +1,6 @@
+{
+  "badge": "All variants now reserve 30px top space and show disclosure in that strip; no bottom floating badge remains.",
+  "wordBoundaries": "Removed responsive rules hiding Atlas integration heading and Signal setup/hero line breaks; visible separators retained.",
+  "text": "All explicit 8px/9px/10px/11px text declarations raised to 12px; final computed-text check catches shorthand exceptions.",
+  "scope": "Prototype alternatives only. No claims of production completion or full app redesign."
+}

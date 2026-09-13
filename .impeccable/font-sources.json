@@ -1,0 +1,11 @@
+{
+  "source": "Google Fonts CSS API; self-hosted original TTF files",
+  "families": [
+    {"name":"DM Sans","weights":[400,500,600,700],"license":"mocks/provider/fonts/dm-sans-license.txt"},
+    {"name":"Manrope","weights":[400,600,700,800],"license":"mocks/provider/fonts/manrope-license.txt"},
+    {"name":"IBM Plex Sans","weights":[400,500,600,700],"license":"mocks/provider/fonts/ibm-plex-sans-license.txt"},
+    {"name":"IBM Plex Mono","weights":[400,500],"license":"mocks/provider/fonts/ibm-plex-mono-license.txt"},
+    {"name":"Newsreader","weights":[400,500],"license":"mocks/provider/fonts/newsreader-license.txt"}
+  ],
+  "scope": "Standalone provider mockups only; production font selection not approved"
+}

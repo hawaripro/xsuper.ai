@@ -3,11 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\UsageRate;
 use App\Models\UserToken;
 use App\Models\VideoJob;
+use App\Models\Wallet;
+use App\Services\UsageBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class VideoController extends Controller
 {
@@ -18,7 +23,7 @@ class VideoController extends Controller
         'veo-3.1-quality' => ['tokens' => 250, 'duration' => [8]],
     ];
 
-    public function generate(Request $request)
+    public function generate(Request $request, UsageBillingService $billing)
     {
         $validated = $request->validate([
             'prompt' => 'required|string|max:2000',
@@ -31,68 +36,74 @@ class VideoController extends Controller
             'settings' => 'nullable|array',
         ]);
 
-        $user = Auth::user();
+        $user = $request->user();
         $modelInfo = self::MODEL_TOKENS[$validated['model']] ?? null;
-
-        if (!$modelInfo) {
+        if (! $modelInfo) {
             return response()->json(['message' => 'Model tidak valid'], 422);
         }
 
-        $tokensPerVideo = $modelInfo['tokens'];
+        $paygEnabled = UsageRate::forMeter('video', 'unit', $validated['model']) !== null;
+        $tokensPerVideo = $paygEnabled ? 0 : $modelInfo['tokens'];
         $totalTokens = $tokensPerVideo * $validated['count'];
-        $balance = UserToken::getBalance($user->id);
-
-        if ($balance < $totalTokens) {
-            return response()->json([
-                'message' => 'Token tidak cukup. Butuh ' . $totalTokens . ' token, saldo Anda ' . $balance . ' token.',
-                'insufficient' => true,
-                'required' => $totalTokens,
-                'balance' => $balance,
-            ], 402);
+        if (! $paygEnabled) {
+            $balance = UserToken::getBalance($user->id);
+            if ($balance < $totalTokens) {
+                return response()->json([
+                    'message' => 'Token tidak cukup. Butuh '.$totalTokens.' token, saldo Anda '.$balance.' token.',
+                    'insufficient' => true,
+                    'required' => $totalTokens,
+                    'balance' => $balance,
+                ], 402);
+            }
         }
 
-        // Deduct tokens
-        UserToken::deduct($user->id, $totalTokens, "Generate {$validated['count']}x video ({$validated['model']})");
+        $jobs = DB::transaction(function () use ($billing, $modelInfo, $paygEnabled, $tokensPerVideo, $totalTokens, $user, $validated): array {
+            $jobs = [];
+            for ($i = 0; $i < $validated['count']; $i++) {
+                $prompt = $validated['prompt'];
+                if ($validated['ugc_variation'] ?? false) {
+                    $prompt = $this->applyUgcVariation($prompt, $i);
+                }
 
-        // Create video jobs
-        $jobs = [];
-        for ($i = 0; $i < $validated['count']; $i++) {
-            $prompt = $validated['prompt'];
-
-            // UGC variation: modify prompt slightly for each video
-            if ($validated['ugc_variation'] ?? false) {
-                $prompt = $this->applyUgcVariation($prompt, $i);
+                $jobId = 'vj_'.Str::random(16);
+                $billingReference = 'video:'.$jobId;
+                $billingReservation = $billing->reserveUnit($user->id, 'video', $validated['model'], 1, $billingReference);
+                $jobs[] = VideoJob::create([
+                    'user_id' => $user->id,
+                    'job_id' => $jobId,
+                    'mode' => $validated['mode'],
+                    'prompt' => $prompt,
+                    'model' => $validated['model'],
+                    'aspect_ratio' => $validated['aspect_ratio'],
+                    'duration' => $modelInfo['duration'][0],
+                    'tokens_used' => $tokensPerVideo,
+                    'billing_reserved_microusd' => $billingReservation['amount_microusd'],
+                    'billing_reference_id' => $billingReference,
+                    'billing_status' => $billingReservation['amount_microusd'] > 0 ? 'reserved' : 'none',
+                    'settings' => [
+                        'cta' => $validated['cta'] ?? null,
+                        'ugc_variation' => $validated['ugc_variation'] ?? false,
+                        'extra' => $validated['settings'] ?? [],
+                    ],
+                    'status' => 'processing',
+                ]);
             }
 
-            $job = VideoJob::create([
-                'user_id' => $user->id,
-                'job_id' => 'vj_' . Str::random(16),
-                'mode' => $validated['mode'],
-                'prompt' => $prompt,
-                'model' => $validated['model'],
-                'aspect_ratio' => $validated['aspect_ratio'],
-                'duration' => $modelInfo['duration'][0],
-                'tokens_used' => $tokensPerVideo,
-                'settings' => [
-                    'cta' => $validated['cta'] ?? null,
-                    'ugc_variation' => $validated['ugc_variation'] ?? false,
-                    'extra' => $validated['settings'] ?? [],
-                ],
-                'status' => 'pending',
-            ]);
+            if (! $paygEnabled && ! UserToken::deduct($user->id, $totalTokens, "Generate {$validated['count']}x video ({$validated['model']})")) {
+                throw ValidationException::withMessages(['tokens' => 'Token balance changed. Please retry.']);
+            }
 
-            $jobs[] = $job;
-        }
-
-        // TODO: Dispatch actual video generation job to queue
-        // For now, mark as processing
-        VideoJob::whereIn('id', collect($jobs)->pluck('id'))->update(['status' => 'processing']);
+            return $jobs;
+        });
 
         return response()->json([
             'message' => "Berhasil membuat {$validated['count']} video job",
             'jobs' => $jobs,
             'tokens_used' => $totalTokens,
             'balance' => UserToken::getBalance($user->id),
+            'billing_mode' => $paygEnabled ? 'payg' : 'legacy_tokens',
+            'cost_usd_reserved' => collect($jobs)->sum('billing_reserved_microusd') / 1_000_000,
+            'balance_usd' => Wallet::balance($user->id) / 1_000_000,
         ]);
     }
 
@@ -108,45 +119,65 @@ class VideoController extends Controller
 
     public function status(string $jobId)
     {
-        $job = VideoJob::where('user_id', Auth::id())
-            ->where('job_id', $jobId)
-            ->firstOrFail();
+        $job = DB::transaction(function () use ($jobId): VideoJob {
+            $job = VideoJob::query()
+                ->lockForUpdate()
+                ->where('user_id', Auth::id())
+                ->where('job_id', $jobId)
+                ->firstOrFail();
+
+            if ($job->status === 'completed' && $job->billing_status === 'reserved') {
+                Wallet::settle($job->user_id, [
+                    'reference_id' => $job->billing_reference_id,
+                    'amount_microusd' => $job->billing_reserved_microusd,
+                ], $job->billing_reserved_microusd, [
+                    'service' => 'video',
+                    'model' => $job->model,
+                    'meter' => 'unit',
+                    'quantity' => 1,
+                    'description' => "Completed video: {$job->model}",
+                ]);
+                $job->update(['billing_status' => 'settled']);
+            } elseif ($job->status === 'failed' && $job->billing_status === 'reserved') {
+                Wallet::release($job->user_id, [
+                    'reference_id' => $job->billing_reference_id,
+                    'amount_microusd' => $job->billing_reserved_microusd,
+                ], 'Failed video generation');
+                $job->update(['billing_status' => 'released']);
+            }
+
+            return $job->fresh();
+        });
 
         return response()->json(['job' => $job]);
     }
 
     public function models()
     {
+        $rates = UsageRate::active()
+            ->where('service', 'video')
+            ->where('meter', 'unit')
+            ->get()
+            ->keyBy('model');
+        $models = [
+            ['id' => 'sora-2', 'name' => 'Sora 2', 'provider' => '[OI]', 'durations' => [10, 15], 'tokens' => 35, 'features' => ['Stable', 'High Quality'], 'badge' => null],
+            ['id' => 'veo-3.1-fast', 'name' => 'Veo 3.1 Fast', 'provider' => 'Google', 'durations' => [8], 'tokens' => 60, 'features' => ['Fast Render', '8s Fixed'], 'badge' => 'BARU'],
+            ['id' => 'veo-3.1-quality', 'name' => 'Veo 3.1 Quality', 'provider' => 'Google', 'durations' => [8], 'tokens' => 250, 'features' => ['1080p', 'Audio', 'HD'], 'badge' => 'HD + Audio'],
+        ];
+
         return response()->json([
-            'models' => [
-                [
-                    'id' => 'sora-2',
-                    'name' => 'Sora 2',
-                    'provider' => 'OpenAI',
-                    'durations' => [10, 15],
-                    'tokens' => 35,
-                    'features' => ['Stable', 'High Quality'],
-                    'badge' => null,
-                ],
-                [
-                    'id' => 'veo-3.1-fast',
-                    'name' => 'Veo 3.1 Fast',
-                    'provider' => 'Google',
-                    'durations' => [8],
-                    'tokens' => 60,
-                    'features' => ['Fast Render', '8s Fixed'],
-                    'badge' => 'BARU',
-                ],
-                [
-                    'id' => 'veo-3.1-quality',
-                    'name' => 'Veo 3.1 Quality',
-                    'provider' => 'Google',
-                    'durations' => [8],
-                    'tokens' => 250,
-                    'features' => ['1080p', 'Audio', 'HD'],
-                    'badge' => 'HD + Audio',
-                ],
-            ],
+            'models' => array_map(function (array $model) use ($rates): array {
+                $rate = $rates->get($model['id']);
+
+                return [
+                    ...$model,
+                    'tokens' => $rate ? 0 : $model['tokens'],
+                    'billing_mode' => $rate ? 'payg' : 'legacy_tokens',
+                    'price_usd' => $rate ? (float) $rate->price_usd : null,
+                    'price_idr' => $rate ? (float) $rate->price_idr : null,
+                    'unit' => $rate?->unit,
+                ];
+            }, $models),
         ]);
     }
 
@@ -166,7 +197,7 @@ class VideoController extends Controller
         ];
 
         if ($index > 0 && isset($variations[$index - 1])) {
-            $prompt .= ' [Variation: ' . $variations[$index - 1] . ']';
+            $prompt .= ' [Variation: '.$variations[$index - 1].']';
         }
 
         return $prompt;
