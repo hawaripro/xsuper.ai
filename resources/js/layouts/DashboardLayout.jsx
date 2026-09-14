@@ -25,40 +25,30 @@ export default function DashboardLayout({ children }) {
     const hasChat = isAdmin || (perms.chat !== false);
     const hasVideo = isAdmin || (perms.video_generator === true);
 
-    // User navigation
     const userNav = [
-        { name: 'Dashboard', href: '/dashboard', icon: Icons.dashboard },
-        ...(hasChat ? [{ name: 'Chat AI', href: '/chat', icon: Icons.chat }] : []),
-        { name: 'Template Prompt', href: '/templates', icon: Icons.template },
-        { name: 'Riwayat Chat', href: '/history', icon: Icons.history },
+        { name: 'Overview', href: '/dashboard', icon: Icons.dashboard },
+        ...(hasChat ? [{ name: 'Chat', href: '/chat', icon: Icons.chat }] : []),
         { name: 'Generate Gambar', href: '/generate-image', icon: Icons.image },
         ...(hasVideo ? [{ name: 'Generate Video', href: '/video', icon: Icons.video }] : []),
-        { name: 'Token & Pemakaian', href: '/token-usage', icon: Icons.token },
-        { name: 'Paket & Perpanjangan', href: '/paket', icon: Icons.paket },
+        { name: 'Library', href: '/history', icon: Icons.history },
+        { name: 'Template Prompt', href: '/templates', icon: Icons.template },
+        { name: 'Usage & Billing', href: '/token-usage', icon: Icons.token },
+        { name: 'Paket', href: '/paket', icon: Icons.paket },
         { name: 'Referral', href: '/referral', icon: Icons.referral },
-        { name: 'Bantuan/Tutorial', href: '/bantuan', icon: Icons.help },
+        { name: 'Inbox', href: '/notifications', icon: Icons.broadcast },
+        { name: 'Help & Support', href: '/bantuan', icon: Icons.help },
         { name: 'Profil', href: '/profile', icon: Icons.profile },
     ];
 
-    // Admin navigation
     const adminNav = [
-        { name: 'Revenue Overview', href: '/admin/revenue', icon: Icons.revenue },
-        { name: 'User Management', href: '/admin/users', icon: Icons.users },
-        { name: 'Period Management', href: '/admin/periods', icon: Icons.period },
-        { name: 'Orders/Payments', href: '/admin/orders', icon: Icons.orders },
-        { name: 'Token Usage', href: '/admin/token-usage', icon: Icons.token },
-        { name: 'Cost & Profit', href: '/admin/cost', icon: Icons.cost },
-        { name: 'Expiring Users', href: '/admin/expiring', icon: Icons.expiring },
-        { name: 'Broadcast/CRM', href: '/admin/broadcast', icon: Icons.broadcast },
-        { name: 'Referral Management', href: '/admin/referral', icon: Icons.share },
-        { name: 'Feedback & Testimoni', href: '/admin/feedback', icon: Icons.feedback },
-        { name: 'AI Provider Manager', href: '/admin/providers', icon: Icons.provider },
-        { name: 'Model Management', href: '/admin/models', icon: Icons.model },
-        { name: 'Video Job Queue', href: '/admin/video-queue', icon: Icons.videoQueue },
-        { name: 'Landing Page Manager', href: '/admin/landing', icon: Icons.landing },
-        { name: 'Analytics/Funnel', href: '/admin/analytics', icon: Icons.analytics },
-        { name: 'Audit Log', href: '/admin/audit', icon: Icons.audit },
-        { name: 'Settings', href: '/admin/settings', icon: Icons.settings },
+        { name: 'Admin Overview', href: '/admin/overview', icon: Icons.revenue },
+        { name: 'People & Access', href: '/admin/users', icon: Icons.users },
+        { name: 'Orders & Billing', href: '/admin/operations', icon: Icons.orders },
+        { name: 'Usage', href: '/admin/token-usage', icon: Icons.token },
+        { name: 'AI Catalog', href: '/admin/ai', icon: Icons.model },
+        { name: 'Content & Support', href: '/admin/content', icon: Icons.feedback },
+        { name: 'System Activity', href: '/admin/system', icon: Icons.audit },
+        { name: 'Pricing Settings', href: '/admin/settings', icon: Icons.settings },
     ];
 
     const handleLogout = async () => { await logout(); navigate('/login'); };
@@ -101,7 +91,7 @@ export default function DashboardLayout({ children }) {
     };
 
     return (
-        <div className={`min-h-dvh flex ${rootBg} relative overflow-x-hidden`} style={{ fontSize: '90%' }}>
+        <div className={`dashboard-shell min-h-dvh flex ${rootBg} relative overflow-x-hidden`}>
             {/* Ambient background */}
             <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
                 <div className="ui-aurora animate-aurora" style={{ top: '-180px', right: '-140px', background: isDark ? 'radial-gradient(circle, rgba(239,68,68,0.32) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(254,205,211,0.6) 0%, transparent 70%)' }} />
@@ -112,7 +102,7 @@ export default function DashboardLayout({ children }) {
             <div className={`fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)} aria-hidden="true" />
 
             {/* Sidebar */}
-            <aside className={`fixed inset-y-0 left-0 z-50 w-[264px] flex flex-col border-r ${sidebarBg} transform transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside aria-label="Navigasi dashboard" className={`fixed inset-y-0 left-0 z-50 w-[248px] flex flex-col border-r ${sidebarBg} transform transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 {/* Logo */}
                 <div className={`h-16 flex items-center justify-between px-5 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
                     <Link to="/dashboard" className="flex items-center gap-2 group" aria-label="UltrAI home">
@@ -126,9 +116,9 @@ export default function DashboardLayout({ children }) {
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto scrollbar-thin">
-                    <div className="px-3 mb-3">
-                        <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${sectionLabel}`}>Menu Utama</span>
+                <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+                    <div className="px-3 mb-2">
+                        <span className={`ui-overline ${sectionLabel}`}>Workspace</span>
                     </div>
                     <div className={mounted ? 'stagger' : ''}>
                         {userNav.map((item) => <NavItem key={item.href + item.name} item={item} />)}
@@ -136,8 +126,8 @@ export default function DashboardLayout({ children }) {
 
                     {isAdmin && (
                         <>
-                            <div className="pt-6 pb-2 px-3">
-                                <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${sectionLabel}`}>Admin Panel</span>
+                            <div className="pt-5 pb-2 px-3">
+                                <span className={`ui-overline ${sectionLabel}`}>Operations</span>
                             </div>
                             {adminNav.map((item) => <NavItem key={item.href} item={item} />)}
                         </>

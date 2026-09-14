@@ -2,8 +2,11 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminStatsController;
+use App\Http\Controllers\Api\AnalyticsController;
+use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\ContentController;
 use App\Http\Controllers\Api\DashboardController as ApiDashboardController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\EngagementController;
@@ -60,6 +63,7 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
     Route::post('/referrals/capture', [ReferralController::class, 'capture']);
+    Route::post('/analytics/events', [AnalyticsController::class, 'store'])->middleware('auth');
 
     // Protected routes — track device on ALL authenticated requests
     Route::middleware(['auth', 'track.device'])->group(function () {
@@ -173,6 +177,14 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/admin/engagement/broadcasts', [EngagementController::class, 'broadcast']);
             Route::get('/admin/referrals', [ReferralController::class, 'adminStatus']);
             Route::put('/admin/referrals/configuration', [ReferralController::class, 'updateConfiguration']);
+
+            // Content and operational intelligence
+            Route::get('/admin/content', [ContentController::class, 'index']);
+            Route::post('/admin/content', [ContentController::class, 'store']);
+            Route::put('/admin/content/{contentBlock}', [ContentController::class, 'update']);
+            Route::post('/admin/content/{contentBlock}/publish', [ContentController::class, 'publish']);
+            Route::get('/admin/analytics/funnel', [AnalyticsController::class, 'funnel']);
+            Route::get('/admin/audit', [AuditController::class, 'index']);
         });
 
         // Member: duration orders (authenticated, not admin-only)
