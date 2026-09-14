@@ -163,6 +163,7 @@ return new class extends Migration
                 $table->string('category', 32)->default('chat');
                 $table->string('tier', 40)->nullable();
                 $table->boolean('is_enabled')->default(true);
+                $table->boolean('is_available')->default(false);
                 $table->json('capabilities')->nullable();
                 $table->timestamp('last_seen_at')->nullable();
                 $table->timestamps();

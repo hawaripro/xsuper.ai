@@ -75,6 +75,13 @@ class AiCatalogController extends Controller
                 'last_checked_at' => now(),
                 'last_error' => null,
             ]);
+            $seenIds = collect($models)->pluck('id')->all();
+            $missingModels = AiModelProfile::query()->where('provider_id', $provider->id);
+            if ($seenIds !== []) {
+                $missingModels->whereNotIn('model_id', $seenIds);
+            }
+            $missingModels->update(['is_available' => false]);
+
 
             $seenIds = collect($models)->pluck('id')->all();
             AiModelProfile::query()
@@ -90,6 +97,7 @@ class AiCatalogController extends Controller
                 }
                 $model->fill([
                     'provider_id' => $provider->id,
+                    'is_available' => true,
                     'category' => $metadata['category'],
                     'tier' => $metadata['tier'],
                     'capabilities' => $metadata['capabilities'],
@@ -161,6 +169,7 @@ class AiCatalogController extends Controller
             'category' => $model->category,
             'tier' => $model->tier,
             'is_enabled' => $model->is_enabled,
+            'is_available' => $model->is_available,
             'capabilities' => $model->capabilities ?? [],
             'last_seen_at' => $model->last_seen_at?->toISOString(),
             'provider' => $model->provider ? $this->providerPayload($model->provider) : null,

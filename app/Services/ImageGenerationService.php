@@ -26,6 +26,7 @@ class ImageGenerationService
             ->where('model_id', $model)
             ->where('category', 'image')
             ->where('is_enabled', true)
+            ->where('is_available', true)
             ->first();
 
         if (! $profile || ! $profile->provider || ! $profile->provider->is_enabled) {
@@ -99,6 +100,42 @@ class ImageGenerationService
 
             throw new ImageGenerationException($message, 502, $failed, $exception);
         }
+    }
+
+    public function reconcileStaleReservations(int $minutes): int
+    {
+        $reconciled = 0;
+        ImageJob::query()
+            ->where('status', 'processing')
+            ->where('billing_status', 'reserved')
+            ->where('updated_at', '<=', now()->subMinutes($minutes))
+            ->orderBy('id')
+            ->chunkById(100, function ($jobs) use (&$reconciled): void {
+                foreach ($jobs as $job) {
+                    $changed = DB::transaction(function () use ($job): bool {
+                        $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+                        if (! $locked || $locked->status !== 'processing' || $locked->billing_status !== 'reserved') {
+                            return false;
+                        }
+
+                        $this->billing->releaseUnit($locked->user_id, [
+                            'reference_id' => $locked->billing_reference_id,
+                            'amount_microusd' => $locked->billing_reserved_microusd,
+                        ], 'Timed out image generation');
+                        $locked->update([
+                            'status' => 'failed',
+                            'result_urls' => null,
+                            'error_message' => 'Image generation timed out.',
+                            'billing_status' => 'released',
+                        ]);
+
+                        return true;
+                    });
+                    $reconciled += $changed ? 1 : 0;
+                }
+            });
+
+        return $reconciled;
     }
 
     private function failAndRelease(ImageJob $job, array $reservation, string $message): ImageJob

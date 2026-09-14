@@ -30,10 +30,15 @@ class ImageController extends Controller
             ->with('provider')
             ->where('category', 'image')
             ->where('is_enabled', true)
+            ->where('is_available', true)
             ->whereHas('provider', fn ($query) => $query->where('is_enabled', true))
             ->orderBy('display_name')
             ->get()
-            ->filter(fn (AiModelProfile $model): bool => $rates->has($model->model_id))
+            ->filter(function (AiModelProfile $model) use ($rates): bool {
+                $rate = $rates->get($model->model_id);
+
+                return $rate !== null && $rate->price_usd !== null;
+            })
             ->map(function (AiModelProfile $model) use ($rates): array {
                 $rate = $rates->get($model->model_id);
 
