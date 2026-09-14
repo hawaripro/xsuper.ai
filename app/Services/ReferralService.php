@@ -117,7 +117,7 @@ class ReferralService
         return DB::transaction(function () use ($order, $actor, $rewardDays): bool {
             $order = DurationOrder::query()->lockForUpdate()->find($order->id);
 
-            if (! $order || $order->status !== 'approved' || ! $order->approved_at) {
+            if (! $order || $order->status !== 'approved' || ! $order->approved_at || $order->package === 'manual' || (float) $order->price <= 0) {
                 return false;
             }
 
@@ -133,6 +133,8 @@ class ReferralService
             if (DurationOrder::query()
                 ->where('user_id', $order->user_id)
                 ->where('status', 'approved')
+                ->where('package', '!=', 'manual')
+                ->where('price', '>', 0)
                 ->whereKeyNot($order)
                 ->exists()) {
                 return false;

@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
+    private string $permissionBackupKey = '__retired_chat_ai_pro';
+
     public function up(): void
     {
         if (Schema::hasTable('users')) {
@@ -15,6 +17,7 @@ return new class extends Migration
                 if (! is_array($permissions) || ! array_key_exists('chat_ai_pro', $permissions)) {
                     return;
                 }
+                $permissions[$this->permissionBackupKey] = (bool) $permissions['chat_ai_pro'];
                 unset($permissions['chat_ai_pro']);
                 DB::table('users')->where('id', $user->id)->update(['permissions' => json_encode($permissions)]);
             });
@@ -195,6 +198,18 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (Schema::hasTable('users')) {
+            DB::table('users')->whereNotNull('permissions')->orderBy('id')->each(function (object $user): void {
+                $permissions = json_decode($user->permissions, true);
+                if (! is_array($permissions) || ! array_key_exists($this->permissionBackupKey, $permissions)) {
+                    return;
+                }
+                $permissions['chat_ai_pro'] = (bool) $permissions[$this->permissionBackupKey];
+                unset($permissions[$this->permissionBackupKey]);
+                DB::table('users')->where('id', $user->id)->update(['permissions' => json_encode($permissions)]);
+            });
+        }
+
         Schema::dropIfExists('image_jobs');
         Schema::dropIfExists('ai_model_profiles');
         Schema::dropIfExists('ai_provider_profiles');

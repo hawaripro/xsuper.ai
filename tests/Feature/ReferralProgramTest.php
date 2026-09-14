@@ -237,6 +237,7 @@ class ReferralProgramTest extends TestCase
         $this->assertTrue($referredExpiryAfterReward->equalTo($referred->fresh()->expires_at));
         $this->assertDatabaseCount('referral_rewards', 2);
         $this->assertDatabaseCount('notifications', 2);
+
         $this->assertSame(1, AuditEvent::where('action', 'referral.rewarded')->count());
 
         $secondOrder = DurationOrder::create([
@@ -253,6 +254,40 @@ class ReferralProgramTest extends TestCase
 
         $this->assertTrue($referrerExpiryAfterReward->equalTo($referrer->fresh()->expires_at));
         $this->assertTrue($referredExpiryAfterReward->copy()->addDay()->equalTo($referred->fresh()->expires_at));
+        $this->assertDatabaseCount('referral_rewards', 2);
+    }
+    public function test_manual_duration_grant_does_not_consume_first_paid_referral_reward(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $referrer = User::factory()->create();
+        $referred = User::factory()->create();
+        Referral::create([
+            'referrer_id' => $referrer->id,
+            'referred_id' => $referred->id,
+            'code' => $referrer->referral_code,
+            'status' => 'attributed',
+            'attributed_at' => now()->subWeek(),
+        ]);
+        DurationOrder::create([
+            'user_id' => $referred->id,
+            'package' => 'manual',
+            'days' => 2,
+            'price' => 0,
+            'status' => 'approved',
+            'approved_at' => now()->subDay(),
+            'approved_by' => $admin->id,
+        ]);
+        $paid = DurationOrder::create([
+            'user_id' => $referred->id,
+            'package' => '1_week',
+            'days' => 7,
+            'price' => 20000,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($admin)->postJson("/api/a/period/approve/{$paid->id}")->assertOk();
+
+        $this->assertDatabaseHas('referrals', ['referred_id' => $referred->id, 'status' => 'qualified']);
         $this->assertDatabaseCount('referral_rewards', 2);
     }
 

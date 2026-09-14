@@ -64,5 +64,9 @@ class ControlCenterFoundationTest extends TestCase
         $migration->up();
 
         $this->assertArrayNotHasKey('chat_ai_pro', $user->fresh()->permissions);
+
+        $migration->down();
+        $this->assertTrue($user->fresh()->permissions['chat_ai_pro']);
+        $this->assertArrayNotHasKey('__retired_chat_ai_pro', $user->fresh()->permissions);
     }
 }
