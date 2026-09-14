@@ -7,7 +7,7 @@
             <div class="hero-copy" data-reveal="stagger">
                 <h1 id="hero-title" data-reveal-item>{!! nl2br(e($site['hero']['headline'])) !!}</h1>
                 <p class="hero-description" data-reveal-item>{{ $site['hero']['description'] }}</p>
-                <div class="hero-actions" data-reveal-item><a href="{{ $site['hero']['primary_action']['url'] }}" class="button button-primary">{{ $site['hero']['primary_action']['label'] }} @include('public.partials.icon', ['name' => 'arrow'])</a><a href="/chat" class="text-link">{{ __('Buka workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div>
+                <div class="hero-actions" data-reveal-item><a href="{{ str_starts_with($site['hero']['primary_action']['url'], '/') ? $localeUrl($site['hero']['primary_action']['url']) : $site['hero']['primary_action']['url'] }}" class="button button-primary">{{ $site['hero']['primary_action']['label'] }} @include('public.partials.icon', ['name' => 'arrow'])</a><a href="/chat" class="text-link">{{ __('Buka workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div>
                 <div class="hero-footnote" data-reveal-item><span class="hero-rule" aria-hidden="true"></span><p>{{ __('AI premium. Harga tetap membumi.') }}<br>{{ __('Mulai') }} <strong>{{ $plans[0]['priceLabel'] }}</strong> {{ __('untuk satu hari.') }}</p></div>
             </div>
             <div class="orbit-stage" data-orbit-stage aria-label="{{ __('Pilihan model AI dalam platform UltrAI') }}">

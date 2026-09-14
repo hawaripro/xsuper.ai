@@ -128,6 +128,36 @@ class AdminIntelligenceTest extends TestCase
             ->assertDontSee('Judul Indonesia');
     }
 
+
+    public function test_internal_hero_actions_keep_the_public_locale_while_external_actions_are_preserved(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $block = ContentBlock::create([
+            'key' => 'home.hero',
+            'locale' => 'en',
+            'draft' => [
+                'headline' => 'English headline',
+                'description' => 'English description',
+                'primary_action' => ['label' => 'View plans', 'url' => '/pricing'],
+            ],
+            'published' => [
+                'headline' => 'English headline',
+                'description' => 'English description',
+                'primary_action' => ['label' => 'View plans', 'url' => '/pricing'],
+            ],
+            'is_published' => true,
+            'published_at' => now(),
+            'updated_by' => $admin->id,
+        ]);
+
+        $this->get('/en')->assertOk()->assertSee('href="/en/pricing"', false);
+
+        $external = $block->published;
+        $external['primary_action']['url'] = 'https://status.ultrai.id';
+        $block->update(['draft' => $external, 'published' => $external]);
+
+        $this->get('/en')->assertOk()->assertSee('href="https://status.ultrai.id"', false);
+    }
     public function test_content_keys_and_each_payload_schema_are_strictly_validated(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
