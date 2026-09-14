@@ -83,12 +83,6 @@ class AiCatalogController extends Controller
             $missingModels->update(['is_available' => false]);
 
 
-            $seenIds = collect($models)->pluck('id')->all();
-            AiModelProfile::query()
-                ->where('provider_id', $provider->id)
-                ->when($seenIds !== [], fn ($query) => $query->whereNotIn('model_id', $seenIds))
-                ->update(['is_enabled' => false]);
-
             foreach ($models as $metadata) {
                 $model = AiModelProfile::firstOrNew(['model_id' => $metadata['id']]);
                 if (! $model->exists) {
