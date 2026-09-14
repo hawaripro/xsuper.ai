@@ -9,7 +9,7 @@ class ReferralProgramSetting extends Model
 {
     public const SINGLETON_ID = 1;
 
-    protected $fillable = ['enabled', 'reward_days', 'updated_by'];
+    protected $fillable = ['id', 'enabled', 'reward_days', 'updated_by'];
 
     protected function casts(): array
     {
