@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use App\Models\UsageLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Builder;
 
 class UsageController extends Controller
 {
@@ -14,9 +16,8 @@ class UsageController extends Controller
         $userId = $request->query('user_id');
         $period = $request->query('period', 'daily');
         $tz = $request->query('tz', 'Asia/Jakarta');
-
-        // Validate timezone
-        try { new \DateTimeZone($tz); } catch (\Exception $e) { $tz = 'Asia/Jakarta'; }
+        // Validate timezone before converting aggregation buckets.
+        try { new \DateTimeZone($tz); } catch (\Exception) { $tz = 'Asia/Jakarta'; }
 
         if ($userId) {
             return response()->json($this->userStats((int) $userId, $period, $tz));
@@ -34,17 +35,20 @@ class UsageController extends Controller
             COUNT(DISTINCT user_id) as active_users
         ')->first();
 
-        $topUsers = UsageLog::selectRaw('user_id, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests')
-            ->groupBy('user_id')
-            ->orderByDesc(DB::raw('SUM(total_tokens)'))
+        $topUsers = UsageLog::query()
+            ->join('users', 'users.id', '=', 'usage_logs.user_id')
+            ->selectRaw('usage_logs.user_id, users.name, users.email, SUM(usage_logs.total_tokens) as tokens, SUM(usage_logs.credit) as credits, COUNT(*) as requests')
+            ->groupBy('usage_logs.user_id', 'users.name', 'users.email')
+            ->orderByDesc(DB::raw('SUM(usage_logs.total_tokens)'))
             ->limit(20)
             ->get()
-            ->map(function ($u) {
-                $user = \App\Models\User::find($u->user_id);
-                $u->user = $user ? ['id' => $user->id, 'name' => $user->name, 'email' => $user->email] : null;
-                return $u;
-            });
-
+            ->map(fn ($row) => [
+                'user_id' => (int) $row->user_id,
+                'tokens' => (int) $row->tokens,
+                'credits' => round((float) $row->credits, 4),
+                'requests' => (int) $row->requests,
+                'user' => ['id' => (int) $row->user_id, 'name' => $row->name, 'email' => $row->email],
+            ]);
         return [
             'total_tokens' => (int) ($totalStats->tokens ?? 0),
             'total_credits' => round($totalStats->credits ?? 0, 4),
@@ -52,7 +56,7 @@ class UsageController extends Controller
             'active_users' => (int) ($totalStats->active_users ?? 0),
             'top_users' => $topUsers,
             'timeline' => $this->getTimeline(null, $period, $tz),
-            'by_model' => $this->getModelBreakdown(null, $period, $tz),
+            'by_model' => $this->getModelBreakdown(null, $period),
             'model_timeline' => $this->getModelTimeline(null, $period, $tz),
         ];
     }
@@ -68,94 +72,97 @@ class UsageController extends Controller
             'total_credits' => round($total->credits ?? 0, 4),
             'total_requests' => (int) ($total->requests ?? 0),
             'timeline' => $this->getTimeline($userId, $period, $tz),
-            'by_model' => $this->getModelBreakdown($userId, $period, $tz),
+            'by_model' => $this->getModelBreakdown($userId, $period),
             'model_timeline' => $this->getModelTimeline($userId, $period, $tz),
         ];
     }
 
-    private function getTimeConfig(string $period, string $tz): array
+    private function periodHours(string $period): ?int
     {
-        // Convert created_at to user's timezone for grouping
-        $tzCol = "created_at AT TIME ZONE 'UTC' AT TIME ZONE '{$tz}'";
+        return match ($period) {
+            'hourly' => 24,
+            'weekly' => 12 * 7 * 24,
+            'monthly' => 365 * 24,
+            'all' => null,
+            default => 30 * 24,
+        };
+    }
+
+    private function usageQuery(?int $userId, string $period): Builder
+    {
+        $query = UsageLog::query();
+        if ($userId) {
+            $query->where('user_id', $userId);
+        }
+        if ($hours = $this->periodHours($period)) {
+            $query->where('created_at', '>=', now()->subHours($hours));
+        }
+
+        return $query;
+    }
+
+    private function bucket(Carbon $timestamp, string $period, string $tz): array
+    {
+        $local = $timestamp->copy()->setTimezone($tz);
 
         return match ($period) {
-            'hourly' => [
-                'hours' => 24,
-                'label' => "TO_CHAR({$tzCol}, 'HH24:00')",
-                'group' => "DATE_TRUNC('hour', {$tzCol})",
-            ],
-            'weekly' => [
-                'hours' => 12 * 7 * 24,
-                'label' => "'W' || TO_CHAR({$tzCol}, 'IW')",
-                'group' => "DATE_TRUNC('week', {$tzCol})",
-            ],
-            'monthly' => [
-                'hours' => 365 * 24,
-                'label' => "TO_CHAR({$tzCol}, 'YYYY-MM')",
-                'group' => "DATE_TRUNC('month', {$tzCol})",
-            ],
-            'all' => [
-                'hours' => null,
-                'label' => "TO_CHAR({$tzCol}, 'YYYY-MM')",
-                'group' => "DATE_TRUNC('month', {$tzCol})",
-            ],
-            default => [ // daily
-                'hours' => 30 * 24,
-                'label' => "TO_CHAR({$tzCol}, 'MM-DD')",
-                'group' => "DATE_TRUNC('day', {$tzCol})",
-            ],
+            'hourly' => [$local->format('Y-m-d H:00'), $local->format('H:00')],
+            'weekly' => [$local->copy()->startOfWeek()->format('Y-m-d'), 'W'.$local->isoWeek()],
+            'monthly', 'all' => [$local->format('Y-m'), $local->format('Y-m')],
+            default => [$local->format('Y-m-d'), $local->format('m-d')],
         };
+    }
+
+    private function usageRows(?int $userId, string $period): iterable
+    {
+        return $this->usageQuery($userId, $period)
+            ->oldest('created_at')
+            ->get(['model', 'total_tokens', 'credit', 'created_at']);
     }
 
     private function getTimeline(?int $userId, string $period, string $tz): array
     {
-        $cfg = $this->getTimeConfig($period, $tz);
-        $query = UsageLog::query();
-        if ($userId) $query->where('user_id', $userId);
-        if ($cfg['hours']) $query->where('created_at', '>=', now()->subHours($cfg['hours']));
+        $buckets = [];
+        foreach ($this->usageRows($userId, $period) as $row) {
+            [$key, $label] = $this->bucket($row->created_at, $period, $tz);
+            $buckets[$key] ??= ['label' => $label, 'tokens' => 0, 'credits' => 0.0, 'requests' => 0];
+            $buckets[$key]['tokens'] += (int) $row->total_tokens;
+            $buckets[$key]['credits'] += (float) $row->credit;
+            $buckets[$key]['requests']++;
+        }
 
-        return $query->selectRaw("{$cfg['label']} as label, {$cfg['group']} as grp, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests")
-            ->groupBy(DB::raw($cfg['group']), DB::raw($cfg['label']))
-            ->orderBy(DB::raw($cfg['group']))
-            ->get()
-            ->map(fn($r) => ['label' => $r->label, 'tokens' => (int) $r->tokens, 'credits' => round((float) $r->credits, 4), 'requests' => (int) $r->requests])
-            ->toArray();
+        return array_values(array_map(function (array $bucket): array {
+            $bucket['credits'] = round($bucket['credits'], 4);
+            return $bucket;
+        }, $buckets));
     }
 
-    private function getModelBreakdown(?int $userId, string $period, string $tz): array
+    private function getModelBreakdown(?int $userId, string $period): array
     {
-        $cfg = $this->getTimeConfig($period, $tz);
-        $query = UsageLog::query();
-        if ($userId) $query->where('user_id', $userId);
-        if ($cfg['hours']) $query->where('created_at', '>=', now()->subHours($cfg['hours']));
-
-        return $query->selectRaw('model, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests')
+        return $this->usageQuery($userId, $period)
+            ->selectRaw('model, SUM(total_tokens) as tokens, SUM(credit) as credits, COUNT(*) as requests')
             ->groupBy('model')
             ->orderByDesc(DB::raw('SUM(total_tokens)'))
             ->limit(15)
             ->get()
-            ->map(fn($r) => ['model' => $r->model, 'tokens' => (int) $r->tokens, 'credits' => round((float) $r->credits, 4), 'requests' => (int) $r->requests])
+            ->map(fn ($row) => [
+                'model' => $row->model,
+                'tokens' => (int) $row->tokens,
+                'credits' => round((float) $row->credits, 4),
+                'requests' => (int) $row->requests,
+            ])
             ->toArray();
     }
 
     private function getModelTimeline(?int $userId, string $period, string $tz): array
     {
-        $cfg = $this->getTimeConfig($period, $tz);
-        $query = UsageLog::query();
-        if ($userId) $query->where('user_id', $userId);
-        if ($cfg['hours']) $query->where('created_at', '>=', now()->subHours($cfg['hours']));
-
-        $raw = $query->selectRaw("{$cfg['label']} as label, {$cfg['group']} as grp, model, SUM(total_tokens) as tokens")
-            ->groupBy(DB::raw($cfg['group']), DB::raw($cfg['label']), 'model')
-            ->orderBy(DB::raw($cfg['group']))
-            ->get();
-
         $pivoted = [];
         $models = [];
-        foreach ($raw as $r) {
-            $pivoted[$r->label] = $pivoted[$r->label] ?? ['label' => $r->label];
-            $pivoted[$r->label][$r->model] = (int) $r->tokens;
-            $models[$r->model] = true;
+        foreach ($this->usageRows($userId, $period) as $row) {
+            [$key, $label] = $this->bucket($row->created_at, $period, $tz);
+            $pivoted[$key] ??= ['label' => $label];
+            $pivoted[$key][$row->model] = ($pivoted[$key][$row->model] ?? 0) + (int) $row->total_tokens;
+            $models[$row->model] = true;
         }
 
         return [
