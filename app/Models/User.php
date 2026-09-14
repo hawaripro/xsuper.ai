@@ -126,7 +126,11 @@ class User extends Authenticatable
         if ($this->isAdmin()) {
             return array_fill_keys(array_keys(self::DEFAULT_PERMISSIONS), true);
         }
-        return array_merge(self::DEFAULT_PERMISSIONS, $this->permissions ?? []);
+
+        return array_intersect_key(
+            array_merge(self::DEFAULT_PERMISSIONS, $this->permissions ?? []),
+            self::DEFAULT_PERMISSIONS,
+        );
     }
 
     public function getAllowedTiers(): array
