@@ -1,5 +1,5 @@
 import '../css/app.css';
-import React from 'react';
+import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -150,5 +150,5 @@ function App() {
 
 const container = document.getElementById('app');
 if (container) {
-    createRoot(container).render(<App />);
+    createRoot(container).render(createElement(App));
 }
