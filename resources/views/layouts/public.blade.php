@@ -40,6 +40,14 @@
 </head>
 <body class="public-site {{ $page['type'] === 'policy' ? 'policy-site' : 'landing-site' }}" data-motion="paused" data-copy-success="{{ __('Kode berhasil disalin.') }}" data-copy-failure="{{ __('Penyalinan otomatis tidak tersedia. Pilih teks kode lalu salin secara manual.') }}">
     @include('public.partials.header')
+    @if(!empty($site['announcement']))
+        <aside class="site-announcement" role="status" data-level="{{ $site['announcement']['level'] ?? 'info' }}">
+            <span>{{ $site['announcement']['message'] }}</span>
+            @if(!empty($site['announcement']['action']))
+                <a href="{{ $site['announcement']['action']['url'] }}">{{ $site['announcement']['action']['label'] }}</a>
+            @endif
+        </aside>
+    @endif
     @yield('content')
     @include('public.partials.footer')
 </body>
