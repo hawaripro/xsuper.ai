@@ -101,7 +101,7 @@ class AdminStatsController extends Controller
      */
     public function expiringUsers(Request $request)
     {
-        $days = $request->query('days', 7);
+        $days = max(1, min(365, $request->integer('days', 7)));
 
         $users = User::where('role', 'member')
             ->whereNotNull('expires_at')
