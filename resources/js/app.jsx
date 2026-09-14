@@ -21,26 +21,18 @@ import TokenPemakaian from './pages/TokenPemakaian';
 import PaketPerpanjangan from './pages/PaketPerpanjangan';
 import Referral from './pages/Referral';
 import Bantuan from './pages/Bantuan';
+import Notifications from './pages/Notifications';
 
 // Admin pages (existing)
 import AdminUsers from './pages/AdminUsers';
 import TokenUsage from './pages/TokenUsage';
-import PeriodManagement from './pages/PeriodManagement';
 
-// Admin pages (new)
-import RevenueOverview from './pages/admin/RevenueOverview';
-import OrdersPayments from './pages/admin/OrdersPayments';
-import CostProfit from './pages/admin/CostProfit';
-import ExpiringUsers from './pages/admin/ExpiringUsers';
-import BroadcastCRM from './pages/admin/BroadcastCRM';
-import ReferralManagement from './pages/admin/ReferralManagement';
-import FeedbackTestimoni from './pages/admin/FeedbackTestimoni';
-import AIProviderManager from './pages/admin/AIProviderManager';
-import ModelManagement from './pages/admin/ModelManagement';
-import VideoJobQueue from './pages/admin/VideoJobQueue';
-import LandingPageManager from './pages/admin/LandingPageManager';
-import AnalyticsFunnel from './pages/admin/AnalyticsFunnel';
-import AuditLog from './pages/admin/AuditLog';
+// Consolidated admin control center
+import AdminOverview from './pages/admin/AdminOverview';
+import Operations from './pages/admin/Operations';
+import ContentSupport from './pages/admin/ContentSupport';
+import AICatalog from './pages/admin/AICatalog';
+import SystemActivity from './pages/admin/SystemActivity';
 import Settings from './pages/admin/Settings';
 
 // Layout
@@ -119,29 +111,33 @@ function App() {
                     <Route path="/referral" element={<DL><Referral /></DL>} />
                     <Route path="/bantuan" element={<DL><Bantuan /></DL>} />
 
+                    <Route path="/notifications" element={<DL><Notifications /></DL>} />
                     {/* Admin routes */}
                     <Route path="/admin/users" element={<DL adminOnly><AdminUsers /></DL>} />
                     <Route path="/admin/token-usage" element={<DL adminOnly><TokenUsage /></DL>} />
-                    <Route path="/admin/periods" element={<DL adminOnly><PeriodManagement /></DL>} />
-                    <Route path="/admin/revenue" element={<DL adminOnly><RevenueOverview /></DL>} />
-                    <Route path="/admin/orders" element={<DL adminOnly><OrdersPayments /></DL>} />
-                    <Route path="/admin/cost" element={<DL adminOnly><CostProfit /></DL>} />
-                    <Route path="/admin/expiring" element={<DL adminOnly><ExpiringUsers /></DL>} />
-                    <Route path="/admin/broadcast" element={<DL adminOnly><BroadcastCRM /></DL>} />
-                    <Route path="/admin/referral" element={<DL adminOnly><ReferralManagement /></DL>} />
-                    <Route path="/admin/feedback" element={<DL adminOnly><FeedbackTestimoni /></DL>} />
-                    <Route path="/admin/providers" element={<DL adminOnly><AIProviderManager /></DL>} />
-                    <Route path="/admin/models" element={<DL adminOnly><ModelManagement /></DL>} />
-                    <Route path="/admin/video-queue" element={<DL adminOnly><VideoJobQueue /></DL>} />
-                    <Route path="/admin/landing" element={<DL adminOnly><LandingPageManager /></DL>} />
-                    <Route path="/admin/analytics" element={<DL adminOnly><AnalyticsFunnel /></DL>} />
-                    <Route path="/admin/audit" element={<DL adminOnly><AuditLog /></DL>} />
+                    <Route path="/admin/overview" element={<DL adminOnly><AdminOverview /></DL>} />
+                    <Route path="/admin/operations" element={<DL adminOnly><Operations /></DL>} />
+                    <Route path="/admin/content" element={<DL adminOnly><ContentSupport /></DL>} />
+                    <Route path="/admin/ai" element={<DL adminOnly><AICatalog /></DL>} />
+                    <Route path="/admin/system" element={<DL adminOnly><SystemActivity /></DL>} />
                     <Route path="/admin/settings" element={<DL adminOnly><Settings /></DL>} />
-
+                    <Route path="/admin/periods" element={<Navigate to="/admin/operations" replace />} />
+                    <Route path="/admin/revenue" element={<Navigate to="/admin/overview" replace />} />
+                    <Route path="/admin/orders" element={<Navigate to="/admin/operations" replace />} />
+                    <Route path="/admin/cost" element={<Navigate to="/admin/token-usage" replace />} />
+                    <Route path="/admin/expiring" element={<Navigate to="/admin/operations" replace />} />
+                    <Route path="/admin/broadcast" element={<Navigate to="/admin/content" replace />} />
+                    <Route path="/admin/referral" element={<Navigate to="/admin/content" replace />} />
+                    <Route path="/admin/feedback" element={<Navigate to="/admin/content" replace />} />
+                    <Route path="/admin/providers" element={<Navigate to="/admin/ai" replace />} />
+                    <Route path="/admin/models" element={<Navigate to="/admin/ai" replace />} />
+                    <Route path="/admin/video-queue" element={<Navigate to="/admin/ai" replace />} />
+                    <Route path="/admin/landing" element={<Navigate to="/admin/content" replace />} />
+                    <Route path="/admin/analytics" element={<Navigate to="/admin/system" replace />} />
+                    <Route path="/admin/audit" element={<Navigate to="/admin/system" replace />} />
                     {/* Legacy redirects */}
-                    <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+                    <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
                     <Route path="/usage" element={<Navigate to="/admin/token-usage" replace />} />
-                    <Route path="/periods" element={<Navigate to="/admin/periods" replace />} />
 
                     {/* Catch all — 404 */}
                     <Route path="*" element={<ErrorPage code={404} />} />
