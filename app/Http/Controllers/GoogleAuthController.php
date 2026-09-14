@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -23,7 +24,7 @@ class GoogleAuthController extends Controller
      * - Only allow login if user already exists in the system
      * - If email not registered → reject (admin must add user first)
      */
-    public function callback()
+    public function callback(ReferralService $referrals)
     {
         try {
             $googleUser = Socialite::driver('google')->user();
@@ -45,6 +46,7 @@ class GoogleAuthController extends Controller
         if (!$user->google_id) {
             $user->update(['google_id' => $googleUser->getId()]);
         }
+        $referrals->attribute($user, request());
 
         Auth::login($user, true);
 

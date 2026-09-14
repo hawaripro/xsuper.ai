@@ -4,6 +4,11 @@ return [
     'name' => 'UltrAI',
     'url' => 'https://ultrai.id',
     'description' => 'Platform AI untuk berkarya, belajar, dan membangun. Akses pilihan model AI premium, akun pribadi, dan API untuk developer.',
+    'hero' => [
+        'headline' => "Satu ruang.\nSemua kemungkinan.",
+        'description' => 'Platform AI untuk berkarya, belajar, dan membangun. Dari percakapan pertama sampai produk berikutnya—semuanya berawal di UltrAI.',
+        'primary_action' => ['label' => 'Temukan paketmu', 'url' => '/pricing'],
+    ],
     'support' => ['phone' => '6287786866648', 'display' => '+62 877-8686-6648'],
     'models' => [
         ['id' => 'anthropic', 'name' => 'Anthropic', 'maker' => 'Claude by Anthropic', 'logo' => '/brands/ai/anthropic.svg', 'description' => 'Claude untuk menulis, menganalisis, dan berdiskusi tentang kode.'],

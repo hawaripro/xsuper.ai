@@ -101,7 +101,7 @@ class AdminStatsController extends Controller
      */
     public function expiringUsers(Request $request)
     {
-        $days = $request->query('days', 7);
+        $days = max(1, min(365, $request->integer('days', 7)));
 
         $users = User::where('role', 'member')
             ->whereNotNull('expires_at')
@@ -152,8 +152,9 @@ class AdminStatsController extends Controller
         }
         if ($search = $request->query('search')) {
             $query->whereHas('user', function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                  ->orWhere('email', 'ilike', "%{$search}%");
+                $needle = '%'.mb_strtolower($search).'%';
+                $q->whereRaw('LOWER(name) LIKE ?', [$needle])
+                    ->orWhereRaw('LOWER(email) LIKE ?', [$needle]);
             });
         }
 

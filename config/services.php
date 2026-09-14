@@ -51,9 +51,5 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
-    'openwebui' => [
-        'url' => env('OPENWEBUI_URL', 'https://chat.ultrai.id'),
-        'key' => env('OPENWEBUI_API_KEY', ''),
-    ],
 
 ];

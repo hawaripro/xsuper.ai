@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
 use App\Models\User;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PeriodController extends Controller
 {
@@ -91,32 +94,39 @@ class PeriodController extends Controller
     /**
      * Admin approves an order — adds duration to user
      */
-    public function approve(Request $request, DurationOrder $order)
+    public function approve(Request $request, DurationOrder $order, ReferralService $referrals)
     {
-        if ($order->status !== 'pending') {
-            return response()->json(['message' => 'Order sudah diproses.'], 422);
-        }
+        [$approvedOrder, $newExpiry] = DB::transaction(function () use ($request, $order, $referrals): array {
+            $approvedOrder = DurationOrder::query()->lockForUpdate()->findOrFail($order->id);
 
-        $user = $order->user;
-        $now = now();
+            if ($approvedOrder->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'order' => 'Order sudah diproses.',
+                ]);
+            }
 
-        // Calculate new expiry: if user still has time, add to existing. Otherwise start from now.
-        $currentExpiry = $user->expires_at;
-        $startFrom = ($currentExpiry && $currentExpiry->isFuture()) ? $currentExpiry : $now;
-        $newExpiry = $startFrom->copy()->addDays($order->days);
+            $user = User::query()->lockForUpdate()->findOrFail($approvedOrder->user_id);
+            $now = now();
+            $startFrom = $user->expires_at && $user->expires_at->isFuture()
+                ? $user->expires_at->copy()
+                : $now;
+            $newExpiry = $startFrom->addDays($approvedOrder->days);
 
-        $user->expires_at = $newExpiry;
-        $user->save();
+            $user->forceFill(['expires_at' => $newExpiry])->save();
+            $approvedOrder->update([
+                'status' => 'approved',
+                'approved_at' => $now,
+                'approved_by' => Auth::id(),
+                'note' => $request->input('note'),
+            ]);
 
-        $order->update([
-            'status' => 'approved',
-            'approved_at' => $now,
-            'approved_by' => Auth::id(),
-            'note' => $request->input('note'),
-        ]);
+            $referrals->rewardFirstPurchase($approvedOrder, $request->user());
+
+            return [$approvedOrder, $user->fresh()->expires_at];
+        });
 
         return response()->json([
-            'message' => "Durasi {$order->days} hari ditambahkan. Aktif sampai {$newExpiry->format('d M Y H:i')}.",
+            'message' => "Durasi {$approvedOrder->days} hari ditambahkan. Aktif sampai {$newExpiry->format('d M Y H:i')}.",
             'new_expires_at' => $newExpiry,
         ]);
     }

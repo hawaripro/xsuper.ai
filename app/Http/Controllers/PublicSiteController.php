@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Api\ContentController;
+use App\Models\ContentBlock;
 use App\Models\DurationPackagePrice;
 use App\Models\UsageRate;
 use App\Services\AiProxyService;
+use App\Services\ReferralService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -16,6 +19,10 @@ class PublicSiteController extends Controller
     {
         if ($redirect = $this->legacyLanguageRedirect($request)) {
             return $redirect;
+        }
+
+        if ($request->filled('ref')) {
+            app(ReferralService::class)->capture($request, (string) $request->query('ref'));
         }
 
         $data = $this->sharedData($request);
@@ -194,9 +201,9 @@ class PublicSiteController extends Controller
 
     private function sharedData(Request $request): array
     {
-        $locale = $request->route('locale', 'id');
+        $locale = (string) ($request->route('locale') ?? 'id');
         app()->setLocale($locale);
-        $site = $this->translateValue(config('marketing'));
+        $site = $this->publishedSiteContent($this->translateValue(config('marketing')), $locale);
         $descriptions = [
             '1_day' => __('Satu hari untuk mencoba cara kerja baru.'),
             '1_week' => __('Teman untuk satu tugas atau proyek singkat.'),
@@ -241,6 +248,42 @@ class PublicSiteController extends Controller
             'locale' => $locale,
             'localeUrl' => fn (string $path): string => $this->localizedPath($path, $locale),
         ];
+    }
+
+    private function publishedSiteContent(array $site, string $locale): array
+    {
+        try {
+            $blocks = ContentBlock::query()
+                ->where('locale', $locale)
+                ->where('is_published', true)
+                ->whereIn('key', ContentController::KEYS)
+                ->get(['key', 'published'])
+                ->keyBy('key');
+        } catch (\Throwable) {
+            return $site;
+        }
+
+        $hero = $blocks->get('home.hero')?->published;
+        if (ContentController::payloadIsValid('home.hero', $hero)) {
+            $site['hero'] = array_replace_recursive($site['hero'], $hero);
+        }
+
+        $faq = $blocks->get('home.faq')?->published;
+        if (ContentController::payloadIsValid('home.faq', $faq)) {
+            $site['faqs'] = $faq['items'];
+        }
+
+        $announcement = $blocks->get('system.announcement')?->published;
+        if (ContentController::payloadIsValid('system.announcement', $announcement)) {
+            $site['announcement'] = $announcement;
+        }
+
+        $articles = $blocks->get('help.articles')?->published;
+        if (ContentController::payloadIsValid('help.articles', $articles)) {
+            $site['helpArticles'] = $articles['items'];
+        }
+
+        return $site;
     }
 
     private function pageMetadata(array $metadata, string $path, string $locale, string $origin): array

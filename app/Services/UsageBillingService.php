@@ -108,8 +108,12 @@ class UsageBillingService
     public function reserveUnit(int $userId, string $service, string $model, int $quantity, string $referenceId): array
     {
         $rate = UsageRate::forMeter($service, 'unit', $model);
-        $unitPriceUsd = $rate ? (float) $rate->price_usd : null;
-        $cost = $unitPriceUsd === null ? 0 : (int) ceil($unitPriceUsd * $quantity * 1_000_000);
+        if (! $rate || $rate->price_usd === null) {
+            throw ValidationException::withMessages(['pricing' => 'Active unit pricing is unavailable.']);
+        }
+
+        $unitPriceUsd = (float) $rate->price_usd;
+        $cost = (int) ceil($unitPriceUsd * $quantity * 1_000_000);
         $reservation = Wallet::reserve($userId, $cost, $referenceId, [
             'service' => $service,
             'model' => $model,
@@ -131,6 +135,29 @@ class UsageBillingService
         $reservation = $this->reserveUnit($userId, $service, $model, $quantity, $referenceId ?? uniqid("{$service}:", true));
 
         return $reservation['amount_microusd'];
+    }
+
+    public function settleUnit(int $userId, string $service, string $model, int $quantity, array $reservation): int
+    {
+        $cost = (int) $reservation['amount_microusd'];
+        $settled = Wallet::settle($userId, $reservation, $cost, [
+            'service' => $service,
+            'model' => $model,
+            'meter' => 'unit',
+            'quantity' => $quantity,
+            'description' => ucfirst($service)." usage: {$model}",
+        ]);
+
+        if (! $settled) {
+            throw ValidationException::withMessages(['wallet' => 'Unable to settle usage reservation.']);
+        }
+
+        return $cost;
+    }
+
+    public function releaseUnit(int $userId, array $reservation, string $description): void
+    {
+        Wallet::release($userId, $reservation, $description);
     }
 
     private function apiRates(string $model): ?array
