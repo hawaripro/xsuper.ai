@@ -1,89 +1,142 @@
-import React, { useState } from 'react';
-import { useTheme } from '../contexts/ThemeContext';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useCallback, useEffect, useState } from "react";
+import { apiRequest } from "../lib/api";
+import {
+    Button,
+    InlineAlert,
+    MemberPage,
+    Metric,
+    PageHeader,
+    Panel,
+    SectionHeader,
+    Spinner,
+    StatePanel,
+    StatusBadge,
+    errorMessage,
+    formatCount,
+    formatLocalDate,
+} from "../components/member/MemberUI";
 
 export default function Referral() {
-    const { theme } = useTheme();
-    const { user } = useAuth();
-    const isDark = theme === 'dark';
-    const [copied, setCopied] = useState(false);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [copyState, setCopyState] = useState("idle");
+    const [copyError, setCopyError] = useState(null);
 
-    const referralCode = `ULTRAI-${user?.name?.replace(/\s+/g, '').substring(0, 6).toUpperCase() || 'USER'}`;
-    const referralLink = `https://ultrai.id/?ref=${referralCode}`;
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            setData(await apiRequest("/api/referrals/me"));
+        } catch (requestError) {
+            setError(requestError);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(referralLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    useEffect(() => {
+        load();
+    }, [load]);
+
+    const copyLink = async () => {
+        if (!data?.referral?.link) return;
+        setCopyError(null);
+        try {
+            await navigator.clipboard.writeText(data.referral.link);
+            setCopyState("copied");
+        } catch (clipboardError) {
+            setCopyState("idle");
+            setCopyError(new Error("Browser menolak akses clipboard. Pilih link lalu salin secara manual."));
+        }
     };
 
     return (
-        <div className="p-6 lg:p-8 space-y-6" style={{ fontSize: '90%' }}>
-            <div>
-                <h1 className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>Referral</h1>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Ajak teman dan dapatkan bonus durasi.</p>
-            </div>
+        <MemberPage>
+            <PageHeader
+                eyebrow="Program anggota"
+                title="Referral"
+                description="Bagikan link resmi Anda dan pantau atribusi serta bonus yang benar-benar tercatat."
+                actions={<Button variant="secondary" onClick={load} disabled={loading}>{loading ? "Memuat…" : "Muat ulang"}</Button>}
+            />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Referral link */}
-                <div className={`rounded-2xl border p-6 ${isDark ? 'bg-gray-900/60 border-white/[0.06]' : 'bg-white border-gray-200'}`}>
-                    <h3 className={`text-sm font-semibold mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Link Referral Kamu</h3>
-                    <div className={`flex items-center gap-2 p-3 rounded-xl border ${isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                        <input type="text" readOnly value={referralLink} className={`flex-1 bg-transparent text-xs font-mono outline-none ${isDark ? 'text-gray-300' : 'text-gray-700'}`} />
-                        <button onClick={handleCopy} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${copied ? 'bg-emerald-500/20 text-emerald-500' : (isDark ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-gray-900 text-white hover:bg-gray-800')}`}>
-                            {copied ? '✓ Copied' : 'Copy'}
-                        </button>
+            {loading ? (
+                <Panel className="flex min-h-56 items-center justify-center"><Spinner label="Memuat program referral" /></Panel>
+            ) : error ? (
+                <Panel className="p-4"><StatePanel type="error" title="Referral tidak dapat dimuat" description={errorMessage(error)} action={<Button variant="secondary" onClick={load}>Coba lagi</Button>} /></Panel>
+            ) : !data?.program?.enabled ? (
+                <Panel className="p-4"><StatePanel type="error" title="Program referral sedang tidak aktif" description="Link dan bonus referral tidak dapat digunakan sampai program diaktifkan kembali oleh pengelola." action={<Button variant="secondary" onClick={load}>Periksa lagi</Button>} /></Panel>
+            ) : (
+                <>
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        <Metric label="Undangan" value={formatCount(data.stats?.invited)} detail="Pendaftaran via link" />
+                        <Metric label="Teratribusi" value={formatCount(data.stats?.attributed)} detail="Menunggu kualifikasi" />
+                        <Metric label="Terkualifikasi" value={formatCount(data.stats?.qualified)} detail="Referral yang memenuhi syarat" />
+                        <Metric label="Bonus diperoleh" value={`${formatCount(data.stats?.days_earned)} hari`} detail={`${formatCount(data.program?.reward_days)} hari per referral`} />
                     </div>
-                    <p className={`text-xs mt-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                        Bagikan link ini ke teman. Ketika mereka mendaftar, kamu dan temanmu akan mendapat bonus durasi.
-                    </p>
-                </div>
 
-                {/* How it works */}
-                <div className={`rounded-2xl border p-6 ${isDark ? 'bg-gray-900/60 border-white/[0.06]' : 'bg-white border-gray-200'}`}>
-                    <h3 className={`text-sm font-semibold mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Cara Kerja</h3>
-                    <div className="space-y-4">
-                        {[
-                            { step: '1', title: 'Bagikan Link', desc: 'Kirim link referral ke teman' },
-                            { step: '2', title: 'Teman Mendaftar', desc: 'Teman daftar via link kamu' },
-                            { step: '3', title: 'Dapat Bonus', desc: 'Kamu dan teman dapat +3 hari' },
-                        ].map(item => (
-                            <div key={item.step} className="flex items-start gap-3">
-                                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-red-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{item.step}</div>
-                                <div>
-                                    <div className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.title}</div>
-                                    <div className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{item.desc}</div>
-                                </div>
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,.85fr)]">
+                        <Panel className="p-4">
+                            <SectionHeader title="Link referral Anda" description="Kode ini dibuat backend dan terhubung langsung ke akun Anda." />
+                            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                                <input
+                                    aria-label="Link referral"
+                                    readOnly
+                                    value={data.referral?.link || ""}
+                                    onFocus={(event) => event.target.select()}
+                                    className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-slate-50 px-3 font-mono text-[12px] text-slate-800 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-500/15 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-200"
+                                />
+                                <Button onClick={copyLink} disabled={!data.referral?.link}>{copyState === "copied" ? "Tersalin" : "Salin link"}</Button>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                <span>Kode</span>
+                                <code className="rounded bg-slate-100 px-2 py-1 font-semibold text-slate-800 dark:bg-white/[0.06] dark:text-slate-200">{data.referral?.code || "—"}</code>
+                            </div>
+                            {copyState === "copied" && <div className="mt-3"><InlineAlert tone="success">Link referral sudah disalin ke clipboard.</InlineAlert></div>}
+                            {copyError && <div className="mt-3"><InlineAlert tone="error">{copyError.message}</InlineAlert></div>}
+                        </Panel>
 
-            {/* Stats placeholder */}
-            <div className={`rounded-2xl border p-6 ${isDark ? 'bg-gray-900/60 border-white/[0.06]' : 'bg-white border-gray-200'}`}>
-                <h3 className={`text-sm font-semibold mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Statistik Referral</h3>
-                <div className="grid grid-cols-3 gap-4">
-                    <div className={`p-4 rounded-xl text-center ${isDark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
-                        <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>0</div>
-                        <div className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Teman Diajak</div>
+                        <Panel className="p-4">
+                            <SectionHeader title="Cara kerja" description="Status backend menentukan kapan bonus tercatat." />
+                            <ol className="mt-4 space-y-3">
+                                {[
+                                    ["1", "Bagikan link", "Calon anggota membuka UltrAI melalui link Anda."],
+                                    ["2", "Atribusi dicatat", "Pendaftaran yang valid muncul sebagai teratribusi."],
+                                    ["3", "Syarat terpenuhi", `Setiap referral terkualifikasi memberi ${formatCount(data.program?.reward_days)} hari sesuai aturan aktif.`],
+                                ].map(([number, title, description]) => (
+                                    <li key={number} className="flex gap-3">
+                                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-[11px] font-bold text-white dark:bg-red-500">{number}</span>
+                                        <div><p className="text-[12px] font-semibold text-slate-900 dark:text-white">{title}</p><p className="mt-0.5 text-[11px] leading-4 text-slate-500 dark:text-slate-400">{description}</p></div>
+                                    </li>
+                                ))}
+                            </ol>
+                        </Panel>
                     </div>
-                    <div className={`p-4 rounded-xl text-center ${isDark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
-                        <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>0</div>
-                        <div className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Yang Mendaftar</div>
-                    </div>
-                    <div className={`p-4 rounded-xl text-center ${isDark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
-                        <div className={`text-2xl font-bold text-emerald-500`}>0 hari</div>
-                        <div className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Bonus Didapat</div>
-                    </div>
-                </div>
-            </div>
 
-            <div className={`rounded-xl border p-4 ${isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-                <p className={`text-xs ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                    ⚠️ Program referral akan segera aktif. Statistik akan terupdate otomatis setelah sistem berjalan.
-                </p>
-            </div>
-        </div>
+                    <Panel className="overflow-hidden">
+                        <div className="border-b border-slate-200 p-4 dark:border-white/[0.08]"><SectionHeader title="Referral terbaru" description="Maksimal 20 pendaftaran terbaru dari link Anda." /></div>
+                        {!Array.isArray(data.recent_referrals) || data.recent_referrals.length === 0 ? (
+                            <div className="p-4"><StatePanel title="Belum ada referral" description="Bagikan link Anda; pendaftaran yang teratribusi akan tampil di sini." compact /></div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[560px] text-left">
+                                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-white/[0.025] dark:text-slate-400"><tr><th className="px-4 py-2.5 font-semibold">Anggota</th><th className="px-4 py-2.5 font-semibold">Status</th><th className="px-4 py-2.5 font-semibold">Teratribusi</th><th className="px-4 py-2.5 font-semibold">Terkualifikasi</th></tr></thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
+                                        {data.recent_referrals.map((referral) => (
+                                            <tr key={referral.id} className="text-[12px] text-slate-600 dark:text-slate-300">
+                                                <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{referral.name || "Anggota"}</td>
+                                                <td className="px-4 py-3"><StatusBadge value={referral.status} /></td>
+                                                <td className="px-4 py-3">{formatLocalDate(referral.attributed_at)}</td>
+                                                <td className="px-4 py-3">{referral.qualified_at ? formatLocalDate(referral.qualified_at) : "—"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </Panel>
+                </>
+            )}
+        </MemberPage>
     );
 }
