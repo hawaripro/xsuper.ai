@@ -133,6 +133,29 @@ class UsageBillingService
         return $reservation['amount_microusd'];
     }
 
+    public function settleUnit(int $userId, string $service, string $model, int $quantity, array $reservation): int
+    {
+        $cost = (int) $reservation['amount_microusd'];
+        $settled = Wallet::settle($userId, $reservation, $cost, [
+            'service' => $service,
+            'model' => $model,
+            'meter' => 'unit',
+            'quantity' => $quantity,
+            'description' => ucfirst($service)." usage: {$model}",
+        ]);
+
+        if (! $settled) {
+            throw ValidationException::withMessages(['wallet' => 'Unable to settle usage reservation.']);
+        }
+
+        return $cost;
+    }
+
+    public function releaseUnit(int $userId, array $reservation, string $description): void
+    {
+        Wallet::release($userId, $reservation, $description);
+    }
+
     private function apiRates(string $model): ?array
     {
         $rates = UsageRate::activeForModel('api', $model);
