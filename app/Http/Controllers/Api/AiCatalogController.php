@@ -51,14 +51,16 @@ class AiCatalogController extends Controller
         try {
             $models = $proxy->fetchCatalog();
         } catch (AiProxyException $exception) {
-            $provider->update([
-                'status' => $exception->responseStatus() === 503 ? 'unavailable' : 'error',
-                'last_checked_at' => now(),
-                'last_error' => $exception->getMessage(),
-            ]);
-            $audit->record($request->user(), 'ai_catalog.sync_failed', $provider, [
-                'status' => $provider->status,
-            ]);
+            DB::transaction(function () use ($audit, $exception, $provider, $request): void {
+                $provider->update([
+                    'status' => $exception->responseStatus() === 503 ? 'unavailable' : 'error',
+                    'last_checked_at' => now(),
+                    'last_error' => $exception->getMessage(),
+                ]);
+                $audit->record($request->user(), 'ai_catalog.sync_failed', $provider, [
+                    'status' => $provider->status,
+                ]);
+            });
 
             return response()->json([
                 'message' => $exception->getMessage(),
@@ -73,6 +75,12 @@ class AiCatalogController extends Controller
                 'last_checked_at' => now(),
                 'last_error' => null,
             ]);
+
+            $seenIds = collect($models)->pluck('id')->all();
+            AiModelProfile::query()
+                ->where('provider_id', $provider->id)
+                ->when($seenIds !== [], fn ($query) => $query->whereNotIn('model_id', $seenIds))
+                ->update(['is_enabled' => false]);
 
             foreach ($models as $metadata) {
                 $model = AiModelProfile::firstOrNew(['model_id' => $metadata['id']]);
@@ -115,14 +123,16 @@ class AiCatalogController extends Controller
             'display_name' => $model->display_name,
             'is_enabled' => $model->is_enabled,
         ];
-        $model->fill($validated)->save();
-        $audit->record($request->user(), 'ai_model.updated', $model, [
-            'before' => $before,
-            'after' => [
-                'display_name' => $model->display_name,
-                'is_enabled' => $model->is_enabled,
-            ],
-        ]);
+        DB::transaction(function () use ($audit, $before, $model, $request, $validated): void {
+            $model->fill($validated)->save();
+            $audit->record($request->user(), 'ai_model.updated', $model, [
+                'before' => $before,
+                'after' => [
+                    'display_name' => $model->display_name,
+                    'is_enabled' => $model->is_enabled,
+                ],
+            ]);
+        });
 
         $rate = UsageRate::forMeter('image', 'unit', $model->model_id);
 

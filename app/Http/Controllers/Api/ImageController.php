@@ -23,6 +23,7 @@ class ImageController extends Controller
             ->active()
             ->where('service', 'image')
             ->where('meter', 'unit')
+            ->whereNotNull('price_usd')
             ->get()
             ->keyBy('model');
         $models = AiModelProfile::query()

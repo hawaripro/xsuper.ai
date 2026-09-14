@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminStatsController;
+use App\Http\Controllers\Api\AiCatalogController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\ApiKeyController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Api\DashboardController as ApiDashboardController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\EngagementController;
 use App\Http\Controllers\Api\FeedbackController;
+use App\Http\Controllers\Api\ImageController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PeriodController;
@@ -101,12 +103,17 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::delete('/c/h/{conversationId}', [ChatController::class, 'deleteConversation']);
         });
 
-        // Video Generator (check expiry + permission)
+        // Video and image generation
         Route::middleware('check.expiry')->group(function () {
             Route::get('/v/models', [VideoController::class, 'models']);
             Route::post('/v/gen', [VideoController::class, 'generate']);
             Route::get('/v/history', [VideoController::class, 'history']);
             Route::get('/v/status/{jobId}', [VideoController::class, 'status']);
+
+            Route::get('/images/models', [ImageController::class, 'models']);
+            Route::post('/images', [ImageController::class, 'generate']);
+            Route::get('/images', [ImageController::class, 'history']);
+            Route::get('/images/{jobId}', [ImageController::class, 'show']);
         });
 
         // Token
@@ -185,12 +192,19 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/admin/content/{contentBlock}/publish', [ContentController::class, 'publish']);
             Route::get('/admin/analytics/funnel', [AnalyticsController::class, 'funnel']);
             Route::get('/admin/audit', [AuditController::class, 'index']);
+
+            // AI catalog and media operations
+            Route::get('/admin/ai/catalog', [AiCatalogController::class, 'index']);
+            Route::post('/admin/ai/catalog/sync', [AiCatalogController::class, 'sync']);
+            Route::patch('/admin/ai/models/{model}', [AiCatalogController::class, 'updateModel']);
+            Route::get('/admin/media/queue', [ImageController::class, 'adminQueue']);
         });
 
         // Member: duration orders (authenticated, not admin-only)
         Route::get('/period/packages', [PeriodController::class, 'packages']);
         Route::post('/period/order', [PeriodController::class, 'store']);
         Route::get('/period/my-orders', [PeriodController::class, 'myOrders']);
+
 
         // Onboarding & Templates
         Route::get('/onboarding/status', [OnboardingController::class, 'status']);

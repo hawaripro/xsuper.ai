@@ -32,7 +32,7 @@ function modelPrice(model) {
 function ImageResults({ job }) {
     const urls = Array.isArray(job?.result_urls) ? job.result_urls : [];
     if (!job) return null;
-    if (job.error) return <InlineAlert tone="error"><strong>Proses {job.status || "gagal"}.</strong> {job.error}</InlineAlert>;
+    if (job.error_message) return <InlineAlert tone="error"><strong>Proses {job.status || "gagal"}.</strong> {job.error_message}</InlineAlert>;
     if (urls.length === 0) return <InlineAlert tone={job.status === "completed" ? "warning" : "info"}>Job {job.job_id} berstatus <strong>{job.status}</strong>. Belum ada URL hasil yang tersedia.</InlineAlert>;
     return (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
