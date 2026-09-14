@@ -5,9 +5,13 @@ namespace App\Models;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use LogicException;
 
 class User extends Authenticatable
 {
@@ -60,6 +64,30 @@ class User extends Authenticatable
             'permissions' => 'array',
         ];
     }
+    protected static function booted(): void
+    {
+        static::creating(function (User $user): void {
+            if (! $user->referral_code) {
+                $user->referral_code = static::newReferralCode();
+            }
+        });
+
+        static::updating(function (User $user): void {
+            if ($user->isDirty('referral_code') && $user->getOriginal('referral_code') !== null) {
+                throw new LogicException('Referral codes are immutable.');
+            }
+        });
+    }
+
+    private static function newReferralCode(): string
+    {
+        do {
+            $code = 'UTR-'.Str::upper(bin2hex(random_bytes(6)));
+        } while (static::query()->where('referral_code', $code)->exists());
+
+        return $code;
+    }
+
 
     public function isAdmin(): bool
     {
@@ -113,6 +141,26 @@ class User extends Authenticatable
         if ($this->hasPermission('model_yepapi')) $tiers[] = 'YepAPI';
         if ($this->hasPermission('model_canva')) $tiers[] = 'Canva';
         return $tiers;
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class);
+    }
+
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referrer_id');
+    }
+
+    public function referralAttribution(): HasOne
+    {
+        return $this->hasOne(Referral::class, 'referred_id');
+    }
+
+    public function referralRewards(): HasMany
+    {
+        return $this->hasMany(ReferralReward::class);
     }
 
     public function chatMessages()

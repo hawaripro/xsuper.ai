@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PeriodController;
 use App\Http\Controllers\Api\PricingController;
+use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\SupportController;
@@ -58,6 +59,7 @@ Route::prefix('api')->middleware('web')->group(function () {
     // Auth routes (custom, Fortify handles /login /logout /register natively)
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
+    Route::post('/referrals/capture', [ReferralController::class, 'capture']);
 
     // Protected routes — track device on ALL authenticated requests
     Route::middleware(['auth', 'track.device'])->group(function () {
@@ -110,6 +112,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::get('/period/packages', [PeriodController::class, 'packages']);
         Route::get('/pricing/catalog', [PricingController::class, 'catalog']);
 
+        Route::get('/referrals/me', [ReferralController::class, 'memberStats']);
         // Admin
         Route::middleware('admin')->group(function () {
             // Admin: topup tokens
@@ -168,6 +171,8 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::patch('/admin/support/tickets/{ticket}', [SupportController::class, 'update']);
             Route::post('/admin/support/tickets/{ticket}/replies', [SupportController::class, 'reply']);
             Route::post('/admin/engagement/broadcasts', [EngagementController::class, 'broadcast']);
+            Route::get('/admin/referrals', [ReferralController::class, 'adminStatus']);
+            Route::put('/admin/referrals/configuration', [ReferralController::class, 'updateConfiguration']);
         });
 
         // Member: duration orders (authenticated, not admin-only)
