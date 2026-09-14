@@ -25,7 +25,6 @@ import Bantuan from './pages/Bantuan';
 // Admin pages (existing)
 import AdminUsers from './pages/AdminUsers';
 import TokenUsage from './pages/TokenUsage';
-import SessionChat from './pages/SessionChat';
 import PeriodManagement from './pages/PeriodManagement';
 
 // Admin pages (new)
@@ -123,7 +122,6 @@ function App() {
                     {/* Admin routes */}
                     <Route path="/admin/users" element={<DL adminOnly><AdminUsers /></DL>} />
                     <Route path="/admin/token-usage" element={<DL adminOnly><TokenUsage /></DL>} />
-                    <Route path="/admin/sessions" element={<DL adminOnly><SessionChat /></DL>} />
                     <Route path="/admin/periods" element={<DL adminOnly><PeriodManagement /></DL>} />
                     <Route path="/admin/revenue" element={<DL adminOnly><RevenueOverview /></DL>} />
                     <Route path="/admin/orders" element={<DL adminOnly><OrdersPayments /></DL>} />
@@ -143,7 +141,6 @@ function App() {
                     {/* Legacy redirects */}
                     <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
                     <Route path="/usage" element={<Navigate to="/admin/token-usage" replace />} />
-                    <Route path="/sessions" element={<Navigate to="/admin/sessions" replace />} />
                     <Route path="/periods" element={<Navigate to="/admin/periods" replace />} />
 
                     {/* Catch all — 404 */}

@@ -24,13 +24,11 @@ export default function DashboardLayout({ children }) {
     const perms = user?.permissions || {};
     const hasChat = isAdmin || (perms.chat !== false);
     const hasVideo = isAdmin || (perms.video_generator === true);
-    const hasChatPro = isAdmin || (perms.chat_ai_pro === true);
 
     // User navigation
     const userNav = [
         { name: 'Dashboard', href: '/dashboard', icon: Icons.dashboard },
         ...(hasChat ? [{ name: 'Chat AI', href: '/chat', icon: Icons.chat }] : []),
-        ...(hasChatPro ? [{ name: 'Chat AI Pro', href: 'https://chat.ultrai.id', icon: Icons.chatPro, external: true }] : []),
         { name: 'Template Prompt', href: '/templates', icon: Icons.template },
         { name: 'Riwayat Chat', href: '/history', icon: Icons.history },
         { name: 'Generate Gambar', href: '/generate-image', icon: Icons.image },
@@ -61,7 +59,6 @@ export default function DashboardLayout({ children }) {
         { name: 'Analytics/Funnel', href: '/admin/analytics', icon: Icons.analytics },
         { name: 'Audit Log', href: '/admin/audit', icon: Icons.audit },
         { name: 'Settings', href: '/admin/settings', icon: Icons.settings },
-        { name: 'Session Chat', href: '/admin/sessions', icon: Icons.sessions },
     ];
 
     const handleLogout = async () => { await logout(); navigate('/login'); };

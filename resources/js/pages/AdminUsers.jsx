@@ -5,7 +5,6 @@ import { useTheme } from '../contexts/ThemeContext';
 const PERMISSION_LABELS = {
     chat: 'Chat AI',
     chat_history: 'Chat History',
-    chat_ai_pro: 'Chat AI Pro',
     model_original: 'Model Original',
     model_authentic: 'Model Authentic',
     model_codex: 'Model Codex',
@@ -19,7 +18,7 @@ const PERMISSION_LABELS = {
 };
 
 const DEFAULT_PERMS = {
-    chat: true, chat_history: true, chat_ai_pro: false, model_original: true,
+    chat: true, chat_history: true, model_original: true,
     model_authentic: false, model_codex: false, model_wavespeed: false,
     model_yepapi: false, model_canva: false, video_generator: false,
     ai_api: false, ai_dashboard: false, ai_dashboard_official: false,

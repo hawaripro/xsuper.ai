@@ -4,13 +4,17 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminStatsController;
 use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\ChatController;
-use App\Http\Controllers\Api\ChatProController;
+use App\Http\Controllers\Api\DashboardController as ApiDashboardController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\EngagementController;
+use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PeriodController;
 use App\Http\Controllers\Api\PricingController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\TokenController;
+use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\VideoController;
 use App\Http\Controllers\AuthController;
@@ -66,6 +70,21 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
 
+        // Member control center
+        Route::get('/dashboard', [ApiDashboardController::class, 'show']);
+        Route::get('/usage/me', [ApiDashboardController::class, 'usage']);
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+        Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+
+        // Feedback and support
+        Route::get('/feedback', [FeedbackController::class, 'index']);
+        Route::post('/feedback', [FeedbackController::class, 'store']);
+        Route::get('/support/tickets', [SupportController::class, 'index']);
+        Route::post('/support/tickets', [SupportController::class, 'store']);
+        Route::get('/support/tickets/{ticket}', [SupportController::class, 'show']);
+        Route::post('/support/tickets/{ticket}/replies', [SupportController::class, 'reply']);
         // Chat (check expiry)
         Route::middleware('check.expiry')->group(function () {
             Route::get('/c/m', [ChatController::class, 'models']);
@@ -128,10 +147,6 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::put('/a/u/{user}', [AdminController::class, 'update']);
             Route::delete('/a/u/{user}', [AdminController::class, 'destroy']);
 
-            // Chat AI Pro (OpenWebUI) session management
-            Route::get('/a/chat-pro/users', [ChatProController::class, 'users']);
-            Route::post('/a/chat-pro/logout/{userId}', [ChatProController::class, 'forceLogout']);
-            Route::delete('/a/chat-pro/user/{userId}', [ChatProController::class, 'deleteUser']);
 
             // Period Management (admin)
             Route::get('/a/period', [PeriodController::class, 'index']);
@@ -144,6 +159,15 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/a/stats/revenue', [AdminStatsController::class, 'revenue']);
             Route::get('/a/stats/expiring', [AdminStatsController::class, 'expiringUsers']);
             Route::get('/a/stats/orders', [AdminStatsController::class, 'orders']);
+
+            // Content and support operations
+            Route::get('/admin/feedback', [FeedbackController::class, 'adminIndex']);
+            Route::patch('/admin/feedback/{feedback}', [FeedbackController::class, 'moderate']);
+            Route::get('/admin/support/tickets', [SupportController::class, 'adminIndex']);
+            Route::get('/admin/support/tickets/{ticket}', [SupportController::class, 'show']);
+            Route::patch('/admin/support/tickets/{ticket}', [SupportController::class, 'update']);
+            Route::post('/admin/support/tickets/{ticket}/replies', [SupportController::class, 'reply']);
+            Route::post('/admin/engagement/broadcasts', [EngagementController::class, 'broadcast']);
         });
 
         // Member: duration orders (authenticated, not admin-only)
@@ -156,11 +180,14 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/onboarding/mode', [OnboardingController::class, 'saveMode']);
         Route::get('/templates', [OnboardingController::class, 'templates']);
     });
+
+    Route::any('/{path}', fn () => response()->json(['message' => 'API endpoint tidak ditemukan.'], 404))->where('path', '.*');
 });
 
 // Google OAuth routes
 Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+
 
 // Public pages are rendered on the server; Indonesian is unprefixed and English uses /en.
 Route::get('/', [PublicSiteController::class, 'home'])->defaults('locale', 'id')->name('home');

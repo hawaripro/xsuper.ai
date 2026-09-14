@@ -896,15 +896,6 @@ export default function Dashboard() {
                                 />
                             )}
                             <QuickAction
-                                icon={Icon.ig}
-                                title="Chat AI Pro"
-                                desc="Akses model AI premium"
-                                href="https://chat.ultrai.id"
-                                external
-                                isDark={isDark}
-                                accent="violet"
-                            />
-                            <QuickAction
                                 icon={Icon.card}
                                 title="Video Generator"
                                 desc="Generate video dengan AI"
