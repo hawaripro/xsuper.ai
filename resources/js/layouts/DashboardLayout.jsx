@@ -109,7 +109,7 @@ export default function DashboardLayout({ children }) {
                         <UltrLogo className="w-9 h-9 group-hover:scale-105 transition-transform duration-300" />
                         <span className="text-xl font-extrabold tracking-tight flex items-center gap-[2px]">
                             <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
-                            <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">AI</span>
+                            <span className="text-red-500">AI</span>
                         </span>
                     </Link>
                     <button onClick={() => setSidebarOpen(false)} className={`lg:hidden p-2 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`} aria-label="Close sidebar">{Icons.close}</button>
@@ -145,7 +145,7 @@ export default function DashboardLayout({ children }) {
                             <div className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{user?.name || 'User'}</div>
                             <div className={`text-[11px] capitalize ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{user?.role || 'member'}</div>
                         </div>
-                        <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleLogout(); }} className={`p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-100'}`} aria-label="Keluar" title="Keluar">{Icons.logout}</button>
+                        <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleLogout(); }} className={`p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-slate-500 hover:text-red-300 hover:bg-white/[0.06]' : 'text-slate-500 hover:text-red-700 hover:bg-slate-100'}`} aria-label="Keluar" title="Keluar">{Icons.logout}</button>
                     </Link>
                 </div>
             </aside>
@@ -169,7 +169,7 @@ export default function DashboardLayout({ children }) {
                             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" style={{ animationDuration: '2s' }} /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
                             <span>Online</span>
                         </div>
-                        <button onClick={toggleTheme} className={`relative p-2 rounded-xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'}`} title={isDark ? 'Light mode' : 'Dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+                        <button onClick={toggleTheme} className={`relative p-2 rounded-xl transition-all duration-200 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-600 hover:text-red-700 hover:bg-slate-100'}`} title={isDark ? 'Light mode' : 'Dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
                             <span className="block transition-transform duration-300" style={{ transform: isDark ? 'rotate(0deg)' : 'rotate(180deg)' }}>{isDark ? Icons.sun : Icons.moon}</span>
                         </button>
                         <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider border ${isAdmin ? (isDark ? 'bg-red-500/15 text-red-300 border-red-500/25' : 'bg-red-50 text-red-600 border-red-200') : (isDark ? 'bg-blue-500/15 text-blue-300 border-blue-500/25' : 'bg-blue-50 text-blue-600 border-blue-200')}`}>{user?.role || 'member'}</span>
