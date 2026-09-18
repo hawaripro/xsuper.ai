@@ -6,6 +6,7 @@ import StatCard from '../../components/dashboard/StatCard';
 import StatusBadge from '../../components/dashboard/StatusBadge';
 import DataTable from '../../components/dashboard/DataTable';
 import DepositQueue from '../../components/deposit/DepositQueue';
+import ReferralReviewQueue from '../../components/dashboard/ReferralReviewQueue';
 import { apiRequest, formatCurrency, formatDateTime } from '../../lib/api';
 import { useLocale } from '../../contexts/LocaleContext';
 
@@ -20,7 +21,7 @@ const navItems = [
     { label: 'Users', to: '/admin/users' },
     { label: 'Orders', tab: 'orders' },
     { label: 'Deposit', tab: 'deposits' },
-    { label: 'Periods', to: '/admin/periods' },
+    { label: 'Referrals', tab: 'referrals' },
     { label: 'Expiry', tab: 'expiry' },
     { label: 'Billing', tab: 'billing' },
 ];
@@ -125,7 +126,7 @@ export default function Operations() {
                 </div>
             )}
 
-            {tab === 'deposits' ? <DepositQueue refreshKey={depositRefresh} onQueueChanged={() => setDepositRefresh(value => value + 1)} /> : (
+            {tab === 'deposits' ? <DepositQueue refreshKey={depositRefresh} onQueueChanged={() => setDepositRefresh(value => value + 1)} /> : tab === 'referrals' ? <ReferralReviewQueue /> : (
             <section className="ui-card" aria-live="polite">
                 <div className="ui-card-header">
                     <div>

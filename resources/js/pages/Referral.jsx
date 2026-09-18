@@ -70,12 +70,14 @@ export default function Referral() {
                 <Panel className="p-4"><StatePanel type="error" title={t("Program referral sedang tidak aktif")} description={t("Link dan bonus referral tidak dapat digunakan sampai program diaktifkan kembali oleh pengelola.")} action={<Button variant="secondary" onClick={load}>{t("Periksa lagi")}</Button>} /></Panel>
             ) : (
                 <>
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                         <Metric label={t("Undangan")} value={formatCount(data.stats?.invited)} detail={t("Pendaftaran via link")} />
                         <Metric label={t("Teratribusi")} value={formatCount(data.stats?.attributed)} detail={t("Menunggu kualifikasi")} />
+                        <Metric label={t("Ditinjau")} value={formatCount(data.stats?.under_review)} detail={t("Menunggu verifikasi pengelola")} />
                         <Metric label={t("Terkualifikasi")} value={formatCount(data.stats?.qualified)} detail={t("Referral yang memenuhi syarat")} />
                         <Metric label={t("Bonus diperoleh")} value={`${formatCount(data.stats?.days_earned)} ${t("hari")}`} detail={`${formatCount(data.program?.reward_days)} ${t("hari per referral")}`} />
                     </div>
+                    {Number(data.stats?.under_review) > 0 && <InlineAlert tone="warning">{t("Beberapa referral sedang ditinjau karena terdeteksi berasal dari jaringan atau perangkat yang sama dengan akun Anda. Bonus diberikan setelah pengelola memverifikasi.")}</InlineAlert>}
 
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,.85fr)]">
                         <Panel className="p-4">
@@ -103,7 +105,7 @@ export default function Referral() {
                             <ol className="mt-4 space-y-3">
                                 {[
                                     ["1", t("Bagikan link"), t("Calon anggota membuka UltrAI melalui link Anda.")],
-                                    ["2", t("Atribusi dicatat"), t("Pendaftaran yang valid muncul sebagai teratribusi.")],
+                                    ["2", t("Atribusi dicatat"), t("Pendaftaran yang valid muncul sebagai teratribusi. Pendaftaran dari jaringan atau perangkat yang sama dengan akun Anda ditinjau lebih dulu.")],
                                     ["3", t("Syarat terpenuhi"), t("Setiap referral terkualifikasi memberi {days} hari sesuai aturan aktif.").replace("{days}", formatCount(data.program?.reward_days))],
                                 ].map(([number, title, description]) => (
                                     <li key={number} className="flex gap-3">
@@ -127,7 +129,7 @@ export default function Referral() {
                                         {data.recent_referrals.map((referral) => (
                                             <tr key={referral.id} className="text-[12px] text-slate-600 dark:text-slate-300">
                                                 <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{referral.name || t("Anggota")}</td>
-                                                <td className="px-4 py-3"><StatusBadge value={referral.status} /></td>
+                                                <td className="px-4 py-3"><StatusBadge value={referral.status === "flagged" ? "pending" : referral.status === "rejected" ? "rejected" : referral.status} label={t(referral.status === "flagged" ? "Ditinjau" : referral.status === "rejected" ? "Tidak memenuhi syarat" : referral.status === "qualified" ? "Terkualifikasi" : "Teratribusi")} /></td>
                                                 <td className="px-4 py-3">{formatLocalDate(referral.attributed_at)}</td>
                                                 <td className="px-4 py-3">{referral.qualified_at ? formatLocalDate(referral.qualified_at) : "—"}</td>
                                             </tr>

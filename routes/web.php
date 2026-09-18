@@ -234,8 +234,9 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/admin/support/tickets/{ticket}/replies', [SupportController::class, 'reply']);
             Route::post('/admin/engagement/broadcasts', [EngagementController::class, 'broadcast']);
             Route::get('/admin/referrals', [ReferralController::class, 'adminStatus']);
+            Route::get('/admin/referrals/review', [ReferralController::class, 'adminReview']);
+            Route::post('/admin/referrals/{referral}/review', [ReferralController::class, 'review']);
             Route::put('/admin/referrals/configuration', [ReferralController::class, 'updateConfiguration']);
-
             // Content and operational intelligence
             Route::get('/admin/content', [ContentController::class, 'index']);
             Route::post('/admin/content', [ContentController::class, 'store']);
