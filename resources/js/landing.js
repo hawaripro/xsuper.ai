@@ -16,6 +16,13 @@ function enhanceLanding() {
     const revealedElements = new Set();
     const animations = new Map();
     const copyButtons = new Map();
+    const purchaseRegion = document.querySelector("[data-purchase-region]");
+    const purchaseDismiss = purchaseRegion?.querySelector(
+        "[data-purchase-dismiss]",
+    );
+    const purchaseItems = purchaseRegion
+        ? [...purchaseRegion.querySelectorAll("[data-purchase-item]")]
+        : [];
     const removeListeners = [];
     const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
     const themeStorageKey = "ultrai-theme";
@@ -25,6 +32,14 @@ function enhanceLanding() {
     let observing = false;
     let lifecycleVersion = 0;
     let statusTimer = 0;
+    let purchaseTimer = 0;
+    let purchaseIndex = 0;
+    let purchaseDismissed = false;
+    let purchaseDeadline = 0;
+    let purchaseRemaining = 8000;
+    let purchaseHovered = false;
+    let purchaseFocused = false;
+    let purchasePreviousFocus = null;
     let pointerFrame = 0;
     let pointerX = 0;
     let pointerY = 0;
@@ -465,11 +480,114 @@ function enhanceLanding() {
         return isCurrent() ? copyWithSelection(text) : null;
     }
 
+    function clearPurchaseTimer(preserveRemaining = false) {
+        window.clearTimeout(purchaseTimer);
+        purchaseTimer = 0;
+        if (preserveRemaining && purchaseDeadline) {
+            purchaseRemaining = Math.max(0, purchaseDeadline - performance.now());
+        }
+        purchaseDeadline = 0;
+    }
+
+    function showPurchase(index, withMotion = true) {
+        if (!purchaseRegion || !purchaseItems.length || purchaseDismissed)
+            return;
+
+        purchaseIndex = index;
+        purchaseItems.forEach((item, itemIndex) => {
+            item.hidden = itemIndex !== index;
+        });
+        purchaseRegion.hidden = false;
+
+        if (withMotion) {
+            animate(
+                purchaseRegion,
+                [
+                    { opacity: 0.35, transform: "translateY(10px)" },
+                    { opacity: 1, transform: "translateY(0)" },
+                ],
+                { duration: 280 },
+            );
+        }
+    }
+
+    function scheduleNextPurchase() {
+        clearPurchaseTimer(true);
+        if (
+            purchaseDismissed ||
+            reducedMotion.matches ||
+            purchaseHovered ||
+            purchaseFocused ||
+            purchaseItems.length < 2 ||
+            purchaseIndex >= purchaseItems.length - 1 ||
+            !pageIsVisible()
+        )
+            return;
+
+        const delay = Math.max(0, purchaseRemaining);
+        purchaseDeadline = performance.now() + delay;
+        purchaseTimer = window.setTimeout(() => {
+            purchaseTimer = 0;
+            if (!pageIsVisible()) {
+                clearPurchaseTimer(true);
+                return;
+            }
+            purchaseDeadline = 0;
+            purchaseRemaining = 8000;
+            showPurchase(purchaseIndex + 1);
+            scheduleNextPurchase();
+        }, delay);
+    }
+
+    function dismissPurchases() {
+        purchaseDismissed = true;
+        clearPurchaseTimer();
+        if (purchaseRegion) {
+            const restoreFocus = purchaseRegion.contains(document.activeElement);
+            cancelAnimation(purchaseRegion);
+            purchaseRegion.hidden = true;
+            if (restoreFocus && purchasePreviousFocus?.isConnected) {
+                purchasePreviousFocus.focus({ preventScroll: true });
+            }
+        }
+    }
+
+    if (purchaseRegion && purchaseDismiss && purchaseItems.length) {
+        showPurchase(0, false);
+        scheduleNextPurchase();
+        listen(purchaseDismiss, "click", dismissPurchases);
+        listen(purchaseRegion, "pointerenter", () => {
+            purchaseHovered = true;
+            clearPurchaseTimer(true);
+        });
+        listen(purchaseRegion, "pointerleave", () => {
+            purchaseHovered = false;
+            scheduleNextPurchase();
+        });
+        listen(purchaseRegion, "focusin", (event) => {
+            purchaseFocused = true;
+            if (!purchaseRegion.contains(event.relatedTarget)) {
+                purchasePreviousFocus = event.relatedTarget;
+            }
+            clearPurchaseTimer(true);
+        });
+        listen(purchaseRegion, "focusout", (event) => {
+            purchaseFocused = purchaseRegion.contains(event.relatedTarget);
+            if (!purchaseFocused) scheduleNextPurchase();
+        });
+        listen(purchaseRegion, "keydown", (event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            dismissPurchases();
+        });
+    }
+
     function clearTransientWork() {
         lifecycleVersion++;
         cancelAnimationsWithin();
         resetPointer();
         clearStatus();
+        clearPurchaseTimer(true);
         copyButtons.forEach((disabled, button) => {
             button.disabled = disabled;
             button.removeAttribute("aria-busy");
@@ -805,6 +923,51 @@ function enhanceLanding() {
                 );
                 filterModels();
             });
+        const filterToggle = document.querySelector(
+            "[data-model-filter-toggle]",
+        );
+        const filterSidebar = document.querySelector(
+            "[data-model-filter-sidebar]",
+        );
+        const filterBackdrop = document.querySelector(
+            "[data-model-filter-backdrop]",
+        );
+        if (filterToggle && filterSidebar) {
+            const setFilterOpen = (open) => {
+                filterSidebar.classList.toggle("is-open", open);
+                filterToggle.setAttribute("aria-expanded", String(open));
+                body.classList.toggle("model-filter-open", open);
+                if (filterBackdrop) filterBackdrop.hidden = !open;
+                if (open) {
+                    const focusTarget =
+                        filterSidebar.querySelector("input, button");
+                    if (focusTarget) focusTarget.focus({ preventScroll: true });
+                }
+            };
+            listen(filterToggle, "click", () =>
+                setFilterOpen(
+                    !filterSidebar.classList.contains("is-open"),
+                ),
+            );
+            if (filterBackdrop)
+                listen(filterBackdrop, "click", () => setFilterOpen(false));
+            listen(document, "keydown", (event) => {
+                if (
+                    event.key === "Escape" &&
+                    filterSidebar.classList.contains("is-open")
+                ) {
+                    setFilterOpen(false);
+                    filterToggle.focus({ preventScroll: true });
+                }
+            });
+            listen(window, "resize", () => {
+                if (
+                    window.innerWidth > 900 &&
+                    filterSidebar.classList.contains("is-open")
+                )
+                    setFilterOpen(false);
+            });
+        }
         document.querySelectorAll("[data-copy-model]").forEach((button) =>
             listen(button, "click", async () => {
                 await copyText(button.dataset.copyModel, () => pageIsVisible());
@@ -841,10 +1004,14 @@ function enhanceLanding() {
         listen(pricingNext, "click", () => rotatePlans(1));
     }
 
-    listenMedia(reducedMotion, syncMotion);
+    listenMedia(reducedMotion, () => {
+        syncMotion();
+        scheduleNextPurchase();
+    });
     listen(document, "visibilitychange", () => {
         if (document.hidden) clearTransientWork();
         syncMotion();
+        if (!document.hidden) scheduleNextPurchase();
     });
     listen(window, "pagehide", (event) => {
         pagePresent = false;
@@ -864,6 +1031,7 @@ function enhanceLanding() {
         syncTheme(publicTheme);
         setMenuOpen(false);
         syncMotion();
+        scheduleNextPurchase();
     });
 
     syncMotion();

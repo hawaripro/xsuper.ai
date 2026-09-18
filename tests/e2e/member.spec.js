@@ -1,0 +1,56 @@
+import { test, expect } from '@playwright/test';
+import { login, databaseRows, captureErrors, newSession } from './helpers.js';
+
+test('profile edit persists in database and reload, password mismatch does not mutate credentials', async ({ page }) => {
+    const errors = captureErrors(page);
+    await login(page, 'other');
+    await page.goto('/en/profile');
+    await expect(page.locator('input[type="email"]')).toHaveValue('other@dashboard-e2e.test');
+    await expect(page.getByText('Unlimited', { exact: false })).toHaveCount(0);
+    const form = page.locator('form').filter({ has: page.locator('input[type="email"]') });
+    const name = form.locator('input[type="text"]');
+    await name.fill('QA Persisted Other');
+    const response = page.waitForResponse(response => response.url().endsWith('/api/u/p') && response.request().method() === 'PUT');
+    await form.getByRole('button', { name: /Save|Update|Simpan/ }).click();
+    expect((await response).status()).toBe(200);
+    expect(databaseRows('users', { email: 'other@dashboard-e2e.test' })[0].name).toBe('QA Persisted Other');
+    await page.reload();
+    await expect(page.locator('input[type="text"]').last()).toHaveValue('QA Persisted Other');
+    const passwordHash = databaseRows('users', { email: 'other@dashboard-e2e.test' })[0].password;
+    const passwords = page.locator('form').filter({ has: page.locator('#current-password') });
+    await passwords.locator('#current-password').fill('E2e-Dashboard-Only!');
+    await passwords.locator('#new-password').fill('E2e-Mismatched-New!');
+    await passwords.locator('#confirm-password').fill('E2e-Different-Confirmation!');
+    await passwords.locator('button[type="submit"]').click();
+    await expect(passwords.getByRole('alert')).toBeVisible();
+    expect(databaseRows('users', { email: 'other@dashboard-e2e.test' })[0].password).toBe(passwordHash);
+    await passwords.locator('#current-password').fill('Incorrect-Current-Password!');
+    await passwords.locator('#confirm-password').fill('E2e-Mismatched-New!');
+    const rejectedPassword = page.waitForResponse(response => response.url().endsWith('/api/u/pw'));
+    await passwords.locator('button[type="submit"]').click();
+    expect((await rejectedPassword).status()).toBe(422);
+    await expect(passwords.getByRole('alert')).toBeVisible();
+    expect(databaseRows('users', { email: 'other@dashboard-e2e.test' })[0].password).toBe(passwordHash);
+    expect(errors).toEqual([]);
+});
+
+test('saved history loads real messages and deletes only the member conversation', async ({ page, browser }) => {
+    const errors = captureErrors(page);
+    await login(page, 'member');
+    await page.goto('/en/history');
+    await page.getByRole('button').filter({ hasText: 'QA saved conversation' }).first().click();
+    await expect(page.getByText('Saved integration answer', { exact: true })).toBeVisible();
+    const other = await newSession(browser, 'other');
+    const forbiddenRead = await other.page.request.get('/api/c/h/qa-member-history');
+    const otherMessages = (await forbiddenRead.json()).messages || [];
+    expect(otherMessages).toEqual([]);
+    await other.context.close();
+    const deletion = page.waitForResponse(response => response.url().endsWith('/api/c/h/qa-member-history') && response.request().method() === 'DELETE');
+    page.on('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Delete QA saved conversation', exact: true }).click();
+    expect((await deletion).status()).toBe(200);
+    expect(databaseRows('chat_history', { conversation_id: 'qa-member-history' })).toHaveLength(0);
+    await page.reload();
+    await expect(page.getByText('QA saved conversation', { exact: true })).toHaveCount(0);
+    expect(errors).toEqual([]);
+});

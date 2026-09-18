@@ -44,6 +44,9 @@ export function AuthProvider({ children }) {
             const d = await r.json().catch(() => ({}));
             throw new Error(d.message || 'Login gagal.');
         }
+        const data = await r.json();
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta && typeof data.csrf_token === 'string') csrfMeta.content = data.csrf_token;
         await checkAuth();
         return true;
     };

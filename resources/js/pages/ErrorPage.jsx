@@ -1,16 +1,19 @@
 
+import { useLocale } from '../contexts/LocaleContext';
+
 /* ============================================================
    Error page — animated 404 / 403.
    Props: code (404|403), message (optional)
    ============================================================ */
 
 export default function ErrorPage({ code = 404 }) {
+    const { t, localizedPath } = useLocale();
     const is403 = code === 403;
 
-    const title = is403 ? 'Akses Ditolak' : 'Halaman Tidak Ditemukan';
+    const title = is403 ? t('Akses Ditolak') : t('Halaman Tidak Ditemukan');
     const description = is403
-        ? 'Kamu tidak punya izin untuk mengakses halaman ini. Hubungi admin jika ini kesalahan.'
-        : 'Halaman yang kamu cari tidak ada atau sudah dipindahkan.';
+        ? t('Kamu tidak punya izin untuk mengakses halaman ini. Hubungi admin jika ini kesalahan.')
+        : t('Halaman yang kamu cari tidak ada atau sudah dipindahkan.');
 
     return (
         <div className="min-h-dvh flex items-center justify-center bg-[#fafbfc] relative overflow-hidden px-4">
@@ -54,7 +57,7 @@ export default function ErrorPage({ code = 404 }) {
                     </span>
 
                     {/* Floating icon */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-bounce-subtle">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-float-soft">
                         <div
                             className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl ${
                                 is403
@@ -90,14 +93,14 @@ export default function ErrorPage({ code = 404 }) {
                 {/* Actions */}
                 <div className="flex flex-wrap justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '160ms' }}>
                     <a
-                        href="/"
+                        href={localizedPath('/dashboard')}
                         className="ui-btn-primary px-6 py-3"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                             <polyline points="9 22 9 12 15 12 15 22" />
                         </svg>
-                        Kembali ke Beranda
+                        {t('Kembali ke Beranda')}
                     </a>
                     <button
                         onClick={() => window.history.back()}
@@ -106,7 +109,7 @@ export default function ErrorPage({ code = 404 }) {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                             <path d="m15 18-6-6 6-6" />
                         </svg>
-                        Kembali
+                        {t('Kembali')}
                     </button>
                 </div>
 

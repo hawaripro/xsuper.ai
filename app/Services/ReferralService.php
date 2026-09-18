@@ -5,8 +5,8 @@ namespace App\Services;
 use App\Models\DurationOrder;
 use App\Models\Notification;
 use App\Models\Referral;
-use App\Models\ReferralReward;
 use App\Models\ReferralProgramSetting;
+use App\Models\ReferralReward;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
@@ -19,9 +19,7 @@ class ReferralService
 {
     public const SESSION_KEY = 'referral.code';
 
-    public function __construct(private readonly AuditService $audit)
-    {
-    }
+    public function __construct(private readonly AuditService $audit) {}
 
     public function capture(Request $request, string $code): string
     {
@@ -143,6 +141,7 @@ class ReferralService
             $existingRewards = ReferralReward::query()
                 ->where('referral_id', $referral->id)
                 ->lockForUpdate()
+                ->get(['id'])
                 ->count();
 
             if ($existingRewards > 0) {

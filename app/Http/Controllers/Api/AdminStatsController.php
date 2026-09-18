@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DurationOrder;
+use App\Models\TokenReservation;
+use App\Models\UsageLog;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class AdminStatsController extends Controller
 {
@@ -16,8 +18,12 @@ class AdminStatsController extends Controller
      */
     public function revenue(Request $request)
     {
+        $validated = $request->validate(['month' => ['sometimes', 'date_format:Y-m']]);
         $now = Carbon::now();
         $startOfMonth = $now->copy()->startOfMonth();
+        $usageMonth = isset($validated['month'])
+            ? Carbon::createFromFormat('!Y-m', $validated['month'])
+            : $startOfMonth->copy();
         $startOfLastMonth = $now->copy()->subMonth()->startOfMonth();
         $endOfLastMonth = $now->copy()->subMonth()->endOfMonth();
 
@@ -70,7 +76,7 @@ class AdminStatsController extends Controller
             ->orderByDesc('approved_at')
             ->limit(10)
             ->get()
-            ->map(fn($o) => [
+            ->map(fn ($o) => [
                 'id' => $o->id,
                 'user_name' => $o->user->name ?? '-',
                 'user_email' => $o->user->email ?? '-',
@@ -93,7 +99,73 @@ class AdminStatsController extends Controller
             'daily_revenue' => $dailyRevenue,
             'revenue_by_package' => $revenueByPackage,
             'recent_orders' => $recentOrders,
+            'usage_earnings' => $this->usageEarnings($usageMonth, $now),
         ]);
+    }
+
+    private function usageEarnings(Carbon $month, Carbon $now): array
+    {
+        $nextMonth = $month->copy()->addMonth();
+
+        // API usage costs are recorded only after the wallet settlement succeeds.
+        $payg = UsageLog::query()
+            ->where('source', 'api')
+            ->where('cost_microusd', '>', 0)
+            ->where('created_at', '<=', $now);
+        $paygByModel = (clone $payg)
+            ->where('created_at', '>=', $month)
+            ->where('created_at', '<', $nextMonth)
+            ->select('model')
+            ->selectRaw('SUM(cost_microusd) as cost_microusd, COUNT(*) as requests')
+            ->groupBy('model')
+            ->orderByDesc('cost_microusd')
+            ->orderBy('model')
+            ->get()
+            ->map(fn (UsageLog $row): array => [
+                'service' => 'api',
+                'model' => $row->model,
+                'cost_microusd' => (int) $row->cost_microusd,
+                'requests' => (int) $row->getAttribute('requests'),
+            ]);
+
+        $generators = TokenReservation::query()
+            ->where('billing_mode', 'tokens')
+            ->where('status', TokenReservation::STATUS_SETTLED)
+            ->whereIn('service', ['image', 'video', 'audio'])
+            ->where('amount_tokens', '>', 0)
+            ->where('settled_at', '<=', $now);
+        $generatorsByModel = (clone $generators)
+            ->where('settled_at', '>=', $month)
+            ->where('settled_at', '<', $nextMonth)
+            ->select('service', 'model')
+            ->selectRaw('SUM(amount_tokens) as tokens, SUM(quantity) as generations')
+            ->groupBy('service', 'model')
+            ->orderByDesc('tokens')
+            ->orderBy('service')
+            ->orderBy('model')
+            ->get()
+            ->map(fn (TokenReservation $row): array => [
+                'service' => $row->service,
+                'model' => $row->model,
+                'tokens' => (int) $row->getAttribute('tokens'),
+                'generations' => (int) $row->getAttribute('generations'),
+            ]);
+
+        return [
+            'month' => $month->format('Y-m'),
+            'payg' => [
+                'currency' => 'USD',
+                'month_cost_microusd' => (int) $paygByModel->sum('cost_microusd'),
+                'total_cost_microusd' => (int) $payg->sum('cost_microusd'),
+                'by_model' => $paygByModel,
+            ],
+            'generators' => [
+                'unit' => 'tokens',
+                'month_tokens' => (int) $generatorsByModel->sum('tokens'),
+                'total_tokens' => (int) $generators->sum('amount_tokens'),
+                'by_model' => $generatorsByModel,
+            ],
+        ];
     }
 
     /**
@@ -109,7 +181,7 @@ class AdminStatsController extends Controller
             ->where('expires_at', '<=', now()->addDays($days))
             ->orderBy('expires_at')
             ->get(['id', 'name', 'email', 'expires_at', 'created_at'])
-            ->map(fn($u) => [
+            ->map(fn ($u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
@@ -123,7 +195,7 @@ class AdminStatsController extends Controller
             ->orderByDesc('expires_at')
             ->limit(50)
             ->get(['id', 'name', 'email', 'expires_at'])
-            ->map(fn($u) => [
+            ->map(fn ($u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
@@ -158,7 +230,7 @@ class AdminStatsController extends Controller
             });
         }
 
-        $orders = $query->paginate(20)->through(fn($o) => [
+        $orders = $query->paginate(20)->through(fn ($o) => [
             'id' => $o->id,
             'user_id' => $o->user_id,
             'user_name' => $o->user->name ?? '-',

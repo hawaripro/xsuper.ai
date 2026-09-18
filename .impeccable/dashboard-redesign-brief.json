@@ -1,0 +1,89 @@
+{
+  "scope": "One interactive UltrAI dashboard combining Pulse, Mosaic and the existing application, selected explicitly by the user after reviewing ten alternatives.",
+  "mode": "operate",
+  "buildPath": "code",
+  "name": "UltrAI Workspace",
+  "userDirection": "kombinasikan pulse, mosaic dan ultrai yang sekarang. lalu mockup lainnya hapus end to end",
+  "stage": "Production implementation authorized explicitly on 2026-09-18. Implement the selected dashboard and separate studios, video reference uploads, server-billed Pro at exactly 2x tokens, yt-dlp downloads, FFmpeg conversion, permission-scoped search and authenticated realtime notifications end to end.",
+  "workspaceDecision": "Implement in C:/Users/Hawari/ultrai-web/.worktrees/dashboard-studios on feat/dashboard-studios, seeded from the current uncommitted source. Preserve canonical user work; no commits, paid AI calls or deployment. Remove mockups only after replacement verification.",
+  "sidebarFeedback": "The user prefers the UI/UX of the active UltrAI sidebar to the simplified hybrid sidebar. Preserve the incumbent navigation character and apply Pulse/Mosaic primarily to content.",
+  "studioRequest": {
+    "chat": "Keep the incumbent standalone UltrAI Chat workspace, not the combined preview composer. Reuse its actual React component and styles without editing production files.",
+    "image": "Dedicated professional image studio page with a large canvas, coherent controls, local variations, comparison and export.",
+    "video": "Dedicated professional video studio page with preview transport, storyboard and the existing Prompt/Product/UGC authoring flows.",
+    "audio": "Dedicated professional audio studio page covering both voiceover/text-to-speech and music/sound design, explicitly selected by the user.",
+    "visuals": "Keep the incumbent UltrAI navigation, red action identity, colored functional icons, light/dark support, responsive controls and purposeful rich motion with reduced-motion support."
+  },
+  "studioPlan": {
+    "stage": "Historical completed preview plan, retained as visual provenance only; superseded by dashboard-production-plan.json and the user's explicit production authorization.",
+    "ownership": {
+      "Main": ["preview.js","core.js","data.js","dashboard.js","dashboard.css","index.html","server.mjs","local-voice.mjs","workspaces/shared.css","chat-preview/"],
+      "ImageStudio": ["workspaces/image.js","workspaces/image.css"],
+      "VideoStudio": ["workspaces/video.js","workspaces/video.css"],
+      "AudioStudio": ["workspaces/audio.js","workspaces/audio.css"]
+    },
+    "routes": {"overview":"/","chat":"/chat","image":"/generate-image","video":"/video","audio":"/audio"},
+    "controllerContract": {
+      "exports": ["createImageWorkspace","createVideoWorkspace","createAudioWorkspace"],
+      "arguments": "{ icon(name): SVG string, escape(value): HTML-safe string, toast(message): void, motionAllowed(): boolean }",
+      "returns": "{ element: HTMLElement, activate(): void, deactivate(): void, dispose(): void }",
+      "lifecycle": "One cached controller per medium and demo role. Parent preserves its actual DOM across shell updates and navigation. activate refreshes measurements; deactivate pauses preview playback but does not discard drafts or cancel a local render; dispose cancels work, removes listeners, stops media tracks and revokes owned object URLs.",
+      "events": "Own controls use data-image-action, data-video-action or data-audio-action. Do not use shared data-action, data-page, data-tool or demo-composer IDs for internal controls. Every input has a stable medium-prefixed ID. Mutate the retained workspace DOM, not the dashboard renderer.",
+      "data": "State and at most six output records stay local to the controller. Do not claim production saves, prices for unsupported audio services, successful provider calls, or Library publication that does not occur."
+    },
+    "chatHost": "Stable same-origin iframe outside the replaced dashboard DOM. A preview-only Vite entry imports the unchanged ChatFullPage, original providers and CSS. Install a no-passthrough in-memory fetch adapter before mounting for /api/user, /api/c/am, /api/c/h, /api/c/h/:id, /api/c/s SSE and announcement. Deny network connections in the frame CSP; bridge known navigation and theme events to the parent.",
+    "voiceEndpoint": {
+      "path": "/preview/audio/voice",
+      "method": "POST",
+      "json": "{ text: trimmed string of 1–800 characters, voice: 'david'|'zira', rate: integer -2 through 2 }",
+      "success": "audio/wav generated in memory by installed offline Windows System.Speech voices; no file, database or cloud writes.",
+      "errors": "Non-2xx JSON { message }. Reject unknown voices, invalid input/content type and cross-origin requests. Bound execution time and terminate the owned speech process on cancellation.",
+      "voiceTruth": "Microsoft David Desktop and Microsoft Zira Desktop were confirmed installed. They are English local demonstration voices, not a production AI voice catalog."
+    },
+    "localRendering": {
+      "image": "Canvas-based local graphic composition; prompt/preset, dimensions and variation selection affect the actual preview and downloadable PNG. Label it as local demo rendering, not generated provider imagery.",
+      "video": "Canvas captureStream plus supported WebM MediaRecorder. Record an actual short local storyboard clip with working playback, seek and download; no dummy still image posing as video.",
+      "music": "OfflineAudioContext synthesis with actual mood/tempo/duration controls, waveform analysis, playback and PCM WAV export. Label procedural local music as a demonstration, not an AI-provider result."
+    },
+    "verification": ["Distinct URLs and Back/Forward behavior", "Unchanged production Chat source hashes", "Actual Chat layout/model/history/streaming/stop interactions with no live API traffic", "Image render, variation selection, comparison and PNG download", "Video Prompt/Product/UGC flows and actual playable WebM output", "Voiceover and music generation with real playable WAV output", "Draft and media state survive shell updates and navigation", "Role switches dispose prior demo state", "Light/dark desktop/tablet/mobile screenshots", "Keyboard/focus, reduced motion and error/cancel paths", "Old combined composer and retired concept URLs remain absent"]
+  },
+  "composition": {
+    "Pulse": "Permanent aligned metrics and a clearly labeled usage graph; token balance and PAYG money never conflated.",
+    "Mosaic": "Native accessible collapsible work modules and comfortable/compact density; critical metrics never hidden by disclosure.",
+    "Existing UltrAI": "Sidebar reference is resources/js/layouts/DashboardLayout.jsx: 248px rail, 64px brand row, direct Chat/image/video entries, Workspace/Operations grouping, colored 28px icon badges, red gradient selection with a short marker, and the red profile avatar. Only existing functional demo destinations are exposed in the preview; eventual production integration preserves every authorized business navigation entry."
+  },
+  "preserve": ["Actual logo", "Red brand", "Token Usage clarity", "Member/admin boundaries", "Indonesian copy", "PostgreSQL 2209", "Existing billing behavior", "Unrelated provider mockups and shared fonts", "No paid AI requests", "No commit or deployment"],
+  "implementation": [
+    {"files":["dashboard.js","dashboard.css"],"behavior":"One renderDashboard(ui,state) composition with shared UI primitives, readable metrics and chart, expandable tools/activity/queue/inbox/model modules and responsive navigation."},
+    {"files":["index.html","preview.js","core.js","data.js","workspaces/","chat-preview/"],"behavior":"Root opens the selected dashboard. Dedicated Chat, image, video and audio URLs replace the combined composer. Retained media controllers preserve drafts and playback through shell updates; the unchanged native Chat runs in a stable offline iframe. Search, local notifications, CSV, role isolation, focus restoration and reduced motion remain available."},
+    {"files":["server.mjs","local-voice.mjs"],"behavior":"Serve only exact preview page/module/build/asset allowlists on loopback. Block network connections in the Chat frame and validate same-origin local speech requests. Retired concept routes and the obsolete selection-write endpoint remain unavailable."},
+    {"remove":["concepts/","previews/","gallery.js","gallery.css","preview.html","../../dashboard-preview-provenance.json"],"behavior":"No inactive variants, compatibility redirects, stale thumbnails or retired module references remain in the active preview tree."}
+  ],
+  "verification": ["Member/admin route navigation on desktop and mobile", "Light/dark studio surfaces at 1440 and 390 CSS pixels", "Additional 320px, 1000px and 667x375 landscape layouts", "Native Chat model/history/attachment/streaming/stop flows", "Actual PNG/WebM/WAV generation and downloads", "Draft/media persistence, cancellation and role disposal", "Keyboard search, focus and browser Back/Forward", "Colored SVG icons and live reduced-motion preferences", "Loopback route/request boundaries", "Protected production source hashes"],
+  "verificationResult": {
+    "preview": "Passed 20/20 desktop/mobile light/dark studio surface scenarios and 9/9 additional narrow/tablet/landscape layouts. No horizontal overflow in the final scenarios; the 20-surface run recorded no JavaScript errors, failed HTTP responses or external requests.",
+    "interactions": "Passed native Chat model selection, history search/load/delete, attachment removal, SSE completion/stop, clipboard copy, theme bridge, draft retention, media links and role isolation. Image, video and both audio workflows produced real downloadable media; shell changes retained live editor/media nodes.",
+    "review": "Independent lifecycle/accessibility and preview-boundary reviews completed. Fixed hidden upload keyboard focus, modified-K playback conflict, noisy video telemetry live regions and short-height Chat hosting. Additional runtime checks found and fixed 320px image-toolbar overflow and a stale Audio motion preference snapshot.",
+    "retirement": "The combined composer and its 13 obsolete CSS rules are removed. Retired concept/gallery routes and private source paths return 404; the selection write returns 405.",
+    "evidenceDirectory": "C:/Users/Hawari/UltrAI-backups/dashboard-hybrid-20260918",
+    "sidebar": "The earlier sidebar-refinement evidence retains its 63-navigation baseline. Current separate-route verification passed 46/46 member/admin desktop/mobile destinations, unique active states, mobile menu closure, browser Back/Forward and member restriction of an admin-only route.",
+    "sidebarEvidenceDirectory": "C:/Users/Hawari/UltrAI-backups/dashboard-hybrid-20260918/sidebar-refinement",
+    "production": "Authorized and in progress in the isolated dashboard-studios worktree. Pre-change isolated SQLite baseline passed 319 tests and 2554 assertions after the baseline Vite build.",
+    "studios": {
+      "status": "Preview complete. Production integration is now explicitly authorized; this section records historical preview evidence.",
+      "urls": {"chat":"http://127.0.0.1:4178/chat?role=member","image":"http://127.0.0.1:4178/generate-image?role=member","video":"http://127.0.0.1:4178/video?role=member","audio":"http://127.0.0.1:4178/audio?role=member"},
+      "image": "Verified 1024x576 PNG export, three-variation render, A/B slider, zoom, reference rejection/load/remove, cancellation, retained caret/draft/canvas and bounded six-record history.",
+      "video": "Verified playable and seekable Prompt landscape, Product portrait and UGC square WebM exports at approximately four seconds, plus an 8.04-second clip. Cancellation and recording continuation across studio navigation passed; theme updates retained the player.",
+      "audio": "Verified Zira voiceover WAV at mono 22050 Hz, David local speech at rate +2, and four-second stereo 44100 Hz procedural music. Playback, volume, seek, restart, waveform, workflow-specific drafts/results, cancellation, downloads and pending-job disposal on role change passed.",
+      "motion": "Observed the 220ms image reveal and colored functional SVG icons. Reduced motion suppresses image/audio animation and selects minimal video motion; changing the OS preference back restores Audio animation.",
+      "boundaries": "28/28 HTTP route/request checks passed. The Chat interaction run made zero real API or external network requests. Speech uses only installed local Windows voices.",
+      "sourceIntegrity": "All 11 protected production source/config SHA-256 hashes match their pre-edit baseline. No application, database, billing, provider, commit or deployment operation was performed.",
+      "build": "Isolated chat-preview Vite build completed successfully; the production application build was not run.",
+      "evidenceDirectory": "C:/Users/Hawari/UltrAI-backups/dashboard-hybrid-20260918/separate-studios",
+      "evidence": ["visual-matrix.json","image-interactions.json","video-interactions.json","audio-interactions.json","chat-interactions.json","edge-lifecycle.json","navigation.json","server-boundaries.json","production-source-before.json","production-source-after.json"],
+      "limitations": ["Media rendering is a labeled local demonstration, not an AI-provider result. Windows demo voices are English.", "Drafts and at most six outputs per studio remain in memory; reload or role change clears the session. Outputs are not published to Library.", "The managed browser kept visibilityState visible with an auxiliary tab. Actual hidden-tab throttling was not verified; continuation while visiting another studio was verified."]
+    }
+  },
+  "truth": "Historical preview data and renderers remain synthetic/local demonstrations. Production must use real persisted APIs, queued provider/media jobs, owner-only assets and authenticated Reverb delivery; no preview rendering or BroadcastChannel substitute. No automatic deployment.",
+  "productionArchitecture": "Reuse custom Notification storage and HTTP inbox; add private authenticated Reverb events after commit, reconnect reconciliation and permission-scoped database search. Preserve existing financial and authorization contracts."
+}

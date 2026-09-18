@@ -50,6 +50,19 @@ class CheckExpiry
                     }
                 }
             }
+
+            $permission = match ($path) {
+                'api/audio', 'api/audio/models' => 'audio_generator',
+                'api/media-tools/download' => 'video_downloader',
+                'api/media-tools/convert' => 'media_converter',
+                default => null,
+            };
+            if ($permission !== null && (! $user->is_active || ! $user->hasPermission($permission))) {
+                return response()->json([
+                    'message' => 'Anda tidak memiliki akses ke fitur ini.',
+                    'forbidden' => true,
+                ], 403);
+            }
         }
 
         return $next($request);

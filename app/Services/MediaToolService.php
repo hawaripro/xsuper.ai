@@ -1,0 +1,498 @@
+<?php
+
+namespace App\Services;
+
+use App\Jobs\ProcessMediaToolJob;
+use App\Models\MediaToolJob;
+use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
+use Symfony\Component\Process\Process;
+use Throwable;
+
+final class MediaToolService
+{
+    public const MIME_TYPES = [
+        'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mp3' => 'audio/mpeg',
+        'wav' => 'audio/wav', 'flac' => 'audio/flac', 'png' => 'image/png',
+        'jpg' => 'image/jpeg', 'webp' => 'image/webp',
+    ];
+
+    private const ERRORS = [
+        'source' => 'This source cannot be downloaded safely. Use a public, unencrypted single-item HTTP(S) source.',
+        'invalid_media' => 'The file is not a supported, self-contained media file.',
+        'incompatible' => 'The source does not contain the audio or visual stream required by this output format.',
+        'input_limit' => 'The source exceeds the 128 MiB input limit.',
+        'output_limit' => 'The result exceeds the 256 MiB output limit.',
+        'duration_limit' => 'Media must have a known duration of no more than 10 minutes.',
+        'dimensions' => 'Media dimensions exceed the supported limit of 4096 pixels per side.',
+        'timeout' => 'Processing exceeded the allowed runtime. No output was retained.',
+        'runtime' => 'The private media processing runtime is unavailable.',
+        'failed' => 'Media processing could not be completed. Try another supported source or format.',
+    ];
+
+    public function capabilities(): array
+    {
+        $paths = $this->runtimePaths();
+        $available = ['download' => false, 'convert' => false];
+        if (config('media_tools.enabled') && $paths['python'] && $paths['ffmpeg'] && $paths['ffprobe']) {
+            try {
+                $available = Cache::remember('media-tools:runtime:'.hash('sha256', json_encode($paths)), 60, function () use ($paths): array {
+                    $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'check'], base_path('scripts/media'), $this->environment(), json_encode($paths, JSON_THROW_ON_ERROR), 20);
+                    $process->run();
+                    $state = json_decode($process->getOutput(), true);
+
+                    return [
+                        'download' => $process->isSuccessful() && ($state['download'] ?? false) === true,
+                        'convert' => $process->isSuccessful() && ($state['convert'] ?? false) === true,
+                    ];
+                });
+            } catch (Throwable) {
+                // Never surface process command lines, URL tokens, or raw diagnostics.
+            }
+        }
+
+        return [
+            'available' => $available,
+            'limits' => ['max_upload_bytes' => $this->inputLimit(), 'max_output_bytes' => $this->outputLimit(), 'max_duration_seconds' => min(600, (int) config('media_tools.max_duration_seconds', 600))],
+            'download_formats' => $available['download'] ? ['mp4', 'webm', 'mp3'] : [],
+            'convert_formats' => $available['convert'] ? array_keys(self::MIME_TYPES) : [],
+            'message' => ! $available['convert'] ? self::ERRORS['runtime'] : (! $available['download'] ? 'Conversion is available, but the private downloader or sandboxed JavaScript runtime is unavailable.' : 'Downloads support public, unencrypted single items with native HTTP(S) streams. Login, live streams and playlists are not supported. Image conversion saves the first frame.'),
+        ];
+    }
+
+    public function download(User $user, array $input): MediaToolJob
+    {
+        $url = $this->validateUrl($input['url']);
+
+        return $this->admit($user, 'download', $input['format'], $url, null);
+    }
+
+    public function convert(User $user, UploadedFile $file, string $format): MediaToolJob
+    {
+        if (! $file->isValid() || $file->getSize() < 1 || $file->getSize() > $this->inputLimit()) {
+            throw ValidationException::withMessages(['file' => self::ERRORS['input_limit']]);
+        }
+
+        return $this->admit($user, 'convert', $format, null, $file);
+    }
+
+    private function admit(User $user, string $kind, string $format, ?string $url, ?UploadedFile $file): MediaToolJob
+    {
+        $capabilities = $this->capabilities();
+        if (! ($capabilities['available'][$kind] ?? false)) {
+            abort(503, self::ERRORS['runtime']);
+        }
+        if (! in_array($format, $capabilities[$kind.'_formats'], true)) {
+            throw ValidationException::withMessages(['format' => 'The selected output format is unavailable.']);
+        }
+        $jobId = (string) Str::uuid();
+        $directory = $this->directory($jobId);
+        $job = null;
+        try {
+            $job = DB::transaction(function () use ($user, $kind, $format, $url, $file, $jobId, $directory): MediaToolJob {
+                User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                if (MediaToolJob::query()->where('user_id', $user->id)->whereIn('status', ['pending', 'processing'])->count() >= min(2, max(1, (int) config('media_tools.max_concurrent_jobs', 2)))) {
+                    throw ValidationException::withMessages(['file' => 'Wait for or cancel an active media task before starting another.']);
+                }
+                if (! mkdir($directory.'/work', 0700, true)) {
+                    throw new RuntimeException('Private workspace unavailable.');
+                }
+                $name = $file ? mb_substr(preg_replace('/[\x00-\x1f\x7f]/u', '', basename(str_replace('\\', '/', $file->getClientOriginalName()))) ?: 'Uploaded media', 0, 200) : null;
+                if ($file) {
+                    if (! copy($file->getRealPath(), $directory.'/work/input')) {
+                        throw new RuntimeException('Private input could not be stored.');
+                    }
+                    @chmod($directory.'/work/input', 0600);
+                }
+
+                return MediaToolJob::create([
+                    'user_id' => $user->id, 'job_id' => $jobId, 'kind' => $kind, 'format' => $format,
+                    'source_url' => $url, 'input_name' => $name,
+                    'title' => $name ?: mb_substr('Download from '.parse_url($url, PHP_URL_HOST), 0, 240),
+                    'status' => 'pending', 'stage' => 'queued', 'dispatched_at' => now(),
+                ]);
+            });
+            ProcessMediaToolJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
+        } catch (Throwable $exception) {
+            if ($job) {
+                $this->finish($job->id, 'failed', self::ERRORS['runtime']);
+            }
+            $this->cleanup($jobId);
+            if ($exception instanceof ValidationException) {
+                throw $exception;
+            }
+            abort(503, self::ERRORS['runtime']);
+        }
+
+        return $job->refresh();
+    }
+
+    public function process(int $id): void
+    {
+        $record = MediaToolJob::find($id);
+        if (! $record || $record->status !== 'pending') {
+            return;
+        }
+        $lock = $this->lock($record->job_id);
+        if ($lock === null) {
+            return;
+        }
+        $process = null;
+        $job = null;
+        $completed = false;
+        try {
+            $job = DB::transaction(function () use ($id): ?MediaToolJob {
+                $job = MediaToolJob::query()->lockForUpdate()->find($id);
+                if (! $job || $job->status !== 'pending' || $job->lease_token !== null) {
+                    return null;
+                }
+                $job->update(['status' => 'processing', 'stage' => $job->kind === 'download' ? 'downloading' : 'probing', 'heartbeat_at' => now(), 'lease_token' => bin2hex(random_bytes(32))]);
+
+                return $job;
+            });
+            if (! $job) {
+                return;
+            }
+            $directory = $this->directory($job->job_id);
+            $paths = $this->runtimePaths();
+            if (! $paths['python'] || ! $paths['ffmpeg'] || ! $paths['ffprobe'] || ($job->kind === 'download' && ! $paths['node']) || ! is_dir($directory.'/work') || is_link($directory.'/work')) {
+                throw new RuntimeException('runtime');
+            }
+            if (file_put_contents($directory.'/lease', $job->lease_token, LOCK_EX) === false) {
+                throw new RuntimeException('runtime');
+            }
+            @chmod($directory.'/lease', 0600);
+            $timeout = min(360, max(30, (int) config('media_tools.process_timeout', 360)));
+            $manifest = [...$paths, 'kind' => $job->kind, 'format' => $job->format, 'url' => $job->source_url,
+                'lease' => $job->lease_token, 'timeout' => $timeout - 5, 'input_limit' => $this->inputLimit(), 'output_limit' => $this->outputLimit(),
+                'duration_limit' => min(600, (int) config('media_tools.max_duration_seconds', 600)),
+                'dimension_limit' => min(4096, (int) config('media_tools.max_dimension', 4096)),
+                'pixel_limit' => min(16777216, (int) config('media_tools.max_pixels', 16777216)),
+            ];
+            $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'run'], $directory.'/work', $this->environment($directory.'/work'), json_encode($manifest, JSON_THROW_ON_ERROR), $timeout);
+            $process->start();
+            $buffer = '';
+            $result = null;
+            $error = 'failed';
+            $state = ['stage' => $job->stage, 'progress' => null];
+            $heartbeat = 0.0;
+            do {
+                $running = $process->isRunning();
+                $process->checkTimeout();
+                $buffer .= $process->getIncrementalOutput();
+                $process->clearOutput();
+                $process->clearErrorOutput();
+                if (strlen($buffer) > 65536) {
+                    throw new RuntimeException('failed');
+                }
+                while (($newline = strpos($buffer, "\n")) !== false) {
+                    $event = json_decode(substr($buffer, 0, $newline), true);
+                    $buffer = substr($buffer, $newline + 1);
+                    if (($event['event'] ?? null) === 'progress' && in_array($event['stage'] ?? null, ['downloading', 'probing', 'converting', 'saving'], true)) {
+                        $state = ['stage' => $event['stage'], 'progress' => isset($event['progress']) && is_numeric($event['progress']) ? round(max(0, min(99, (float) $event['progress'])), 1) : null];
+                    } elseif (($event['event'] ?? null) === 'result') {
+                        $result = $event;
+                    } elseif (($event['event'] ?? null) === 'error') {
+                        $error = isset(self::ERRORS[$event['code'] ?? '']) ? $event['code'] : 'failed';
+                    }
+                }
+                if (microtime(true) - $heartbeat >= 1) {
+                    $current = MediaToolJob::find($id);
+                    if (! $current || $current->status !== 'processing' || $current->lease_token !== $job->lease_token || $current->cancel_requested_at !== null) {
+                        file_put_contents($directory.'/cancel', 'cancel', LOCK_EX);
+                        $process->stop(2);
+                        $this->finish($id, 'cancelled', null, $job->lease_token);
+
+                        return;
+                    }
+                    touch($directory.'/lease');
+                    MediaToolJob::query()->whereKey($id)->where('lease_token', $job->lease_token)->whereNull('cancel_requested_at')->update([...$state, 'heartbeat_at' => now()]);
+                    $heartbeat = microtime(true);
+                }
+                if ($running) {
+                    usleep(100000);
+                }
+            } while ($running);
+            if (! $process->isSuccessful() || ! is_array($result)) {
+                throw new RuntimeException($error);
+            }
+            $output = $directory.'/work/result.'.$job->format;
+            clearstatcache(true, $output);
+            if (! is_file($output) || is_link($output) || filesize($output) < 1 || filesize($output) > $this->outputLimit()
+                || ($result['mime_type'] ?? null) !== self::MIME_TYPES[$job->format] || ($result['size_bytes'] ?? null) !== filesize($output)) {
+                throw new RuntimeException('failed');
+            }
+            $completed = DB::transaction(function () use ($job, $directory, $output, $result): bool {
+                $current = MediaToolJob::query()->lockForUpdate()->find($job->id);
+                if (! $current || $current->status !== 'processing' || $current->lease_token !== $job->lease_token || $current->cancel_requested_at !== null) {
+                    return false;
+                }
+                if (! rename($output, $directory.'/result.'.$job->format)) {
+                    throw new RuntimeException('failed');
+                }
+                @chmod($directory.'/result.'.$job->format, 0600);
+                $current->update(['status' => 'completed', 'stage' => 'completed', 'progress' => 100, 'mime_type' => self::MIME_TYPES[$job->format],
+                    'size_bytes' => $result['size_bytes'], 'duration' => $result['duration'] ?? null, 'completed_at' => now(), 'lease_token' => null]);
+
+                return true;
+            });
+            if (! $completed) {
+                $this->finish($id, 'cancelled', null, $job->lease_token);
+            }
+        } catch (Throwable $exception) {
+            if ($process?->isRunning()) {
+                $process->stop(2);
+            }
+            if ($job) {
+                $code = $exception instanceof \Symfony\Component\Process\Exception\ProcessTimedOutException ? 'timeout' : $exception->getMessage();
+                $this->finish($id, 'failed', self::ERRORS[$code] ?? self::ERRORS['failed'], $job->lease_token);
+            } else {
+                $this->finish($id, 'failed', self::ERRORS['runtime']);
+            }
+        } finally {
+            if ($process?->isRunning()) {
+                $process->stop(2);
+            }
+            // Keep the lock inode: deleting an open lock would allow a second owner.
+            if ($job !== null || in_array(MediaToolJob::find($id)?->status, ['failed', 'cancelled'], true)) {
+                $this->cleanup($record->job_id, $completed);
+            }
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    public function cancel(User $user, string $jobId): MediaToolJob
+    {
+        $job = DB::transaction(function () use ($user, $jobId): MediaToolJob {
+            $job = MediaToolJob::query()->where('user_id', $user->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
+            if ($job->status === 'pending') {
+                $job->update(['status' => 'cancelled', 'stage' => 'cancelled', 'completed_at' => now(), 'cancel_requested_at' => now()]);
+            } elseif ($job->status === 'processing' && $job->cancel_requested_at === null) {
+                $job->update(['stage' => 'cancelling', 'cancel_requested_at' => now()]);
+            }
+
+            return $job;
+        });
+        if ($job->cancel_requested_at !== null) {
+            $directory = $this->directory($job->job_id);
+            if (is_dir($directory) && ! is_link($directory)) {
+                file_put_contents($directory.'/cancel', 'cancel', LOCK_EX);
+            }
+            if ($job->status === 'cancelled' && ($lock = $this->lock($job->job_id)) !== null) {
+                $this->cleanup($job->job_id);
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
+        }
+
+        return $job->refresh();
+    }
+
+    public function interrupted(int $id): void
+    {
+        $job = MediaToolJob::find($id);
+        if ($job && $job->status === 'pending' && ($lock = $this->lock($job->job_id)) !== null) {
+            try {
+                if ($this->finish($id, 'failed', 'The media task could not start. It was not automatically retried.')) {
+                    $this->cleanup($job->job_id);
+                }
+            } finally {
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
+        }
+        // Running work owns its process handle; its lease expires without PID-based killing.
+    }
+
+    public function reconcile(): array
+    {
+        $counts = ['failed' => 0, 'cancelled' => 0];
+        MediaToolJob::query()->whereIn('status', ['pending', 'processing'])->orderBy('id')->chunkById(100, function ($jobs) use (&$counts): void {
+            foreach ($jobs as $job) {
+                $stale = $job->status === 'pending' ? $job->created_at->lt(now()->subMinutes(15)) : ($job->heartbeat_at === null || $job->heartbeat_at->lt(now()->subSeconds(30)));
+                if (! $stale || ($lock = $this->lock($job->job_id)) === null) {
+                    continue;
+                }
+                try {
+                    $status = $job->cancel_requested_at !== null ? 'cancelled' : 'failed';
+                    if ($this->finish($job->id, $status, $status === 'failed' ? 'The media task was interrupted. It was not automatically retried.' : null, $job->lease_token)) {
+                        $this->cleanup($job->job_id);
+                        $counts[$status]++;
+                    }
+                } finally {
+                    flock($lock, LOCK_UN);
+                    fclose($lock);
+                }
+            }
+        });
+
+        return $counts;
+    }
+
+    private function finish(int $id, string $status, ?string $error, ?string $lease = null): bool
+    {
+        return DB::transaction(function () use ($id, $status, $error, $lease): bool {
+            $job = MediaToolJob::query()->lockForUpdate()->find($id);
+            if (! $job || ! in_array($job->status, ['pending', 'processing'], true) || ($lease !== null && $job->lease_token !== $lease)) {
+                return false;
+            }
+            if ($job->cancel_requested_at !== null) {
+                $status = 'cancelled';
+                $error = null;
+            }
+            $job->update(['status' => $status, 'stage' => $status, 'error_message' => $error, 'completed_at' => now(), 'lease_token' => null]);
+
+            return true;
+        });
+    }
+
+    public function payload(MediaToolJob $job): array
+    {
+        $source = $job->source_url;
+
+        return [
+            'job_id' => $job->job_id, 'kind' => $job->kind, 'status' => $job->status, 'stage' => $job->stage,
+            'progress' => $job->progress, 'title' => $job->title,
+            'source_url' => $source ? parse_url($source, PHP_URL_SCHEME).'://'.parse_url($source, PHP_URL_HOST) : null,
+            'input_name' => $job->input_name, 'format' => $job->format,
+            'result_url' => $job->status === 'completed' ? '/api/media-tools/'.$job->job_id.'/asset' : null,
+            'mime_type' => $job->mime_type, 'size_bytes' => $job->size_bytes, 'duration' => $job->duration,
+            'error' => $job->error_message, 'can_cancel' => in_array($job->status, ['pending', 'processing'], true) && $job->cancel_requested_at === null,
+            'created_at' => $job->created_at?->toISOString(), 'updated_at' => $job->updated_at?->toISOString(), 'completed_at' => $job->completed_at?->toISOString(),
+        ];
+    }
+
+    public function assetPath(MediaToolJob $job): string
+    {
+        abort_unless(isset(self::MIME_TYPES[$job->format]) && $job->status === 'completed', 404);
+        $directory = $this->directory($job->job_id);
+        $path = $directory.'/result.'.$job->format;
+        abort_unless(is_file($path) && ! is_link($path) && realpath(dirname($path)) === realpath($directory), 404);
+
+        return $path;
+    }
+
+    private function directory(string $jobId): string
+    {
+        if (! Str::isUuid($jobId)) {
+            throw new RuntimeException('Invalid private workspace.');
+        }
+        $base = Storage::disk('local')->path('media-tools');
+        if (is_link($base) || is_link($base.'/'.$jobId)) {
+            throw new RuntimeException('Invalid private workspace.');
+        }
+
+        return $base.'/'.$jobId;
+    }
+
+    private function lock(string $jobId)
+    {
+        $directory = $this->directory($jobId);
+        if (! is_dir($directory) && ! mkdir($directory, 0700, true)) {
+            return null;
+        }
+        if (is_link($directory.'/work.lock')) {
+            return null;
+        }
+        $lock = fopen($directory.'/work.lock', 'c');
+        if ($lock === false) {
+            return null;
+        }
+        if (! flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+
+            return null;
+        }
+
+        return $lock;
+    }
+
+    private function cleanup(string $jobId, bool $keepResult = false): void
+    {
+        $directory = $this->directory($jobId);
+        if (! is_dir($directory)) {
+            return;
+        }
+        foreach (new \DirectoryIterator($directory) as $entry) {
+            if ($entry->isDot() || $entry->getFilename() === 'work.lock' || ($keepResult && preg_match('/^result\.(mp4|webm|mp3|wav|flac|png|jpg|webp)$/D', $entry->getFilename()))) {
+                continue;
+            }
+            $this->remove($entry->getPathname());
+        }
+    }
+
+    private function remove(string $path): void
+    {
+        if (is_link($path) || ! is_dir($path)) {
+            @unlink($path);
+
+            return;
+        }
+        foreach (new \DirectoryIterator($path) as $entry) {
+            if (! $entry->isDot()) {
+                $this->remove($entry->getPathname());
+            }
+        }
+        @rmdir($path);
+    }
+
+    private function validateUrl(string $url): string
+    {
+        $parts = parse_url($url);
+        if (strlen($url) > 2048 || preg_match('/[^\x21-\x7e]|\\\\/', $url) || ! is_array($parts)
+            || ! in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host'])
+            || isset($parts['user']) || isset($parts['pass']) || ! in_array($parts['port'] ?? 443, [80, 443], true)
+            || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            throw ValidationException::withMessages(['url' => 'Enter a public HTTP(S) URL without credentials or a custom port.']);
+        }
+
+        return $url;
+    }
+
+    private function runtimePaths(): array
+    {
+        $paths = [];
+        foreach (['python', 'ffmpeg', 'ffprobe', 'node'] as $name) {
+            $path = config('media_tools.'.$name);
+            $paths[$name] = is_string($path) && is_file($path) ? realpath($path) ?: null : null;
+        }
+
+        return $paths;
+    }
+
+    private function environment(?string $directory = null): array
+    {
+        $environment = [];
+        foreach (array_keys(array_merge(getenv() ?: [], $_ENV, $_SERVER)) as $key) {
+            if (is_string($key)) {
+                $environment[$key] = false;
+            }
+        }
+        foreach (['SystemRoot', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP'] as $key) {
+            if (($value = getenv($key)) !== false) {
+                $environment[$key] = $value;
+            }
+        }
+        $directory ??= storage_path('app/private');
+
+        return [...$environment, 'HOME' => $directory, 'USERPROFILE' => $directory, 'APPDATA' => $directory,
+            'PATH' => '', 'YTDLP_NO_PLUGINS' => '1', 'LC_ALL' => 'C.UTF-8'];
+    }
+
+    private function inputLimit(): int
+    {
+        return min(128 * 1024 * 1024, max(1, (int) config('media_tools.max_upload_bytes', 128 * 1024 * 1024)));
+    }
+
+    private function outputLimit(): int
+    {
+        return min(256 * 1024 * 1024, max(1, (int) config('media_tools.max_output_bytes', 256 * 1024 * 1024)));
+    }
+}

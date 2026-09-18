@@ -1,0 +1,76 @@
+import { test, expect } from '@playwright/test';
+import { login, captureErrors, databaseRows, newSession } from './helpers.js';
+
+test('CMS draft preview stays private, publication reaches targets, unpublish withdraws without losing draft', async ({ page, browser }) => {
+    test.setTimeout(90_000);
+    const errors = captureErrors(page);
+    await login(page);
+    await page.goto('/en/admin/content');
+    await page.getByRole('tab', { name: 'CMS', exact: true }).click();
+    await page.getByRole('button', { name: 'New block', exact: true }).click();
+    const editor = page.locator('form').filter({ has: page.getByRole('textbox', { name: 'Draft JSON', exact: true }) });
+    await editor.getByRole('combobox', { name: 'Key', exact: true }).selectOption('system.announcement');
+    await editor.getByRole('combobox', { name: 'Locale', exact: true }).selectOption('id');
+    const message = 'Pengumuman QA pratinjau tanpa publikasi';
+    const draft = { message, level: 'warning', surfaces: ['dashboard', 'landing', 'models'], action: { label: 'Lihat model', url: '/models' } };
+    await editor.getByRole('textbox', { name: 'Draft JSON', exact: true }).fill(JSON.stringify(draft));
+    await editor.getByRole('button', { name: /Preview|Pratinjau/ }).click();
+    await expect(page.getByText(message, { exact: true }).first()).toBeVisible();
+    expect(databaseRows('content_blocks', { key: 'system.announcement', locale: 'id' })).toHaveLength(0);
+    await page.getByRole('dialog', { name: 'Draft preview' }).getByRole('button', { name: 'Close', exact: true }).click();
+    const save = page.waitForResponse(response => response.url().endsWith('/api/admin/content') && response.request().method() === 'POST');
+    await editor.getByRole('button', { name: 'Save draft', exact: true }).click();
+    expect((await save).status()).toBe(201);
+    const block = databaseRows('content_blocks', { key: 'system.announcement', locale: 'id' })[0];
+    expect(block.is_published).toBe(0);
+    const publicDraft = await page.request.get('/');
+    expect(await publicDraft.text()).not.toContain(message);
+    const row = page.getByRole('row').filter({ hasText: 'system.announcement' }).filter({ hasText: 'ID' });
+    await row.getByRole('button', { name: 'Publish', exact: true }).click();
+    const publish = page.waitForResponse(response => response.url().endsWith(`/api/admin/content/${block.id}/publish`));
+    await page.getByRole('dialog').getByRole('button', { name: 'Publish draft', exact: true }).click();
+    expect((await publish).status()).toBe(200);
+    await expect(row.getByRole('button', { name: 'Unpublish', exact: true })).toBeVisible();
+    for (const route of ['/', '/models']) {
+        expect(await (await page.request.get(route)).text()).toContain(message);
+    }
+    expect(await (await page.request.get('/pricing')).text()).not.toContain(message);
+    const live = await page.request.get('/api/content/announcement?locale=id');
+    expect((await live.json()).announcement.message).toBe(message);
+    const member = await newSession(browser, 'member', 'id');
+    await expect(member.page.getByRole('status', { name: message, exact: true })).toBeVisible();
+    await row.getByRole('button', { name: /Unpublish|Tarik publikasi/ }).click();
+    const unpublish = page.waitForResponse(response => response.url().endsWith(`/api/admin/content/${block.id}/unpublish`));
+    await page.getByRole('dialog').getByRole('button', { name: /Unpublish|Tarik publikasi/ }).click();
+    expect((await unpublish).status()).toBe(200);
+    await expect(row.getByRole('button', { name: 'Unpublish', exact: true })).toHaveCount(0);
+    const withdrawn = databaseRows('content_blocks', { id: block.id })[0];
+    expect(withdrawn.is_published).toBe(0);
+    expect(JSON.parse(withdrawn.draft).message).toBe(message);
+    expect(await (await page.request.get('/models')).text()).not.toContain(message);
+    expect((await (await page.request.get('/api/content/announcement?locale=id')).json()).announcement).toBeNull();
+    await member.page.getByRole('complementary', { name: 'Navigasi dashboard', exact: true }).getByRole('link', { name: 'Profil', exact: true }).click();
+    await expect(member.page.getByRole('status', { name: message, exact: true })).toHaveCount(0);
+    await member.context.close();
+    expect(databaseRows('audit_events', { subject_id: block.id, action: 'content.unpublished' })).toHaveLength(1);
+    expect(errors).toEqual([]);
+});
+
+test('malformed draft preview keeps the unsaved editor recoverable', async ({ page }) => {
+    const errors = captureErrors(page);
+    await login(page);
+    await page.goto('/en/admin/content');
+    await page.getByRole('tab', { name: 'CMS', exact: true }).click();
+    await page.getByRole('button', { name: 'New block', exact: true }).click();
+    const editor = page.locator('form').filter({ has: page.getByRole('textbox', { name: 'Draft JSON', exact: true }) });
+    await editor.getByRole('combobox', { name: 'Key', exact: true }).selectOption('home.faq');
+    const draftText = '{"items":[null]}';
+    await editor.getByRole('textbox', { name: 'Draft JSON', exact: true }).fill(draftText);
+    await editor.getByRole('button', { name: 'Preview draft', exact: true }).click();
+    const preview = page.getByRole('dialog', { name: 'Draft preview', exact: true });
+    await expect(preview.getByRole('alert')).toBeVisible();
+    await preview.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(editor.getByRole('textbox', { name: 'Draft JSON', exact: true })).toHaveValue(draftText);
+    expect(databaseRows('content_blocks', { key: 'home.faq' })).toHaveLength(0);
+    expect(errors).toEqual([]);
+});

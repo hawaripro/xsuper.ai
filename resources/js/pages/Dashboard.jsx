@@ -1,208 +1,205 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { apiRequest } from "../lib/api";
-import OnboardingWizard from "../components/OnboardingWizard";
-import {
-    Button,
-    InlineAlert,
-    MemberPage,
-    Metric,
-    PageHeader,
-    Panel,
-    SectionHeader,
-    Spinner,
-    StatePanel,
-    StatusBadge,
-    errorMessage,
-    formatCount,
-    formatLocalDate,
-    formatUsdMicros,
-} from "../components/member/MemberUI";
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { apiRequest } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useLocale } from '../contexts/LocaleContext';
+import OnboardingWizard from '../components/OnboardingWizard';
+import QrisCheckout from '../components/QrisCheckout';
+import MediaActionDialog from '../components/MediaActionDialog';
+import DashboardWorkspace, { WorkspaceInbox, WorkspaceLoading, WorkspaceMetric, WorkspaceModule, WorkspaceUsageChart } from '../components/dashboard/DashboardWorkspace';
+import { Button, InlineAlert, StatePanel, StatusBadge, errorMessage, formatCount, formatLocalDate, formatUsdMicros } from '../components/member/MemberUI';
+import Icons from '../layouts/SidebarIcons';
 
-function greeting(name) {
+const INITIAL_SOURCES = {
+    dashboard: { data: null, loading: true, error: null },
+    balance: { data: null, loading: true, error: null },
+    usage: { data: null, loading: true, error: null },
+};
+const ACTION_DETAILS = {
+    chat: { icon: 'chat', tone: 'emerald', description: 'Pikirkan, tulis, dan kembangkan ide.' },
+    image: { icon: 'image', tone: 'fuchsia', description: 'Dari prompt menjadi gambar di studio.' },
+    video: { icon: 'video', tone: 'violet', description: 'Prompt, referensi, dan video dalam satu studio.' },
+    audio: { icon: 'audio', tone: 'pink', description: 'Voiceover dan musik dari model yang tersedia.' },
+    download: { icon: 'download', tone: 'blue', description: 'Unduh media yang Anda miliki atau boleh gunakan.' },
+    convert: { icon: 'convert', tone: 'cyan', description: 'Ubah format video, audio, dan gambar.' },
+    history: { icon: 'history', tone: 'blue', description: 'Lanjutkan percakapan yang tersimpan.' },
+    usage: { icon: 'token', tone: 'cyan', description: 'Rincian pemakaian, token, dan saldo PAYG.' },
+    extend: { icon: 'paket', tone: 'amber', description: 'Token, saldo PAYG, dan langganan.' },
+    api: { icon: 'api', tone: 'emerald', description: 'Buka layanan API UltrAI.' },
+};
+
+function greeting(t) {
     const hour = new Date().getHours();
-    const time = hour < 12 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 18 ? "Selamat sore" : "Selamat malam";
-    return name ? `${time}, ${name}` : time;
+    return t(hour < 12 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 18 ? 'Selamat sore' : 'Selamat malam');
 }
 
-function actionTone(key) {
-    if (key === "chat") return "bg-red-500/10 text-red-600 dark:text-red-300";
-    if (key === "history") return "bg-blue-500/10 text-blue-600 dark:text-blue-300";
-    if (key === "video") return "bg-violet-500/10 text-violet-600 dark:text-violet-300";
-    return "bg-slate-500/10 text-slate-600 dark:text-slate-300";
-}
-
-function ActionIcon({ name }) {
-    const path = name === "chat" ? "M8 10h8M8 14h5m8-2a9 9 0 1 1-3.18-6.88L21 4v4.5" : name === "history" ? "M3 12a9 9 0 1 0 3-6.7M3 4v5h5m4-3v6l4 2" : name === "video" ? "m15 10 4.55-2.27A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14M5 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" : "M12 3v18m6-15H9a3 3 0 0 0 0 6h6a3 3 0 0 1 0 6H6";
-    return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg>;
-}
-
-function PurchaseModal({ open, onClose, packages, packagesLoading, packagesError, reloadPackages, accountDays, onOrdered }) {
-    const [selected, setSelected] = useState(null);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState(null);
-    const [created, setCreated] = useState(null);
-
-    useEffect(() => {
-        if (!open) { setSelected(null); setError(null); setCreated(null); setSubmitting(false); }
-    }, [open]);
-
-    if (!open) return null;
-    const submit = async () => {
-        if (!selected) return;
-        setSubmitting(true); setError(null);
-        try {
-            const response = await apiRequest("/api/period/order", { method: "POST", body: { package: selected.key } });
-            setCreated(response?.order || null);
-            onOrdered?.();
-        } catch (requestError) { setError(requestError); }
-        finally { setSubmitting(false); }
-    };
-
+function PurchaseModal({ onClose, packages, packagesLoading, packagesError, reloadPackages, accountDays, onOrdered }) {
+    const { t } = useLocale();
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="duration-modal-title">
-            <button type="button" aria-label="Tutup modal" className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" onClick={onClose} />
-            <Panel className="relative max-h-[88vh] w-full max-w-lg overflow-y-auto p-5 shadow-2xl">
-                <div className="flex items-start justify-between gap-4">
-                    <div><h2 id="duration-modal-title" className="text-base font-bold text-slate-950 dark:text-white">Tambah durasi</h2><p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Sisa akun saat ini: {accountDays == null ? "—" : `${accountDays} hari`}</p></div>
-                    <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/[0.07] dark:hover:text-white" aria-label="Tutup"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-                </div>
-                {created ? (
-                    <div className="mt-5 space-y-4"><InlineAlert tone="success">Order #{created.id} berhasil dibuat dan menunggu persetujuan admin.</InlineAlert><div className="grid grid-cols-2 gap-2"><Metric label="Paket" value={selected?.label || created.package} /><Metric label="Status" value={created.status || "pending"} /></div><Button className="w-full" onClick={onClose}>Selesai</Button></div>
-                ) : packagesLoading ? (
-                    <div className="flex min-h-44 items-center justify-center"><Spinner label="Memuat paket" /></div>
-                ) : packagesError ? (
-                    <div className="mt-4"><StatePanel type="error" title="Paket tidak dapat dimuat" description={errorMessage(packagesError)} action={<Button variant="secondary" onClick={reloadPackages}>Coba lagi</Button>} /></div>
-                ) : packages.length === 0 ? (
-                    <div className="mt-4"><StatePanel type="error" title="Tidak ada paket aktif" description="Pengelola belum menyediakan paket durasi yang dapat dibeli." compact /></div>
-                ) : (
-                    <div className="mt-4 space-y-4">
-                        {error && <InlineAlert tone="error">{errorMessage(error, "Order durasi gagal dibuat.")}</InlineAlert>}
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {packages.map((pkg) => (
-                                <button key={pkg.key} type="button" onClick={() => setSelected(pkg)} className={`rounded-lg border p-3 text-left transition ${selected?.key === pkg.key ? "border-red-500 bg-red-50 ring-2 ring-red-500/10 dark:bg-red-500/10" : "border-slate-200 hover:border-slate-300 dark:border-white/[0.08] dark:hover:border-white/20"}`}>
-                                    <span className="block text-[12px] font-semibold text-slate-900 dark:text-white">{pkg.label}</span>
-                                    <span className="mt-1 block text-[11px] text-slate-500">{formatCount(pkg.days)} hari</span>
-                                    <span className="mt-2 block text-[12px] font-bold text-red-600 dark:text-red-400">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(pkg.price || 0))}</span>
-                                </button>
-                            ))}
-                        </div>
-                        <InlineAlert tone="info">Pembayaran mengikuti alur persetujuan order yang aktif. Status order tidak dianggap berhasil sebelum backend menyatakannya disetujui.</InlineAlert>
-                        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Batal</Button><Button onClick={submit} disabled={!selected || submitting}>{submitting ? "Membuat order…" : "Buat order"}</Button></div>
-                    </div>
-                )}
-            </Panel>
-        </div>
+        <MediaActionDialog title={t('Tambah durasi')} description={`${t('Sisa akun saat ini')}: ${accountDays === undefined ? t('Belum tersedia') : accountDays === null ? t('Tanpa batas waktu') : `${formatCount(accountDays)} ${t('hari')}`}`} closeLabel={t('Tutup')} onClose={onClose}>
+            <QrisCheckout packages={packages} loading={packagesLoading} error={packagesError} onReloadPackages={reloadPackages} onApproved={onOrdered} onClose={onClose} />
+        </MediaActionDialog>
     );
 }
 
 export default function Dashboard() {
-    const [dashboard, setDashboard] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const { user, refreshUser } = useAuth();
+    const { locale, t, localizedPath } = useLocale();
+    const [sources, setSources] = useState(INITIAL_SOURCES);
+    const [period, setPeriod] = useState('daily');
+    const requests = useRef({});
     const [packages, setPackages] = useState([]);
     const [packagesLoading, setPackagesLoading] = useState(false);
     const [packagesError, setPackagesError] = useState(null);
     const [showPurchase, setShowPurchase] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [onboardingError, setOnboardingError] = useState(null);
+    const [onboardingRevision, setOnboardingRevision] = useState(0);
+    const packageRequest = useRef(null);
 
-    const loadDashboard = useCallback(async () => {
-        setLoading(true); setError(null);
-        try { setDashboard(await apiRequest("/api/dashboard")); }
-        catch (requestError) { setError(requestError); }
-        finally { setLoading(false); }
+    const loadSource = useCallback(async (key, selectedPeriod = 'daily') => {
+        requests.current[key]?.abort();
+        const controller = new AbortController();
+        requests.current[key] = controller;
+        setSources(current => ({ ...current, [key]: { ...current[key], loading: true, error: null } }));
+        const endpoint = key === 'dashboard' ? '/api/dashboard' : key === 'balance' ? '/api/t/balance' : `/api/usage/me?period=${selectedPeriod}`;
+        try {
+            const data = await apiRequest(endpoint, { signal: controller.signal });
+            if (!controller.signal.aborted) setSources(current => ({ ...current, [key]: { data, loading: false, error: null } }));
+        } catch (error) {
+            if (!controller.signal.aborted) setSources(current => ({ ...current, [key]: { ...current[key], loading: false, error } }));
+        }
     }, []);
 
     const loadPackages = useCallback(async () => {
-        setPackagesLoading(true); setPackagesError(null);
+        packageRequest.current?.abort();
+        const controller = new AbortController();
+        packageRequest.current = controller;
+        setPackagesLoading(true);
+        setPackagesError(null);
         try {
-            const response = await apiRequest("/api/period/packages");
-            const catalog = response?.packages && typeof response.packages === "object" ? response.packages : {};
-            setPackages(Object.entries(catalog).filter(([, pkg]) => pkg?.is_active).map(([key, pkg]) => ({ key, ...pkg })));
-        } catch (requestError) { setPackagesError(requestError); setPackages([]); }
-        finally { setPackagesLoading(false); }
+            const response = await apiRequest('/api/period/packages', { signal: controller.signal });
+            const catalog = response?.packages && typeof response.packages === 'object' ? response.packages : {};
+            if (!controller.signal.aborted) setPackages(Object.entries(catalog).filter(([, pkg]) => pkg?.is_active).map(([key, pkg]) => ({ key, ...pkg })));
+        } catch (error) {
+            if (!controller.signal.aborted) { setPackagesError(error); setPackages([]); }
+        } finally {
+            if (!controller.signal.aborted) setPackagesLoading(false);
+        }
     }, []);
 
-    useEffect(() => { loadDashboard(); }, [loadDashboard]);
     useEffect(() => {
-        let active = true;
-        apiRequest("/api/onboarding/status").then((response) => { if (active) setShowOnboarding(!response?.completed); }).catch((requestError) => { if (active) setOnboardingError(requestError); });
-        return () => { active = false; };
-    }, []);
-    useEffect(() => { if (showPurchase) loadPackages(); }, [showPurchase, loadPackages]);
+        const currentRequests = requests.current;
+        setSources(INITIAL_SOURCES);
+        loadSource('dashboard');
+        loadSource('balance');
+        return () => { Object.values(currentRequests).forEach(controller => controller.abort()); packageRequest.current?.abort(); };
+    }, [loadSource, user?.id]);
+    useEffect(() => { loadSource('usage', period); }, [loadSource, period, user?.id]);
+    useEffect(() => {
+        const controller = new AbortController();
+        setOnboardingError(null);
+        apiRequest('/api/onboarding/status', { signal: controller.signal }).then(response => {
+            if (!controller.signal.aborted) setShowOnboarding(!response?.completed);
+        }).catch(error => { if (!controller.signal.aborted) setOnboardingError(error); });
+        return () => controller.abort();
+    }, [onboardingRevision, user?.id]);
+    useEffect(() => {
+        if (showPurchase) loadPackages();
+        return () => packageRequest.current?.abort();
+    }, [showPurchase, loadPackages]);
 
-    if (loading) return <MemberPage><PageHeader eyebrow="Control center" title="Dashboard" description="Ringkasan akun, penggunaan, dan layanan Anda." /><Panel className="flex min-h-72 items-center justify-center"><Spinner label="Memuat ringkasan akun" /></Panel></MemberPage>;
-    if (error) return <MemberPage><PageHeader eyebrow="Control center" title="Dashboard" description="Ringkasan akun, penggunaan, dan layanan Anda." /><Panel className="p-4"><StatePanel type="error" title="Dashboard tidak dapat dimuat" description={errorMessage(error)} action={<Button variant="secondary" onClick={loadDashboard}>Coba lagi</Button>} /></Panel></MemberPage>;
+    function refreshDashboard() {
+        loadSource('dashboard');
+        loadSource('balance');
+        loadSource('usage', period);
+    }
+    function purchaseApproved() { refreshDashboard(); refreshUser(); }
 
-    const account = dashboard?.account || {};
-    const usage = dashboard?.usage || {};
-    const wallet = dashboard?.wallet || {};
-    const activity = dashboard?.activity || {};
+    const dashboard = sources.dashboard.data;
+    const account = dashboard?.account;
+    const usage = dashboard?.usage;
+    const wallet = dashboard?.wallet;
+    const activity = dashboard?.activity;
     const services = Array.isArray(dashboard?.services) ? dashboard.services : [];
-    const actions = Array.isArray(dashboard?.actions) ? dashboard.actions : [];
+    const isAdmin = user?.role === 'admin';
+    const permissions = user?.permissions || {};
+    const allowed = (key, fallback = true) => isAdmin || (permissions[key] ?? fallback) === true;
+    const hasAccess = Boolean(account && (isAdmin || (account.is_active && !account.is_expired)));
+    const hasHistory = allowed('chat_history') && allowed('chat');
+    const dateLocale = locale === 'en' ? 'en-US' : 'id-ID';
+    const unavailable = t('Belum tersedia');
+    const loadingAny = Object.values(sources).some(source => source.loading);
+    const studioActions = [
+        ...(allowed('chat') ? [{ key: 'chat', label: 'Mulai percakapan', href: '/chat' }] : []),
+        { key: 'image', label: 'Buat gambar', href: '/generate-image' },
+        ...(allowed('video_generator', false) ? [{ key: 'video', label: 'Buat video', href: '/video' }] : []),
+        ...(allowed('audio_generator') ? [{ key: 'audio', label: 'Audio', href: '/audio' }] : []),
+        ...(allowed('video_downloader') ? [{ key: 'download', label: 'Downloads', href: '/downloads' }] : []),
+        ...(allowed('media_converter') ? [{ key: 'convert', label: 'Converter', href: '/converter' }] : []),
+    ];
+    const accountActions = (dashboard?.actions || []).filter(action => !studioActions.some(studio => studio.href === action.href) && ACTION_DETAILS[action.key] && (action.key !== 'history' || hasHistory));
+    const timeline = sources.usage.data?.period === period ? sources.usage.data.timeline || [] : [];
+
+    function renderAction(action, locked = false) {
+        const detail = ACTION_DETAILS[action.key];
+        const content = <><span className="dw-icon" data-tone={detail.tone} aria-hidden="true">{Icons[detail.icon]}</span><span><strong>{t(action.label)}</strong><small>{locked ? t('Perpanjang masa aktif untuk membuat karya baru.') : t(detail.description)}</small></span>{!locked && Icons.arrow}</>;
+        if (locked) return <div key={action.key} className="dw-tool" aria-disabled="true">{content}</div>;
+        if (action.href === 'https://api.ultrai.id') return <a key={action.key} className="dw-tool" href={action.href} target="_blank" rel="noopener noreferrer">{content}</a>;
+        if (!action.href?.startsWith('/') || action.href.startsWith('//')) return null;
+        return <Link key={action.key} className="dw-tool" to={localizedPath(action.href)}>{content}</Link>;
+    }
 
     return (
-        <MemberPage>
-            {showOnboarding && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
-            <PageHeader
-                eyebrow="Control center"
-                title={greeting(account.name)}
-                description="Ringkasan langsung dari aktivitas dan status akun Anda."
-                actions={<><Button variant="secondary" onClick={loadDashboard}>Muat ulang</Button><Button onClick={() => setShowPurchase(true)}>Tambah durasi</Button></>}
-            />
-            {onboardingError && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => window.location.reload()}>Coba lagi</Button>}>Status onboarding tidak dapat diperiksa: {errorMessage(onboardingError)}</InlineAlert>}
-            {account.is_expired && <InlineAlert tone="error"><strong>Masa aktif akun berakhir.</strong> Perpanjang durasi untuk memulihkan akses fitur yang dilindungi.</InlineAlert>}
-            {!account.is_active && <InlineAlert tone="error"><strong>Akun tidak aktif.</strong> Hubungi dukungan jika status ini tidak sesuai.</InlineAlert>}
-            {Number(activity.devices?.pending || 0) > 0 && <InlineAlert tone="warning">{formatCount(activity.devices.pending)} perangkat menunggu persetujuan. Fitur tertentu dapat ditolak sampai perangkat disetujui.</InlineAlert>}
+        <DashboardWorkspace title={`${greeting(t)}, ${account?.name || user?.name || t('Pengguna')}`} description={t('Mulai berkarya, pantau pemakaian, dan lanjutkan pekerjaan Anda.')} actions={<><button type="button" className="dw-button" onClick={refreshDashboard} disabled={loadingAny}>{Icons.refresh}<span>{t('Muat ulang')}</span></button><button type="button" className="dw-button dw-button-primary" onClick={() => setShowPurchase(true)}>{Icons.period}<span>{t('Tambah durasi')}</span></button></>}>
+            {showOnboarding && locale === 'id' && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
+            {onboardingError && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => setOnboardingRevision(value => value + 1)}>{t('Coba lagi')}</Button>}>{t('Status onboarding tidak dapat diperiksa')}: {t(errorMessage(onboardingError))}</InlineAlert>}
+            {sources.dashboard.error && <InlineAlert tone="error" action={<Button variant="ghost" onClick={() => loadSource('dashboard')}>{t('Coba lagi')}</Button>}><strong>{t('Ringkasan akun tidak dapat diperbarui.')}</strong> {t(errorMessage(sources.dashboard.error))}{dashboard && <span> {t('Data terakhir tetap ditampilkan.')}</span>}</InlineAlert>}
+            {account?.is_expired && <InlineAlert tone="error" action={<Button variant="ghost" onClick={() => setShowPurchase(true)}>{t('Tambah durasi')}</Button>}><strong>{t('Masa aktif akun berakhir.')}</strong> {t('Perpanjang durasi untuk memulihkan akses fitur yang dilindungi.')}</InlineAlert>}
+            {account?.is_active === false && <InlineAlert tone="error"><strong>{t('Akun tidak aktif.')}</strong> {t('Hubungi dukungan jika status ini tidak sesuai.')} <Link className="underline" to={localizedPath('/bantuan')}>{t('Help & Support')}</Link></InlineAlert>}
+            {Number(activity?.devices?.pending || 0) > 0 && <InlineAlert tone="warning">{formatCount(activity.devices.pending)} {t('perangkat menunggu persetujuan. Fitur tertentu dapat ditolak sampai perangkat disetujui.')}</InlineAlert>}
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Metric label="Masa aktif" value={account.days_remaining == null ? "—" : `${formatCount(account.days_remaining)} hari`} detail={account.expires_at ? `Hingga ${formatLocalDate(account.expires_at)}` : "Tanggal berakhir tidak tersedia"} />
-                <Metric label="Saldo wallet" value={formatUsdMicros(wallet.balance_microusd)} detail={`${formatCount(wallet.transaction_count)} transaksi`} />
-                <Metric label="Percakapan" value={formatCount(activity.conversation_count)} detail="Percakapan tersimpan" />
-                <Metric label="Pemakaian API" value={formatCount(usage.total_requests)} detail={`${formatCount(usage.total_tokens)} token`} />
-            </div>
+            <dl className="dw-metrics" aria-label={t('Ringkasan akun')}>
+                <WorkspaceMetric label={t('Saldo token generator')} icon={Icons.token} tone="fuchsia" value={sources.balance.data ? formatCount(sources.balance.data.balance) : unavailable} loading={sources.balance.loading && !sources.balance.data} detail={<>{t('Untuk gambar, video, dan audio.')} <Link to={localizedPath('/deposit?tab=tokens')}>{t('Isi token')}</Link></>} />
+                <WorkspaceMetric label={t('Saldo API PAYG · USD')} icon={Icons.paket} tone="emerald" value={wallet ? formatUsdMicros(wallet.balance_microusd) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={<>{t('Terpisah dari token generator.')} <Link to={localizedPath('/deposit?tab=wallet')}>{t('Isi saldo')}</Link></>} />
+                <WorkspaceMetric label={t('Permintaan tercatat')} icon={Icons.analytics} tone="cyan" value={usage ? formatCount(usage.total_requests) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={usage ? `${formatCount(usage.total_tokens)} ${t('token pemakaian · sepanjang waktu')}` : t('Pemakaian akun Anda, bukan saldo generator.')} />
+                <WorkspaceMetric label={t('Masa aktif')} icon={Icons.period} tone="amber" value={account ? (account.is_expired ? t('Berakhir') : account.days_remaining == null ? t('Tanpa batas') : `${formatCount(account.days_remaining)} ${t('hari')}`) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={account?.expires_at ? `${t('Hingga')} ${formatLocalDate(account.expires_at, { locale: dateLocale })}` : account ? t('Tidak ada tanggal kedaluwarsa akun.') : t('Status akun belum dapat dimuat.')} />
+            </dl>
+            {sources.balance.error && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => loadSource('balance')}>{t('Coba lagi')}</Button>}>{t('Saldo token tidak dapat diperbarui.')}{sources.balance.data && <> {t('Data terakhir tetap ditampilkan.')}</>} {t(errorMessage(sources.balance.error))}</InlineAlert>}
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
-                <div className="space-y-5">
-                    <Panel className="p-4">
-                        <SectionHeader title="Akses cepat" description="Hanya tindakan yang diizinkan backend untuk akun ini." />
-                        {actions.length === 0 ? <div className="mt-4"><StatePanel title="Tidak ada tindakan tersedia" description="Status, masa aktif, atau izin akun saat ini tidak membuka tindakan apa pun." compact /></div> : <div className="mt-4 grid gap-2 sm:grid-cols-2">{actions.map((action) => {
-                            const external = /^https?:\/\//.test(action.href || "");
-                            const content = <><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${actionTone(action.key)}`}><ActionIcon name={action.key} /></span><span className="min-w-0"><span className="block text-[12px] font-semibold text-slate-900 dark:text-white">{action.label}</span><span className="mt-0.5 block truncate text-[10px] text-slate-500">{external ? "Buka layanan eksternal" : action.href}</span></span><span className="ml-auto text-slate-400">→</span></>;
-                            const classes = "flex min-h-14 items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-red-200 hover:bg-red-50/50 dark:border-white/[0.08] dark:hover:border-red-500/20 dark:hover:bg-red-500/[0.06]";
-                            return external ? <a key={action.key} href={action.href} target="_blank" rel="noreferrer" className={classes}>{content}</a> : <Link key={action.key} to={action.href} className={classes}>{content}</Link>;
-                        })}</div>}
-                    </Panel>
-
-                    <Panel className="overflow-hidden">
-                        <div className="border-b border-slate-200 p-4 dark:border-white/[0.08]"><SectionHeader title="Aktivitas percakapan terbaru" description="Maksimal delapan percakapan yang terakhir diperbarui." action={actions.some((action) => action.key === "history") && <Link to="/history" className="text-[11px] font-semibold text-red-600 hover:underline dark:text-red-400">Lihat semua</Link>} /></div>
-                        {!Array.isArray(activity.recent) || activity.recent.length === 0 ? <div className="p-4"><StatePanel title="Belum ada aktivitas" description="Percakapan terbaru akan tampil setelah Anda menggunakan Chat AI." compact /></div> : <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">{activity.recent.map((item) => <div key={item.id} className="flex items-start justify-between gap-3 px-4 py-3"><div className="min-w-0"><p className="truncate text-[12px] font-semibold text-slate-900 dark:text-white">{item.title || "Percakapan tanpa judul"}</p><p className="mt-0.5 truncate text-[10px] text-slate-500">{item.model || "Model tidak dicantumkan"}</p></div><time className="shrink-0 text-[10px] text-slate-500">{formatLocalDate(item.occurred_at)}</time></div>)}</div>}
-                    </Panel>
+            <div className="dw-board">
+                <div className="dw-stack">
+                    <WorkspaceUsageChart rows={timeline} loading={sources.usage.loading} error={sources.usage.error ? t(errorMessage(sources.usage.error)) : null} onRetry={() => loadSource('usage', period)} description={period === 'daily' ? t('Permintaan akun Anda selama 30 hari terakhir.') : t('Permintaan akun Anda selama 12 bulan terakhir.')} reportPath="/token-usage" controls={<div className="dw-periods" role="group" aria-label={t('Periode pemakaian')}><button type="button" aria-pressed={period === 'daily'} onClick={() => setPeriod('daily')}>{t('30 hari')}</button><button type="button" aria-pressed={period === 'monthly'} onClick={() => setPeriod('monthly')}>{t('12 bulan')}</button></div>} />
+                    <WorkspaceModule title={t('Aktivitas percakapan terbaru')} icon={Icons.history} tone="blue" count={hasHistory ? activity?.conversation_count : undefined}>
+                        {sources.dashboard.loading && !dashboard ? <WorkspaceLoading label={t('Memuat aktivitas')} /> : !dashboard ? <StatePanel type="error" title={t('Aktivitas tidak dapat dimuat')} description={t('Muat ulang ringkasan akun untuk melihat aktivitas.')} compact action={<Button variant="ghost" onClick={() => loadSource('dashboard')}>{t('Coba lagi')}</Button>} /> : !hasHistory ? <div className="dw-empty"><h3>{t('Riwayat chat tidak tersedia untuk akun ini')}</h3><p>{t('Hubungi dukungan untuk meninjau izin akses Anda.')}</p></div> : !activity?.recent?.length ? <div className="dw-empty"><h3>{t('Belum ada aktivitas')}</h3><p>{t('Percakapan terbaru akan tampil setelah Anda menggunakan Chat AI.')}</p></div> : <ul className="dw-list">{activity.recent.map(item => <li key={item.id}><Link className="dw-activity" to={localizedPath(`/history?conversation=${encodeURIComponent(item.id)}`)}><span className="dw-icon" data-tone="emerald" aria-hidden="true">{Icons.chat}</span><span><strong>{item.title || t('Percakapan tanpa judul')}</strong><small>{item.model || t('Model tidak dicantumkan')}</small><small><time dateTime={item.occurred_at}>{formatLocalDate(item.occurred_at, { locale: dateLocale })}</time></small></span></Link></li>)}</ul>}
+                        {hasHistory && <footer className="dw-module-footer"><span>{t('Maksimal delapan percakapan yang terakhir diperbarui.')}</span><Link className="dw-text-link" to={localizedPath('/history')}>{t('Buka Library')}{Icons.arrow}</Link></footer>}
+                    </WorkspaceModule>
+                    <WorkspaceInbox />
                 </div>
-
-                <div className="space-y-5">
-                    <Panel className="p-4">
-                        <SectionHeader title="Status akun" description="Status akses, order, dan perangkat terdaftar." />
-                        <dl className="mt-4 divide-y divide-slate-100 dark:divide-white/[0.06]">
-                            {[
-                                ["Akun", <StatusBadge value={account.is_active && !account.is_expired ? "active" : "disabled"} label={account.is_active && !account.is_expired ? "Aktif" : "Terbatas"} />],
-                                ["Order menunggu", formatCount(activity.orders?.pending)],
-                                ["Perangkat aktif", formatCount(activity.devices?.active)],
-                                ["Perangkat diblokir", formatCount(activity.devices?.blocked)],
-                                ["Pemakaian terakhir", usage.last_used_at ? formatLocalDate(usage.last_used_at) : "Belum ada"],
-                            ].map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 py-2.5 text-[12px]"><dt className="text-slate-500 dark:text-slate-400">{label}</dt><dd className="text-right font-medium text-slate-900 dark:text-slate-100">{value}</dd></div>)}
-                        </dl>
-                    </Panel>
-
-                    <Panel className="p-4">
-                        <SectionHeader title="Status layanan" description="Status provider yang dikonfigurasi pengelola; bukan asumsi frontend." />
-                        {services.length === 0 ? <div className="mt-4"><StatePanel title="Belum ada status layanan" description="Backend belum mengembalikan provider untuk ditampilkan." compact /></div> : <div className="mt-3 max-h-72 divide-y divide-slate-100 overflow-y-auto dark:divide-white/[0.06]">{services.map((service) => <div key={service.key} className="flex items-start justify-between gap-3 py-2.5"><div className="min-w-0"><p className="truncate text-[12px] font-medium text-slate-900 dark:text-white">{service.name}</p><p className="mt-0.5 text-[10px] text-slate-500">{service.last_checked_at ? `Diperiksa ${formatLocalDate(service.last_checked_at)}` : "Belum pernah diperiksa"}</p></div><StatusBadge value={service.is_enabled ? service.status : "disabled"} label={service.is_enabled ? service.status : "Nonaktif"} /></div>)}</div>}
-                    </Panel>
+                <div className="dw-stack dw-side-stack">
+                    <WorkspaceModule title={t('Mulai dari alat')} icon={Icons.dashboard} tone="violet" className="dw-tools">
+                        {sources.dashboard.loading && !dashboard ? <WorkspaceLoading label={t('Memuat akses workspace')} /> : !dashboard ? <div className="dw-empty"><h3>{t('Akses akun belum dapat diperiksa')}</h3><p>{t('Muat ulang ringkasan akun untuk membuka pintasan.')}</p><Button className="mt-3" variant="secondary" onClick={() => loadSource('dashboard')}>{t('Coba lagi')}</Button></div> : studioActions.map(action => renderAction(action, !hasAccess))}
+                    </WorkspaceModule>
+                    <WorkspaceModule title={t('Status akun')} icon={Icons.profile} tone="amber">
+                        {!account ? <div className="dw-empty"><p>{sources.dashboard.loading ? t('Memuat status akun') : t('Status akun belum dapat dimuat.')}</p></div> : <><dl className="dw-account">{[
+                            [t('Akses akun'), <StatusBadge value={hasAccess ? 'active' : 'disabled'} label={hasAccess ? t('Aktif') : t('Terbatas')} />],
+                            [t('Order menunggu'), formatCount(activity?.orders?.pending)],
+                            [t('Perangkat aktif'), formatCount(activity?.devices?.active)],
+                            [t('Perangkat diblokir'), formatCount(activity?.devices?.blocked)],
+                            [t('Pemakaian terakhir'), usage?.last_used_at ? formatLocalDate(usage.last_used_at, { locale: dateLocale }) : t('Belum ada')],
+                        ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><footer className="dw-module-footer"><span>{t('Kelola akses dan perangkat Anda.')}</span><Link className="dw-text-link" to={localizedPath('/profile')}>{t('Profil')}{Icons.arrow}</Link></footer></>}
+                    </WorkspaceModule>
+                    <WorkspaceModule title={t('Akun & penagihan')} icon={Icons.paket} tone="cyan" open={false} className="dw-tools">
+                        {accountActions.length ? accountActions.map(action => renderAction(action)) : <div className="dw-empty"><p>{t('Tagihan dan langganan tetap dapat dibuka dari menu Deposit.')}</p><Link to={localizedPath('/deposit')} className="dw-text-link">{t('Deposit')}{Icons.arrow}</Link></div>}
+                    </WorkspaceModule>
+                    <WorkspaceModule title={t('Status layanan')} icon={Icons.provider} tone="emerald" count={dashboard ? services.length : undefined} open={false}>
+                        <p className="dw-note">{t('Status terakhir yang dilaporkan provider, bukan pemeriksaan langsung.')}</p>
+                        {!services.length ? <div className="dw-empty"><h3>{t('Belum ada status layanan')}</h3><p>{t('Backend belum mengembalikan provider untuk ditampilkan.')}</p></div> : <div className="dw-services">{services.map(service => <div key={service.key} className="dw-service"><div><strong>{service.name}</strong><p>{service.last_checked_at ? `${t('Diperiksa')} ${formatLocalDate(service.last_checked_at, { locale: dateLocale })}` : t('Belum pernah diperiksa')}</p></div><StatusBadge value={service.is_enabled ? service.status : 'disabled'} label={service.is_enabled ? service.status || t('Tidak diketahui') : t('Nonaktif')} /></div>)}</div>}
+                    </WorkspaceModule>
                 </div>
             </div>
-
-            <PurchaseModal open={showPurchase} onClose={() => setShowPurchase(false)} packages={packages} packagesLoading={packagesLoading} packagesError={packagesError} reloadPackages={loadPackages} accountDays={account.days_remaining} onOrdered={loadDashboard} />
-        </MemberPage>
+            <p className="dw-note">{Icons.density}{t('Klik judul modul untuk merapikan ruang kerja. Ringkasan angka dan grafik tetap terlihat.')}</p>
+            {showPurchase && <PurchaseModal onClose={() => setShowPurchase(false)} packages={packages} packagesLoading={packagesLoading} packagesError={packagesError} reloadPackages={loadPackages} accountDays={account?.days_remaining} onOrdered={purchaseApproved} />}
+        </DashboardWorkspace>
     );
 }

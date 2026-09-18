@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLocale } from '../contexts/LocaleContext';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#a855f7', '#6366f1', '#84cc16', '#e11d48', '#0ea5e9', '#d946ef'];
@@ -75,6 +76,7 @@ function CustomTooltip({ active, payload, label, isDark }) {
 }
 
 export default function TokenUsage() {
+    const { t } = useLocale();
     const { theme } = useTheme();
     const isDark = theme === 'dark';
     const [stats, setStats] = useState(null);
@@ -190,19 +192,16 @@ export default function TokenUsage() {
             <section className="animate-fade-in-up">
                 <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div>
-                        <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${textClass}`}>
-                            Token <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">Usage</span>
+                        <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${textClass}`}>{t("Token ")}<span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">{t("Usage")}</span>
                         </h1>
-                        <p className={`text-sm mt-1 ${subClass}`}>Pantau penggunaan token AI seluruh platform secara realtime.</p>
+                        <p className={`text-sm mt-1 ${subClass}`}>{t("Pantau penggunaan token AI seluruh platform secara realtime.")}</p>
                     </div>
                     <button
                         onClick={() => loadStats(true)}
                         className="ui-btn-ghost"
-                        aria-label="Refresh data"
+                        aria-label={t("Refresh data")}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                        Refresh
-                    </button>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>{t("Refresh")}</button>
                 </div>
             </section>
 
@@ -210,23 +209,23 @@ export default function TokenUsage() {
                 Stats cards
                ============================================ */}
             <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 stagger">
-                <StatCard isDark={isDark} label="Total Tokens" color="red"
+                <StatCard isDark={isDark} label={t("Total Tokens")} color="red"
                     value={(stats?.total_tokens || 0).toLocaleString('id-ID')}
                     icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>}
                 />
-                <StatCard isDark={isDark} label="Credits" color="blue"
+                <StatCard isDark={isDark} label={t("Credits")} color="blue"
                     value={(stats?.total_credits || 0).toFixed(2)}
                     icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>}
                 />
-                <StatCard isDark={isDark} label="Requests" color="emerald"
+                <StatCard isDark={isDark} label={t("Requests")} color="emerald"
                     value={(stats?.total_requests || 0).toLocaleString('id-ID')}
                     icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
                 />
-                <StatCard isDark={isDark} label="Users" color="amber"
+                <StatCard isDark={isDark} label={t("Users")} color="amber"
                     value={stats?.active_users || 0}
                     icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}
                 />
-                <StatCard isDark={isDark} label="Avg/Req" color="violet"
+                <StatCard isDark={isDark} label={t("Avg/Req")} color="violet"
                     value={stats?.total_requests ? Math.round((stats?.total_tokens || 0) / stats.total_requests).toLocaleString('id-ID') : '0'}
                     icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>}
                 />
@@ -238,7 +237,7 @@ export default function TokenUsage() {
             <section className="flex flex-wrap items-center gap-2 animate-fade-in">
                 <div
                     role="tablist"
-                    aria-label="Period"
+                    aria-label={t("Period")}
                     className={`inline-flex rounded-xl p-1 border ${isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-gray-100/80 border-gray-200'}`}
                 >
                     {PERIODS.map(p => {
@@ -255,14 +254,14 @@ export default function TokenUsage() {
                                         : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-slate-900'
                                 }`}
                             >
-                                {p.label}
+                                {t(p.label)}
                             </button>
                         );
                     })}
                 </div>
                 <div
                     role="tablist"
-                    aria-label="Chart type"
+                    aria-label={t("Chart type")}
                     className={`inline-flex rounded-xl p-1 border ${isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-gray-100/80 border-gray-200'}`}
                 >
                     {[['area', 'Area'], ['bar', 'Bar']].map(([k, l]) => {
@@ -284,7 +283,7 @@ export default function TokenUsage() {
                         );
                     })}
                 </div>
-                <span className={`text-xs ml-auto ${subClass}`}>{PERIODS.find(p => p.key === period)?.desc}</span>
+                <span className={`text-xs ml-auto ${subClass}`}>{t(PERIODS.find(p => p.key === period)?.desc || "")}</span>
             </section>
 
             {loading ? (
@@ -372,9 +371,7 @@ export default function TokenUsage() {
                             <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${textClass}`}>
                                 <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-md">
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                                </span>
-                                Total Tokens
-                            </h3>
+                                </span>{t("Total Tokens")}</h3>
                             <div style={{ width: '100%', height: 220 }}>
                                 <ResponsiveContainer>
                                     <AreaChart data={filledTimeline} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
@@ -401,9 +398,7 @@ export default function TokenUsage() {
                             <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${textClass}`}>
                                 <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center shadow-md">
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-                                </span>
-                                Model Breakdown
-                            </h3>
+                                </span>{t("Model Breakdown")}</h3>
                             <div className="space-y-3 max-h-56 overflow-y-auto scrollbar-thin pr-1 stagger">
                                 {(stats?.by_model || []).map((m, i) => {
                                     const pct = (Number(m.tokens) / maxModel * 100);
@@ -432,7 +427,7 @@ export default function TokenUsage() {
                                     );
                                 })}
                                 {(stats?.by_model || []).length === 0 && (
-                                    <p className={`text-xs text-center py-8 ${subClass}`}>Belum ada data</p>
+                                    <p className={`text-xs text-center py-8 ${subClass}`}>{t("Belum ada data")}</p>
                                 )}
                             </div>
                         </section>
@@ -445,9 +440,7 @@ export default function TokenUsage() {
                         <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${textClass}`}>
                             <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md">
                                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                            </span>
-                            Top Users
-                        </h3>
+                            </span>{t("Top Users")}</h3>
                         <div className="overflow-x-auto -mx-5 sm:mx-0 scrollbar-thin">
                             <table className="w-full min-w-[480px]">
                                 <thead>
@@ -498,7 +491,7 @@ export default function TokenUsage() {
                                     })}
                                     {(stats?.top_users || []).length === 0 && (
                                         <tr>
-                                            <td colSpan="5" className={`text-center py-10 text-sm ${subClass}`}>Belum ada data</td>
+                                            <td colSpan="5" className={`text-center py-10 text-sm ${subClass}`}>{t("Belum ada data")}</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -533,15 +526,13 @@ export default function TokenUsage() {
                             <h3 id="user-detail-title" className={`text-lg font-bold ${textClass} flex items-center gap-2`}>
                                 <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 text-white flex items-center justify-center shadow-md">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                </span>
-                                Detail Usage
-                            </h3>
+                                </span>{t("Detail Usage")}</h3>
                             <button
                                 onClick={() => { setSelectedUser(null); setUserStats(null); }}
                                 className={`p-2 rounded-xl transition-colors ${
                                     isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
                                 }`}
-                                aria-label="Close"
+                                aria-label={t("Close")}
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
@@ -560,7 +551,7 @@ export default function TokenUsage() {
                                     }`}
                                 >
                                     <div className={`text-sm font-extrabold tabular-nums bg-gradient-to-r ${s.grad} bg-clip-text text-transparent`}>{s.value}</div>
-                                    <div className={`text-[10px] mt-0.5 font-semibold uppercase tracking-wider ${subClass}`}>{s.label}</div>
+                                    <div className={`text-[10px] mt-0.5 font-semibold uppercase tracking-wider ${subClass}`}>{t(s.label)}</div>
                                 </div>
                             ))}
                         </div>
@@ -583,7 +574,7 @@ export default function TokenUsage() {
                             </ResponsiveContainer>
                         </div>
 
-                        <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${subClass}`}>Per Model</h4>
+                        <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${subClass}`}>{t("Per Model")}</h4>
                         <div className="space-y-2.5">
                             {(userStats.by_model || []).map((m, i) => {
                                 const maxU = Math.max(...(userStats.by_model || []).map(x => Number(x.tokens)), 1);

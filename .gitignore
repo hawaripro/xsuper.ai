@@ -27,7 +27,12 @@ Thumbs.db
 /database/database.sqlite
 /__pycache__
 *.py
+!/scripts/media/*.py
 deploy.sh
 DEPLOY_*.sh
 deploy_files.py
 /.worktrees
+/storage/framework/testing
+/playwright-report
+/test-results
+/.tmp-chrome-announcement

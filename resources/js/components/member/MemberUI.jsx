@@ -107,6 +107,22 @@ export function InlineAlert({ tone = "info", children, action }) {
     );
 }
 
+export function PingDot({ tone = "emerald" }) {
+    const tones = {
+        emerald: { ping: "bg-emerald-400", dot: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.55)]" },
+        red: { ping: "bg-red-400", dot: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.55)]" },
+        amber: { ping: "bg-amber-400", dot: "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.55)]" },
+        slate: { ping: "bg-slate-400", dot: "bg-slate-400" },
+    };
+    const t = tones[tone] || tones.emerald;
+    return (
+        <span className="relative flex h-2 w-2" aria-hidden="true">
+            <span className={`absolute inline-flex h-full w-full rounded-full opacity-70 motion-safe:animate-ping ${t.ping}`} />
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${t.dot}`} />
+        </span>
+    );
+}
+
 export function StatusBadge({ value, label }) {
     const status = String(value || "unknown").toLowerCase();
     const positive = ["active", "approved", "available", "completed", "online", "qualified", "resolved", "success"];
@@ -205,12 +221,13 @@ export function formatLocalDate(value, options = {}) {
     if (!value) return "—";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "—";
-    return new Intl.DateTimeFormat("id-ID", {
+    const { locale = "id-ID", ...dateOptions } = options;
+    return new Intl.DateTimeFormat(locale, {
         day: "2-digit",
         month: "short",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        ...options,
+        ...dateOptions,
     }).format(date);
 }

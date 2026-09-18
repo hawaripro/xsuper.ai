@@ -1,0 +1,51 @@
+import { test, expect } from '@playwright/test';
+import { login, databaseRows, captureErrors } from './helpers.js';
+
+test('template opens Chat, attachments reach the real request, unavailable provider shows an error without fake answers', async ({ page }) => {
+    const errors = captureErrors(page);
+    await login(page, 'member');
+    await page.goto('/en/templates');
+    const card = page.locator('div').filter({ has: page.getByRole('heading', { name: 'QA persisted coding template', exact: true }) }).filter({ has: page.getByRole('button', { name: /Use Template/ }) }).last();
+    await card.getByRole('button', { name: /Use Template/ }).click();
+    await expect(page).toHaveURL('/en/chat');
+    await expect(page.locator('textarea')).toHaveValue('Review this code and explain the risks.');
+    await expect(page.locator('.cw-model-trigger')).toContainText('QA chat model');
+    await page.locator('input[type="file"]').setInputFiles({ name: 'qa-context.txt', mimeType: 'text/plain', buffer: Buffer.from('Isolated attachment context.') });
+    await expect(page.getByRole('button', { name: 'Remove attachment: qa-context.txt', exact: true })).toBeVisible();
+    const sent = page.waitForRequest(request => request.url().endsWith('/api/c/s') && request.method() === 'POST');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const payload = (await sent).postDataJSON();
+    expect(payload.model).toBe('qa-chat');
+    expect(payload.messages.at(-1).content).toContainEqual({ type: 'text', text: '[File: qa-context.txt]\nIsolated attachment context.' });
+    await expect(page.locator('.cw-msg-content').filter({ hasText: /Error:|unavailable|tidak tersedia/i })).toBeVisible();
+    const messages = databaseRows('chat_history', { conversation_id: payload.conversation_id });
+    expect(messages.some(message => message.role === 'user' && message.content.includes('Isolated attachment context.'))).toBe(true);
+    expect(messages.filter(message => message.role === 'assistant')).toEqual([]);
+    await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+});
+
+test('failed image generation persists failure and refunds reserved tokens', async ({ page }) => {
+    const errors = captureErrors(page);
+    await login(page, 'other');
+    const user = databaseRows('users', { email: 'other@dashboard-e2e.test' })[0];
+    const balance = databaseRows('user_tokens', { user_id: user.id })[0].balance;
+    const lastTransactionId = Math.max(0, ...databaseRows('token_transactions', { user_id: user.id }).map(entry => Number(entry.id)));
+    await page.goto('/en/generate-image');
+    const form = page.locator('form').filter({ has: page.getByRole('button', { name: /Generate image/i }) });
+    await form.locator('textarea').fill('QA unavailable provider must not leave a charge.');
+    const failed = page.waitForResponse(response => response.url().endsWith('/api/images') && response.request().method() === 'POST');
+    await form.getByRole('button', { name: /Generate image/i }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Yes, generate images', exact: true }).click();
+    expect((await failed).status()).toBe(503);
+    await expect(form.getByRole('alert')).toBeVisible();
+    const job = databaseRows('image_jobs', { user_id: user.id, prompt: 'QA unavailable provider must not leave a charge.' })[0];
+    expect(job).toMatchObject({ status: 'failed', billing_status: 'released', result_urls: null });
+    expect(databaseRows('user_tokens', { user_id: user.id })[0].balance).toBe(balance);
+    const ledger = databaseRows('token_transactions', { user_id: user.id }).filter(entry => Number(entry.id) > lastTransactionId);
+    expect(ledger.map(entry => entry.type).sort()).toEqual(['deduct', 'refund']);
+    expect(ledger.find(entry => entry.type === 'deduct').amount).toBe(15);
+    await page.reload();
+    await expect(page.getByText('QA unavailable provider must not leave a charge.', { exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+});

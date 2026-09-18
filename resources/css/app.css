@@ -1,10 +1,71 @@
 @import "tailwindcss";
 
+/* Dark mode is toggled via an ancestor-scoped `.dark` class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
    UltrAI — Bright Theme Design System
    Default: Light / Bright. Dark via .dark class.
    Landing page is untouched.
    ============================================================ */
+
+/* Shared brand typography — matches landing (Manrope display, DM Sans body) */
+@font-face {
+    font-family: Manrope;
+    src: url("../fonts/manrope-400.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: Manrope;
+    src: url("../fonts/manrope-600.ttf") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: Manrope;
+    src: url("../fonts/manrope-700.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: Manrope;
+    src: url("../fonts/manrope-800.ttf") format("truetype");
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "DM Sans";
+    src: url("../fonts/dm-sans-400.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "DM Sans";
+    src: url("../fonts/dm-sans-500.ttf") format("truetype");
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "DM Sans";
+    src: url("../fonts/dm-sans-600.ttf") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "DM Sans";
+    src: url("../fonts/dm-sans-700.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
 
 :root {
     /* Surfaces */
@@ -44,7 +105,7 @@
     /* Motion */
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
     --dur-fast: 150ms;
     --dur-base: 220ms;
     --dur-slow: 360ms;
@@ -101,9 +162,9 @@
     --animate-fade-in-right:    fade-in-right 0.6s cubic-bezier(0.16, 1, 0.3, 1);
     --animate-slide-in-right:   slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     --animate-slide-in-bottom:  slide-in-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-    --animate-scale-in:         scale-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-    --animate-pop-in:           pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
-    --animate-bounce-subtle:    bounce-subtle 2s ease-in-out infinite;
+    --animate-scale-in:         scale-in 0.35s var(--ease-out);
+    --animate-pop-in:           pop-in 0.45s var(--ease-out);
+    --animate-float-soft:       float 4s ease-in-out infinite;
     --animate-shimmer:          shimmer 2.2s linear infinite;
     --animate-shimmer-slow:     shimmer 3s linear infinite;
     --animate-glow-pulse:       glow-pulse 3s ease-in-out infinite;
@@ -294,6 +355,13 @@
     to   { transform: translateX(-50%); }
 }
 
+/* Announcement ribbon — left-moving seamless loop (track content duplicated).
+   Named keyframe so the component can opt in only under `motion-safe`. */
+@keyframes ribbon-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
 /* ============================================================
    Chained / delayed animations that @theme can't express
    ============================================================ */
@@ -310,7 +378,10 @@
 @media (min-width: 1024px) { :root { --carousel-item-w: 33.333%; } }
 .animate-blob-reverse      { animation: blob 20s ease-in-out infinite reverse; }
 .animate-blob-delay        { animation: blob 18s ease-in-out infinite 2s; }
-.animate-gradient          { background-size: 300% 100% !important; animation: gradient-shift 3s ease infinite !important; }
+.animate-gradient          { background-size: 300% 100% !important; }
+@media (prefers-reduced-motion: no-preference) {
+    .animate-gradient      { animation: gradient-shift 3s ease infinite !important; }
+}
 .animate-blob-glow         { animation: blob 15s ease-in-out infinite, blob-pulse 4s ease-in-out infinite; }
 .animate-blob-glow-reverse { animation: blob 20s ease-in-out infinite reverse, blob-pulse 5s ease-in-out infinite 1s; }
 .animate-blob-glow-delay   { animation: blob 18s ease-in-out infinite 2s, blob-pulse 6s ease-in-out infinite 2s; }
@@ -448,8 +519,8 @@
    Hero dot pattern — visible on white
    ============================================================ */
 .hero-dots {
-    background-image: radial-gradient(circle, rgba(239, 68, 68, 0.35) 1px, transparent 1px);
-    background-size: 32px 32px;
+    background-image: radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.10), transparent 58%);
+    background-size: 100% 100%;
     opacity: 1;
     mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 70%);
     -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 70%);
@@ -472,19 +543,12 @@
     animation-delay: var(--delay, 0s);
 }
 
-/* Subtle grid background for sections */
+/* Soft top light for sections */
 .ui-grid-bg {
-    background-image:
-        linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 75%);
-    -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, black 40%, transparent 75%);
+    background: radial-gradient(ellipse 72% 56% at 50% 0%, rgba(239, 68, 68, 0.10), transparent 70%);
 }
 .dark .ui-grid-bg {
-    background-image:
-        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background: radial-gradient(ellipse 72% 56% at 50% 0%, rgba(239, 68, 68, 0.14), transparent 70%);
 }
 
 /* Aurora-like blurred gradient blobs */
@@ -646,6 +710,13 @@ body { background: var(--ui-bg); color: var(--ui-text); }
     color: var(--ui-text);
 }
 .dashboard-shell main { min-width: 0; }
+.dashboard-shell h1,
+.dashboard-shell h2,
+.dashboard-shell h3,
+.dashboard-shell .ui-page-title,
+.dashboard-shell .ui-section-title {
+    font-family: Manrope, "DM Sans", ui-sans-serif, system-ui, sans-serif;
+}
 .ui-page { width: min(100%, 1440px); margin-inline: auto; padding: 20px; }
 .ui-page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .ui-page-title { margin-top: 3px; color: var(--ui-text); font-size: clamp(20px, 2vw, 24px); line-height: 1.2; font-weight: 750; letter-spacing: -0.025em; }

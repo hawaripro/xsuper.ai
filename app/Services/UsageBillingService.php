@@ -10,12 +10,7 @@ class UsageBillingService
 {
     public function estimateApiMaximum(string $model, int $inputTokens, int $outputTokens): int
     {
-        $rates = $this->apiRates($model);
-        if ($rates === null) {
-            return 0;
-        }
-
-        return $this->apiCostFromRates($rates, $inputTokens, $outputTokens);
+        return $this->apiCostFromRates($this->apiRates($model), $inputTokens, $outputTokens);
     }
 
     public function estimateInputTokens(array $messages): int
@@ -56,16 +51,11 @@ class UsageBillingService
     public function reserveApi(int $userId, string $model, int $estimatedInputTokens, int $maximumOutputTokens, string $referenceId): array
     {
         $rates = $this->apiRates($model);
-        $snapshot = $rates ? [
+        $snapshot = [
             'input_usd_per_million' => $rates['input_tokens'],
             'output_usd_per_million' => $rates['output_tokens'],
-        ] : null;
-        $cost = $snapshot
-            ? $this->apiCostFromRates([
-                'input_tokens' => $snapshot['input_usd_per_million'],
-                'output_tokens' => $snapshot['output_usd_per_million'],
-            ], $estimatedInputTokens, $maximumOutputTokens)
-            : 0;
+        ];
+        $cost = $this->apiCostFromRates($rates, $estimatedInputTokens, $maximumOutputTokens);
         $reservation = Wallet::reserve($userId, $cost, $referenceId, [
             'service' => 'api',
             'model' => $model,
@@ -85,12 +75,13 @@ class UsageBillingService
     public function settleApi(int $userId, string $model, array $usage, array $reservation): int
     {
         $snapshot = $reservation['rate_snapshot'] ?? null;
-        $actual = $snapshot
-            ? $this->apiCostFromRates([
-                'input_tokens' => $snapshot['input_usd_per_million'],
-                'output_tokens' => $snapshot['output_usd_per_million'],
-            ], (int) ($usage['prompt_tokens'] ?? 0), (int) ($usage['completion_tokens'] ?? 0))
-            : 0;
+        if (! is_array($snapshot) || ! isset($snapshot['input_usd_per_million'], $snapshot['output_usd_per_million'])) {
+            throw ValidationException::withMessages(['model' => 'The reserved API pricing is unavailable.']);
+        }
+        $actual = $this->apiCostFromRates([
+            'input_tokens' => $snapshot['input_usd_per_million'],
+            'output_tokens' => $snapshot['output_usd_per_million'],
+        ], (int) ($usage['prompt_tokens'] ?? 0), (int) ($usage['completion_tokens'] ?? 0));
         if (! Wallet::settle($userId, $reservation, $actual, [
             'service' => 'api',
             'model' => $model,
@@ -160,16 +151,16 @@ class UsageBillingService
         Wallet::release($userId, $reservation, $description);
     }
 
-    private function apiRates(string $model): ?array
+    private function apiRates(string $model): array
     {
         $rates = UsageRate::activeForModel('api', $model);
-        if ($rates->isEmpty()) {
-            return null;
-        }
-        if (! $rates->has('input_tokens') || ! $rates->has('output_tokens')) {
-            throw ValidationException::withMessages([
-                'model' => "The active API rate for {$model} is incomplete.",
-            ]);
+        foreach (['input_tokens', 'output_tokens'] as $meter) {
+            $rate = $rates->get($meter);
+            if ($rate === null || $rate->price_usd === null || (float) $rate->price_usd < 0) {
+                throw ValidationException::withMessages([
+                    'model' => "Active API input and output pricing is unavailable for {$model}.",
+                ]);
+            }
         }
 
         return [

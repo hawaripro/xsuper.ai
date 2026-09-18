@@ -3,12 +3,11 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\Api\ExternalApiController;
-use App\Http\Controllers\Api\VideoController;
+use App\Models\AiModelProfile;
+use App\Models\AiProviderProfile;
 use App\Models\ApiKey;
 use App\Models\UsageRate;
 use App\Models\User;
-use App\Models\UserToken;
-use App\Models\VideoJob;
 use App\Models\Wallet;
 use App\Services\AiProxyService;
 use App\Services\UsageBillingService;
@@ -16,7 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
-use Mockery;
 use Tests\TestCase;
 
 class PricingBillingTest extends TestCase
@@ -86,7 +84,7 @@ class PricingBillingTest extends TestCase
         ]);
     }
 
-    public function test_usage_charge_fails_when_balance_or_complete_rates_are_missing(): void
+    public function test_api_charge_refuses_incomplete_active_rates(): void
     {
         $user = User::factory()->create();
         UsageRate::create([
@@ -154,7 +152,7 @@ class PricingBillingTest extends TestCase
             ->assertJsonCount(1, 'usage_rates.image');
     }
 
-    public function test_non_streaming_api_reserves_then_settles_from_reported_usage(): void
+    public function test_admin_api_request_debits_wallet_and_records_only_actual_settled_usage(): void
     {
         $user = User::factory()->create(['role' => 'admin']);
         Wallet::credit($user->id, 10_000_000, 'test balance');
@@ -165,6 +163,8 @@ class PricingBillingTest extends TestCase
             ]);
         }
         config(['services.ai_proxy.url' => 'https://proxy.test', 'services.ai_proxy.key' => 'test']);
+        $provider = AiProviderProfile::create(['slug' => 'paid-provider', 'name' => 'Paid Provider', 'is_enabled' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'model-a', 'display_name' => 'Paid Model', 'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true]);
         Http::fake([
             'https://proxy.test/v1/chat/completions' => Http::response([
                 'id' => 'chatcmpl-test',
@@ -173,8 +173,7 @@ class PricingBillingTest extends TestCase
                 'usage' => ['prompt_tokens' => 1_000_000, 'completion_tokens' => 500_000, 'total_tokens' => 1_500_000],
             ]),
         ]);
-        $proxy = Mockery::mock(AiProxyService::class);
-        $proxy->shouldReceive('getModels')->once()->andReturn([['id' => 'model-a']]);
+        $proxy = app(AiProxyService::class);
         $request = Request::create('/v1/chat/completions', 'POST', [
             'model' => 'model-a',
             'messages' => [['role' => 'user', 'content' => 'hello']],
@@ -183,46 +182,18 @@ class PricingBillingTest extends TestCase
         $request->merge(['_api_user' => $user, '_api_key' => new ApiKey(['allowed_models' => null])]);
 
         $response = (new ExternalApiController($proxy, app(UsageBillingService::class)))->chatCompletions($request);
+        $this->assertSame(200, $response->getStatusCode());
         $payload = $response->getData(true);
 
         $this->assertEquals(2.0, $payload['usage']['cost_usd']);
         $this->assertEquals(8.0, $payload['usage']['balance_usd']);
         $this->assertSame(8_000_000, Wallet::balance($user->id));
-    }
-
-    public function test_video_payg_reserves_without_legacy_tokens_then_settles_once(): void
-    {
-        $user = User::factory()->create();
-        Wallet::credit($user->id, 5_000_000, 'test balance');
-        UsageRate::create([
-            'service' => 'video', 'meter' => 'unit', 'model' => 'sora-2', 'label' => 'Sora 2', 'unit' => 'video',
-            'price_idr' => 24000, 'price_usd' => 1.5, 'is_active' => true,
+        $this->assertDatabaseHas('usage_logs', [
+            'user_id' => $user->id, 'model' => 'model-a', 'source' => 'api', 'cost_microusd' => 2_000_000,
         ]);
-        UserToken::topup($user->id, 100, 'legacy balance');
-
-        $request = Request::create('/api/v/gen', 'POST', [
-            'prompt' => 'Generate a product clip',
-            'model' => 'sora-2',
-            'aspect_ratio' => '16:9',
-            'count' => 1,
-            'mode' => 'prompt',
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $user->id, 'model' => 'model-a', 'type' => 'settlement', 'amount_microusd' => 0,
         ]);
-        $request->setUserResolver(fn () => $user);
-        $controller = new VideoController;
-        $payload = $controller->generate($request, app(UsageBillingService::class))->getData(true);
-
-        $this->assertSame('payg', $payload['billing_mode']);
-        $this->assertSame(100, UserToken::getBalance($user->id));
-        $this->assertSame(3_500_000, Wallet::balance($user->id));
-        $job = VideoJob::findOrFail($payload['jobs'][0]['id']);
-        $job->update(['status' => 'completed']);
-
-        $this->actingAs($user);
-        $controller->status($job->job_id);
-        $controller->status($job->job_id);
-
-        $this->assertSame(3_500_000, Wallet::balance($user->id));
-        $this->assertSame('settled', $job->fresh()->billing_status);
     }
 
     public function test_api_reservation_settles_with_the_reserved_rate_snapshot(): void
@@ -286,5 +257,148 @@ class PricingBillingTest extends TestCase
         ])->assertOk();
         $this->assertFalse($input->fresh()->is_active);
         $this->assertFalse($output->fresh()->is_active);
+    }
+
+    public function test_admin_api_requests_without_published_rates_are_refused_before_provider_dispatch(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Wallet::credit($admin->id, 10_000_000, 'opening balance');
+        config(['services.ai_proxy.url' => 'https://proxy.test', 'services.ai_proxy.key' => 'test']);
+        $provider = AiProviderProfile::create(['slug' => 'unpriced-provider', 'name' => 'Unpriced Provider', 'is_enabled' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'unpriced-model', 'display_name' => 'Unpriced Model', 'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true]);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://proxy.test/v1/chat/completions' => Http::response([
+                'model' => 'unpriced-model',
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'must not be requested']]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 10, 'total_tokens' => 110],
+            ]),
+        ]);
+        $key = ApiKey::generate($admin->id);
+
+        foreach ([false, true] as $stream) {
+            $this->withToken($key->key)->postJson('/v1/chat/completions', [
+                'model' => 'unpriced-model',
+                'messages' => [['role' => 'user', 'content' => 'hello']],
+                'max_tokens' => 100,
+                'stream' => $stream,
+            ])->assertUnprocessable()->assertJsonValidationErrors('model');
+        }
+
+        Http::assertNotSent(fn ($request): bool => str_ends_with($request->url(), '/chat/completions'));
+        $this->assertSame(10_000_000, Wallet::balance($admin->id));
+        $this->assertDatabaseMissing('usage_logs', ['user_id' => $admin->id]);
+        $this->assertDatabaseMissing('wallet_transactions', ['user_id' => $admin->id, 'type' => 'reserve']);
+    }
+
+    public function test_inactive_api_prices_do_not_allow_a_free_reservation(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Wallet::credit($admin->id, 1_000_000, 'opening balance');
+        foreach (['input_tokens', 'output_tokens'] as $meter) {
+            UsageRate::create([
+                'service' => 'api', 'meter' => $meter, 'model' => 'inactive-model', 'label' => $meter,
+                'unit' => '1M tokens', 'price_idr' => 16000, 'price_usd' => 1, 'is_active' => false,
+            ]);
+        }
+
+        try {
+            app(UsageBillingService::class)->reserveApi($admin->id, 'inactive-model', 100, 100, 'inactive-request');
+            $this->fail('Expected inactive API pricing to refuse the reservation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('model', $exception->errors());
+        }
+
+        $this->assertSame(1_000_000, Wallet::balance($admin->id));
+        $this->assertDatabaseMissing('wallet_transactions', ['reference_id' => 'inactive-request']);
+    }
+
+    public function test_missing_usd_price_is_not_cast_to_a_free_active_rate(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Wallet::credit($admin->id, 1_000_000, 'opening balance');
+        foreach (['input_tokens' => 1, 'output_tokens' => null] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'meter' => $meter, 'model' => 'missing-usd', 'label' => $meter,
+                'unit' => '1M tokens', 'price_idr' => 16000, 'price_usd' => $price, 'is_active' => true,
+            ]);
+        }
+
+        try {
+            app(UsageBillingService::class)->reserveApi($admin->id, 'missing-usd', 100, 100, 'missing-usd-request');
+            $this->fail('Expected a missing USD price to refuse the reservation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('model', $exception->errors());
+        }
+
+        $this->assertSame(1_000_000, Wallet::balance($admin->id));
+        $this->assertDatabaseMissing('wallet_transactions', ['reference_id' => 'missing-usd-request']);
+    }
+
+    public function test_explicitly_published_zero_api_prices_remain_valid_without_a_wallet_debit(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Wallet::credit($admin->id, 1_000_000, 'opening balance');
+        foreach (['input_tokens', 'output_tokens'] as $meter) {
+            UsageRate::create([
+                'service' => 'api', 'meter' => $meter, 'model' => 'published-free', 'label' => $meter,
+                'unit' => '1M tokens', 'price_idr' => 0, 'price_usd' => 0, 'is_active' => true,
+            ]);
+        }
+        $billing = app(UsageBillingService::class);
+
+        $reservation = $billing->reserveApi($admin->id, 'published-free', 1_000_000, 1_000_000, 'published-free-request');
+        $cost = $billing->settleApi($admin->id, 'published-free', [
+            'prompt_tokens' => 500_000, 'completion_tokens' => 100_000, 'total_tokens' => 600_000,
+        ], $reservation);
+
+        $this->assertSame(0, $cost);
+        $this->assertSame(1_000_000, Wallet::balance($admin->id));
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $admin->id, 'reference_id' => 'published-free-request',
+            'type' => 'settlement', 'amount_microusd' => 0, 'quantity' => 600_000,
+        ]);
+    }
+
+    public function test_admin_api_reservation_requires_sufficient_wallet_balance(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Wallet::credit($admin->id, 299, 'opening balance');
+        foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'meter' => $meter, 'model' => 'paid-model', 'label' => $meter,
+                'unit' => '1M tokens', 'price_idr' => 16000 * $price, 'price_usd' => $price, 'is_active' => true,
+            ]);
+        }
+
+        try {
+            app(UsageBillingService::class)->reserveApi($admin->id, 'paid-model', 100, 100, 'admin-insufficient-wallet');
+            $this->fail('Expected insufficient wallet balance to refuse the reservation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('wallet', $exception->errors());
+        }
+
+        $this->assertSame(299, Wallet::balance($admin->id));
+        $this->assertDatabaseMissing('wallet_transactions', ['reference_id' => 'admin-insufficient-wallet']);
+    }
+
+    public function test_api_settlement_without_a_rate_snapshot_cannot_silently_refund_billable_usage(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Wallet::credit($admin->id, 1000, 'opening balance');
+        $reservation = Wallet::reserve($admin->id, 100, 'missing-snapshot', ['service' => 'api', 'model' => 'model-a']);
+
+        try {
+            app(UsageBillingService::class)->settleApi($admin->id, 'model-a', [
+                'prompt_tokens' => 10, 'completion_tokens' => 5, 'total_tokens' => 15,
+            ], $reservation);
+            $this->fail('Expected a missing rate snapshot to refuse settlement.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('model', $exception->errors());
+        }
+
+        $this->assertSame(900, Wallet::balance($admin->id));
+        $this->assertDatabaseMissing('wallet_transactions', ['reference_id' => 'missing-snapshot', 'type' => 'settlement']);
+        $this->assertDatabaseMissing('wallet_transactions', ['reference_id' => 'missing-snapshot', 'type' => 'settlement_refund']);
     }
 }

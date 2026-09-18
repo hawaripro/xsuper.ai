@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Models\AiProviderProfile;
-use App\Models\ChatConversation;
 use App\Models\DurationOrder;
 use App\Models\Notification;
 use App\Models\UsageLog;
@@ -115,15 +114,21 @@ class MemberControlCenterTest extends TestCase
             'status' => 'rejected',
         ]);
 
-        $conversation = ChatConversation::create([
+        DB::table('chat_history')->insert([
             'user_id' => $member->id,
-            'title' => 'Member conversation',
+            'conversation_id' => 'member-conversation',
+            'role' => 'user',
+            'content' => 'Member conversation',
             'model' => 'chat-alpha',
+            'created_at' => now(),
         ]);
-        ChatConversation::create([
+        DB::table('chat_history')->insert([
             'user_id' => $other->id,
-            'title' => 'Other private conversation',
+            'conversation_id' => 'other-private-conversation',
+            'role' => 'user',
+            'content' => 'Other private conversation',
             'model' => 'private-model',
+            'created_at' => now(),
         ]);
 
         UserDevice::create([
@@ -192,7 +197,7 @@ class MemberControlCenterTest extends TestCase
             ->assertJsonPath('activity.devices.total', 2)
             ->assertJsonPath('activity.devices.active', 2)
             ->assertJsonPath('activity.devices.pending', 0)
-            ->assertJsonPath('activity.recent.0.id', $conversation->id)
+            ->assertJsonPath('activity.recent.0.id', 'member-conversation')
             ->assertJsonPath('services.0.key', 'disabled-provider')
             ->assertJsonPath('services.0.status', 'online')
             ->assertJsonPath('services.0.is_enabled', false)

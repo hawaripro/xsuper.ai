@@ -18,7 +18,11 @@
                     <span class="theme-icon theme-icon-moon">@include('public.partials.icon', ['name' => 'moon'])</span>
                     <span class="theme-icon theme-icon-sun">@include('public.partials.icon', ['name' => 'sun'])</span>
                 </button>
-                <a class="button button-small button-dark" href="/login">{{ __('Masuk') }} @include('public.partials.icon', ['name' => 'arrow'])</a>
+                @auth
+                    <a class="button button-small button-dark" href="/dashboard">{{ __('Dashboard') }} @include('public.partials.icon', ['name' => 'arrow'])</a>
+                @else
+                    <a class="button button-small button-dark" href="/login">{{ __('Masuk') }} @include('public.partials.icon', ['name' => 'arrow'])</a>
+                @endauth
             </div>
         </nav>
     </div>

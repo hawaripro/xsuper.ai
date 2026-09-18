@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <server name="ULTRAI_DATABASE_TEST_PROFILE" value="postgres" force="true"/>
+        <server name="APP_ENV" value="testing" force="true"/>
+        <server name="APP_DEBUG" value="false" force="true"/>
+        <server name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" force="true"/>
+        <server name="APP_MAINTENANCE_DRIVER" value="cache" force="true"/>
+        <server name="APP_MAINTENANCE_STORE" value="array" force="true"/>
+        <server name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <server name="BROADCAST_CONNECTION" value="null" force="true"/>
+        <server name="CACHE_STORE" value="array" force="true"/>
+        <server name="DB_CONNECTION" value="pgsql" force="true"/>
+        <server name="DB_HOST" value="127.0.0.1" force="true"/>
+        <server name="DB_PORT" value="2209" force="true"/>
+        <server name="DB_DATABASE" value="ultrai_pg_test" force="true"/>
+        <server name="DB_USERNAME" value="ultrai_pg_test" force="true"/>
+        <server name="DB_URL" value="" force="true"/>
+        <server name="MAIL_MAILER" value="array" force="true"/>
+        <server name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <server name="SESSION_DRIVER" value="array" force="true"/>
+        <server name="APP_CONFIG_CACHE" value="storage/framework/testing/phpunit-postgres-config.php" force="true"/>
+        <server name="AI_PROXY_URL" value="http://127.0.0.1:1" force="true"/>
+        <server name="AI_PROXY_KEY" value="" force="true"/>
+        <server name="PULSE_ENABLED" value="false" force="true"/>
+        <server name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <server name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+    </php>
+</phpunit>

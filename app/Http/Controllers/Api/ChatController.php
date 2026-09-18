@@ -8,6 +8,7 @@ use App\Services\AiProxyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
@@ -141,7 +142,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         return $this->aiProxy->chatCompletionStream(
             $messages,
             $model,
-            function (string $fullResponse) use ($user, $conversationId, $model) {
+            function (string $fullResponse, ?array $usage = null) use ($user, $conversationId, $model) {
                 if ($fullResponse && $conversationId) {
                     DB::table('chat_history')->insert([
                         'user_id' => $user->id,
@@ -152,19 +153,10 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
                         'created_at' => now(),
                     ]);
                 }
-                // Log usage
-                $completionTokens = max(1, (int) (mb_strlen($fullResponse) / 4));
-                $promptTokens = max(1, (int) ($completionTokens * 0.5));
-                $totalTokens = $promptTokens + $completionTokens;
                 try {
-                    UsageLog::record($user->id, $model, [
-                        'prompt_tokens' => $promptTokens,
-                        'completion_tokens' => $completionTokens,
-                        'total_tokens' => $totalTokens,
-                        'credit' => round($totalTokens / 1000 * 0.01, 4),
-                    ], 'web');
+                    UsageLog::record($user->id, $model, $usage ?? [], 'web');
                 } catch (\Exception $e) {
-                    \Log::error('Usage log failed: '.$e->getMessage());
+                    Log::warning('Chat usage could not be recorded.');
                 }
             }
         );
@@ -180,9 +172,9 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
                 DB::raw('MIN(created_at) as started_at'),
                 DB::raw('MAX(created_at) as last_message'),
                 DB::raw('COUNT(*) as message_count'),
-                DB::raw("(SELECT content FROM chat_history ch2 WHERE ch2.conversation_id = chat_history.conversation_id AND ch2.role = 'user' ORDER BY ch2.created_at ASC LIMIT 1) as title")
+                DB::raw("(SELECT content FROM chat_history ch2 WHERE ch2.user_id = chat_history.user_id AND ch2.conversation_id = chat_history.conversation_id AND ch2.role = 'user' ORDER BY ch2.created_at ASC LIMIT 1) as title")
             )
-            ->groupBy('conversation_id')
+            ->groupBy('user_id', 'conversation_id')
             ->orderByDesc('last_message')
             ->limit(50)
             ->get();
@@ -233,7 +225,10 @@ When asked about your identity/model:
         }
 
         if (! empty($messages) && $messages[0]['role'] === 'system') {
-            $messages[0]['content'] = $prompt."\n\n".$messages[0]['content'];
+            $content = $messages[0]['content'];
+            $messages[0]['content'] = is_array($content)
+                ? [['type' => 'text', 'text' => $prompt], ...$content]
+                : $prompt."\n\n".$content;
         } else {
             array_unshift($messages, ['role' => 'system', 'content' => $prompt]);
         }

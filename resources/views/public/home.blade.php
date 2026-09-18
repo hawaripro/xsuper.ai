@@ -31,7 +31,7 @@
     </section>
 
     <section id="models" class="model-universe" aria-labelledby="models-title" data-motion-zone>
-        <div class="container section-heading" data-reveal="rise"><h2 id="models-title">{{ __('Banyak cara berpikir.') }}<br><span>{{ __('Satu tempat bertemu.') }}</span></h2><p>{{ __('Pilih model yang cocok dengan pekerjaanmu. Identitas dan pembuatnya tetap jelas; pengalaman kerjanya tetap UltrAI.') }}</p></div>
+        <div class="container section-heading section-heading-models" data-reveal="rise"><h2 id="models-title">{{ __('Banyak cara berpikir.') }}<br><span>{{ __('Satu tempat bertemu.') }}</span></h2>@include('public.partials.ai-robot')<p>{{ __('Pilih model yang cocok dengan pekerjaanmu. Identitas dan pembuatnya tetap jelas; pengalaman kerjanya tetap UltrAI.') }}</p></div>
         <div class="brand-rail" aria-label="{{ __('Model dan pembuat AI') }}">
             <div class="brand-track">
                 @foreach($site['models'] as $model)
@@ -124,4 +124,22 @@ with urllib.request.urlopen(request) as response:
         <div class="closing-orbit orbit-close-one" aria-hidden="true"></div><div class="closing-orbit orbit-close-two" aria-hidden="true"></div><div class="container closing-content" data-reveal="line"><img src="/brands/ultrai/mark-96.webp" width="58" height="58" alt="UltrAI" loading="lazy"><h2 id="closing-title">{{ __('Idemu terlalu bagus') }}<br>{{ __('untuk') }} <span>{{ __('berhenti di kepala.') }}</span></h2><p>{{ __('Buka ruang untuk kemungkinan berikutnya.') }}</p><div class="closing-actions"><a href="{{ $localeUrl('/pricing') }}" class="button button-light">{{ __('Lihat paket UltrAI') }} @include('public.partials.icon', ['name' => 'arrow'])</a><a href="/chat" class="text-link">{{ __('Sudah punya akun? Buka workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div></div>
     </section>
 </main>
+@if($recentPurchases !== [])
+    <aside class="purchase-notification" role="status" aria-live="polite" aria-atomic="true" data-purchase-region hidden>
+        <div class="purchase-notification-mark" aria-hidden="true">
+            @include('public.partials.icon', ['name' => 'check'])
+        </div>
+        <div class="purchase-notification-copy">
+            @foreach($recentPurchases as $purchase)
+                <p data-purchase-item @if(! $loop->first) hidden @endif>
+                    <strong>{{ __('Paket :package telah diaktifkan', ['package' => $purchase['package']]) }}</strong>
+                    <small>{{ $purchase['time'] }}</small>
+                </p>
+            @endforeach
+        </div>
+        <button type="button" class="purchase-notification-dismiss" data-purchase-dismiss aria-keyshortcuts="Escape" aria-label="{{ __('Tutup notifikasi pembelian') }}">
+            @include('public.partials.icon', ['name' => 'close'])
+        </button>
+    </aside>
+@endif
 @endsection

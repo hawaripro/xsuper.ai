@@ -1,183 +1,179 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLocale } from '../contexts/LocaleContext';
 import UltrLogo from '../components/UltrLogo';
+import AnnouncementRibbon from '../components/AnnouncementRibbon';
+import DashboardSearch from '../components/dashboard/DashboardSearch';
+import NotificationMenu from '../components/dashboard/NotificationMenu';
 import Icons from './SidebarIcons';
+import '../components/dashboard/dashboard-workspace.css';
+
+const iconTones = {
+    red: 'text-red-500 bg-red-500/10 group-hover:bg-red-500/15',
+    emerald: 'text-emerald-600 bg-emerald-500/10 group-hover:bg-emerald-500/15 dark:text-emerald-400',
+    blue: 'text-blue-500 bg-blue-500/10 group-hover:bg-blue-500/15',
+    violet: 'text-violet-500 bg-violet-500/10 group-hover:bg-violet-500/15 dark:text-violet-400',
+    fuchsia: 'text-fuchsia-600 bg-fuchsia-500/10 group-hover:bg-fuchsia-500/15 dark:text-fuchsia-400',
+    amber: 'text-amber-600 bg-amber-500/10 group-hover:bg-amber-500/15 dark:text-amber-400',
+    orange: 'text-orange-600 bg-orange-500/10 group-hover:bg-orange-500/15 dark:text-orange-400',
+    cyan: 'text-cyan-600 bg-cyan-500/10 group-hover:bg-cyan-500/15 dark:text-cyan-400',
+    pink: 'text-pink-500 bg-pink-500/10 group-hover:bg-pink-500/15',
+    indigo: 'text-indigo-500 bg-indigo-500/10 group-hover:bg-indigo-500/15 dark:text-indigo-400',
+    teal: 'text-teal-600 bg-teal-500/10 group-hover:bg-teal-500/15 dark:text-teal-400',
+    slate: 'text-slate-500 bg-slate-500/10 group-hover:bg-slate-500/15 dark:text-slate-400',
+};
 
 export default function DashboardLayout({ children }) {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
+    const { locale, t, localizedPath, otherLocalePath } = useLocale();
     const location = useLocation();
     const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+    const [loggingOut, setLoggingOut] = useState(false);
+    const [logoutError, setLogoutError] = useState('');
+    const sidebar = useRef(null);
+    const menuButton = useRef(null);
 
-    useEffect(() => { setMounted(true); }, []);
+    useEffect(() => { setSidebarOpen(false); }, [location.key]);
     useEffect(() => {
-        document.body.style.overflow = sidebarOpen ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
-    }, [sidebarOpen]);
+        const query = window.matchMedia('(min-width: 1024px)');
+        const update = () => { setIsDesktop(query.matches); if (query.matches) setSidebarOpen(false); };
+        query.addEventListener('change', update);
+        return () => query.removeEventListener('change', update);
+    }, []);
+    useEffect(() => {
+        if (!sidebarOpen || isDesktop) return;
+        const previousOverflow = document.body.style.overflow;
+        const previousFocus = document.activeElement;
+        document.body.style.overflow = 'hidden';
+        const firstControl = sidebar.current?.querySelector('a, button');
+        firstControl?.focus({ preventScroll: true });
+        const handleKey = event => {
+            if (event.key === 'Escape') { event.preventDefault(); setSidebarOpen(false); }
+            if (event.key !== 'Tab') return;
+            const controls = [...(sidebar.current?.querySelectorAll('a[href], button:not(:disabled)') || [])].filter(element => element.getClientRects().length);
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (event.shiftKey && (document.activeElement === first || !sidebar.current?.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+            if (!event.shiftKey && (document.activeElement === last || !sidebar.current?.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+        };
+        document.addEventListener('keydown', handleKey);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKey);
+            if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+        };
+    }, [sidebarOpen, isDesktop]);
 
     const isDark = theme === 'dark';
     const isAdmin = user?.role === 'admin';
     const perms = user?.permissions || {};
-    const hasChat = isAdmin || (perms.chat !== false);
-    const hasVideo = isAdmin || (perms.video_generator === true);
-
+    const allowed = (permission, defaultValue = true) => isAdmin || (perms[permission] ?? defaultValue) === true;
+    const hasChat = allowed('chat');
     const userNav = [
-        { name: 'Overview', href: '/dashboard', icon: Icons.dashboard },
-        ...(hasChat ? [{ name: 'Chat', href: '/chat', icon: Icons.chat }] : []),
-        { name: 'Generate Gambar', href: '/generate-image', icon: Icons.image },
-        ...(hasVideo ? [{ name: 'Generate Video', href: '/video', icon: Icons.video }] : []),
-        { name: 'Library', href: '/history', icon: Icons.history },
-        { name: 'Template Prompt', href: '/templates', icon: Icons.template },
-        { name: 'Usage & Billing', href: '/token-usage', icon: Icons.token },
-        { name: 'Paket', href: '/paket', icon: Icons.paket },
-        { name: 'Referral', href: '/referral', icon: Icons.referral },
-        { name: 'Inbox', href: '/notifications', icon: Icons.broadcast },
-        { name: 'Help & Support', href: '/bantuan', icon: Icons.help },
-        { name: 'Profil', href: '/profile', icon: Icons.profile },
+        { name: 'Overview', href: '/dashboard', icon: Icons.dashboard, tone: 'red' },
+        ...(hasChat ? [{ name: 'Chat', href: '/chat', icon: Icons.chat, tone: 'emerald' }] : []),
+        { name: 'Generate Gambar', href: '/generate-image', icon: Icons.image, tone: 'fuchsia' },
+        ...(allowed('video_generator', false) ? [{ name: 'Generate Video', href: '/video', icon: Icons.video, tone: 'violet' }] : []),
+        ...(allowed('audio_generator') ? [{ name: 'Audio', href: '/audio', icon: Icons.audio, tone: 'pink' }] : []),
+        ...(allowed('video_downloader') ? [{ name: 'Downloads', href: '/downloads', icon: Icons.download, tone: 'blue' }] : []),
+        ...(allowed('media_converter') ? [{ name: 'Converter', href: '/converter', icon: Icons.convert, tone: 'teal' }] : []),
+        ...(allowed('chat_history') ? [{ name: 'Library', href: '/history', icon: Icons.history, tone: 'blue' }] : []),
+        { name: 'Template Prompt', href: '/templates', icon: Icons.template, tone: 'amber' },
+        { name: 'Usage & Billing', href: '/token-usage', icon: Icons.token, tone: 'cyan' },
+        { name: 'Deposit', href: '/deposit', icon: Icons.paket, tone: 'orange' },
+        { name: 'Referral', href: '/referral', icon: Icons.referral, tone: 'pink' },
+        { name: 'Inbox', href: '/notifications', icon: Icons.bell, tone: 'indigo' },
+        { name: 'Help & Support', href: '/bantuan', icon: Icons.help, tone: 'teal' },
+        { name: 'Profil', href: '/profile', icon: Icons.profile, tone: 'slate' },
     ];
-
     const adminNav = [
-        { name: 'Admin Overview', href: '/admin/overview', icon: Icons.revenue },
-        { name: 'People & Access', href: '/admin/users', icon: Icons.users },
-        { name: 'Orders & Billing', href: '/admin/operations', icon: Icons.orders },
-        { name: 'Usage', href: '/admin/token-usage', icon: Icons.token },
-        { name: 'AI Catalog', href: '/admin/ai', icon: Icons.model },
-        { name: 'Content & Support', href: '/admin/content', icon: Icons.feedback },
-        { name: 'System Activity', href: '/admin/system', icon: Icons.audit },
-        { name: 'Pricing Settings', href: '/admin/settings', icon: Icons.settings },
+        { name: 'Admin Overview', href: '/admin/overview', icon: Icons.revenue, tone: 'emerald' },
+        { name: 'People & Access', href: '/admin/users', icon: Icons.users, tone: 'blue' },
+        { name: 'Orders & Billing', href: '/admin/operations', icon: Icons.orders, tone: 'orange' },
+        { name: 'Usage', href: '/admin/token-usage', icon: Icons.token, tone: 'cyan' },
+        { name: 'AI Catalog', href: '/admin/ai', icon: Icons.model, tone: 'violet' },
+        { name: 'Content & Support', href: '/admin/content', icon: Icons.feedback, tone: 'amber' },
+        { name: 'System Activity', href: '/admin/system', icon: Icons.audit, tone: 'indigo' },
+        { name: 'Pricing Settings', href: '/admin/settings', icon: Icons.settings, tone: 'slate' },
     ];
+    const isActive = href => location.pathname === localizedPath(href);
+    const currentPage = t([...userNav, ...(isAdmin ? adminNav : [])].find(item => isActive(item.href))?.name || 'Dashboard');
 
-    const handleLogout = async () => { await logout(); navigate('/login'); };
-    const isActive = (href) => location.pathname === href;
-    const allNav = isAdmin ? [...userNav, ...adminNav] : userNav;
-    const currentPage = allNav.find(n => isActive(n.href))?.name || 'Dashboard';
+    async function handleLogout() {
+        setLoggingOut(true);
+        setLogoutError('');
+        try { await logout(); navigate(localizedPath('/login')); }
+        catch (error) { setLogoutError(error.message || t('Tidak dapat keluar. Coba lagi.')); }
+        finally { setLoggingOut(false); }
+    }
 
-    const rootBg = isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]';
-    const sidebarBg = isDark ? 'bg-gray-900/75 border-white/[0.06] backdrop-blur-2xl' : 'bg-white/95 border-gray-200/80 backdrop-blur-xl';
-    const topbarBg = isDark ? 'border-white/[0.06] bg-gray-950/75 backdrop-blur-xl' : 'border-gray-200/70 bg-white/80 backdrop-blur-xl';
-    const sectionLabel = isDark ? 'text-gray-500' : 'text-gray-400';
-
-    const NavItem = ({ item }) => {
-        if (item.external) {
-            return (
-                <a href={item.href} target="_blank" rel="noopener noreferrer"
-                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                        isDark ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]' : 'text-gray-600 hover:text-slate-900 hover:bg-gray-100/70'
-                    }`}>
-                    <span className={`transition-all duration-200 ${isDark ? 'text-gray-500 group-hover:text-gray-300 group-hover:scale-110' : 'text-gray-400 group-hover:text-red-500 group-hover:scale-110'}`}>{item.icon}</span>
-                    <span className="flex-1">{item.name}</span>
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">{Icons.external}</span>
-                </a>
-            );
-        }
+    function renderNavItem(item) {
         const active = isActive(item.href);
         return (
-            <Link to={item.href} onClick={() => setSidebarOpen(false)}
-                className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ease-out ${
-                    active
-                        ? (isDark ? 'bg-gradient-to-r from-red-500/20 via-red-500/10 to-transparent text-red-300 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.22)]' : 'bg-gradient-to-r from-red-50 via-red-50/60 to-transparent text-red-600 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]')
-                        : (isDark ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]' : 'text-gray-600 hover:text-slate-900 hover:bg-gray-100/70')
-                }`}>
-                {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-gradient-to-b from-red-500 to-red-600 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-fade-in-left" />}
-                <span className={`transition-all duration-200 ${active ? 'text-red-500 scale-110' : (isDark ? 'text-gray-500 group-hover:text-gray-300 group-hover:scale-110' : 'text-gray-400 group-hover:text-red-500 group-hover:scale-110')}`}>{item.icon}</span>
-                <span className="flex-1">{item.name}</span>
-                {active && <span className="relative flex w-1.5 h-1.5"><span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60 animate-ping" style={{ animationDuration: '1.8s' }} /><span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" /></span>}
+            <Link key={item.href} to={localizedPath(item.href)} onClick={() => setSidebarOpen(false)} aria-current={active ? 'page' : undefined}
+                className={`dw-nav-item group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 ${active
+                    ? (isDark ? 'bg-gradient-to-r from-red-500/20 via-red-500/10 to-transparent text-red-300 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.22)]' : 'bg-gradient-to-r from-red-50 via-red-50/60 to-transparent text-red-600 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.15)]')
+                    : (isDark ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]' : 'text-gray-600 hover:text-slate-900 hover:bg-gray-100/70')}`}>
+                {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-gradient-to-b from-red-500 to-red-600" aria-hidden="true" />}
+                <span aria-hidden="true" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 motion-safe:group-hover:scale-110 [&>svg]:h-4 [&>svg]:w-4 ${iconTones[item.tone]} ${active ? 'ring-1 ring-current/25' : ''}`}>{item.icon}</span>
+                <span className="flex-1">{t(item.name)}</span>
+                {active && <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-red-500" aria-hidden="true" />}
             </Link>
         );
-    };
+    }
 
     return (
-        <div className={`dashboard-shell min-h-dvh flex ${rootBg} relative overflow-x-hidden`}>
-            {/* Ambient background */}
-            <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-                <div className="ui-aurora animate-aurora" style={{ top: '-180px', right: '-140px', background: isDark ? 'radial-gradient(circle, rgba(239,68,68,0.32) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(254,205,211,0.6) 0%, transparent 70%)' }} />
-                <div className="ui-aurora animate-aurora" style={{ bottom: '-160px', left: '-120px', animationDelay: '4s', background: isDark ? 'radial-gradient(circle, rgba(251,146,60,0.20) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(254,226,226,0.6) 0%, transparent 70%)' }} />
-            </div>
-
-            {/* Mobile overlay */}
-            <div className={`fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)} aria-hidden="true" />
-
-            {/* Sidebar */}
-            <aside aria-label="Navigasi dashboard" className={`fixed inset-y-0 left-0 z-50 w-[248px] flex flex-col border-r ${sidebarBg} transform transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                {/* Logo */}
-                <div className={`h-16 flex items-center justify-between px-5 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
-                    <Link to="/dashboard" className="flex items-center gap-2 group" aria-label="UltrAI home">
-                        <UltrLogo className="w-9 h-9 group-hover:scale-105 transition-transform duration-300" />
-                        <span className="text-xl font-extrabold tracking-tight flex items-center gap-[2px]">
-                            <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
-                            <span className="text-red-500">AI</span>
-                        </span>
-                    </Link>
-                    <button onClick={() => setSidebarOpen(false)} className={`lg:hidden p-2 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`} aria-label="Close sidebar">{Icons.close}</button>
+        <div className={`dashboard-shell ultrai-workspace-shell min-h-dvh flex flex-col ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'} relative`}>
+            <a className="dw-skip-link" href="#dashboard-content">{t('Lewati ke konten')}</a>
+            <div className="sticky top-0 z-[60] w-full" inert={sidebarOpen && !isDesktop}><AnnouncementRibbon surface="dashboard" /></div>
+            {sidebarOpen && !isDesktop && <button type="button" className="dw-nav-overlay" tabIndex={-1} onClick={() => setSidebarOpen(false)} aria-label={t('Tutup menu')} />}
+            <div className="flex min-h-0 flex-1">
+                <aside ref={sidebar} id="dashboard-navigation" aria-label={t('Navigasi dashboard')} role={!isDesktop && sidebarOpen ? 'dialog' : undefined} aria-modal={!isDesktop && sidebarOpen ? true : undefined} inert={!isDesktop && !sidebarOpen} className={`dw-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+                    <div className={`h-16 shrink-0 flex items-center justify-between px-5 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
+                        <Link to={localizedPath('/dashboard')} onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 group" aria-label="UltrAI home">
+                            <UltrLogo className="w-9 h-9 motion-safe:group-hover:scale-105 transition-transform duration-200" />
+                            <span className="text-xl font-extrabold tracking-tight flex items-center gap-[2px]"><span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span><span className="text-red-500">AI</span></span>
+                        </Link>
+                        <button type="button" onClick={() => setSidebarOpen(false)} className="dw-shell-control dw-mobile-control" aria-label={t('Tutup menu')}>{Icons.close}</button>
+                    </div>
+                    <nav className="dw-navigation">
+                        <p className="px-3 mb-2 text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">{t('Workspace')}</p>
+                        {userNav.map(renderNavItem)}
+                        {isAdmin && <><p className="pt-5 pb-2 px-3 text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">{t('Operations')}</p>{adminNav.map(renderNavItem)}</>}
+                    </nav>
+                    <div className={`p-3 shrink-0 border-t ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
+                        <div className={`flex items-center gap-1 rounded-xl ${isDark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
+                            <Link to={localizedPath('/profile')} onClick={() => setSidebarOpen(false)} className="group flex flex-1 min-w-0 items-center gap-3 p-2.5 rounded-xl">
+                                <span className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white text-sm font-bold shadow-[0_6px_16px_-4px_rgba(239,68,68,0.35)]">{user?.name?.[0]?.toUpperCase() || 'U'}</span>
+                                <span className="min-w-0"><span className={`block text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{user?.name || t('Pengguna')}</span><span className="block text-[11px] text-slate-500 dark:text-slate-400">{isAdmin ? t('Administrator') : t('Member')}</span></span>
+                            </Link>
+                            <button type="button" onClick={handleLogout} disabled={loggingOut} className="dw-shell-control mr-1 disabled:opacity-50" aria-label={t('Keluar')} title={t('Keluar')}>{Icons.logout}</button>
+                        </div>
+                        {logoutError && <p role="alert" className="mt-2 text-xs text-red-600 dark:text-red-300">{logoutError}</p>}
+                    </div>
+                </aside>
+                <div className="flex-1 flex flex-col min-w-0 relative" inert={sidebarOpen && !isDesktop}>
+                    <header className="dw-topbar sticky top-0 z-30 flex items-center justify-between px-4 lg:px-6">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <button ref={menuButton} type="button" onClick={() => setSidebarOpen(true)} className="dw-shell-control dw-mobile-control" aria-label={t('Buka menu')} aria-expanded={sidebarOpen} aria-controls="dashboard-navigation">{Icons.menu}</button>
+                            <nav className="hidden xl:flex items-center gap-2 text-xs min-w-0" aria-label={t('Breadcrumb')}><Link to={localizedPath('/dashboard')} className="text-slate-500 dark:text-slate-400">UltrAI</Link><span aria-hidden="true" className="text-slate-400 [&>svg]:w-3 [&>svg]:h-3">{Icons.chevron}</span><span className="font-semibold truncate" aria-current="page">{currentPage}</span></nav>
+                            <span className="hidden sm:block xl:hidden text-xs font-semibold truncate">{currentPage}</span>
+                        </div>
+                        <div className="dw-topbar-tools">
+                            <div className="dw-topbar-search"><DashboardSearch /></div>
+                            <NotificationMenu />
+                            <Link to={otherLocalePath(`${location.pathname}${location.search}${location.hash}`)} className="dw-shell-control text-[11px] font-bold" aria-label={locale === 'en' ? 'Ganti ke bahasa Indonesia' : 'Switch to English'}>{locale === 'en' ? 'ID' : 'EN'}</Link>
+                            <button type="button" onClick={toggleTheme} className="dw-shell-control" title={isDark ? t('Mode terang') : t('Mode gelap')} aria-label={isDark ? t('Mode terang') : t('Mode gelap')}>{isDark ? Icons.sun : Icons.moon}</button>
+                            <span className="dw-shell-role hidden 2xl:block">{isAdmin ? t('Administrator') : t('Member')}</span>
+                        </div>
+                    </header>
+                    <main id="dashboard-content" tabIndex={-1} className="flex-1 min-w-0">{children}</main>
                 </div>
-
-                {/* Navigation */}
-                <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
-                    <div className="px-3 mb-2">
-                        <span className={`ui-overline ${sectionLabel}`}>Workspace</span>
-                    </div>
-                    <div className={mounted ? 'stagger' : ''}>
-                        {userNav.map((item) => <NavItem key={item.href + item.name} item={item} />)}
-                    </div>
-
-                    {isAdmin && (
-                        <>
-                            <div className="pt-5 pb-2 px-3">
-                                <span className={`ui-overline ${sectionLabel}`}>Operations</span>
-                            </div>
-                            {adminNav.map((item) => <NavItem key={item.href} item={item} />)}
-                        </>
-                    )}
-                </nav>
-
-                {/* User card */}
-                <div className={`p-3 border-t ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
-                    <Link to="/profile" className={`group flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 ${isDark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-gray-50 hover:bg-red-50/60'}`}>
-                        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white text-sm font-bold shadow-[0_6px_16px_-4px_rgba(239,68,68,0.45)] group-hover:shadow-[0_10px_22px_-4px_rgba(239,68,68,0.55)] transition-all duration-200">
-                            {user?.name?.[0]?.toUpperCase() || 'U'}
-                            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{user?.name || 'User'}</div>
-                            <div className={`text-[11px] capitalize ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{user?.role || 'member'}</div>
-                        </div>
-                        <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleLogout(); }} className={`p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-slate-500 hover:text-red-300 hover:bg-white/[0.06]' : 'text-slate-500 hover:text-red-700 hover:bg-slate-100'}`} aria-label="Keluar" title="Keluar">{Icons.logout}</button>
-                    </Link>
-                </div>
-            </aside>
-
-            {/* Main area */}
-            <div className="flex-1 flex flex-col min-w-0 relative">
-                <header className={`h-16 flex items-center justify-between px-4 lg:px-6 border-b sticky top-0 z-30 ${topbarBg}`}>
-                    <div className="flex items-center gap-3 min-w-0">
-                        <button onClick={() => setSidebarOpen(true)} className={`lg:hidden p-2 rounded-xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-slate-900 hover:bg-gray-100'}`} aria-label="Open menu">{Icons.menu}</button>
-                        <nav className="hidden sm:flex items-center gap-2 text-sm min-w-0" aria-label="Breadcrumb">
-                            <span className={`inline-flex items-center gap-1.5 font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                                UltrAI
-                            </span>
-                            <svg className={`w-3.5 h-3.5 ${isDark ? 'text-gray-700' : 'text-gray-300'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
-                            <span className={`font-semibold truncate ${isDark ? 'text-gray-200' : 'text-slate-900'}`}>{currentPage}</span>
-                        </nav>
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3">
-                        <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${isDark ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-200/70'}`}>
-                            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" style={{ animationDuration: '2s' }} /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
-                            <span>Online</span>
-                        </div>
-                        <button onClick={toggleTheme} className={`relative p-2 rounded-xl transition-all duration-200 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-600 hover:text-red-700 hover:bg-slate-100'}`} title={isDark ? 'Light mode' : 'Dark mode'} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-                            <span className="block transition-transform duration-300" style={{ transform: isDark ? 'rotate(0deg)' : 'rotate(180deg)' }}>{isDark ? Icons.sun : Icons.moon}</span>
-                        </button>
-                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider border ${isAdmin ? (isDark ? 'bg-red-500/15 text-red-300 border-red-500/25' : 'bg-red-50 text-red-600 border-red-200') : (isDark ? 'bg-blue-500/15 text-blue-300 border-blue-500/25' : 'bg-blue-50 text-blue-600 border-blue-200')}`}>{user?.role || 'member'}</span>
-                    </div>
-                </header>
-                <main className="flex-1 overflow-y-auto scrollbar-thin">
-                    <div key={location.pathname} className="animate-fade-in-up">{children}</div>
-                </main>
             </div>
         </div>
     );

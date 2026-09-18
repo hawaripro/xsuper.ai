@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Api\ContentController;
+use App\Models\AiModelProfile;
 use App\Models\ContentBlock;
+use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
 use App\Models\UsageRate;
 use App\Services\AiProxyService;
@@ -12,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class PublicSiteController extends Controller
 {
@@ -25,7 +28,8 @@ class PublicSiteController extends Controller
             app(ReferralService::class)->capture($request, (string) $request->query('ref'));
         }
 
-        $data = $this->sharedData($request);
+        $data = $this->sharedData($request, 'landing');
+        $data['recentPurchases'] = $this->recentPurchases();
         $site = $data['site'];
         $data['page'] = $this->pageMetadata([
             'title' => __('UltrAI — AI-Powered Platform for UMKM Indonesia'),
@@ -79,7 +83,7 @@ class PublicSiteController extends Controller
             return $redirect;
         }
 
-        $data = $this->sharedData($request);
+        $data = $this->sharedData($request, 'pricing');
         $site = $data['site'];
         $startingPrice = $data['plans'][0]['priceLabel'];
         $data['page'] = $this->pageMetadata([
@@ -120,7 +124,7 @@ class PublicSiteController extends Controller
             return $redirect;
         }
 
-        $data = $this->sharedData($request);
+        $data = $this->sharedData($request, 'models');
         $data['models'] = $this->modelCatalog($proxy, $data['site']);
         $data['providers'] = array_values(array_unique(array_column($data['models'], 'provider')));
         $data['capabilityCounts'] = collect($data['models'])
@@ -129,6 +133,7 @@ class PublicSiteController extends Controller
             ->sortDesc()
             ->all();
         $data['providerCounts'] = collect($data['models'])->countBy('provider')->sortDesc()->all();
+        $data['billingCounts'] = collect($data['models'])->countBy('billing')->all();
         $data['modalityCounts'] = collect($data['models'])
             ->flatMap(fn (array $model): array => $model['modalities'])
             ->countBy()
@@ -164,7 +169,7 @@ class PublicSiteController extends Controller
             return $redirect;
         }
 
-        $data = $this->sharedData($request);
+        $data = $this->sharedData($request, 'policy');
         abort_unless(isset($data['site']['policies'][$policy]), 404);
         $document = $data['site']['policies'][$policy];
         $data['page'] = $this->pageMetadata([
@@ -199,11 +204,11 @@ class PublicSiteController extends Controller
             ->header('Content-Type', 'application/xml; charset=UTF-8');
     }
 
-    private function sharedData(Request $request): array
+    private function sharedData(Request $request, ?string $announcementSurface = null): array
     {
         $locale = (string) ($request->route('locale') ?? 'id');
         app()->setLocale($locale);
-        $site = $this->publishedSiteContent($this->translateValue(config('marketing')), $locale);
+        $site = $this->publishedSiteContent($this->translateValue(config('marketing')), $locale, $announcementSurface);
         $descriptions = [
             '1_day' => __('Satu hari untuk mencoba cara kerja baru.'),
             '1_week' => __('Teman untuk satu tugas atau proyek singkat.'),
@@ -250,7 +255,32 @@ class PublicSiteController extends Controller
         ];
     }
 
-    private function publishedSiteContent(array $site, string $locale): array
+    private function recentPurchases(): array
+    {
+        if (! Schema::hasTable('duration_orders')) {
+            return [];
+        }
+
+        $now = now();
+
+        return DurationOrder::query()
+            ->where('status', 'approved')
+            ->whereNotNull('approved_at')
+            ->where('price', '>', 0)
+            ->whereIn('package', array_keys(DurationOrder::PACKAGES))
+            ->whereBetween('approved_at', [$now->copy()->subDays(7), $now])
+            ->orderByDesc('approved_at')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get(['package', 'approved_at'])
+            ->map(fn (DurationOrder $order): array => [
+                'package' => __(DurationOrder::PACKAGES[$order->package]['label']),
+                'time' => __('Disetujui :date', ['date' => $order->approved_at->locale(app()->getLocale())->translatedFormat('j F Y')]),
+            ])
+            ->all();
+    }
+
+    private function publishedSiteContent(array $site, string $locale, ?string $announcementSurface): array
     {
         try {
             $blocks = ContentBlock::query()
@@ -274,8 +304,11 @@ class PublicSiteController extends Controller
         }
 
         $announcement = $blocks->get('system.announcement')?->published;
-        if (ContentController::payloadIsValid('system.announcement', $announcement)) {
-            $site['announcement'] = $announcement;
+        if ($announcementSurface !== null && ContentController::payloadIsValid('system.announcement', $announcement)) {
+            $surfaces = $announcement['surfaces'] ?? ContentController::DEFAULT_SURFACES;
+            if (in_array($announcementSurface, $surfaces, true)) {
+                $site['announcement'] = $announcement;
+            }
         }
 
         $articles = $blocks->get('help.articles')?->published;
@@ -345,10 +378,44 @@ class PublicSiteController extends Controller
     private function modelCatalog(AiProxyService $proxy, array $site): array
     {
         $known = collect($site['models'])->keyBy('id');
-        $rawModels = collect(Cache::remember('public-model-catalog-v2', now()->addMinutes(10), fn (): array => $proxy->getAllModels()));
-        if ($rawModels->isEmpty()) {
-            $rawModels = $known->values();
-        }
+        $hasProfiles = Schema::hasTable('ai_model_profiles');
+        $profiles = $hasProfiles
+            ? AiModelProfile::query()
+                ->where('is_enabled', true)
+                ->whereHas('provider', fn ($provider) => $provider->where('is_enabled', true))
+                ->with('provider')
+                ->orderBy('sort_order')
+                ->orderBy('display_name')
+                ->get()
+            : collect();
+        $liveModels = collect(Cache::remember('public-model-catalog-v3', now()->addMinutes(10), fn (): array => $proxy->getAllModels()))->keyBy('id');
+        $rawModels = $hasProfiles
+            ? $profiles->map(function (AiModelProfile $profile) use ($liveModels): array {
+                $live = $liveModels->get($profile->model_id, []);
+
+                return [
+                    ...$live,
+                    'id' => $profile->model_id,
+                    'name' => $profile->display_name,
+                    'owned_by' => $profile->provider_name ?: $profile->provider?->name,
+                    'provider' => $profile->provider_name ?: $profile->provider?->name,
+                    'category' => $profile->category,
+                    'tier' => $profile->tier,
+                    'token_cost' => $profile->token_cost,
+                    'description_id' => $profile->description_id,
+                    'description_en' => $profile->description_en,
+                    'logo_url' => $profile->logo_url,
+                    'context_length' => $profile->context_window ?? ($live['context_length'] ?? null),
+                    'max_output_tokens' => $profile->max_output_tokens,
+                    'capabilities' => $profile->capabilities ?? ($live['capabilities'] ?? []),
+                    'input_modalities' => $profile->input_modalities ?? ['text'],
+                    'output_modalities' => $profile->output_modalities ?? ['text'],
+                    'badges' => $profile->badges ?? [],
+                    'is_available' => $profile->is_available,
+                    'sort_order' => $profile->sort_order,
+                ];
+            })
+            : collect();
         $rates = collect(UsageRate::publicCatalog())->flatten(1)->groupBy('model');
 
         return $rawModels
@@ -363,34 +430,44 @@ class PublicSiteController extends Controller
                 }
                 $modelRates = $rates->get($id, collect());
                 $category = strtolower((string) ($model['category'] ?? 'chat'));
+                $isMedia = in_array($category, ['image', 'video', 'audio'], true);
                 $capabilities = array_values(array_unique(array_filter([...$capabilities, $category])));
-                $modalities = ['text'];
+                $modalities = array_values(array_unique(array_filter($model['input_modalities'] ?? ['text'])));
                 foreach ($capabilities as $capability) {
                     if (in_array($capability, ['vision', 'image', 'file', 'audio', 'video', 'embeddings'], true)) {
                         $modalities[] = $capability === 'vision' ? 'image' : $capability;
                     }
                 }
                 $modalities = array_values(array_unique($modalities));
-                $rateList = $modelRates->values()->all();
-                $inputRate = $modelRates->firstWhere('meter', 'input_tokens');
-                $outputRate = $modelRates->firstWhere('meter', 'output_tokens');
 
                 return [
                     'id' => $id,
                     'name' => $model['name'] ?? $fallback['name'] ?? $id,
                     'provider' => $provider,
-                    'description' => $fallback['description'] ?? __('Model AI untuk percakapan, analisis, dan pekerjaan kreatif.'),
-                    'logo' => $fallback['logo'] ?? '/brands/ultrai/mark-96.webp',
+                    'description' => app()->getLocale() === 'en'
+                        ? ($model['description_en'] ?? $model['description_id'] ?? $fallback['description'] ?? __('Model AI untuk percakapan, analisis, dan pekerjaan kreatif.'))
+                        : ($model['description_id'] ?? $model['description_en'] ?? $fallback['description'] ?? __('Model AI untuk percakapan, analisis, dan pekerjaan kreatif.')),
+                    'logo' => $model['logo_url'] ?? $fallback['logo'] ?? '/brands/ultrai/mark-96.webp',
                     'context' => $model['context_length'] ?? $model['context_window'] ?? null,
+                    'maxOutput' => $model['max_output_tokens'] ?? null,
                     'capabilities' => $capabilities,
                     'modalities' => $modalities,
-                    'rates' => $rateList,
-                    'inputRate' => $inputRate,
-                    'outputRate' => $outputRate,
+                    'outputModalities' => $model['output_modalities'] ?? ['text'],
+                    'badges' => $model['badges'] ?? [],
+                    'available' => $model['is_available'] ?? true,
+                    'billing' => $isMedia ? 'tokens' : ($modelRates->isEmpty() ? 'subscription' : 'payg'),
+                    'tokenCost' => $model['token_cost'] ?? null,
+                    'generationUnit' => $isMedia ? $category : null,
+                    'rates' => $modelRates->values()->all(),
+                    'inputRate' => $modelRates->firstWhere('meter', 'input_tokens'),
+                    'outputRate' => $modelRates->firstWhere('meter', 'output_tokens'),
+                    'cacheReadRate' => $modelRates->firstWhere('meter', 'cache_read'),
+                    'cacheWriteRate' => $modelRates->firstWhere('meter', 'cache_write'),
+                    'sortOrder' => $model['sort_order'] ?? 65535,
                 ];
             })
             ->unique('id')
-            ->sortBy(fn (array $model): string => strtolower($model['provider'].' '.$model['name']))
+            ->sortBy(fn (array $model): string => str_pad((string) $model['sortOrder'], 5, '0', STR_PAD_LEFT).strtolower($model['provider'].' '.$model['name']))
             ->values()
             ->all();
     }

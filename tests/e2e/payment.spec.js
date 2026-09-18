@@ -1,0 +1,42 @@
+import { test, expect } from '@playwright/test';
+import { login, newSession, databaseRows, captureErrors } from './helpers.js';
+
+test('QRIS paid confirmation becomes a persisted order then admin approval extends membership', async ({ page, browser }) => {
+    test.setTimeout(90_000);
+    const errors = captureErrors(page);
+    await login(page, 'member');
+    const member = databaseRows('users', { email: 'member@dashboard-e2e.test' })[0];
+    const beforeExpiry = new Date(member.expires_at).getTime();
+    await page.getByRole('button', { name: 'Extend access', exact: true }).click();
+    const checkout = page.waitForResponse(response => response.url().endsWith('/api/period/checkout') && response.request().method() === 'POST');
+    await page.getByRole('dialog').getByRole('button', { name: /1 Week|1 Minggu/ }).click();
+    const reference = (await (await checkout).json()).checkout.payment_reference;
+    await expect(page.getByRole('img', { name: 'QRIS payment code' })).toBeVisible();
+    await expect(page.getByText('Scan the QRIS code to pay', { exact: true })).toBeVisible();
+    expect(databaseRows('payment_checkouts', { reference })[0].used_at).toBeNull();
+    const submitted = page.waitForResponse(response => response.url().endsWith('/api/period/order') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'I have paid', exact: true }).click();
+    expect((await submitted).status()).toBe(201);
+    await expect(page.getByText('Waiting for admin approval', { exact: true })).toBeVisible();
+    const order = databaseRows('duration_orders', { payment_reference: reference })[0];
+    expect(order.status).toBe('pending');
+    expect(order.user_id).toBe(member.id);
+    expect(order.price).toBe(20000);
+    expect(databaseRows('payment_checkouts', { reference })[0].used_at).not.toBeNull();
+
+    const admin = await newSession(browser, 'admin');
+    await admin.page.goto('/en/admin/operations');
+    const row = admin.page.getByRole('row').filter({ hasText: 'QA Member' });
+    await row.getByRole('button', { name: 'Approve', exact: true }).click();
+    const approval = admin.page.waitForResponse(response => response.url().endsWith(`/api/a/period/approve/${order.id}`));
+    await admin.page.getByRole('button', { name: 'Confirm approve', exact: true }).click();
+    expect((await approval).status()).toBe(200);
+    await expect.poll(() => databaseRows('duration_orders', { id: order.id })[0].status).toBe('approved');
+    await expect(page.getByText('Payment approved. Your account duration has been extended.', { exact: true })).toBeVisible();
+    const afterExpiry = new Date(databaseRows('users', { id: member.id })[0].expires_at).getTime();
+    expect(afterExpiry - beforeExpiry).toBe(7 * 24 * 60 * 60 * 1000);
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    expect(errors).toEqual([]);
+    await admin.context.close();
+});

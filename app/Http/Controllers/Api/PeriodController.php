@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
 use App\Models\User;
+use App\Models\PaymentCheckout;
 use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PeriodController extends Controller
@@ -53,23 +55,63 @@ class PeriodController extends Controller
     }
 
     /**
+     * Create a short-lived, user-scoped QRIS checkout before order submission.
+     */
+    public function checkout(Request $request)
+    {
+        $validated = $request->validate([
+            'package' => 'required|string|in:1_day,1_week,1_month,3_months,6_months,12_months',
+        ]);
+        $package = DurationPackagePrice::catalog()[$validated['package']];
+        abort_unless($package['is_active'], 422, 'Paket tidak aktif.');
+
+        $checkout = DB::transaction(function () use ($request, $validated, $package): PaymentCheckout {
+            // One active checkout per user: stale attempts expire so older QR codes can no longer be ordered.
+            PaymentCheckout::query()
+                ->where('user_id', $request->user()->id)
+                ->whereNull('used_at')
+                ->where('expires_at', '>', now())
+                ->lockForUpdate()
+                ->update(['expires_at' => now()]);
+
+            return PaymentCheckout::create([
+                'reference' => (string) Str::uuid(),
+                'user_id' => $request->user()->id,
+                'package' => $validated['package'],
+                'payment_method' => 'qris',
+                'amount_idr' => (int) $package['price'],
+                'expires_at' => now()->addHour(),
+            ]);
+        });
+
+        return response()->json([
+            'checkout' => [
+                'payment_reference' => $checkout->reference,
+                'payment_method' => $checkout->payment_method,
+                'amount_idr' => $checkout->amount_idr,
+                'expires_at' => $checkout->expires_at->toISOString(),
+                'qr_image_url' => '/assets/payments/qris-ultrai.png',
+            ],
+        ], 201);
+    }
+
+    /**
      * Member creates a duration order
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
             'package' => 'required|string|in:1_day,1_week,1_month,3_months,6_months,12_months',
+            'payment_reference' => ['required', 'uuid'],
         ]);
 
         $user = Auth::user();
         $pkg = DurationPackagePrice::catalog()[$validated['package']];
         abort_unless($pkg['is_active'], 422, 'Paket tidak aktif.');
 
-        // Check if user already has a pending order
         $existing = DurationOrder::where('user_id', $user->id)
             ->where('status', 'pending')
             ->first();
-
         if ($existing) {
             return response()->json([
                 'message' => 'Anda sudah memiliki order yang menunggu persetujuan.',
@@ -77,20 +119,49 @@ class PeriodController extends Controller
             ], 422);
         }
 
-        $order = DurationOrder::create([
-            'user_id' => $user->id,
-            'package' => $validated['package'],
-            'days' => $pkg['days'],
-            'price' => $pkg['price'],
-            'status' => 'pending',
-        ]);
+        $order = DB::transaction(function () use ($user, $validated, $pkg): DurationOrder {
+            $checkout = PaymentCheckout::query()
+                ->whereKey($validated['payment_reference'])
+                ->where('user_id', $user->id)
+                ->where('package', $validated['package'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $checkout || $checkout->used_at !== null || $checkout->expires_at === null || $checkout->expires_at->isPast()) {
+                throw ValidationException::withMessages([
+                    'payment_reference' => 'Checkout QRIS tidak valid, sudah digunakan, atau kedaluwarsa.',
+                ]);
+            }
+
+            // Single-use: consume only while still unconsumed (guards concurrent double-submit).
+            $consumed = PaymentCheckout::query()
+                ->whereKey($checkout->reference)
+                ->whereNull('used_at')
+                ->update(['used_at' => now()]);
+            if ($consumed !== 1) {
+                throw ValidationException::withMessages([
+                    'payment_reference' => 'Checkout QRIS tidak valid, sudah digunakan, atau kedaluwarsa.',
+                ]);
+            }
+
+            return DurationOrder::create([
+                'user_id' => $user->id,
+                'package' => $validated['package'],
+                'days' => $pkg['days'],
+                'price' => $checkout->amount_idr,
+                'payment_method' => 'qris',
+                'payment_reference' => $checkout->reference,
+                'payment_expires_at' => $checkout->expires_at,
+                'payment_confirmed_at' => now(),
+                'status' => 'pending',
+            ]);
+        });
 
         return response()->json([
-            'message' => 'Order berhasil dibuat. Menunggu persetujuan admin.',
+            'message' => 'Pembayaran dikonfirmasi. Order menunggu persetujuan admin.',
             'order' => $order,
         ], 201);
     }
-
     /**
      * Admin approves an order — adds duration to user
      */

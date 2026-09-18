@@ -3,21 +3,165 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\PublicSiteController;
+use App\Models\AiModelProfile;
+use App\Models\AiProviderProfile;
 use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
+use App\Models\User;
 use DOMDocument;
 use DOMXPath;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
 class PublicSiteTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->withoutVite();
         config(['services.umami.id' => null]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_home_exposes_only_recent_approved_paid_subscription_events_without_private_order_data(): void
+    {
+        Carbon::setTestNow('2026-05-16 12:00:00');
+        $buyer = User::factory()->create([
+            'id' => 864209731,
+            'name' => 'Rahasia Pembeli',
+            'email' => 'rahasia@example.test',
+        ]);
+        DurationOrder::create([
+            'user_id' => $buyer->id,
+            'package' => '1_month',
+            'days' => 30,
+            'price' => 53_217,
+            'payment_method' => 'qris',
+            'payment_reference' => '44444444-4444-4444-8444-444444444444',
+            'note' => 'Private verification details',
+            'status' => 'approved',
+            'approved_at' => now()->subMinutes(38),
+        ]);
+
+        foreach ([
+            ['package' => '1_week', 'price' => 20_000, 'status' => 'pending', 'approved_at' => now()],
+            ['package' => '3_months', 'price' => 135_000, 'status' => 'rejected', 'approved_at' => now()],
+            ['package' => 'manual', 'price' => 1, 'status' => 'approved', 'approved_at' => now()],
+            ['package' => '6_months', 'price' => 0, 'status' => 'approved', 'approved_at' => now()],
+            ['package' => '12_months', 'price' => 499_000, 'status' => 'approved', 'approved_at' => null],
+            ['package' => 'custom', 'price' => 25_000, 'status' => 'approved', 'approved_at' => now()],
+            ['package' => '1_day', 'price' => 5_000, 'status' => 'approved', 'approved_at' => now()->subDays(8)],
+            ['package' => '1_day', 'price' => 5_000, 'status' => 'approved', 'approved_at' => now()->addMinute()],
+        ] as $order) {
+            DurationOrder::create([
+                'user_id' => $buyer->id,
+                'days' => 7,
+                'payment_method' => 'qris',
+                ...$order,
+            ]);
+        }
+
+        $content = $this->get('/')->assertOk()->getContent();
+        $html = $this->html($content);
+        $region = $html->query('//*[@data-purchase-region]');
+        $items = $html->query('//*[@data-purchase-item]');
+
+        $this->assertCount(1, $region);
+        $this->assertSame('status', $region->item(0)->getAttribute('role'));
+        $this->assertCount(1, $items);
+        $this->assertStringContainsString('1 Bulan', $this->text($items->item(0)->textContent));
+        $this->assertStringContainsString('16 Mei 2026', $this->text($items->item(0)->textContent));
+        $this->assertCount(1, $html->query('//*[@data-purchase-region]//button[@data-purchase-dismiss][@type="button"][@aria-label!=""]'));
+        $this->assertSame('', $html->evaluate('string(//*[@id="site-status"])'));
+        foreach ([
+            '864209731', 'Rahasia Pembeli', 'rahasia@example.test',
+            '44444444-4444-4444-8444-444444444444', 'Private verification details',
+            '53217', '53.217', '53,217', '11:22:00',
+        ] as $privateValue) {
+            $this->assertStringNotContainsString($privateValue, $content);
+        }
+    }
+
+    public function test_home_bounds_purchase_history_to_the_five_most_recent_eligible_orders(): void
+    {
+        Carbon::setTestNow('2026-05-16 12:00:00');
+        $buyer = User::factory()->create();
+        foreach (array_keys(DurationOrder::PACKAGES) as $index => $package) {
+            DurationOrder::create([
+                'user_id' => $buyer->id,
+                'package' => $package,
+                'days' => DurationOrder::PACKAGES[$package]['days'],
+                'price' => DurationOrder::PACKAGES[$package]['price'],
+                'status' => 'approved',
+                'approved_at' => now()->subDays(6 - $index),
+            ]);
+        }
+
+        $html = $this->html($this->get('/')->assertOk()->getContent());
+        $items = $html->query('//*[@data-purchase-item]');
+
+        $this->assertCount(5, $items);
+        foreach (['12 Bulan', '6 Bulan', '3 Bulan', '1 Bulan', '1 Minggu'] as $index => $label) {
+            $this->assertStringContainsString($label, $this->text($items->item($index)->textContent));
+        }
+    }
+
+    public function test_home_omits_purchase_status_region_without_qualifying_orders(): void
+    {
+        $empty = $this->html($this->get('/')->assertOk()->getContent());
+        $this->assertCount(0, $empty->query('//*[@data-purchase-region]'));
+
+        $buyer = User::factory()->create();
+        foreach ([
+            ['package' => '1_day', 'price' => 5_000, 'status' => 'pending', 'approved_at' => null],
+            ['package' => '1_week', 'price' => 20_000, 'status' => 'rejected', 'approved_at' => now()],
+            ['package' => 'manual', 'price' => 0, 'status' => 'approved', 'approved_at' => now()],
+        ] as $order) {
+            DurationOrder::create([
+                'user_id' => $buyer->id,
+                'days' => 1,
+                'payment_method' => 'qris',
+                ...$order,
+            ]);
+        }
+
+        $response = $this->get('/')->assertOk();
+        $html = $this->html($response->getContent());
+
+        $this->assertCount(0, $html->query('//*[@data-purchase-region]'));
+    }
+
+    public function test_english_home_localizes_anonymous_purchase_package_and_coarse_date(): void
+    {
+        Carbon::setTestNow('2026-05-16 12:00:00');
+        $buyer = User::factory()->create();
+        DurationOrder::create([
+            'user_id' => $buyer->id,
+            'package' => '1_week',
+            'days' => 7,
+            'price' => 20_000,
+            'payment_method' => 'qris',
+            'status' => 'approved',
+            'approved_at' => now()->subHours(3),
+        ]);
+
+        $html = $this->html($this->get('/en')->assertOk()->getContent());
+        $purchase = $html->query('//*[@data-purchase-item]');
+
+        $this->assertCount(1, $purchase);
+        $this->assertStringContainsString('1 Week', $this->text($purchase->item(0)->textContent));
+        $this->assertStringContainsString('16 May 2026', $this->text($purchase->item(0)->textContent));
     }
 
     public function test_home_contains_readable_product_prices_and_faqs_without_javascript(): void
@@ -219,14 +363,14 @@ class PublicSiteTest extends TestCase
 
     public function test_public_model_catalog_is_server_rendered_and_separate_from_subscription_pricing(): void
     {
+        $provider = AiProviderProfile::create(['slug' => 'published', 'name' => 'Published Provider', 'is_enabled' => true]);
+        $profile = AiModelProfile::create([
+            'provider_id' => $provider->id, 'model_id' => 'published-model', 'display_name' => 'Published Model',
+            'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true,
+        ]);
         $models = $this->html($this->get('/models')->assertOk()->getContent());
         $this->assertCanonicalAndIndexable($models, 'https://ultrai.id/models');
-        $this->assertStringContainsString('Katalog Model AI', $this->text($models->evaluate('string(//main)')));
-        $this->assertGreaterThanOrEqual(count(config('marketing.models')), $models->query('//*[@data-model-card]')->count());
-        $this->assertCount(1, $models->query('//*[@data-model-search]'));
-        $this->assertGreaterThan(0, $models->query('//*[@data-model-provider-check]')->count());
-        $this->assertCount(1, $models->query('//*[@data-model-filter-sidebar]'));
-        $this->assertCount(1, $models->query('//*[@data-model-table]'));
+        $this->assertStringContainsString($profile->display_name, $this->text($models->evaluate('string(//*[@data-model-table])')));
         $catalogText = strtolower($this->text($models->evaluate('string(//*[@data-model-table])')));
         $this->assertStringNotContainsString('au'.'to', $catalogText);
         $this->assertStringNotContainsString('eno'.'wx', $catalogText);
@@ -237,6 +381,38 @@ class PublicSiteTest extends TestCase
         $this->assertCount(1, $pricing->query('//*[@data-pricing-carousel]'));
         $this->assertCount(1, $pricing->query('//*[@data-pricing-prev]'));
         $this->assertCount(1, $pricing->query('//*[@data-pricing-next]'));
+    }
+
+    public function test_media_catalog_prices_show_generator_tokens_not_subscription_inclusion(): void
+    {
+        $provider = AiProviderProfile::create([
+            'slug' => 'media-pricing', 'name' => 'Media Provider', 'is_enabled' => true,
+        ]);
+        AiModelProfile::create([
+            'provider_id' => $provider->id, 'model_id' => 'priced-image', 'display_name' => 'Priced Image',
+            'category' => 'image', 'token_cost' => 17, 'is_enabled' => true, 'is_available' => true,
+        ]);
+        AiModelProfile::create([
+            'provider_id' => $provider->id, 'model_id' => 'priced-video', 'display_name' => 'Priced Video',
+            'category' => 'video', 'token_cost' => 203, 'is_enabled' => true, 'is_available' => true,
+        ]);
+        AiModelProfile::create([
+            'provider_id' => $provider->id, 'model_id' => 'unpriced-image', 'display_name' => 'Unpriced Image',
+            'category' => 'image', 'token_cost' => null, 'is_enabled' => true, 'is_available' => true,
+        ]);
+
+        $catalog = $this->html($this->get('/en/models')->assertOk()->getContent());
+        $image = $this->text($catalog->evaluate('string(//article[@id="priced-image"])'));
+        $video = $this->text($catalog->evaluate('string(//article[@id="priced-video"])'));
+        $unpriced = $this->text($catalog->evaluate('string(//article[@id="unpriced-image"])'));
+
+        $this->assertStringContainsString('17 tokens / image', $image);
+        $this->assertStringContainsString('203 tokens / video', $video);
+        $this->assertStringNotContainsString('Included', $unpriced);
+
+        $localized = $this->html($this->get('/models')->assertOk()->getContent());
+        $this->assertStringContainsString('17 token / gambar', $this->text($localized->evaluate('string(//article[@id="priced-image"])')));
+        $this->assertStringContainsString('203 token / video', $this->text($localized->evaluate('string(//article[@id="priced-video"])')));
     }
 
     public function test_sitemap_is_valid_xml_and_lists_only_public_canonical_pages(): void

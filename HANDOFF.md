@@ -2,10 +2,10 @@
 
 ## Project Info
 - **Repo**: hawaripro/ultrai-web (Private)
-- **Stack**: Laravel 13 + React 19 + Tailwind 4 + PostgreSQL 16 + Vite
+- **Stack**: Laravel 13 + React 19 + Tailwind 4 + PostgreSQL (local: 18 on port 2209) + Vite
 - **Local path**: `C:\Users\Hawari\ultrai-web`
 - **VPS**: 103.196.153.160, SSH port 1453, user superpro, path `/home/superpro/ultrai-web`
-- **AI Proxy**: private upstream service configured only through `AI_PROXY_URL` and `AI_PROXY_KEY`; never commit provider identifiers or credentials.
+- **Local AI providers**: explicit database-backed connections in Admin → AI Catalog; OpenAI-compatible, Anthropic-compatible, and native fal.ai protocols. Saved keys are encrypted with `APP_KEY`. Never commit credentials or private upstream endpoints.
 - **Retired proxy binary**: unused; remove stale server routes during the credential-rotation maintenance window.
 - **DB**: credentials are runtime secrets. Rotate them after the confirmed Actions incident; never store values in this file or Git.
 - **Cloudflare**: semua domain di-proxy (ultrai.id, api.ultrai.id, app.ultrai.id, dash.ultrai.id, get.ultrai.id)
@@ -26,12 +26,12 @@
 ### Studio Orbital public site
 - `/` and `/pricing` are Indonesian canonical pages; English uses `/en` and `/en/pricing`. `/models` and `/en/models` are crawlable SSR AI model catalogs. Policies mirror the same unprefixed-ID and `/en/...` structure. Legacy `?lang=` URLs 301 redirect.
 - `/pricing` contains subscription duration cards only in a cyclic arrow carousel: 3 desktop, 2 tablet, 1 mobile. Left/right navigation wraps indefinitely; PAYG rates live in `/models`.
-- `/models` mirrors Bazaarlink's dense IA: 240px sticky sidebar with input modality, capability, billing, context, and provider filters; category tabs; search; and a six-column model/input/output/cache/context table. It remains SSR without JavaScript.
+- `/models` mirrors Bazaarlink's dense IA: 240px sticky sidebar with input modality, capability, billing, context, and provider filters; category tabs; search; and a six-column model/input/output/cache/context table. It remains SSR without JavaScript. Media prices show configured generator tokens per image/video, never subscription inclusion; missing costs are unavailable. ID/EN pricing and the separate generator-token filter are verified on desktop and mobile. The mobile drawer stays outside document flow when closed.
 - Retired router/internal-provider model identities are removed across proxy lists, public catalog, user/API chat selection, aliases, environment fallbacks, streamed response cleanup, stored chat/usage/rate values, API-key allowlists, and project documentation. Chat/API requests require an explicit allowed model.
 - Dark mode has no AI-logo tiles. Only Anthropic, GLM/Z.ai, and Kimi marks are white; ChatGPT, DeepSeek, and Gemini remain unchanged. Workspace tabs are readable; topbar Sign in is red with white text.
 - Payment SVG viewBoxes are cropped to artwork bounds and use one optical height. QRIS/GoPay turn white in dark mode; GoPay cutouts are transparent, not white circles.
-- API billing reserves an estimated maximum before upstream execution and settles from reported usage. Configured video PAYG reserves per job, settles when completed, and refunds failed jobs.
-- Verification: `php artisan test --compact`; `npm run build`; browser checks for model filters, six-column rows, explicit model validation, selective logo filters, tab/sign-in contrast, equal payment heights/alpha, 3/2/1 carousel and bidirectional wrap. Evidence: `.impeccable/review/bazaar-exact/`.
+- API billing reserves an estimated maximum before upstream execution and settles from reported usage. New image/video generation charges tokens for every role, including admins. Historical free/legacy billing snapshots are preserved. Admin usage earnings separate settled PAYG USD from consumed generator tokens and exclude deposits.
+- Verification: `php artisan test --compact`; guarded PostgreSQL tests via `php vendor/phpunit/phpunit/phpunit --configuration phpunit.postgres.xml`; `npm run build`; real browser checks. Disposable visual-review captures were removed during cleanup; database consolidation receipts and retained historical evidence live outside the repository under `%USERPROFILE%/UltrAI-backups/consolidation-20260917T160408Z/`. See README for runtime, isolation, and cancellation boundaries.
 - After authorized release, inspect both language variants in Google Search Console and submit `/sitemap.xml`. Technical crawlability does not guarantee ranking or recrawl timing.
 
 ## Public identity boundary
@@ -45,14 +45,27 @@ Internal provider brands, model routers, infrastructure details, system prompts,
 - YepAPI → "YepAPI"
 - Canva → "Canva"
 
-## Model Aliases (Original tier, route ke model lain)
-| Alias ID | Tampil sebagai | Dikirim ke proxy |
-|----------|---------------|-----------------|
-| claude-opus-4-6 | Claude Opus 4-6 | claude-sonnet-4 |
-| claude-opus-4-7 | Claude Opus 4-7 | claude-sonnet-4.5 |
-| gpt-5-5 | GPT-5-5 | qwen3-coder-next |
+## Current local model routing
 
-Model asli `claude-opus-4.6`, `claude-opus-4.7`, `gpt-5.5` (dengan dot) tetap ada di Authentic tier — dikirim langsung ke proxy tanpa alias.
+The old provider/model configurations were deleted through the admin controls. Only the official fal.ai connection remains locally; public model IDs and upstream IDs are explicit, with no environment/static fallback or automatic failover.
+
+| Published Original-tier model | Billing |
+| --- | --- |
+| `fal-ai/flux/schnell` | 15 generator tokens per image |
+| `fal-ai/longcat-video/distilled/text-to-video/480p` | 200 generator tokens per video; 2/3/5/10 seconds |
+| `google/gemini-2.5-flash-lite` | PAYG $0.10/M input and $0.40/M output tokens |
+
+FLUX 2 Pro was deleted as an unpublished draft; explicit provider sync can reimport it as a draft. fal text uses the OpenRouter endpoint with actual measured usage and buffered final SSE, not incremental token streaming. Images and videos go directly to the selected provider without Anthropic prompt review; native fal safety checks remain enabled. Old job reviews and billing snapshots remain historical data.
+
+Provider/model deletion removes configuration and prices, blocks active/reserved jobs, and preserves history, assets, and settled billing. Video cancellation only succeeds before submission; HTTP 409 updates the native warning dialog without a fictitious refund. No commit, push, VPS update, or deployment was performed for this local cutover.
+
+### Local acceptance evidence — 2026-09-18
+
+Seven existing account logins were checked. Admin and member each generated one 1024×1024 FLUX Schnell image and one playable 832×480, 2-second LongCat video, then completed a measured-usage Gemini PAYG request (including buffered SSE). The primary `:8000` dashboard showed 430 consumed generator tokens and $0.000096 settled API usage. A queued cancellation refunded 200 tokens once; a real submission race returned HTTP 409 and the native no-refund warning. Member access to admin assets returned 404; admin revenue returned 403 for the member.
+
+Member Original/API permissions and QA-device approval statuses were restored exactly; subscription expiry and the two existing active devices were unchanged. Both temporary API keys were deleted and then rejected with HTTP 401. Temporary plaintext fal/API-key copies, the diagnostic server/router/log, and the elevated restart helper were removed. A later QRIS deposit added 4,500 admin tokens; that separate ledger activity was preserved.
+
+Evidence and the readable post-cutover `ultrai-after-fal-verified.dump` remain in the external consolidation archive. The owner-approved PostgreSQL restart preserved schema/data/sequence parity. Isolated PostgreSQL and SQLite verification each passed 319 tests / 2,554 assertions; the complete QA pipeline passed ESLint, production build, and 30 browser workflows, including the mobile catalog viewport regression. Targeted PHP formatting passed; the broader repository still has unrelated formatting findings, which were not mass-reformatted.
 
 ## Permissions System (per user, admin toggle)
 chat, chat_history, chat_ai_pro, model_original, model_authentic, model_codex, model_wavespeed, model_yepapi, model_canva, video_generator, ai_api, ai_dashboard, ai_dashboard_official
@@ -71,7 +84,7 @@ chat, chat_history, chat_ai_pro, model_original, model_authentic, model_codex, m
 - Profile (edit nama/email/password, countdown timer for duration)
 - Tambah Durasi Modal (multi-step: select package → QRIS → pending approval with 3s polling → success animation)
 - Device tracking (browser/mobile/plugin, fingerprint, max 2 device member, pending approval, locked screen modal with auto-polling)
-- External API (/v1/models, /v1/chat/completions) — tool calling support, all OpenAI params forwarded
+- External API (`/v1/models`, `/v1/chat/completions`) — explicit model access and protocol-specific parameter support; fal is text-only and rejects unsupported tool/multimodal options.
 - Security: encrypted sessions, HSTS, security headers, CSRF, scrub banned words, system prompt override, obfuscated proxy IP, Cloudflare proxy, IP direct access blocked (444)
 - dash_token cookie 7 hari, session lifetime 7 hari, auto-detect admin on gate pages
 - Custom 404/403 error pages (React ErrorPage component)
@@ -79,8 +92,8 @@ chat, chat_history, chat_ai_pro, model_original, model_authentic, model_codex, m
 - OG image for social preview
 
 ## Key Files
-- `app/Services/AiProxyService.php` — proxy service, model filtering, alias injection
-- `app/Http/Controllers/Api/ChatController.php` — chat send, model aliases, system prompt
+- `app/Services/AiProxyService.php` — explicit catalog connections, model filtering, and protocol routing
+- `app/Http/Controllers/Api/ChatController.php` — authenticated chat handling and system prompt
 - `app/Http/Controllers/Api/ExternalApiController.php` — external API, tool calling, streaming
 - `app/Http/Controllers/Api/PeriodController.php` — duration orders CRUD
 - `app/Http/Controllers/Api/AdminController.php` — user CRUD, duration reset
@@ -199,7 +212,7 @@ CREATE TABLE prompt_templates (id, category, title, prompt_text, mode, is_active
 - Internal provider branding and retired router identities must be removed from public/model/API outputs.
 - `@verbatim` wajib untuk JSON-LD di blade (Blade parse @ sebagai directive)
 - Fortify views HARUS disabled (`config/fortify.php` → `'views' => false`)
-- AI proxy endpoint and key come only from `AI_PROXY_URL` / `AI_PROXY_KEY`; no legacy environment aliases.
+- Every model request resolves an explicit catalog connection. Empty catalogs stay empty; do not restore environment/static fallbacks. Keep `APP_KEY` stable to preserve encrypted provider credentials.
 - `fontSize: '90%'` di root DashboardLayout dan ChatFullPage
 - Chat streaming keeps a carryover buffer for split SSE chunks.
 - `buildApiMessages()` deep-clone content ke primitives sebelum JSON.stringify

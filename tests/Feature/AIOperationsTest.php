@@ -7,8 +7,10 @@ use App\Http\Controllers\Api\ImageController;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ImageJob;
+use App\Models\TokenTransaction;
 use App\Models\UsageRate;
 use App\Models\User;
+use App\Models\UserToken;
 use App\Models\VideoJob;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -16,10 +18,13 @@ use App\Services\AiProxyService;
 use App\Services\AuditService;
 use App\Services\ImageGenerationService;
 use App\Services\UsageBillingService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -27,6 +32,8 @@ use Tests\TestCase;
 class AIOperationsTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=';
 
     protected function setUp(): void
     {
@@ -37,6 +44,7 @@ class AIOperationsTest extends TestCase
             'services.ai_proxy.key' => 'catalog-super-secret',
         ]);
         Http::preventStrayRequests();
+        Storage::fake('local');
     }
 
     public function test_admin_syncs_sanitized_catalog_and_records_healthy_provider_state(): void
@@ -64,11 +72,13 @@ class AIOperationsTest extends TestCase
             ]),
         ]);
         $admin = User::factory()->create(['role' => 'admin']);
+        $provider = AiProviderProfile::create(['slug' => 'ai-proxy', 'name' => 'AI Proxy', 'is_enabled' => true]);
 
         $response = app(AiCatalogController::class)->sync(
-            $this->requestFor($admin, 'POST', '/api/admin/ai/catalog/sync'),
+            $this->requestFor($admin, 'POST', '/api/admin/ai/providers/'.$provider->id.'/sync'),
             app(AiProxyService::class),
             app(AuditService::class),
+            $provider,
         );
         $payload = $response->getData(true);
 
@@ -106,11 +116,13 @@ class AIOperationsTest extends TestCase
             ], 503),
         ]);
         $admin = User::factory()->create(['role' => 'admin']);
+        $provider = AiProviderProfile::create(['slug' => 'ai-proxy', 'name' => 'AI Proxy', 'is_enabled' => true]);
 
         $response = app(AiCatalogController::class)->sync(
-            $this->requestFor($admin, 'POST', '/api/admin/ai/catalog/sync'),
+            $this->requestFor($admin, 'POST', '/api/admin/ai/providers/'.$provider->id.'/sync'),
             app(AiProxyService::class),
             app(AuditService::class),
+            $provider,
         );
         $payload = $response->getData(true);
 
@@ -149,9 +161,10 @@ class AIOperationsTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         app(AiCatalogController::class)->sync(
-            $this->requestFor($admin, 'POST', '/api/admin/ai/catalog/sync'),
+            $this->requestFor($admin, 'POST', '/api/admin/ai/providers/'.$provider->id.'/sync'),
             app(AiProxyService::class),
             app(AuditService::class),
+            $provider,
         );
 
         $this->assertTrue($removed->fresh()->is_enabled);
@@ -160,23 +173,26 @@ class AIOperationsTest extends TestCase
         $this->assertSame($provider->id, AiModelProfile::where('model_id', 'current-image')->firstOrFail()->provider_id);
     }
 
-    public function test_models_with_active_but_incomplete_usd_pricing_are_not_advertised(): void
+    public function test_image_catalog_requires_configured_token_cost_for_every_role(): void
     {
         [, $model] = $this->createImageModel();
-        UsageRate::create([
-            'service' => 'image',
-            'meter' => 'unit',
-            'model' => $model->model_id,
-            'label' => 'Image Alpha',
-            'unit' => 'image',
-            'price_idr' => 4000,
-            'price_usd' => null,
-            'is_active' => true,
-        ]);
+        $model->update(['token_cost' => null]);
+        $users = [User::factory()->create(), User::factory()->create(['role' => 'admin'])];
+        foreach ($users as $user) {
+            $payload = app(ImageController::class)->models($this->requestFor($user, 'GET', '/api/images/models'))->getData(true);
+            $this->assertSame([], $payload['models']);
+        }
 
-        $payload = app(ImageController::class)->models()->getData(true);
-
-        $this->assertSame([], $payload['models']);
+        $model->update(['token_cost' => 15]);
+        foreach ($users as $user) {
+            $payload = app(ImageController::class)->models($this->requestFor($user, 'GET', '/api/images/models'))->getData(true);
+            $this->assertSame('image-alpha', $payload['models'][0]['id']);
+            $this->assertSame(15, $payload['models'][0]['token_cost']);
+            $this->assertSame('tokens', $payload['models'][0]['billing_mode']);
+            $this->assertSame('synchronous', $payload['generation_mode']);
+            $this->assertFalse($payload['can_cancel']);
+            $this->assertSame('synchronous_generation', $payload['cancel_reason_code']);
+        }
     }
 
     public function test_model_update_rolls_back_when_required_audit_write_fails(): void
@@ -214,9 +230,10 @@ class AIOperationsTest extends TestCase
 
         try {
             app(AiCatalogController::class)->sync(
-                $this->requestFor($admin, 'POST', '/api/admin/ai/catalog/sync'),
+                $this->requestFor($admin, 'POST', '/api/admin/ai/providers/'.$provider->id.'/sync'),
                 app(AiProxyService::class),
                 $audit,
+                $provider,
             );
             $this->fail('Expected audit failure.');
         } catch (\RuntimeException $exception) {
@@ -257,18 +274,18 @@ class AIOperationsTest extends TestCase
         $this->assertStringNotContainsString('api_key', $json);
     }
 
-    public function test_image_generation_uses_active_unit_rate_and_persists_urls(): void
+    public function test_image_generation_uses_token_cost_and_persists_urls(): void
     {
         [, $model] = $this->createImageModel();
-        $this->createImageRate($model->model_id, 0.25);
         $user = User::factory()->create();
         Wallet::credit($user->id, 2_000_000, 'Test balance');
+        UserToken::topup($user->id, 100);
         Http::fake([
             'https://private-provider.example.test/v1/images/generations' => Http::response([
                 'created' => 1_789_000_000,
                 'data' => [
-                    ['url' => 'https://cdn.example.test/result-one.png'],
-                    ['url' => 'https://cdn.example.test/result-two.png'],
+                    ['b64_json' => self::PNG],
+                    ['b64_json' => self::PNG],
                 ],
             ]),
         ]);
@@ -288,15 +305,16 @@ class AIOperationsTest extends TestCase
         $job = ImageJob::where('job_id', $payload['job']['job_id'])->firstOrFail();
         $this->assertSame('completed', $job->status);
         $this->assertSame('settled', $job->billing_status);
-        $this->assertSame(500_000, $job->billing_reserved_microusd);
-        $this->assertSame([
-            'https://cdn.example.test/result-one.png',
-            'https://cdn.example.test/result-two.png',
-        ], $job->result_urls);
-        $this->assertSame(1_500_000, Wallet::balance($user->id));
-        $this->assertDatabaseHas('wallet_transactions', [
+        $this->assertSame(30, $job->tokens_reserved);
+        $this->assertCount(2, $job->result_urls);
+        foreach ($job->result_urls as $url) {
+            $this->actingAs($user)->get($url)->assertOk()->assertHeader('Content-Type', 'image/png');
+        }
+        $this->assertSame(2_000_000, Wallet::balance($user->id));
+        $this->assertSame(70, UserToken::getBalance($user->id));
+        $this->assertDatabaseHas('token_reservations', [
             'user_id' => $user->id,
-            'type' => 'settlement',
+            'status' => 'settled',
             'reference_id' => $job->billing_reference_id,
         ]);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://private-provider.example.test/v1/images/generations'
@@ -312,8 +330,8 @@ class AIOperationsTest extends TestCase
         $request = $this->requestFor($user, 'POST', '/api/images', [
             'model' => 'not-enabled',
             'prompt' => '',
-            'size' => 'poster',
-            'n' => 9,
+            'size' => ['invalid'],
+            'n' => 11,
         ]);
 
         try {
@@ -329,9 +347,10 @@ class AIOperationsTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_image_generation_requires_an_active_image_rate(): void
+    public function test_image_generation_requires_configured_member_token_cost(): void
     {
         [, $model] = $this->createImageModel();
+        $model->update(['token_cost' => null]);
         $user = User::factory()->create();
         Wallet::credit($user->id, 2_000_000, 'Test balance');
         Http::fake();
@@ -352,33 +371,63 @@ class AIOperationsTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_active_zero_cost_image_rate_is_settled_without_reserved_wallet_balance(): void
+    public function test_admin_image_generation_spends_tokens_without_using_wallet_rates(): void
     {
         [, $model] = $this->createImageModel();
-        $this->createImageRate($model->model_id, 0);
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin']);
+        UserToken::topup($user->id, 30);
         Http::fake([
             'https://private-provider.example.test/v1/images/generations' => Http::response([
-                'data' => [['url' => 'https://cdn.example.test/free-image.png']],
+                'data' => [['b64_json' => self::PNG]],
             ]),
+        ]);
+        $response = app(ImageController::class)->generate(
+            $this->validImageRequest($user, $model->model_id),
+            app(ImageGenerationService::class),
+        );
+        $job = ImageJob::firstOrFail();
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame('completed', $job->status);
+        $this->assertSame('tokens', $job->billing_mode);
+        $this->assertSame(15, $job->tokens_reserved);
+        $this->assertSame(15, UserToken::getBalance($user->id));
+        $this->assertSame(0, Wallet::balance($user->id));
+        $this->assertSame('settled', $job->billing_status);
+    }
+
+    public function test_image_status_warns_that_synchronous_generation_cannot_be_cancelled(): void
+    {
+        [, $model] = $this->createImageModel();
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 30);
+        $inFlight = null;
+        Http::fake([
+            'https://private-provider.example.test/v1/images/generations' => function () use ($user, &$inFlight) {
+                $job = ImageJob::query()->firstOrFail();
+                $inFlight = app(ImageController::class)->show(
+                    $this->requestFor($user, 'GET', '/api/images/'.$job->job_id),
+                    $job->job_id,
+                )->getData(true);
+
+                return Http::response(['data' => [['b64_json' => self::PNG]]]);
+            },
         ]);
 
         $response = app(ImageController::class)->generate(
             $this->validImageRequest($user, $model->model_id),
             app(ImageGenerationService::class),
         );
-        $job = ImageJob::firstOrFail();
-
         $this->assertSame(201, $response->getStatusCode());
-        $this->assertSame('completed', $job->status);
-        $this->assertSame('settled', $job->billing_status);
-        $this->assertSame(0, $job->billing_reserved_microusd);
-        $this->assertSame(0, Wallet::balance($user->id));
-        $this->assertDatabaseHas('wallet_transactions', [
-            'reference_id' => $job->billing_reference_id,
-            'type' => 'settlement',
-            'amount_microusd' => 0,
-        ]);
+        $this->assertSame('processing', $inFlight['job']['status']);
+        $this->assertSame('reserved', $inFlight['job']['billing_status']);
+        $this->assertFalse($inFlight['job']['can_cancel']);
+        $this->assertSame('synchronous_generation', $inFlight['job']['cancel_reason_code']);
+        $this->assertSame(15, $inFlight['balance']);
+        $this->assertSame('completed', $response->getData(true)['job']['status']);
+        $this->assertSame('settled', $response->getData(true)['job']['billing_status']);
+        $this->assertSame(15, UserToken::getBalance($user->id));
+        $this->assertSame(0, TokenTransaction::query()->where('user_id', $user->id)->where('type', 'refund')->count());
+        Http::assertSentCount(1);
     }
 
     public function test_unit_billing_rejects_a_missing_active_rate(): void
@@ -392,9 +441,9 @@ class AIOperationsTest extends TestCase
     public function test_unsupported_image_upstream_returns_502_and_refunds_reservation(): void
     {
         [, $model] = $this->createImageModel();
-        $this->createImageRate($model->model_id, 0.75);
         $user = User::factory()->create();
         Wallet::credit($user->id, 1_000_000, 'Test balance');
+        UserToken::topup($user->id, 100);
         Http::fake([
             'https://private-provider.example.test/v1/images/generations' => Http::response([
                 'error' => 'catalog-super-secret unsupported at https://private-provider.example.test',
@@ -413,12 +462,7 @@ class AIOperationsTest extends TestCase
         $this->assertSame('released', $job->billing_status);
         $this->assertNull($job->result_urls);
         $this->assertSame(1_000_000, Wallet::balance($user->id));
-        $this->assertDatabaseMissing('wallet_transactions', [
-            'reference_id' => $job->billing_reference_id,
-            'type' => 'reserve',
-            'amount_microusd' => 0,
-        ]);
-        $this->assertSame(1, WalletTransaction::where('reference_id', $job->billing_reference_id)->where('type', 'release')->count());
+        $this->assertSame(100, UserToken::getBalance($user->id));
         $json = json_encode($payload, JSON_THROW_ON_ERROR);
         $this->assertStringNotContainsString('catalog-super-secret', $json);
         $this->assertStringNotContainsString('private-provider.example.test', $json);
@@ -428,9 +472,9 @@ class AIOperationsTest extends TestCase
     public function test_unavailable_image_upstream_returns_503_and_refunds_reservation(): void
     {
         [, $model] = $this->createImageModel();
-        $this->createImageRate($model->model_id, 0.5);
         $user = User::factory()->create();
         Wallet::credit($user->id, 1_000_000, 'Test balance');
+        UserToken::topup($user->id, 100);
         Http::fake(function (): never {
             throw new ConnectionException('catalog-super-secret connection failed');
         });
@@ -445,7 +489,7 @@ class AIOperationsTest extends TestCase
         $this->assertSame('failed', $job->status);
         $this->assertSame('released', $job->billing_status);
         $this->assertSame(1_000_000, Wallet::balance($user->id));
-        $this->assertSame(1, WalletTransaction::where('reference_id', $job->billing_reference_id)->where('type', 'release')->count());
+        $this->assertSame(100, UserToken::getBalance($user->id));
         $this->assertStringNotContainsString('catalog-super-secret', json_encode($response->getData(true), JSON_THROW_ON_ERROR));
     }
 
@@ -488,6 +532,36 @@ class AIOperationsTest extends TestCase
         $this->assertSame(1, WalletTransaction::where('reference_id', $referenceId)->where('type', 'release')->count());
     }
 
+    public function test_reconciliation_rechecks_heartbeat_after_selecting_a_stale_candidate(): void
+    {
+        [, $model] = $this->createImageModel();
+        $this->createImageRate($model->model_id, 0.5);
+        $user = User::factory()->create();
+        Wallet::credit($user->id, 1_000_000, 'Test balance');
+        $reservation = app(UsageBillingService::class)->reserveUnit($user->id, 'image', $model->model_id, 1, 'heartbeat-race');
+        $job = ImageJob::create([
+            'user_id' => $user->id, 'job_id' => (string) Str::uuid(), 'model' => $model->model_id,
+            'prompt' => 'Active request', 'status' => 'processing', 'billing_status' => 'reserved',
+            'billing_reference_id' => $reservation['reference_id'], 'billing_reserved_microusd' => $reservation['amount_microusd'],
+        ]);
+        DB::table('image_jobs')->where('id', $job->id)->update(['updated_at' => now()->subMinutes(5)]);
+        $heartbeatSent = false;
+        ImageJob::retrieved(function (ImageJob $candidate) use ($job, &$heartbeatSent): void {
+            if ($candidate->id === $job->id && ! $heartbeatSent) {
+                $heartbeatSent = true;
+                DB::table('image_jobs')->where('id', $job->id)->update(['updated_at' => now()]);
+            }
+        });
+        try {
+            $this->assertSame(0, app(ImageGenerationService::class)->reconcileStaleReservations(3));
+            $this->assertSame('processing', $job->fresh()->status);
+            $this->assertSame('reserved', $job->fresh()->billing_status);
+            $this->assertSame(500_000, Wallet::balance($user->id));
+        } finally {
+            ImageJob::flushEventListeners();
+        }
+    }
+
     public function test_member_image_history_and_status_are_owner_scoped(): void
     {
         $owner = User::factory()->create();
@@ -504,7 +578,7 @@ class AIOperationsTest extends TestCase
 
         $this->assertSame([$owned->job_id], array_column($history['jobs'], 'job_id'));
         $this->assertSame($owned->job_id, $status['job']['job_id']);
-        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->expectException(ModelNotFoundException::class);
         $controller->show(
             $this->requestFor($owner, 'GET', "/api/images/{$foreign->job_id}"),
             $foreign->job_id,
@@ -576,7 +650,8 @@ class AIOperationsTest extends TestCase
             'model_id' => $modelId,
             'display_name' => 'Image Alpha',
             'category' => 'image',
-            'tier' => 'Wavespeed',
+            'tier' => 'Original',
+            'token_cost' => 15,
             'is_enabled' => $enabled,
             'is_available' => true,
             'capabilities' => ['image_generation'],

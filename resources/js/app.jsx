@@ -4,6 +4,9 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { LocaleProvider, useLocale } from './contexts/LocaleContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import PageErrorBoundary from './components/dashboard/PageErrorBoundary';
 
 // Pages
 import Login from './pages/Login';
@@ -11,6 +14,9 @@ import Dashboard from './pages/Dashboard';
 import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
 import VideoGenerator from './pages/VideoGenerator';
+import AudioGenerator from './pages/AudioGenerator';
+import VideoDownloader from './pages/VideoDownloader';
+import MediaConverter from './pages/MediaConverter';
 import ErrorPage from './pages/ErrorPage';
 
 // User pages
@@ -18,7 +24,7 @@ import TemplatePrompt from './pages/TemplatePrompt';
 import ChatHistory from './pages/ChatHistory';
 import GenerateImage from './pages/GenerateImage';
 import TokenPemakaian from './pages/TokenPemakaian';
-import PaketPerpanjangan from './pages/PaketPerpanjangan';
+import Deposit from './pages/Deposit';
 import Referral from './pages/Referral';
 import Bantuan from './pages/Bantuan';
 import Notifications from './pages/Notifications';
@@ -41,19 +47,20 @@ import DashboardLayout from './layouts/DashboardLayout';
 // Protected Route wrapper
 function ProtectedRoute({ children, adminOnly = false, permission = null }) {
     const { user, loading } = useAuth();
+    const { t, localizedPath } = useLocale();
 
     if (loading) {
         return (
             <div className="min-h-screen bg-[#fafbfc] flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-10 h-10 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-gray-500 text-sm">Memuat...</span>
+                    <span className="text-gray-500 text-sm">{t('Memuat...')}</span>
                 </div>
             </div>
         );
     }
 
-    if (!user) return <Navigate to="/login" replace />;
+    if (!user) return <Navigate to={localizedPath('/login')} replace />;
     if (adminOnly && user.role !== 'admin') return <ErrorPage code={403} />;
 
     if (permission && user.role !== 'admin') {
@@ -67,6 +74,7 @@ function ProtectedRoute({ children, adminOnly = false, permission = null }) {
 // Guest Route
 function GuestRoute({ children }) {
     const { user, loading } = useAuth();
+    const { localizedPath } = useLocale();
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -74,15 +82,54 @@ function GuestRoute({ children }) {
             </div>
         );
     }
-    if (user) return <Navigate to="/dashboard" replace />;
+    if (user) return <Navigate to={localizedPath('/dashboard')} replace />;
     return children;
+}
+
+function LocalizedAppRoutes() {
+    const { locale } = useLocale();
+    const prefix = locale === 'en' ? '/en' : '';
+    const path = (value) => `${prefix}${value}`;
+
+    return (
+        <Routes>
+            <Route path={path('/login')} element={<GuestRoute><Login /></GuestRoute>} />
+            <Route path={path('/chat')} element={<ProtectedRoute permission="chat"><PageErrorBoundary><ChatFullPage /></PageErrorBoundary></ProtectedRoute>} />
+            <Route path={path('/dashboard')} element={<DL><Dashboard /></DL>} />
+            <Route path={path('/profile')} element={<DL><Profile /></DL>} />
+            <Route path={path('/video')} element={<DL permission="video_generator"><VideoGenerator /></DL>} />
+            <Route path={path('/audio')} element={<DL permission="audio_generator"><AudioGenerator /></DL>} />
+            <Route path={path('/downloads')} element={<DL permission="video_downloader"><VideoDownloader /></DL>} />
+            <Route path={path('/converter')} element={<DL permission="media_converter"><MediaConverter /></DL>} />
+            <Route path={path('/templates')} element={<DL><TemplatePrompt /></DL>} />
+            <Route path={path('/history')} element={<DL permission="chat_history"><ChatHistory /></DL>} />
+            <Route path={path('/generate-image')} element={<DL><GenerateImage /></DL>} />
+            <Route path={path('/token-usage')} element={<DL><TokenPemakaian /></DL>} />
+            <Route path={path('/deposit')} element={<DL><Deposit /></DL>} />
+            <Route path={path('/paket')} element={<Navigate to={`${path('/deposit')}?tab=subscription`} replace />} />
+            <Route path={path('/referral')} element={<DL><Referral /></DL>} />
+            <Route path={path('/bantuan')} element={<DL><Bantuan /></DL>} />
+            <Route path={path('/notifications')} element={<DL><Notifications /></DL>} />
+            <Route path={path('/admin/users')} element={<DL adminOnly><AdminUsers /></DL>} />
+            <Route path={path('/admin/token-usage')} element={<DL adminOnly><TokenUsage /></DL>} />
+            <Route path={path('/admin/overview')} element={<DL adminOnly><AdminOverview /></DL>} />
+            <Route path={path('/admin/operations')} element={<DL adminOnly><Operations /></DL>} />
+            <Route path={path('/admin/content')} element={<DL adminOnly><ContentSupport /></DL>} />
+            <Route path={path('/admin/ai')} element={<DL adminOnly><AICatalog /></DL>} />
+            <Route path={path('/admin/system')} element={<DL adminOnly><SystemActivity /></DL>} />
+            <Route path={path('/admin/settings')} element={<DL adminOnly><Settings /></DL>} />
+            <Route path={path('/admin')} element={<Navigate to={path('/admin/overview')} replace />} />
+            <Route path={path('/usage')} element={<Navigate to={path('/admin/token-usage')} replace />} />
+            <Route path="*" element={<ErrorPage code={404} />} />
+        </Routes>
+    );
 }
 
 // Helper to wrap with DashboardLayout + ProtectedRoute
 function DL({ children, adminOnly = false, permission = null }) {
     return (
         <ProtectedRoute adminOnly={adminOnly} permission={permission}>
-            <DashboardLayout>{children}</DashboardLayout>
+            <DashboardLayout><PageErrorBoundary>{children}</PageErrorBoundary></DashboardLayout>
         </ProtectedRoute>
     );
 }
@@ -90,60 +137,15 @@ function DL({ children, adminOnly = false, permission = null }) {
 function App() {
     return (
         <ThemeProvider>
-        <AuthProvider>
-            <BrowserRouter>
-                <Routes>
-                    {/* Public */}
-                    <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
-
-                    {/* Protected - Full Page (no dashboard layout) */}
-                    <Route path="/chat" element={<ProtectedRoute permission="chat"><ChatFullPage /></ProtectedRoute>} />
-
-                    {/* User routes */}
-                    <Route path="/dashboard" element={<DL><Dashboard /></DL>} />
-                    <Route path="/profile" element={<DL><Profile /></DL>} />
-                    <Route path="/video" element={<DL permission="video_generator"><VideoGenerator /></DL>} />
-                    <Route path="/templates" element={<DL><TemplatePrompt /></DL>} />
-                    <Route path="/history" element={<DL permission="chat_history"><ChatHistory /></DL>} />
-                    <Route path="/generate-image" element={<DL><GenerateImage /></DL>} />
-                    <Route path="/token-usage" element={<DL><TokenPemakaian /></DL>} />
-                    <Route path="/paket" element={<DL><PaketPerpanjangan /></DL>} />
-                    <Route path="/referral" element={<DL><Referral /></DL>} />
-                    <Route path="/bantuan" element={<DL><Bantuan /></DL>} />
-
-                    <Route path="/notifications" element={<DL><Notifications /></DL>} />
-                    {/* Admin routes */}
-                    <Route path="/admin/users" element={<DL adminOnly><AdminUsers /></DL>} />
-                    <Route path="/admin/token-usage" element={<DL adminOnly><TokenUsage /></DL>} />
-                    <Route path="/admin/overview" element={<DL adminOnly><AdminOverview /></DL>} />
-                    <Route path="/admin/operations" element={<DL adminOnly><Operations /></DL>} />
-                    <Route path="/admin/content" element={<DL adminOnly><ContentSupport /></DL>} />
-                    <Route path="/admin/ai" element={<DL adminOnly><AICatalog /></DL>} />
-                    <Route path="/admin/system" element={<DL adminOnly><SystemActivity /></DL>} />
-                    <Route path="/admin/settings" element={<DL adminOnly><Settings /></DL>} />
-                    <Route path="/admin/periods" element={<Navigate to="/admin/operations" replace />} />
-                    <Route path="/admin/revenue" element={<Navigate to="/admin/overview" replace />} />
-                    <Route path="/admin/orders" element={<Navigate to="/admin/operations" replace />} />
-                    <Route path="/admin/cost" element={<Navigate to="/admin/token-usage" replace />} />
-                    <Route path="/admin/expiring" element={<Navigate to="/admin/operations" replace />} />
-                    <Route path="/admin/broadcast" element={<Navigate to="/admin/content" replace />} />
-                    <Route path="/admin/referral" element={<Navigate to="/admin/content" replace />} />
-                    <Route path="/admin/feedback" element={<Navigate to="/admin/content" replace />} />
-                    <Route path="/admin/providers" element={<Navigate to="/admin/ai" replace />} />
-                    <Route path="/admin/models" element={<Navigate to="/admin/ai" replace />} />
-                    <Route path="/admin/video-queue" element={<Navigate to="/admin/ai" replace />} />
-                    <Route path="/admin/landing" element={<Navigate to="/admin/content" replace />} />
-                    <Route path="/admin/analytics" element={<Navigate to="/admin/system" replace />} />
-                    <Route path="/admin/audit" element={<Navigate to="/admin/system" replace />} />
-                    {/* Legacy redirects */}
-                    <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
-                    <Route path="/usage" element={<Navigate to="/admin/token-usage" replace />} />
-
-                    {/* Catch all — 404 */}
-                    <Route path="*" element={<ErrorPage code={404} />} />
-                </Routes>
-            </BrowserRouter>
-        </AuthProvider>
+            <AuthProvider>
+                <BrowserRouter>
+                    <LocaleProvider>
+                        <NotificationProvider>
+                            <LocalizedAppRoutes />
+                        </NotificationProvider>
+                    </LocaleProvider>
+                </BrowserRouter>
+            </AuthProvider>
         </ThemeProvider>
     );
 }

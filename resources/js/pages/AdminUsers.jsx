@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLocale } from '../contexts/LocaleContext';
 
 const PERMISSION_LABELS = {
     chat: 'Chat AI',
@@ -12,6 +13,9 @@ const PERMISSION_LABELS = {
     model_yepapi: 'Model YepAPI',
     model_canva: 'Model Canva',
     video_generator: 'Video Generator',
+    audio_generator: 'Audio Studio',
+    video_downloader: 'Video Downloader',
+    media_converter: 'Media Converter',
     ai_api: 'AI API',
     ai_dashboard: 'AI Dashboard',
     ai_dashboard_official: 'AI Dashboard Official',
@@ -21,10 +25,12 @@ const DEFAULT_PERMS = {
     chat: true, chat_history: true, model_original: true,
     model_authentic: false, model_codex: false, model_wavespeed: false,
     model_yepapi: false, model_canva: false, video_generator: false,
+    audio_generator: true, video_downloader: true, media_converter: true,
     ai_api: false, ai_dashboard: false, ai_dashboard_official: false,
 };
 
 export default function AdminUsers() {
+    const { t } = useLocale();
     const { user: currentUser } = useAuth();
     const { theme } = useTheme();
     const isDark = theme === 'dark';
@@ -267,15 +273,12 @@ export default function AdminUsers() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-fade-in-up">
                 <div>
-                    <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        Kelola <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">Users</span>
+                    <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{t("Kelola ")}<span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">{t("Users")}</span>
                     </h1>
-                    <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Manajemen akun pengguna platform UltrAI.</p>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t("Manajemen akun pengguna platform UltrAI.")}</p>
                 </div>
                 <button onClick={openCreate} className="ui-btn-primary">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Tambah User
-                </button>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>{t("Tambah User")}</button>
             </div>
 
             {/* Search */}
@@ -286,7 +289,7 @@ export default function AdminUsers() {
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Cari berdasarkan nama atau email..."
+                        placeholder={t("Cari berdasarkan nama atau email...")}
                         className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15 ${
                             isDark
                                 ? 'bg-white/[0.04] border border-white/[0.08] text-white placeholder-gray-600 hover:border-red-400/30'
@@ -296,9 +299,9 @@ export default function AdminUsers() {
                 </div>
                 <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border ${isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-white border-gray-200/80 shadow-[0_1px_3px_rgba(15,23,42,0.04)]'}`}>
                     <svg className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
-                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Total:</span>
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t("Total:")}</span>
                     <span className={`text-sm font-bold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>{users.length}</span>
-                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>users</span>
+                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t('users')}</span>
                 </div>
             </div>
 
@@ -323,19 +326,19 @@ export default function AdminUsers() {
                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isDark ? 'bg-white/[0.04]' : 'bg-red-50'}`}>
                             <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
                         </div>
-                        <p className="text-sm font-medium">Tidak ada user ditemukan</p>
-                        <p className="text-xs">Coba ubah kata kunci pencarian.</p>
+                        <p className="text-sm font-medium">{t("Tidak ada user ditemukan")}</p>
+                        <p className="text-xs">{t("Coba ubah kata kunci pencarian.")}</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto scrollbar-thin">
                         <table className="w-full min-w-[680px]">
                             <thead>
                                 <tr className={`border-b ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-gray-200 bg-gray-50/60'}`}>
-                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>User</th>
-                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] hidden sm:table-cell ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Email</th>
-                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Role</th>
-                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] hidden md:table-cell ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Masa Aktif</th>
-                                    <th className={`text-right px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Aksi</th>
+                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("User")}</th>
+                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] hidden sm:table-cell ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Email")}</th>
+                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Role")}</th>
+                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] hidden md:table-cell ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Masa Aktif")}</th>
+                                    <th className={`text-right px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Aksi")}</th>
                                 </tr>
                             </thead>
                             <tbody className="stagger">
@@ -363,10 +366,10 @@ export default function AdminUsers() {
                                             {u.role === 'admin' ? (
                                                 <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>∞ Unlimited</span>
                                             ) : u.is_expired ? (
-                                                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400">Expired</span>
+                                                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400">{t("Expired")}</span>
                                             ) : u.days_remaining !== null && u.days_remaining !== undefined ? (
                                                 <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${u.days_remaining <= 3 ? 'bg-red-500/15 text-red-400' : u.days_remaining <= 7 ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'}`}>
-                                                    {u.days_remaining} hari
+                                                    {u.days_remaining} {t("hari")}
                                                 </span>
                                             ) : (
                                                 <span className="text-xs text-emerald-400">∞ Unlimited</span>
@@ -374,17 +377,17 @@ export default function AdminUsers() {
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1">
-                                                <button onClick={() => openDeviceModal(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Devices">
+                                                <button onClick={() => openDeviceModal(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title={t("Devices")}>
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                                                 </button>
-                                                <button onClick={() => openKeyModal(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'}`} title="API Key">
+                                                <button onClick={() => openKeyModal(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10' : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'}`} title={t("API Key")}>
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
                                                 </button>
-                                                <button onClick={() => openEdit(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Edit">
+                                                <button onClick={() => openEdit(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'}`} title={t("Edit")}>
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                                                 </button>
                                                 {u.id !== currentUser?.id && (
-                                                    <button onClick={() => setDeleteConfirm(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`} title="Hapus">
+                                                    <button onClick={() => setDeleteConfirm(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`} title={t("Hapus")}>
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                                                     </button>
                                                 )}
@@ -412,7 +415,7 @@ export default function AdminUsers() {
                                 </span>
                                 {editUser ? 'Edit User' : 'Tambah User Baru'}
                             </h3>
-                            <button onClick={() => setShowModal(false)} className={`p-2 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'}`} aria-label="Close">
+                            <button onClick={() => setShowModal(false)} className={`p-2 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'}`} aria-label={t("Close")}>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                             </button>
                         </div>
@@ -426,12 +429,12 @@ export default function AdminUsers() {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Nama</label>
+                                <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t("Nama")}</label>
                                 <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required
-                                    className={inputClass} placeholder="Nama lengkap" />
+                                    className={inputClass} placeholder={t("Nama lengkap")} />
                             </div>
                             <div>
-                                <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Email</label>
+                                <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t("Email")}</label>
                                 <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required
                                     className={inputClass} placeholder="email@example.com" />
                             </div>
@@ -444,11 +447,11 @@ export default function AdminUsers() {
                                     className={inputClass} placeholder="••••••••" minLength={editUser ? 0 : 8} />
                             </div>
                             <div>
-                                <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Role</label>
+                                <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t("Role")}</label>
                                 <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                                     className={selectClass}>
-                                    <option value="member" className={optionBg}>Member</option>
-                                    <option value="admin" className={optionBg}>Admin</option>
+                                    <option value="member" className={optionBg}>{t("Member")}</option>
+                                    <option value="admin" className={optionBg}>{t("Admin")}</option>
                                 </select>
                             </div>
 
@@ -461,7 +464,7 @@ export default function AdminUsers() {
                                         </label>
                                         <select value={formData.duration} onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                                             className={selectClass}>
-                                            {editUser && <option value="" className={optionBg}>Tidak diubah</option>}
+                                            {editUser && <option value="" className={optionBg}>{t("Tidak diubah")}</option>}
                                             <option value="1d" className={optionBg}>1 Hari</option>
                                             <option value="7d" className={optionBg}>1 Minggu</option>
                                             <option value="30d" className={optionBg}>1 Bulan</option>
@@ -469,19 +472,19 @@ export default function AdminUsers() {
                                             <option value="180d" className={optionBg}>6 Bulan</option>
                                             <option value="365d" className={optionBg}>12 Bulan</option>
                                             <option value="unlimited" className={optionBg}>∞ Unlimited</option>
-                                            {editUser && <option value="clear" className={optionBg}>Reset Expired</option>}
+                                            {editUser && <option value="clear" className={optionBg}>{t("Reset Expired")}</option>}
                                         </select>
                                         {editUser && editUser.expires_at && (
                                             <p className={`mt-1.5 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                                 Expired: {new Date(editUser.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                                {editUser.days_remaining !== null && ` (${editUser.days_remaining} hari lagi)`}
+                                                {editUser.days_remaining !== null && ` (${editUser.days_remaining} ${t("hari lagi")})`}
                                             </p>
                                         )}
                                     </div>
 
                                     {/* Permissions */}
                                     <div>
-                                        <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Hak Akses</label>
+                                        <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t("Hak Akses")}</label>
                                         <div className="grid grid-cols-2 gap-2">
                                             {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
                                                 <button key={key} type="button" onClick={() => togglePerm(key)}
@@ -511,9 +514,7 @@ export default function AdminUsers() {
                                         isDark
                                             ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]'
                                             : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
-                                    }`}>
-                                    Batal
-                                </button>
+                                    }`}>{t("Batal")}</button>
                                 <button type="submit" disabled={formLoading}
                                     className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold hover:brightness-105 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-6px_rgba(239,68,68,0.45)] disabled:opacity-50 transition-all shadow-[0_10px_24px_-4px_rgba(239,68,68,0.35)]">
                                     {formLoading ? 'Menyimpan...' : (editUser ? 'Update' : 'Simpan')}
@@ -532,18 +533,18 @@ export default function AdminUsers() {
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pop-in ${isDark ? 'bg-red-500/15 ring-4 ring-red-500/20' : 'bg-red-50 ring-4 ring-red-100'}`}>
                             <svg className={`w-8 h-8 ${isDark ? 'text-red-400' : 'text-red-500'}`} fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                         </div>
-                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Hapus User?</h3>
+                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{t("Hapus User?")}</h3>
                         <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Yakin ingin menghapus <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{deleteConfirm.name}</span>?
+                            {t("Yakin ingin menghapus")} <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{deleteConfirm.name}</span>?
                             <br />
-                            <span className="text-xs opacity-75">Aksi ini tidak dapat dibatalkan.</span>
+                            <span className="text-xs opacity-75">{t("Aksi ini tidak dapat dibatalkan.")}</span>
                         </p>
                         <div className="flex gap-3">
-                            <button onClick={() => setDeleteConfirm(null)} className="ui-btn-ghost flex-1 justify-center">Batal</button>
+                            <button onClick={() => setDeleteConfirm(null)} className="ui-btn-ghost flex-1 justify-center">{t("Batal")}</button>
                             <button onClick={() => handleDelete(deleteConfirm.id)} className="inline-flex items-center justify-center gap-2 flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold shadow-[0_10px_24px_-4px_rgba(239,68,68,0.45)] hover:brightness-105 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_-6px_rgba(239,68,68,0.55)] active:translate-y-0 active:scale-[0.98] transition-all">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-                                Hapus
-                            </button>
+                                {t("Hapus")}
+</button>
                         </div>
                     </div>
                 </div>
@@ -574,7 +575,7 @@ export default function AdminUsers() {
                             }
                         </p>
                         <div className="flex gap-3">
-                            <button onClick={() => setDeleteKeyConfirm(null)} className="ui-btn-ghost flex-1 justify-center">Batal</button>
+                            <button onClick={() => setDeleteKeyConfirm(null)} className="ui-btn-ghost flex-1 justify-center">{t("Batal")}</button>
                             <button onClick={confirmKeyAction} className={`inline-flex items-center justify-center gap-2 flex-1 py-3 px-4 rounded-xl text-white text-sm font-bold transition-all hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] ${
                                 deleteKeyConfirm.action === 'delete'
                                     ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-[0_10px_24px_-4px_rgba(239,68,68,0.45)] hover:shadow-[0_16px_36px_-6px_rgba(239,68,68,0.55)] hover:brightness-105'
@@ -595,7 +596,7 @@ export default function AdminUsers() {
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Perangkat</h3>
+                                    <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t("Perangkat")}</h3>
                                     {devices.filter(d => d.status === 'pending').length > 0 && (
                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 animate-pulse">
                                             {devices.filter(d => d.status === 'pending').length} pending
@@ -624,8 +625,8 @@ export default function AdminUsers() {
                                             <div className={`text-[9px] mt-0.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>IP: {d.ip_address} · {d.last_active_at ? new Date(d.last_active_at).toLocaleString('id-ID') : '-'}</div>
                                         </div>
                                         <div className="flex gap-1.5">
-                                            <button onClick={() => updateDeviceStatus(d.id, 'active')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500 text-white hover:bg-emerald-600">Setujui</button>
-                                            <button onClick={() => updateDeviceStatus(d.id, 'blocked')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20">Tolak</button>
+                                            <button onClick={() => updateDeviceStatus(d.id, 'active')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500 text-white hover:bg-emerald-600">{t("Setujui")}</button>
+                                            <button onClick={() => updateDeviceStatus(d.id, 'blocked')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20">{t("Tolak")}</button>
                                         </div>
                                     </div>
                                 ))}
@@ -634,7 +635,7 @@ export default function AdminUsers() {
 
                         {devices.filter(d => d.status !== 'pending').length === 0 && devices.filter(d => d.status === 'pending').length === 0 ? (
                             <div className={`text-center py-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                <p className="text-sm">Belum ada perangkat terdaftar</p>
+                                <p className="text-sm">{t("Belum ada perangkat terdaftar")}</p>
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -654,12 +655,12 @@ export default function AdminUsers() {
                                         </div>
                                         <div className="flex gap-1.5">
                                             {d.status !== 'active' && (
-                                                <button onClick={() => updateDeviceStatus(d.id, 'active')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>Aktifkan</button>
+                                                <button onClick={() => updateDeviceStatus(d.id, 'active')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>{t("Aktifkan")}</button>
                                             )}
                                             {d.status !== 'blocked' && (
-                                                <button onClick={() => setDeviceAction({ id: d.id, action: 'block', name: d.device_name })} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'}`}>Block</button>
+                                                <button onClick={() => setDeviceAction({ id: d.id, action: 'block', name: d.device_name })} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'}`}>{t("Block")}</button>
                                             )}
-                                            <button onClick={() => setDeviceAction({ id: d.id, action: 'delete', name: d.device_name })} className={`py-1.5 px-3 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-red-500/10 hover:text-red-400' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500'} transition-colors`}>Hapus</button>
+                                            <button onClick={() => setDeviceAction({ id: d.id, action: 'delete', name: d.device_name })} className={`py-1.5 px-3 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-red-500/10 hover:text-red-400' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500'} transition-colors`}>{t('Hapus')}</button>
                                         </div>
                                     </div>
                                 ))}
@@ -688,14 +689,14 @@ export default function AdminUsers() {
                         </h3>
                         <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             {deviceAction.action === 'delete'
-                                ? <>Yakin ingin menghapus <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat harus login ulang.</>
-                                : <>Yakin ingin memblokir <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat tidak bisa mengakses.</>
+                                ? <>{t("Yakin ingin menghapus")} <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat harus login ulang.</>
+                                : <>{t("Yakin ingin memblokir")} <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat tidak bisa mengakses.</>
                             }
                         </p>
                         <div className="flex gap-3">
                             <button onClick={() => setDeviceAction(null)} className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                                 isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
-                            }`}>Batal</button>
+                            }`}>{t("Batal")}</button>
                             <button
                                 onClick={async () => {
                                     if (deviceAction.action === 'delete') {
@@ -727,11 +728,11 @@ export default function AdminUsers() {
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
                                 </span>
                                 <div>
-                                    <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>API Keys</h3>
+                                    <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t("API Keys")}</h3>
                                     <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{keyModal.name} &middot; {keyModal.email}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setKeyModal(null)} className={`p-2 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'}`} aria-label="Close">
+                            <button onClick={() => setKeyModal(null)} className={`p-2 rounded-xl transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'}`} aria-label={t("Close")}>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
                         </div>
@@ -746,7 +747,7 @@ export default function AdminUsers() {
                         {apiKeys.length === 0 ? (
                             <div className={`text-center py-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                                 <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-                                <p className="text-sm">Belum ada API key</p>
+                                <p className="text-sm">{t("Belum ada API key")}</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -776,15 +777,15 @@ export default function AdminUsers() {
                                         <div className="grid grid-cols-3 gap-2 mb-3">
                                             <div className={`text-center p-1.5 rounded-lg ${isDark ? 'bg-white/[0.03]' : 'bg-white'}`}>
                                                 <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{k.total_requests}</div>
-                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Requests</div>
+                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{t("Requests")}</div>
                                             </div>
                                             <div className={`text-center p-1.5 rounded-lg ${isDark ? 'bg-white/[0.03]' : 'bg-white'}`}>
                                                 <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{k.rate_limit}/m</div>
-                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Rate Limit</div>
+                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{t("Rate Limit")}</div>
                                             </div>
                                             <div className={`text-center p-1.5 rounded-lg ${isDark ? 'bg-white/[0.03]' : 'bg-white'}`}>
                                                 <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{k.last_used_at ? new Date(k.last_used_at).toLocaleDateString('id-ID') : '-'}</div>
-                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>Last Used</div>
+                                                <div className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{t("Last Used")}</div>
                                             </div>
                                         </div>
 
@@ -798,13 +799,11 @@ export default function AdminUsers() {
                                                 {k.is_active ? 'Nonaktifkan' : 'Aktifkan'}
                                             </button>
                                             <button onClick={() => regenKey(k.id)}
-                                                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${isDark ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
-                                                Regenerate
-                                            </button>
+                                                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${isDark ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>{t("Regenerate")}</button>
                                             <button onClick={() => deleteKey(k.id)}
                                                 className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>
-                                                Hapus
-                                            </button>
+                                                {t("Hapus")}
+</button>
                                         </div>
                                     </div>
                                 ))}
@@ -813,11 +812,9 @@ export default function AdminUsers() {
 
                         {/* Usage Info */}
                         <div className={`mt-4 p-3 rounded-xl ${isDark ? 'bg-white/[0.02] border border-white/[0.06]' : 'bg-gray-50 border border-gray-200'}`}>
-                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Cara pakai di OpenCode / Cursor:</p>
+                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t("Cara pakai di OpenCode / Cursor:")}</p>
                             <div className={`mt-2 p-2 rounded-lg font-mono text-[11px] ${isDark ? 'bg-black/30 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                Base URL: https://api.ultrai.id/v1<br/>
-                                API Key: ultrai-xxxxxxxxxx
-                            </div>
+                                Base URL: https://api.ultrai.id/v1<br/>{t("API Key: ultrai-xxxxxxxxxx")}</div>
                         </div>
                     </div>
                 </div>

@@ -7,6 +7,7 @@ use App\Models\ContentBlock;
 use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -18,6 +19,65 @@ class ContentController extends Controller
         'system.announcement',
         'help.articles',
     ];
+
+    /** Distinct surfaces an announcement may target. */
+    public const SURFACES = ['dashboard', 'landing', 'pricing', 'models'];
+
+    /**
+     * Backward-compatible default for payloads saved before targeting
+     * existed: preserve the old landing-only behavior and never announce
+     * across the authenticated app unless `dashboard` is explicit.
+     */
+    public const DEFAULT_SURFACES = ['landing'];
+
+    /**
+     * Latest published announcement for the authenticated dashboard, localized.
+     * Surface is hardcoded to `dashboard`; callers cannot select it.
+     * GET /api/content/announcement?locale=id|en
+     */
+    public function announcement(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'locale' => ['sometimes', 'string', Rule::in(['id', 'en'])],
+        ]);
+
+        return response()->json(['announcement' => self::announcementFor($validated['locale'] ?? 'id', 'dashboard')]);
+    }
+
+    /**
+     * Resolve the newest published announcement targeting a surface, or null.
+     * Payloads without an explicit `surfaces` list default to every surface
+     * (backward compatible with announcements saved before targeting existed).
+     */
+    public static function announcementFor(string $locale, string $surface): ?array
+    {
+        $published = ContentBlock::query()
+            ->where('key', 'system.announcement')
+            ->where('locale', $locale)
+            ->where('is_published', true)
+            ->latest('published_at')
+            ->value('published');
+
+        if (! self::payloadIsValid('system.announcement', $published)) {
+            return null;
+        }
+
+        $surfaces = $published['surfaces'] ?? self::DEFAULT_SURFACES;
+        if (! in_array($surface, $surfaces, true)) {
+            return null;
+        }
+
+        $announcement = [
+            'message' => $published['message'],
+            'level' => $published['level'] ?? 'info',
+        ];
+
+        if (! empty($published['action'])) {
+            $announcement['action'] = $published['action'];
+        }
+
+        return $announcement;
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -85,19 +145,50 @@ class ContentController extends Controller
 
     public function publish(Request $request, ContentBlock $contentBlock, AuditService $audit): JsonResponse
     {
-        $published = $this->validatedPayload($contentBlock->key, $contentBlock->draft);
+        DB::transaction(function () use ($contentBlock, $request, $audit): void {
+            $block = ContentBlock::query()->lockForUpdate()->findOrFail($contentBlock->id);
+            $block->forceFill([
+                'published' => $this->validatedPayload($block->key, $block->draft),
+                'is_published' => true,
+                'published_at' => now(),
+                'updated_by' => $request->user()->id,
+            ])->save();
 
-        $contentBlock->forceFill([
-            'published' => $published,
-            'is_published' => true,
-            'published_at' => now(),
-            'updated_by' => $request->user()->id,
-        ])->save();
+            $audit->record($request->user(), 'content.published', $block, [
+                'key' => $block->key,
+                'locale' => $block->locale,
+            ]);
+        });
 
-        $audit->record($request->user(), 'content.published', $contentBlock, [
-            'key' => $contentBlock->key,
-            'locale' => $contentBlock->locale,
-        ]);
+        return response()->json(['data' => $contentBlock->fresh()->load('editor:id,name,email')]);
+    }
+
+    /**
+     * Stop serving a block everywhere while preserving both the editable draft
+     * and the last published snapshot for recovery/republication.
+     * Idempotent: repeating on an unpublished block mutates nothing and records
+     * no audit entry.
+     * POST /api/admin/content/{contentBlock}/unpublish
+     */
+    public function unpublish(Request $request, ContentBlock $contentBlock, AuditService $audit): JsonResponse
+    {
+        DB::transaction(function () use ($request, $contentBlock, $audit): void {
+            $block = ContentBlock::query()->lockForUpdate()->findOrFail($contentBlock->id);
+
+            if (! $block->is_published) {
+                return;
+            }
+
+            $block->forceFill([
+                'is_published' => false,
+                'updated_by' => $request->user()->id,
+            ])->save();
+
+            $audit->record($request->user(), 'content.unpublished', $block, [
+                'key' => $block->key,
+                'locale' => $block->locale,
+            ]);
+        });
 
         return response()->json(['data' => $contentBlock->fresh()->load('editor:id,name,email')]);
     }
@@ -143,9 +234,11 @@ class ContentController extends Controller
                 'draft.items.*.answer' => ['required', 'string', 'max:3000'],
             ],
             'system.announcement' => [
-                'draft' => ['required', 'array:message,level,action'],
+                'draft' => ['required', 'array:message,level,action,surfaces'],
                 'draft.message' => ['required', 'string', 'max:500'],
                 'draft.level' => ['sometimes', 'string', Rule::in(['info', 'success', 'warning', 'critical'])],
+                'draft.surfaces' => ['sometimes', 'array', 'min:1'],
+                'draft.surfaces.*' => ['required', 'string', 'distinct', Rule::in(self::SURFACES)],
                 'draft.action' => ['sometimes', 'array:label,url'],
                 'draft.action.label' => ['required_with:draft.action', 'string', 'max:80'],
                 'draft.action.url' => ['required_with:draft.action', 'string', 'max:500', self::safeUrlRule()],

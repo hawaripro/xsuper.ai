@@ -1,0 +1,185 @@
+/* Dark mode corrections */
+html.dark .orbit-ring {
+    border-color: #6f303a;
+}
+html.dark .ring-inner {
+    border-color: #51262e;
+}
+html.dark .ring-cross {
+    border-color: #48232a;
+}
+html.dark .orbit-axis {
+    background: #43242a;
+}
+html.dark .core-ring {
+    border-color: #9d4350;
+    border-top-color: #d92d3e;
+    border-bottom-color: #d92d3e;
+}
+html.dark .orbit-card {
+    background: #171e2b;
+    outline-color: #3b465a;
+    box-shadow: 0 14px 28px -22px rgb(0 0 0 / 75%);
+}
+html.dark .orbit-logo,
+html.dark .orbit-logo img,
+html.dark .brand-cell img,
+html.dark .model-row-logo {
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+html.dark img[src$="anthropic.svg"],
+html.dark img[src$="zai.svg"],
+html.dark img[src$="kimi.svg"] {
+    filter: brightness(0) invert(1);
+}
+html.dark img[src$="chatgpt.svg"],
+html.dark img[src$="deepseek.svg"],
+html.dark img[src$="gemini.svg"] {
+    filter: none;
+}
+html.dark .brand-rail {
+    background: #0b101a;
+}
+html.dark .brand-cell {
+    border-color: #263246;
+}
+html.dark .button-light {
+    background: #fff;
+    color: #111827;
+}
+html.dark .button-light:hover {
+    background: #ffe7ea;
+    color: #7f1d2d;
+}
+html.dark .nav-actions .button-dark {
+    background: var(--blue);
+    color: #fff;
+}
+html.dark .nav-actions .button-dark:hover {
+    background: var(--blue-deep);
+    color: #fff;
+}
+html.dark .demo-tabs {
+    background: transparent;
+}
+html.dark .demo-tabs button {
+    background: #111827;
+    border: 1px solid #344055;
+    color: #dce5f3;
+}
+html.dark .demo-tabs button[aria-selected="true"] {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+}
+html.dark .model-marketplace-search input,
+html.dark .model-table {
+    background: #101722;
+    border-color: #2c3749;
+    color: var(--ink);
+}
+html.dark .model-table-head {
+    background: #0c121c;
+    color: #aeb9cc;
+}
+html.dark .model-row {
+    border-color: #283347;
+}
+html.dark .model-row:hover {
+    background: #171f2d;
+}
+html.dark .model-billing-badge.subscription {
+    background: #243044;
+    color: #cfdaea;
+}
+html.dark .model-billing-badge.payg {
+    background: #34161e;
+    color: #ff9da7;
+}
+html.dark .pricing-carousel-controls button {
+    background: #111827;
+    border-color: #39465a;
+    color: #fff;
+}
+html.dark .payment-method img,
+html.dark .pricing-payment-rail img {
+    filter: none;
+}
+html.dark .payment-method[data-payment="qris"] img,
+html.dark .pricing-payment-rail img[src$="qris.svg"],
+html.dark .payment-method[data-payment="gopay"] img,
+html.dark .pricing-payment-rail img[src$="gopay.svg"] {
+    filter: brightness(0) invert(1);
+}
+@media (max-width: 960px) {
+    .model-marketplace-layout {
+        grid-template-columns: 210px minmax(0, 1fr);
+    }
+    .model-table-head,
+    .model-row {
+        grid-template-columns: minmax(250px, 1fr) 100px 100px 90px 90px 70px;
+    }
+    .pricing-grid-page {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .pricing-grid-page .pricing-card:nth-child(n) {
+        display: none;
+    }
+    .pricing-grid-page .pricing-card:nth-child(-n + 2) {
+        display: flex;
+    }
+}
+@media (max-width: 767px) {
+    .model-marketplace {
+        padding: 24px 20px 70px;
+    }
+    .model-marketplace-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .model-marketplace-search {
+        width: 100%;
+    }
+    .model-marketplace-layout {
+        display: block;
+    }
+    .model-results {
+        overflow: hidden;
+    }
+    .model-table {
+        overflow-x: auto;
+    }
+    .model-table-head,
+    .model-row {
+        min-width: 900px;
+    }
+    .pricing-heading-row {
+        align-items: flex-start;
+    }
+    .pricing-heading-row > div:first-child {
+        min-width: 0;
+    }
+    .pricing-carousel-controls button {
+        width: 40px;
+        height: 40px;
+    }
+    .pricing-grid-page {
+        grid-template-columns: 1fr;
+    }
+    .pricing-grid-page .pricing-card:nth-child(n) {
+        display: none;
+    }
+    .pricing-grid-page .pricing-card:first-child {
+        display: flex;
+    }
+    .payment-methods {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .payment-method img,
+    .pricing-payment-rail img {
+        height: 36px;
+    }
+}

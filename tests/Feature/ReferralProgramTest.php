@@ -211,7 +211,7 @@ class ReferralProgramTest extends TestCase
         $this->assertSame(now()->addDays(12)->toISOString(), $referred->fresh()->expires_at->toISOString());
         $this->assertDatabaseCount('referral_rewards', 2);
         $this->assertSame(2, ReferralReward::distinct()->count('reference'));
-        $this->assertSame(10, ReferralReward::sum('days'));
+        $this->assertSame(10, (int) ReferralReward::sum('days'));
         $this->assertDatabaseCount('notifications', 2);
         $this->assertEqualsCanonicalizing(
             [$referrer->id, $referred->id],
@@ -256,6 +256,7 @@ class ReferralProgramTest extends TestCase
         $this->assertTrue($referredExpiryAfterReward->copy()->addDay()->equalTo($referred->fresh()->expires_at));
         $this->assertDatabaseCount('referral_rewards', 2);
     }
+
     public function test_manual_duration_grant_does_not_consume_first_paid_referral_reward(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

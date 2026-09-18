@@ -15,8 +15,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (Schema::getConnection()->table('chat_conversations')->whereNull('model')->exists()) {
+            throw new RuntimeException('Cannot roll back conversation model nullability while conversations have no selected model.');
+        }
+
         Schema::table('chat_conversations', function (Blueprint $table) {
-            $table->string('model')->default('au'.'to')->nullable(false)->change();
+            $table->string('model')->nullable(false)->change();
         });
     }
 };

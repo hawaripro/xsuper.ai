@@ -2,24 +2,29 @@
 
 namespace Tests\Unit;
 
+use App\Models\AiModelProfile;
+use App\Models\AiProviderProfile;
 use App\Services\AiProxyService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AiProxyServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_every_model_listing_removes_auto_and_internal_identifiers(): void
     {
-        config(['services.ai_proxy.url' => 'https://proxy.test', 'services.ai_proxy.key' => 'key']);
-        Http::fake([
-            'https://proxy.test/v1/models' => Http::response(['data' => [
-                ['id' => 'au'.'to', 'name' => 'Auto Router', 'category' => 'chat', 'tier' => 'Standard'],
-                ['id' => 'eno'.'wx-secret', 'name' => 'Internal Model', 'category' => 'chat', 'tier' => 'Standard'],
-                ['id' => 'innocent-id', 'name' => 'Auto Router', 'category' => 'chat', 'tier' => 'Standard'],
-                ['id' => 'other-id', 'name' => 'Visible', 'owned_by' => 'eno'.'wx internal', 'category' => 'chat', 'tier' => 'Standard'],
-                ['id' => 'gpt-visible', 'name' => 'Visible', 'category' => 'chat', 'tier' => 'Standard'],
-            ]]),
-        ]);
+        $provider = AiProviderProfile::create(['slug' => 'catalog', 'name' => 'Catalog provider', 'is_enabled' => true]);
+        foreach ([
+            ['model_id' => 'au'.'to', 'display_name' => 'Auto Router'],
+            ['model_id' => 'eno'.'wx-secret', 'display_name' => 'Internal Model'],
+            ['model_id' => 'innocent-id', 'display_name' => 'Auto Router'],
+            ['model_id' => 'other-id', 'display_name' => 'Visible', 'provider_name' => 'eno'.'wx internal'],
+            ['model_id' => 'gpt-visible', 'display_name' => 'Visible'],
+        ] as $metadata) {
+            AiModelProfile::create([...$metadata, 'provider_id' => $provider->id, 'category' => 'chat', 'tier' => 'Standard', 'is_enabled' => true, 'is_available' => true]);
+        }
 
         $service = app(AiProxyService::class);
 
@@ -28,11 +33,13 @@ class AiProxyServiceTest extends TestCase
         $this->assertSame(['gpt-visible'], array_column($service->getAllModelsFiltered(), 'id'));
     }
 
-    public function test_completion_methods_require_an_explicit_model(): void
+    public function test_empty_catalog_does_not_restore_environment_or_marketing_models(): void
     {
-        $reflection = new \ReflectionClass(AiProxyService::class);
+        config(['services.ai_proxy.url' => 'https://proxy.test', 'services.ai_proxy.key' => 'key']);
+        Http::fake(['*' => Http::response(['data' => [['id' => 'unwanted-fallback', 'category' => 'chat']]])]);
 
-        $this->assertFalse($reflection->getMethod('chatCompletion')->getParameters()[1]->isDefaultValueAvailable());
-        $this->assertFalse($reflection->getMethod('chatCompletionStream')->getParameters()[1]->isDefaultValueAvailable());
+        $this->assertSame([], app(AiProxyService::class)->getAllModels());
+        $this->get('/en/models')->assertOk()->assertViewHas('models', []);
+        Http::assertNothingSent();
     }
 }

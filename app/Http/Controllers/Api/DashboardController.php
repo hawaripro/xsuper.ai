@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AiProviderProfile;
-use App\Models\ChatConversation;
 use App\Models\DurationOrder;
 use App\Models\UsageLog;
 use App\Models\User;
@@ -183,22 +182,30 @@ class DashboardController extends Controller
 
     private function conversationSummary(int $userId): array
     {
-        $count = ChatConversation::query()->where('user_id', $userId)->count();
-        $recent = ChatConversation::query()
+        $conversations = DB::table('chat_history')
             ->where('user_id', $userId)
-            ->latest('updated_at')
-            ->limit(8)
-            ->get(['id', 'title', 'model', 'updated_at'])
-            ->map(fn (ChatConversation $conversation): array => [
-                'id' => $conversation->id,
+            ->select(
+                'conversation_id',
+                DB::raw('MAX(created_at) as last_message'),
+                DB::raw("(SELECT content FROM chat_history ch2 WHERE ch2.user_id = chat_history.user_id AND ch2.conversation_id = chat_history.conversation_id AND ch2.role = 'user' ORDER BY ch2.created_at ASC LIMIT 1) as title"),
+                DB::raw('(SELECT model FROM chat_history ch3 WHERE ch3.user_id = chat_history.user_id AND ch3.conversation_id = chat_history.conversation_id AND ch3.model IS NOT NULL ORDER BY ch3.created_at DESC LIMIT 1) as model'),
+            )
+            ->groupBy('user_id', 'conversation_id')
+            ->orderByDesc('last_message')
+            ->get();
+
+        $recent = $conversations
+            ->take(8)
+            ->map(fn (object $conversation): array => [
+                'id' => $conversation->conversation_id,
                 'type' => 'conversation',
-                'title' => $conversation->title,
+                'title' => $conversation->title ? mb_substr($conversation->title, 0, 50) : 'New Chat',
                 'model' => $conversation->model,
-                'occurred_at' => $this->timestamp($conversation->updated_at),
+                'occurred_at' => $this->timestamp($conversation->last_message),
             ])
             ->values();
 
-        return ['count' => $count, 'recent' => $recent];
+        return ['count' => $conversations->count(), 'recent' => $recent];
     }
 
     private function services(): array
@@ -238,7 +245,7 @@ class DashboardController extends Controller
         }
 
         $actions[] = ['key' => 'usage', 'label' => 'Pemakaian', 'href' => '/token-usage'];
-        $actions[] = ['key' => 'extend', 'label' => 'Tambah durasi', 'href' => '/paket'];
+        $actions[] = ['key' => 'extend', 'label' => 'Deposit dan langganan', 'href' => '/deposit'];
 
         return $actions;
     }
@@ -268,12 +275,6 @@ class DashboardController extends Controller
                     TO_CHAR(created_at, 'IYYY-"W"IW')
                     SQL,
                 default => "TO_CHAR(created_at, 'YYYY-MM')",
-            },
-            'mysql', 'mariadb' => match ($period) {
-                'hourly' => "DATE_FORMAT(created_at, '%Y-%m-%dT%H:00:00Z')",
-                'daily' => "DATE_FORMAT(created_at, '%Y-%m-%d')",
-                'weekly' => "DATE_FORMAT(created_at, '%x-W%v')",
-                default => "DATE_FORMAT(created_at, '%Y-%m')",
             },
             default => match ($period) {
                 'hourly' => "strftime('%Y-%m-%dT%H:00:00Z', created_at)",

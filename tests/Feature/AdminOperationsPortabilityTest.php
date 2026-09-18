@@ -14,26 +14,19 @@ class AdminOperationsPortabilityTest extends TestCase
 
     public function test_usage_analytics_are_grouped_in_the_requested_timezone_on_sqlite(): void
     {
+        $this->travelTo('2026-09-14 12:00:00');
+
         $admin = User::factory()->create(['role' => 'admin']);
         $member = User::factory()->create();
-        UsageLog::create([
-            'user_id' => $member->id,
-            'model' => 'chat-fast',
-            'source' => 'web',
-            'total_tokens' => 120,
-            'credit' => 1.25,
-            'created_at' => '2026-09-13 18:30:00',
-            'updated_at' => '2026-09-13 18:30:00',
-        ]);
-        UsageLog::create([
-            'user_id' => $member->id,
-            'model' => 'chat-quality',
-            'source' => 'api',
-            'total_tokens' => 80,
-            'credit' => 0.75,
-            'created_at' => '2026-09-13 19:30:00',
-            'updated_at' => '2026-09-13 19:30:00',
-        ]);
+        foreach ([
+            ['model' => 'chat-fast', 'source' => 'web', 'total_tokens' => 120, 'credit' => 1.25, 'created_at' => '2026-09-13 18:30:00'],
+            ['model' => 'chat-quality', 'source' => 'api', 'total_tokens' => 80, 'credit' => 0.75, 'created_at' => '2026-09-13 19:30:00'],
+        ] as $attributes) {
+            $log = new UsageLog($attributes + ['user_id' => $member->id]);
+            $log->created_at = $attributes['created_at'];
+            $log->updated_at = $attributes['created_at'];
+            $log->save();
+        }
 
         $this->actingAs($admin)
             ->getJson('/api/usage?period=daily&tz=Asia/Jakarta')

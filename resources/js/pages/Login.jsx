@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocale } from '../contexts/LocaleContext';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import UltrLogo from '../components/UltrLogo';
 
 export default function Login() {
     const { login } = useAuth();
     const { theme, toggleTheme } = useTheme();
+    const { locale, t, localizedPath, otherLocalePath } = useLocale();
     const isDark = theme === 'dark';
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -21,11 +23,11 @@ export default function Login() {
         const params = new URLSearchParams(window.location.search);
         const googleError = params.get('error');
         if (googleError === 'not_registered') {
-            setError('Akun belum terdaftar. Hubungi admin untuk mendapatkan akses.');
+            setError(t('Akun belum terdaftar. Hubungi admin untuk mendapatkan akses.'));
         } else if (googleError === 'google_failed') {
-            setError('Login Google gagal. Silakan coba lagi.');
+            setError(t('Login Google gagal. Silakan coba lagi.'));
         }
-    }, []);
+    }, [t]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -39,9 +41,9 @@ export default function Login() {
                 window.location.href = 'https://dash.ultrai.id';
                 return;
             }
-            navigate('/dashboard');
+            navigate(localizedPath('/dashboard'));
         } catch (err) {
-            setError(err.message || 'Login gagal. Periksa email dan password Anda.');
+            setError(err.message || t('Login gagal. Periksa email dan password Anda.'));
         } finally {
             setLoading(false);
         }
@@ -76,6 +78,7 @@ export default function Login() {
                 <div className="absolute inset-0 ui-grid-bg opacity-60" />
             </div>
 
+            <Link to={otherLocalePath(location.pathname)} className={`absolute right-16 top-5 z-20 grid h-9 min-w-9 place-items-center rounded-xl border px-2 text-[11px] font-bold ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/10' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'}`} aria-label={locale === 'en' ? 'Ganti ke bahasa Indonesia' : 'Switch to English'}>{locale === 'en' ? 'ID' : 'EN'}</Link>
             {/* Theme toggle floating */}
             <button
                 onClick={toggleTheme}
@@ -96,15 +99,15 @@ export default function Login() {
             <div className="w-full max-w-[440px] animate-fade-in-up">
                 {/* Logo */}
                 <div className="text-center mb-8 animate-fade-in-down">
-                    <a href="/" className="inline-flex items-center gap-2.5 mb-4 group">
+                    <Link to={locale === 'en' ? '/en' : '/'} className="inline-flex items-center gap-2.5 mb-4 group">
                         <UltrLogo className="w-11 h-11 group-hover:scale-105 group-hover:-rotate-3 transition-transform duration-300" />
                         <span className="text-3xl font-black tracking-tight flex items-center gap-[2px]">
                             <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
                             <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">AI</span>
                         </span>
-                    </a>
-                    <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Selamat Datang Kembali</h1>
-                    <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Masuk untuk mengakses dashboard UltrAI</p>
+                    </Link>
+                    <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('Selamat Datang Kembali')}</h1>
+                    <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('Masuk untuk mengakses dashboard UltrAI')}</p>
                 </div>
 
                 {/* Card */}
@@ -146,7 +149,7 @@ export default function Login() {
 
                         {/* Email */}
                         <div className="mb-5">
-                            <label htmlFor="login-email" className={labelClass}>Email</label>
+                            <label htmlFor="login-email" className={labelClass}>{t('Email')}</label>
                             <div className={inputWrap}>
                                 <svg className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isDark ? 'text-gray-500 group-focus-within:text-red-400' : 'text-gray-400 group-focus-within:text-red-500'}`} fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -168,7 +171,7 @@ export default function Login() {
 
                         {/* Password */}
                         <div className="mb-6">
-                            <label htmlFor="login-password" className={labelClass}>Password</label>
+                            <label htmlFor="login-password" className={labelClass}>{t('Password')}</label>
                             <div className={inputWrap}>
                                 <svg className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isDark ? 'text-gray-500 group-focus-within:text-red-400' : 'text-gray-400 group-focus-within:text-red-500'}`} fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -215,11 +218,11 @@ export default function Login() {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
-                                    <span>Memproses...</span>
+                                    <span>{t('Memproses...')}</span>
                                 </>
                             ) : (
                                 <>
-                                    <span>Masuk</span>
+                                    <span>{t('Masuk')}</span>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
                                 </>
                             )}
@@ -231,7 +234,7 @@ export default function Login() {
                                 <div className={`w-full border-t ${isDark ? 'border-white/[0.08]' : 'border-gray-200'}`} />
                             </div>
                             <div className="relative flex justify-center text-xs">
-                                <span className={`px-3 ${isDark ? 'bg-gray-900/85 text-gray-500' : 'bg-white/95 text-gray-400'}`}>atau</span>
+                                <span className={`px-3 ${isDark ? 'bg-gray-900/85 text-gray-500' : 'bg-white/95 text-gray-400'}`}>{t('atau')}</span>
                             </div>
                         </div>
 
@@ -250,20 +253,20 @@ export default function Login() {
                                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                             </svg>
-                            Masuk dengan Google
+                            {t('Masuk dengan Google')}
                         </a>
 
                         {/* Back */}
                         <div className="mt-6 text-center">
-                            <a
-                                href="/"
+                            <Link
+                                to={locale === 'en' ? '/en' : '/'}
                                 className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
                                     isDark ? 'text-gray-500 hover:text-gray-200' : 'text-gray-500 hover:text-red-500'
                                 }`}
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                                Kembali ke beranda
-                            </a>
+                                {locale === 'en' ? 'Back to homepage' : 'Kembali ke beranda'}
+                            </Link>
                         </div>
                     </form>
                 </div>

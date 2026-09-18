@@ -1,0 +1,294 @@
+/* UltrAI robot assistant — pure CSS/SVG-free character */
+.ai-robot {
+    position: relative;
+    flex: 0 0 auto;
+    align-self: center;
+    width: 168px;
+    height: 190px;
+    margin-inline: -10px;
+    pointer-events: none;
+    --robot-ink: #16233c;
+    --robot-red: #d92d3e;
+    --robot-cyan: #5eead4;
+}
+.ai-robot-stage {
+    position: absolute;
+    inset: 0;
+}
+.ai-robot-body {
+    position: absolute;
+    left: 50%;
+    top: 26px;
+    width: 96px;
+    margin-left: -48px;
+    transform-origin: 50% 90%;
+    animation: ai-robot-hover 5.4s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.ai-robot-head {
+    position: relative;
+    width: 96px;
+    height: 74px;
+    border-radius: 30px;
+    background:
+        radial-gradient(circle at 30% 22%, rgb(255 255 255 / 95%), transparent 42%),
+        linear-gradient(155deg, #ffffff 8%, #fdeef0 58%, #f6c9cf 100%);
+    border: 1px solid rgb(217 45 62 / 22%);
+    box-shadow:
+        inset -8px -10px 20px rgb(217 45 62 / 10%),
+        inset 6px 10px 16px rgb(255 255 255 / 85%),
+        0 24px 34px -22px rgb(17 36 68 / 45%);
+    overflow: hidden;
+}
+.ai-robot-visor {
+    position: absolute;
+    left: 11px;
+    right: 11px;
+    top: 17px;
+    height: 40px;
+    border-radius: 18px;
+    background: linear-gradient(165deg, #1c2a44 0%, #101a2e 100%);
+    box-shadow: inset 0 2px 6px rgb(0 0 0 / 55%), inset 0 -1px 0 rgb(94 234 212 / 18%);
+}
+.ai-robot-visor .eye {
+    position: absolute;
+    top: 12px;
+    width: 8px;
+    height: 15px;
+    border-radius: 6px;
+    background: var(--robot-cyan);
+    box-shadow: 0 0 10px rgb(94 234 212 / 80%), 0 0 22px rgb(94 234 212 / 35%);
+    animation: ai-robot-blink 5.8s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.ai-robot-visor .eye-left { left: 20px; }
+.ai-robot-visor .eye-right { right: 20px; }
+.ai-robot-visor .mouth {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    width: 18px;
+    height: 7px;
+    border-bottom: 2px solid rgb(94 234 212 / 85%);
+    border-radius: 50%;
+    transform: translateX(-50%);
+}
+.ai-robot-scan {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 30%, rgb(94 234 212 / 14%) 46%, rgb(255 255 255 / 30%) 50%, rgb(94 234 212 / 14%) 54%, transparent 70%);
+    transform: translateX(-110%);
+    animation: ai-robot-scan 4.6s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.ai-robot-antenna {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    width: 2px;
+    height: 18px;
+    margin-left: -1px;
+    background: linear-gradient(var(--robot-red), transparent);
+    transform-origin: bottom center;
+    animation: ai-robot-tilt 4.4s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.ai-robot-antenna i {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    width: 9px;
+    height: 9px;
+    margin-left: -4.5px;
+    border-radius: 50%;
+    background: var(--robot-red);
+    box-shadow: 0 0 0 5px rgb(217 45 62 / 14%), 0 0 16px rgb(217 45 62 / 70%);
+    animation: ai-robot-beacon 2.4s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.ai-robot-ear {
+    position: absolute;
+    top: 30px;
+    width: 9px;
+    height: 22px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #f3b7bf, #d92d3e);
+    box-shadow: 0 4px 10px -4px rgb(217 45 62 / 55%);
+}
+.ai-robot-ear.ear-left { left: -5px; }
+.ai-robot-ear.ear-right { right: -5px; }
+.ai-robot-torso {
+    position: relative;
+    width: 64px;
+    height: 40px;
+    margin: 8px auto 0;
+    border-radius: 20px 20px 24px 24px;
+    background: linear-gradient(160deg, #ffffff 12%, #fbe9ec 70%, #f2b8c0 100%);
+    border: 1px solid rgb(217 45 62 / 20%);
+    box-shadow: inset -6px -8px 14px rgb(217 45 62 / 10%), 0 16px 24px -18px rgb(17 36 68 / 40%);
+}
+.ai-robot-core {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle at 35% 30%, #ffd9de, var(--robot-red) 68%);
+    box-shadow: 0 0 14px rgb(217 45 62 / 60%), inset 0 -3px 6px rgb(120 10 20 / 45%);
+}
+.ai-robot-core i {
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    border: 1px solid rgb(217 45 62 / 45%);
+    border-top-color: transparent;
+    animation: ai-robot-spin 6s linear infinite;
+    animation-play-state: paused;
+}
+.ai-robot-orbit {
+    position: absolute;
+    left: 50%;
+    top: 62px;
+    border-radius: 50%;
+    border: 1px dashed rgb(217 45 62 / 22%);
+    transform: translate(-50%, -50%);
+}
+.ai-robot-orbit.orbit-a {
+    width: 128px;
+    height: 128px;
+    animation: ai-robot-spin 14s linear infinite;
+    animation-play-state: paused;
+}
+.ai-robot-orbit.orbit-b {
+    width: 160px;
+    height: 160px;
+    border-color: rgb(94 234 212 / 20%);
+    animation: ai-robot-spin 22s linear infinite reverse;
+    animation-play-state: paused;
+}
+.ai-robot-orbit i {
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--robot-red);
+    box-shadow: 0 0 10px rgb(217 45 62 / 65%);
+}
+.ai-robot-orbit.orbit-b i {
+    background: var(--robot-cyan);
+    box-shadow: 0 0 10px rgb(94 234 212 / 65%);
+}
+.ai-robot-chip {
+    position: absolute;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid rgb(217 45 62 / 16%);
+    background: rgb(255 255 255 / 88%);
+    color: #8a5a62;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 10px 18px -14px rgb(17 36 68 / 40%);
+    animation: ai-robot-chip 6s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.ai-robot-chip.chip-one { left: -6px; top: 52px; animation-delay: -1.4s; }
+.ai-robot-chip.chip-two { right: -10px; top: 92px; animation-delay: -3s; }
+.ai-robot-chip.chip-three { left: 8px; bottom: 8px; animation-delay: -4.6s; }
+.ai-robot-shadow {
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    width: 86px;
+    height: 14px;
+    margin-left: -43px;
+    border-radius: 50%;
+    background: rgb(17 36 68 / 14%);
+    filter: blur(5px);
+    animation: ai-robot-shadow 5.4s ease-in-out infinite;
+    animation-play-state: paused;
+}
+@keyframes ai-robot-hover {
+    0%, 100% { transform: translateY(0) rotate(-1.2deg); }
+    50% { transform: translateY(-10px) rotate(1.4deg); }
+}
+@keyframes ai-robot-blink {
+    0%, 90%, 100% { transform: scaleY(1); }
+    93%, 96% { transform: scaleY(.1); }
+}
+@keyframes ai-robot-scan {
+    0%, 55% { transform: translateX(-110%); }
+    85%, 100% { transform: translateX(110%); }
+}
+@keyframes ai-robot-tilt {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(6deg); }
+}
+@keyframes ai-robot-beacon {
+    0%, 100% { transform: scale(.85); opacity: .75; }
+    50% { transform: scale(1.2); opacity: 1; }
+}
+@keyframes ai-robot-spin {
+    to { transform: rotate(360deg); }
+}
+@keyframes ai-robot-chip {
+    0%, 100% { transform: translateY(0); opacity: .92; }
+    50% { transform: translateY(-7px); opacity: 1; }
+}
+@keyframes ai-robot-shadow {
+    0%, 100% { transform: scaleX(1); opacity: .7; }
+    50% { transform: scaleX(.78); opacity: .4; }
+}
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-body,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-visor .eye,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-scan,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-antenna,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-antenna i,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-core i,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-orbit,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-chip,
+body[data-motion="running"] [data-motion-zone].is-in-view .ai-robot-shadow {
+    animation-play-state: running;
+}
+body[data-motion="reduced"] .ai-robot-body,
+body[data-motion="reduced"] .ai-robot-visor .eye,
+body[data-motion="reduced"] .ai-robot-scan,
+body[data-motion="reduced"] .ai-robot-antenna,
+body[data-motion="reduced"] .ai-robot-antenna i,
+body[data-motion="reduced"] .ai-robot-core i,
+body[data-motion="reduced"] .ai-robot-orbit,
+body[data-motion="reduced"] .ai-robot-chip,
+body[data-motion="reduced"] .ai-robot-shadow {
+    animation: none;
+}
+html.dark .ai-robot-head {
+    background: linear-gradient(155deg, #232f47 8%, #3a2430 58%, #5a2c36 100%);
+    border-color: rgb(241 163 173 / 26%);
+    box-shadow: inset -8px -10px 20px rgb(217 45 62 / 16%), inset 6px 10px 16px rgb(255 255 255 / 5%), 0 24px 34px -20px rgb(0 0 0 / 70%);
+}
+html.dark .ai-robot-torso {
+    background: linear-gradient(160deg, #27334c 12%, #432630 70%, #5c2e39 100%);
+    border-color: rgb(241 163 173 / 24%);
+}
+html.dark .ai-robot-chip {
+    background: rgb(21 29 43 / 92%);
+    color: #d9a8af;
+    border-color: rgb(241 163 173 / 22%);
+}
+html.dark .ai-robot-orbit { border-color: rgb(241 163 173 / 20%); }
+html.dark .ai-robot-orbit.orbit-b { border-color: rgb(94 234 212 / 18%); }
+@media (max-width: 1180px) {
+    .ai-robot { width: 128px; height: 150px; }
+    .ai-robot .ai-robot-head { transform: scale(.78); transform-origin: top center; }
+    .ai-robot-torso { transform: scale(.78); margin-top: -4px; }
+    .ai-robot-chip { display: none; }
+}
+@media (max-width: 767px) {
+    .ai-robot { display: none; }
+}

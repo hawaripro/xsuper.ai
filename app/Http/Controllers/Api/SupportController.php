@@ -150,7 +150,7 @@ class SupportController extends Controller
                     'kind' => 'support',
                     'title' => 'New support reply',
                     'body' => "Your ticket “{$record->subject}” has a new reply.",
-                    'action_url' => "/support/tickets/{$record->id}",
+                    'action_url' => "/bantuan?ticket={$record->id}",
                     'metadata' => [
                         'ticket_id' => $record->id,
                         'message_id' => $message->id,

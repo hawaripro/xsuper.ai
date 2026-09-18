@@ -6,15 +6,13 @@ use App\Models\User;
 use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
-    public function __construct(private readonly ReferralService $referrals)
-    {
-    }
+    public function __construct(private readonly ReferralService $referrals) {}
 
     /**
      * Login via API (JSON response for SPA)
@@ -31,6 +29,7 @@ class AuthController extends Controller
             $user = Auth::user();
 
             $response = response()->json([
+                'csrf_token' => $request->session()->token(),
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
@@ -41,7 +40,7 @@ class AuthController extends Controller
 
             // Set dash_token cookie for admin users (allows access to dash.ultrai.id)
             if ($user->isAdmin()) {
-                $token = hash('sha256', $user->id . '|' . config('app.key') . '|dash');
+                $token = hash('sha256', $user->id.'|'.config('app.key').'|dash');
                 $response->withCookie(cookie('dash_token', $token, 10080, '/', '.ultrai.id', true, true, false, 'Lax'));
             }
 
@@ -101,19 +100,21 @@ class AuthController extends Controller
     public function user(Request $request)
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(null, 401);
         }
 
         $data = [
             'id' => $user->id,
             'name' => $user->name,
+            'email' => $user->email,
+            'expires_at' => $user->expires_at?->toISOString(),
             'role' => $user->role,
             'avatar' => $user->avatar,
             'permissions' => $user->getPermissions(),
         ];
 
-        if (!$user->isAdmin()) {
+        if (! $user->isAdmin()) {
             $data['days_remaining'] = $user->daysRemaining();
             $data['is_expired'] = $user->isExpired();
         }

@@ -1,3 +1,79 @@
+## UltrAI dashboard QA
+
+Run `npm run qa` after installing Composer and npm dependencies. It executes ESLint's undefined-identifier gate, Laravel regressions, the Vite production build, and real Chrome/Playwright workflows. Chrome must be installed locally; CI installs Playwright Chromium.
+
+- Laravel tests require `testing` and SQLite `:memory:`. `phpunit.xml` uses `<server>` values because Laravel reads `$_SERVER` before `$_ENV`; `Tests\TestCase` refuses any other database before migration traits execute.
+- Browser tests reset only `storage/framework/testing/dashboard-e2e.sqlite`, then start their own Laravel PHP server on `http://127.0.0.1:8017`. The port must be free; an existing server is never reused. Seeded `@dashboard-e2e.test` accounts exercise application APIs without intercepted responses and tests inspect persisted rows.
+- The browser environment always disables external AI calls. Chat provider errors and image reservation refunds are covered; successful paid AI/video generation is not proven by this suite.
+- `npm run test:e2e -- tests/e2e/support.spec.js` runs one workflow. Results are written to `storage/framework/testing/playwright-report.json`; failure screenshots and traces are under `storage/framework/testing/playwright-results/`.
+- `.github/workflows/dashboard-qa.yml` uses pinned actions, read-only repository permission, no application secrets, and no deployment step. Adding the file locally does not execute remote CI.
+
+### OpenAI, Anthropic, and fal.ai provider connections
+
+Open **Admin → AI Catalog → New provider**. Choose **OpenAI-compatible**, **Anthropic-compatible**, or **fal.ai**, then enter the provider API key. Official base URLs are `https://api.openai.com/v1`, `https://api.anthropic.com/v1`, and `https://fal.run`. OpenAI/Anthropic root URLs receive `/v1`; an explicit API path prefix is preserved. Anthropic defaults to API version `2023-06-01`. fal.ai accepts only its official root and uses `Authorization: Key …`, not Bearer authentication. The server validates public DNS destinations, pins connections, verifies TLS, and refuses redirects rather than forwarding credentials elsewhere.
+
+Use **Check connection**, then **Sync models**. OpenAI/Anthropic checks read their authenticated catalogs; fal.ai checks authenticated pricing plus public model metadata without generating content. Its supported catalog currently contains FLUX Schnell, FLUX 2 Pro, LongCat distilled 480p, and Gemini 2.5 Flash Lite through fal's OpenRouter endpoint. New models start unpublished: review tier, metadata, and pricing before enabling them. Public model IDs remain stable; the separate upstream ID selects the provider's actual model. Multiple connections may use the same upstream ID without taking ownership of each other's models. OpenAI/Anthropic chat supports incremental streaming; fal chat is text-only with buffered final SSE, rejects unsupported tools/multimodal options, and requires measured provider usage before billing. There is no public `/v1/messages` endpoint.
+
+Saved keys are encrypted using `APP_KEY` and never returned to the browser. Leaving a key blank while editing preserves it; changing endpoint or protocol requires re-entering it. Keep `APP_KEY` stable or reconfigure credentials after rotation. Disabling a provider blocks linked models. **Delete provider** permanently removes its model configurations and prices; **Delete model** removes one model and its prices. Both require confirmation and reject deletion while linked media is active or reserved. Historical assets, billing snapshots, and usage remain intact. Even an environment-managed connection can be deleted: an empty catalog stays empty, and reads never recreate providers or fall back to a static catalog. New models require an explicit provider connection.
+
+PHP needs a current trusted CA bundle for both cURL requests and native HTTPS streams. On Windows PHP builds without a usable default CA store, set `curl.cainfo` and `openssl.cafile` in the active `php.ini` to the absolute path of a verified [Mozilla CA bundle distributed by curl](https://curl.se/docs/caextract.html), then restart the PHP worker. Missing trust configuration causes connection checks to fail before API-key authentication. Never work around this by disabling TLS verification. Dashboard and Chat history queries group by both owner and conversation identity for PostgreSQL compatibility.
+
+Install the additive `2026_09_16_000002_add_provider_connections` migration before using these controls; back up the target database first and never use `migrate:fresh` for installation. Protocol regression tests use isolated databases and controlled upstream fixtures, not real API credentials. Official account access, quota, and successful paid requests must be checked separately after configuring the owner's key.
+
+For an existing installation, apply only this migration with `php artisan migrate --path=database/migrations/2026_09_16_000002_add_provider_connections.php` after verifying the database target, taking a backup, and obtaining owner approval. Do not run QA against that database. Connection checks and model sync make catalog requests only; generation and its billing occur when a model is actually used. No automatic provider failover or paid retry is performed.
+
+### Configured fal models and prices
+
+The local catalog publishes only these three models; the more expensive FLUX 2 Pro draft was deleted. A later explicit provider sync can import it again as an unpublished draft.
+
+| Model | Application charge | Published provider reference |
+| --- | --- | --- |
+| `fal-ai/flux/schnell` | 15 generator tokens per image | [About $0.003 per megapixel](https://fal.ai/models/fal-ai/flux/schnell/llms.txt), versus [FLUX 2 Pro's $0.03 for the first megapixel](https://fal.ai/models/fal-ai/flux-2-pro/llms.txt) |
+| `fal-ai/longcat-video/distilled/text-to-video/480p` | 200 generator tokens per video; 2, 3, 5, or 10 seconds | [Commercial-use model, $0.005 per generated second](https://fal.ai/models/fal-ai/longcat-video/distilled/text-to-video/480p/llms.txt); a 2-second clip is an estimated $0.01 upstream |
+| `google/gemini-2.5-flash-lite` | PAYG: $0.10/M input tokens and $0.40/M output tokens | Routed through [fal's OpenRouter endpoint](https://fal.ai/models/openrouter/router/llms.txt) |
+
+Generator tokens, wallet USD, and the provider's upstream charges are separate units; the dashboard does not invent a conversion. Video is queued and provider latency varies. Prompts go directly to the selected provider: there is no Anthropic prompt-review dependency. fal's native safety checks remain enabled. Stored reviews on historical jobs remain readable as historical data.
+
+### Local PostgreSQL 18 runtime
+
+The local application uses the installed PostgreSQL 18 service on `127.0.0.1:2209`, database `ultrai_db`, with a dedicated non-superuser application role. Configure the password only in the private `.env`. Keep `APP_KEY` unchanged so existing encrypted provider credentials remain readable. SQLite is retained only for isolated tests; MySQL/MariaDB are no longer application connections.
+
+The September 17 consolidation imported all 41 tables, 5,226 rows, and 34 sequences from the latest PostgreSQL source. Every table's row digest and the live column, constraint, index, trigger, routine, collation, and sequence metadata matched before reopening writes. The temporary PostgreSQL cluster was then removed. The obsolete XAMPP `ultrai_db` schema was backed up and dropped; global XAMPP services and unrelated databases were not removed or inspected.
+
+Private backups and receipts are outside the repository at `%USERPROFILE%/UltrAI-backups/consolidation-20260917T160408Z/`: `ultrai-latest-before-2209.dump`, `import-parity.json`, and `ultrai-mysql-before-retirement.sql`. These are frozen migration evidence, not continuously updated backups. Later application writes legitimately change row counts and balances. Before any recovery, stop application writers, take a current PostgreSQL backup, verify its target and checksum, and restore into an isolated empty database first. Do not restore an old dump over the working database or point `.env` at the retired MySQL schema.
+
+The owner-approved PostgreSQL service restart also passed before/after schema, row, and sequence parity checks. `ultrai-before-fal-cutover-and-restart.dump` preserves the pre-provider-removal state; `ultrai-after-fal-verified.dump` captures the verified fal configuration, real usage, restored member permissions, and revoked QA keys. All 41 table-data entries in the final archive were readable; its checksum and acceptance receipts are under `final-verification/`. These are database snapshots, not generated-asset backups. Keep the existing private asset storage and `APP_KEY` with any recovery plan.
+
+Run local Artisan services from the project root through `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run-local.ps1` so inherited Windows database/environment settings cannot override `.env`:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run-local.ps1 artisan serve --host=127.0.0.1 --port=8000
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run-local.ps1 artisan queue:work media --queue=media --sleep=1 --tries=1 --timeout=450
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run-local.ps1 artisan schedule:work
+```
+
+The media connection reserves queue entries for 600 seconds; submission jobs allow 450 seconds and polling jobs 240 seconds. Bounded requests allow 90 seconds for submission, 20 seconds for polling, and 180 seconds for private video download, without replaying paid submissions. Jobs move atomically from queued to submitting; submitting and saving transitions refresh their leases, while polling refreshes rendering activity. The scheduler recovers abandoned stages after six minutes; legacy interrupted review jobs are failed and refunded, never submitted. Windows PHP has no `pcntl`, so worker timeouts are not hard process-kill guarantees there: bounded HTTP requests, database leases, and the running scheduler provide local recovery.
+
+PostgreSQL integration tests use `php vendor/phpunit/phpunit/phpunit --configuration phpunit.postgres.xml`. Supply `ULTRAI_PG_TEST_PASSWORD` privately for the dedicated `ultrai_pg_test` role/database on port 2209. The guard rejects any other identity before migrations. Never use the application database or its role for destructive tests. Browser tests remain on their guarded SQLite database; they do not replace owner-authorized real-account and paid-provider verification.
+
+### Recovery history and artifact retention
+
+An earlier QA run inherited Windows database settings and reset the former working MySQL schema. The application was restored from a verified pre-incident shadow copy after owner approval. Forced test settings and pre-migration database guards now prevent that target confusion. Selected historical receipts and source baselines are retained with the external consolidation backups; old recovery clusters, temporary browser profiles, redundant dumps, and generated QA media were removed from the repository. Production private generated assets and worktrees with unique branch history were retained.
+
+### Paid usage and admin earnings
+
+New image and video generation charges generator tokens for admins and members alike. PAYG API requests require an active price snapshot, reserve wallet credit before provider execution, and settle from reported usage. Explicitly published zero API rates remain valid; a missing rate is not treated as free. Historical admin-free reservations keep their original billing snapshots and are not retroactively charged.
+
+**Admin → Overview → Usage earnings** reports settled PAYG API charges in USD and consumed generator tokens separately, with month selection and model breakdowns. Deposits and subscription payments are not usage earnings. Reserved, released, refunded, and historical admin-free generator amounts are excluded. Token consumption is not converted into invented fiat revenue or net profit.
+
+### Image and video cancellation
+
+Video cancellation is available only while a job is queued and no provider submission has begun. `POST /api/v/{jobId}/cancel` accepts the owner or an admin, including an owner whose subscription expired. A successful cancellation preserves the history row, releases the reservation once, and records `status=failed`, `stage=cancelled`. Repeating the request cannot refund twice.
+
+Once a video is submitting, rendering, saving, or terminal, cancellation is refused with HTTP 409 and authoritative job/balance data. The page displays a warning modal instead of claiming that provider work stopped or refunding it as cancelled. No upstream cancel endpoint, paid retry, or provider failover is invented. Provider failures remain separately reconciled by the media worker and scheduler.
+
+Image generation is synchronous. Its confirmation modal warns before the request is sent; Back or Escape sends no generation request. After confirmation, the in-flight control explains that cancellation is unavailable. Closing the browser is not an upstream cancellation or refund guarantee.
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLocale } from '../contexts/LocaleContext';
 
 /* ============================================================
    Duration Countdown — shows remaining time for member
@@ -8,6 +9,7 @@ import { useTheme } from '../contexts/ThemeContext';
    For >5 days: shows X hari Y jam
    ============================================================ */
 function DurationCountdown({ user, isDark }) {
+    const { t } = useLocale();
     const [now, setNow] = useState(new Date());
 
     useEffect(() => {
@@ -18,7 +20,7 @@ function DurationCountdown({ user, isDark }) {
     if (!user?.expires_at) {
         return (
             <div className={`mt-2 text-xs font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                ∞ Unlimited
+                ∞ {t("Unlimited")}
             </div>
         );
     }
@@ -29,7 +31,7 @@ function DurationCountdown({ user, isDark }) {
     if (diff <= 0) {
         return (
             <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-bold ${isDark ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-                ⚠️ Expired
+                ⚠️ {t("Expired")}
             </div>
         );
     }
@@ -47,9 +49,9 @@ function DurationCountdown({ user, isDark }) {
     if (days === 0) {
         display = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
     } else if (isUrgent) {
-        display = `${days} hari ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+        display = `${days} ${t("hari")} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
     } else {
-        display = `${days} hari ${hours} jam`;
+        display = `${days} ${t("hari")} ${hours} ${t("jam")}`;
     }
 
     const colorClass = days <= 1
@@ -158,6 +160,7 @@ function Alert({ type, text, isDark }) {
 }
 
 export default function Profile() {
+    const { t } = useLocale();
     const { user, refreshUser } = useAuth();
     const { theme } = useTheme();
     const isDark = theme === 'dark';
@@ -171,6 +174,7 @@ export default function Profile() {
     const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
     const [profileLoading, setProfileLoading] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
+    const editedFields = useRef({ name: false, email: false });
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -181,8 +185,8 @@ export default function Profile() {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    setEmail(data.email || '');
-                    setName(data.name || user?.name || '');
+                    if (!editedFields.current.email) setEmail(data.email || '');
+                    if (!editedFields.current.name) setName(data.name || user?.name || '');
                 }
             } catch {}
         };
@@ -266,8 +270,8 @@ export default function Profile() {
         <div className="p-4 lg:p-6 space-y-5 max-w-3xl mx-auto">
             {/* Header */}
             <div className="animate-fade-in-up">
-                <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${head}`}>Profil Saya</h1>
-                <p className={`text-sm mt-1 ${muted}`}>Kelola informasi akun dan keamanan Anda.</p>
+                <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${head}`}>{t("Profil Saya")}</h1>
+                <p className={`text-sm mt-1 ${muted}`}>{t("Kelola informasi akun dan keamanan Anda.")}</p>
             </div>
 
             {/* Profile summary */}
@@ -303,7 +307,7 @@ export default function Profile() {
                                     <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 animate-ping" />
                                     <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                 </span>
-                                Akun aktif
+                                {t("Akun aktif")}
                             </span>
                         </div>
                         {/* Duration countdown */}
@@ -317,16 +321,16 @@ export default function Profile() {
                         <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center shadow-md">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                         </span>
-                        Informasi Profil
+                        {t("Informasi Profil")}
                     </h2>
 
                     <Alert type={profileMsg.type} text={profileMsg.text} isDark={isDark} />
 
                     <Field
                         id="profile-name"
-                        label="Nama Lengkap"
+                        label={t("Nama Lengkap")}
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => { editedFields.current.name = true; setName(e.target.value); }}
                         required
                         autoComplete="name"
                         isDark={isDark}
@@ -335,10 +339,10 @@ export default function Profile() {
 
                     <Field
                         id="profile-email"
-                        label="Email"
+                        label={t("Email")}
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => { editedFields.current.email = true; setEmail(e.target.value); }}
                         required
                         autoComplete="email"
                         isDark={isDark}
@@ -357,12 +361,12 @@ export default function Profile() {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
-                                    Menyimpan...
+                                    {t("Menyimpan...")}
                                 </>
                             ) : (
                                 <>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    Simpan Perubahan
+                                    {t("Simpan Perubahan")}
                                 </>
                             )}
                         </button>
@@ -377,14 +381,14 @@ export default function Profile() {
                         <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                         </span>
-                        Ubah Password
+                        {t("Ubah Password")}
                     </h2>
 
                     <Alert type={passwordMsg.type} text={passwordMsg.text} isDark={isDark} />
 
                     <Field
                         id="current-password"
-                        label="Password Saat Ini"
+                        label={t("Password Saat Ini")}
                         type="password"
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
@@ -396,26 +400,26 @@ export default function Profile() {
                     />
                     <Field
                         id="new-password"
-                        label="Password Baru"
+                        label={t("Password Baru")}
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         required
                         minLength={8}
-                        placeholder="Minimal 8 karakter"
+                        placeholder={t("Minimal 8 karakter")}
                         autoComplete="new-password"
                         isDark={isDark}
                         icon={<svg fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15v2" /><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
                     />
                     <Field
                         id="confirm-password"
-                        label="Konfirmasi Password Baru"
+                        label={t("Konfirmasi Password Baru")}
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
                         minLength={8}
-                        placeholder="Ulangi password baru"
+                        placeholder={t("Ulangi password baru")}
                         autoComplete="new-password"
                         isDark={isDark}
                         icon={<svg fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
@@ -433,12 +437,12 @@ export default function Profile() {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
-                                    Memperbarui...
+                                    {t("Memperbarui...")}
                                 </>
                             ) : (
                                 <>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15v2" /><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-                                    Ubah Password
+                                    {t("Ubah Password")}
                                 </>
                             )}
                         </button>

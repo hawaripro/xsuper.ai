@@ -3,203 +3,119 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\UsageRate;
+use App\Models\AiModelProfile;
 use App\Models\UserToken;
 use App\Models\VideoJob;
-use App\Models\Wallet;
-use App\Services\UsageBillingService;
+use App\Services\GeneratedVideoStore;
+use App\Services\MediaModelConfig;
+use App\Services\VideoGenerationService;
+use App\Services\VideoReferenceStore;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class VideoController extends Controller
 {
-    // Model pricing
-    const MODEL_TOKENS = [
-        'sora-2' => ['tokens' => 35, 'duration' => [10, 15]],
-        'veo-3.1-fast' => ['tokens' => 60, 'duration' => [8]],
-        'veo-3.1-quality' => ['tokens' => 250, 'duration' => [8]],
-    ];
-
-    public function generate(Request $request, UsageBillingService $billing)
+    public function generate(Request $request, VideoGenerationService $videos): JsonResponse
     {
-        $validated = $request->validate([
-            'prompt' => 'required|string|max:2000',
-            'model' => 'required|string|in:sora-2,veo-3.1-fast,veo-3.1-quality',
-            'aspect_ratio' => 'required|string|in:16:9,9:16',
+        $input = $request->validate([
+            'prompt' => 'required|string|max:4000',
+            'model' => 'required|string|max:120',
+            'aspect_ratio' => 'nullable|string|max:16',
             'count' => 'required|integer|min:1|max:10',
-            'mode' => 'required|string|in:prompt,ab_testing',
-            'ugc_variation' => 'nullable|boolean',
+            'mode' => 'required|in:prompt,ab_testing',
+            'pro_mode' => 'sometimes|boolean',
+            'reference_image' => 'sometimes|nullable|file|mimetypes:image/jpeg,image/png,image/webp|max:10240',
+            'ugc_variation' => 'sometimes|boolean',
             'cta' => 'nullable|string|max:500',
-            'settings' => 'nullable|array',
+            'settings' => 'sometimes|array:duration',
+            'settings.duration' => 'nullable|integer|min:1|max:600',
         ]);
+        $jobs = $videos->create($request->user(), $input);
 
+        return response()->json([
+            'message' => 'Video requests queued for generation.',
+            'jobs' => array_map(fn (VideoJob $job): array => $videos->payload($job), $jobs),
+            'tokens_used' => array_sum(array_map(fn (VideoJob $job): int => $job->tokens_reserved, $jobs)),
+            'balance' => UserToken::getBalance($request->user()->id),
+            'billing_mode' => 'tokens',
+        ], 202);
+    }
+
+    public function history(Request $request, VideoGenerationService $videos): JsonResponse
+    {
+        $query = VideoJob::query()->where('user_id', $request->user()->id);
+        $active = (clone $query)->whereIn('status', ['pending', 'processing'])->latest()->get();
+        $recent = (clone $query)->whereIn('status', ['completed', 'failed'])->latest()->limit(50)->get();
+        $jobs = $active->concat($recent)->sortByDesc('created_at')->values();
+
+        return response()->json([
+            'jobs' => $jobs->map(fn (VideoJob $job): array => $videos->payload($job))->all(),
+            'balance' => UserToken::getBalance($request->user()->id),
+        ]);
+    }
+
+    public function status(Request $request, string $jobId, VideoGenerationService $videos): JsonResponse
+    {
+        $job = VideoJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->firstOrFail();
+        if ($job->billing_mode === 'wallet' && $job->billing_status === 'reserved' && in_array($job->status, ['failed', 'completed'], true)) {
+            $videos->reconcileTerminalWalletReservation($job->id);
+            $job->refresh();
+        }
+
+        return response()->json(['job' => $videos->payload($job), 'balance' => UserToken::getBalance($request->user()->id)]);
+    }
+
+    public function cancel(Request $request, string $jobId, VideoGenerationService $videos): JsonResponse
+    {
+        $job = $videos->cancel($request->user(), $jobId);
+        $payload = $videos->payload($job);
+        $cancelled = $job->status === 'failed' && $job->stage === 'cancelled';
+
+        return response()->json([
+            ...($cancelled ? [] : ['message' => $payload['cancel_reason'], 'reason_code' => $payload['cancel_reason_code']]),
+            'job' => $payload,
+            'balance' => UserToken::getBalance($request->user()->id),
+        ], $cancelled ? 200 : 409);
+    }
+
+    public function asset(Request $request, string $jobId): BinaryFileResponse
+    {
+        $job = VideoJob::query()->where('job_id', $jobId)->firstOrFail();
+        abort_unless($request->user()->isAdmin() || $job->user_id === $request->user()->id, 404);
+        $path = GeneratedVideoStore::path($job->job_id);
+        abort_unless($job->status === 'completed' && $job->video_url === '/api/v/'.$job->job_id.'/asset'
+            && Storage::disk('local')->exists($path), 404);
+
+        return response()->file(Storage::disk('local')->path($path), [
+            'Content-Type' => 'video/mp4', 'Cache-Control' => 'private, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function reference(Request $request, string $jobId, VideoReferenceStore $references): BinaryFileResponse
+    {
+        $job = VideoJob::query()->where('job_id', $jobId)->firstOrFail();
+        abort_unless($request->user()->isAdmin() || $job->user_id === $request->user()->id, 404);
+        $path = $references->existingPath($job);
+        abort_if($path === null, 404);
+
+        return response()->file(Storage::disk('local')->path($path), [
+            'Content-Type' => $job->reference_mime_type, 'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function models(Request $request): JsonResponse
+    {
         $user = $request->user();
-        $modelInfo = self::MODEL_TOKENS[$validated['model']] ?? null;
-        if (! $modelInfo) {
-            return response()->json(['message' => 'Model tidak valid'], 422);
-        }
+        $models = AiModelProfile::query()->with('provider')->where('category', 'video')
+            ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
+            ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
+                && in_array($model->provider->protocol, ['openai', 'fal'], true) && $model->token_cost > 0)
+            ->map(fn (AiModelProfile $model): array => MediaModelConfig::publicModel($model))->values()->all();
 
-        $paygEnabled = UsageRate::forMeter('video', 'unit', $validated['model']) !== null;
-        $tokensPerVideo = $paygEnabled ? 0 : $modelInfo['tokens'];
-        $totalTokens = $tokensPerVideo * $validated['count'];
-        if (! $paygEnabled) {
-            $balance = UserToken::getBalance($user->id);
-            if ($balance < $totalTokens) {
-                return response()->json([
-                    'message' => 'Token tidak cukup. Butuh '.$totalTokens.' token, saldo Anda '.$balance.' token.',
-                    'insufficient' => true,
-                    'required' => $totalTokens,
-                    'balance' => $balance,
-                ], 402);
-            }
-        }
-
-        $jobs = DB::transaction(function () use ($billing, $modelInfo, $paygEnabled, $tokensPerVideo, $totalTokens, $user, $validated): array {
-            $jobs = [];
-            for ($i = 0; $i < $validated['count']; $i++) {
-                $prompt = $validated['prompt'];
-                if ($validated['ugc_variation'] ?? false) {
-                    $prompt = $this->applyUgcVariation($prompt, $i);
-                }
-
-                $jobId = 'vj_'.Str::random(16);
-                $billingReference = 'video:'.$jobId;
-                $billingReservation = $billing->reserveUnit($user->id, 'video', $validated['model'], 1, $billingReference);
-                $jobs[] = VideoJob::create([
-                    'user_id' => $user->id,
-                    'job_id' => $jobId,
-                    'mode' => $validated['mode'],
-                    'prompt' => $prompt,
-                    'model' => $validated['model'],
-                    'aspect_ratio' => $validated['aspect_ratio'],
-                    'duration' => $modelInfo['duration'][0],
-                    'tokens_used' => $tokensPerVideo,
-                    'billing_reserved_microusd' => $billingReservation['amount_microusd'],
-                    'billing_reference_id' => $billingReference,
-                    'billing_status' => $billingReservation['amount_microusd'] > 0 ? 'reserved' : 'none',
-                    'settings' => [
-                        'cta' => $validated['cta'] ?? null,
-                        'ugc_variation' => $validated['ugc_variation'] ?? false,
-                        'extra' => $validated['settings'] ?? [],
-                    ],
-                    'status' => 'processing',
-                ]);
-            }
-
-            if (! $paygEnabled && ! UserToken::deduct($user->id, $totalTokens, "Generate {$validated['count']}x video ({$validated['model']})")) {
-                throw ValidationException::withMessages(['tokens' => 'Token balance changed. Please retry.']);
-            }
-
-            return $jobs;
-        });
-
-        return response()->json([
-            'message' => "Berhasil membuat {$validated['count']} video job",
-            'jobs' => $jobs,
-            'tokens_used' => $totalTokens,
-            'balance' => UserToken::getBalance($user->id),
-            'billing_mode' => $paygEnabled ? 'payg' : 'legacy_tokens',
-            'cost_usd_reserved' => collect($jobs)->sum('billing_reserved_microusd') / 1_000_000,
-            'balance_usd' => Wallet::balance($user->id) / 1_000_000,
-        ]);
-    }
-
-    public function history()
-    {
-        $jobs = VideoJob::where('user_id', Auth::id())
-            ->orderByDesc('created_at')
-            ->limit(50)
-            ->get();
-
-        return response()->json(['jobs' => $jobs]);
-    }
-
-    public function status(string $jobId)
-    {
-        $job = DB::transaction(function () use ($jobId): VideoJob {
-            $job = VideoJob::query()
-                ->lockForUpdate()
-                ->where('user_id', Auth::id())
-                ->where('job_id', $jobId)
-                ->firstOrFail();
-
-            if ($job->status === 'completed' && $job->billing_status === 'reserved') {
-                Wallet::settle($job->user_id, [
-                    'reference_id' => $job->billing_reference_id,
-                    'amount_microusd' => $job->billing_reserved_microusd,
-                ], $job->billing_reserved_microusd, [
-                    'service' => 'video',
-                    'model' => $job->model,
-                    'meter' => 'unit',
-                    'quantity' => 1,
-                    'description' => "Completed video: {$job->model}",
-                ]);
-                $job->update(['billing_status' => 'settled']);
-            } elseif ($job->status === 'failed' && $job->billing_status === 'reserved') {
-                Wallet::release($job->user_id, [
-                    'reference_id' => $job->billing_reference_id,
-                    'amount_microusd' => $job->billing_reserved_microusd,
-                ], 'Failed video generation');
-                $job->update(['billing_status' => 'released']);
-            }
-
-            return $job->fresh();
-        });
-
-        return response()->json(['job' => $job]);
-    }
-
-    public function models()
-    {
-        $rates = UsageRate::active()
-            ->where('service', 'video')
-            ->where('meter', 'unit')
-            ->get()
-            ->keyBy('model');
-        $models = [
-            ['id' => 'sora-2', 'name' => 'Sora 2', 'provider' => '[OI]', 'durations' => [10, 15], 'tokens' => 35, 'features' => ['Stable', 'High Quality'], 'badge' => null],
-            ['id' => 'veo-3.1-fast', 'name' => 'Veo 3.1 Fast', 'provider' => 'Google', 'durations' => [8], 'tokens' => 60, 'features' => ['Fast Render', '8s Fixed'], 'badge' => 'BARU'],
-            ['id' => 'veo-3.1-quality', 'name' => 'Veo 3.1 Quality', 'provider' => 'Google', 'durations' => [8], 'tokens' => 250, 'features' => ['1080p', 'Audio', 'HD'], 'badge' => 'HD + Audio'],
-        ];
-
-        return response()->json([
-            'models' => array_map(function (array $model) use ($rates): array {
-                $rate = $rates->get($model['id']);
-
-                return [
-                    ...$model,
-                    'tokens' => $rate ? 0 : $model['tokens'],
-                    'billing_mode' => $rate ? 'payg' : 'legacy_tokens',
-                    'price_usd' => $rate ? (float) $rate->price_usd : null,
-                    'price_idr' => $rate ? (float) $rate->price_idr : null,
-                    'unit' => $rate?->unit,
-                ];
-            }, $models),
-        ]);
-    }
-
-    private function applyUgcVariation(string $prompt, int $index): string
-    {
-        $variations = [
-            'Shot from a different angle, with a unique presenter style.',
-            'Alternative talent with casual, friendly delivery.',
-            'Dynamic camera movement, energetic presentation.',
-            'Calm and professional tone, close-up focus.',
-            'Lifestyle setting, natural lighting, authentic feel.',
-            'Studio setup, clean background, polished look.',
-            'Outdoor setting, vibrant colors, enthusiastic delivery.',
-            'Minimalist approach, soft lighting, gentle narration.',
-            'Fast-paced editing, modern transitions, upbeat mood.',
-            'Slow reveal, dramatic lighting, premium feel.',
-        ];
-
-        if ($index > 0 && isset($variations[$index - 1])) {
-            $prompt .= ' [Variation: '.$variations[$index - 1].']';
-        }
-
-        return $prompt;
+        return response()->json(['models' => $models, 'balance' => UserToken::getBalance($user->id)]);
     }
 }

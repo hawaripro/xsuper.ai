@@ -5,9 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class UsageRate extends Model
 {
+    public const API_METERS = ['input_tokens', 'output_tokens', 'cache_read', 'cache_write'];
+
+    public const SERVICES = ['api', 'image', 'video', 'audio'];
+
+    public const METERS = [...self::API_METERS, 'unit'];
+
     protected $fillable = [
         'service',
         'meter',
@@ -76,8 +83,33 @@ class UsageRate extends Model
         }
 
         return match ($this->meter) {
-            'input_tokens', 'output_tokens' => (int) ceil(((float) $this->price_usd * $quantity * 1_000_000) / 1_000_000),
+            'input_tokens', 'output_tokens', 'cache_read', 'cache_write' => (int) ceil((float) $this->price_usd * $quantity),
             default => (int) ceil((float) $this->price_usd * $quantity * 1_000_000),
         };
+    }
+
+    public static function assertValidState(iterable $rates, string $errorKey = 'rates'): void
+    {
+        $groups = collect($rates)->groupBy(fn (self $rate): string => $rate->service.'|'.$rate->model);
+        foreach ($groups as $group) {
+            foreach ($group as $rate) {
+                $validMeter = $rate->service === 'api'
+                    ? in_array($rate->meter, self::API_METERS, true)
+                    : in_array($rate->service, ['image', 'video', 'audio'], true) && $rate->meter === 'unit';
+                if (! $validMeter) {
+                    throw ValidationException::withMessages([$errorKey => 'The meter does not match its service.']);
+                }
+                if ($rate->is_active && ($rate->price_idr === null || $rate->price_usd === null)) {
+                    throw ValidationException::withMessages([$errorKey => 'Active rates require both IDR and USD prices.']);
+                }
+            }
+            if ($group->first()->service !== 'api') {
+                continue;
+            }
+            $active = $group->where('is_active', true)->keyBy('meter');
+            if ($active->isNotEmpty() && (! $active->has('input_tokens') || ! $active->has('output_tokens'))) {
+                throw ValidationException::withMessages([$errorKey => 'Active API pricing requires both input and output rates.']);
+            }
+        }
     }
 }

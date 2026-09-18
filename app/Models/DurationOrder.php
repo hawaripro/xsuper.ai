@@ -7,12 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 class DurationOrder extends Model
 {
     protected $fillable = [
-        'user_id', 'package', 'days', 'price', 'status', 'note', 'approved_at', 'approved_by',
+        'user_id', 'package', 'days', 'price', 'payment_method', 'payment_reference',
+        'payment_expires_at', 'payment_confirmed_at', 'status', 'note', 'approved_at', 'approved_by',
     ];
-
     protected function casts(): array
     {
         return [
+            'payment_expires_at' => 'datetime',
+            'payment_confirmed_at' => 'datetime',
             'approved_at' => 'datetime',
         ];
     }

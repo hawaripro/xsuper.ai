@@ -5,58 +5,40 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\ImageGenerationException;
 use App\Http\Controllers\Controller;
 use App\Models\AiModelProfile;
+use App\Models\AudioJob;
 use App\Models\ImageJob;
-use App\Models\UsageRate;
+use App\Models\UserToken;
 use App\Models\VideoJob;
+use App\Services\AudioGenerationService;
 use App\Services\ImageGenerationService;
+use App\Services\MediaModelConfig;
+use App\Services\VideoGenerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ImageController extends Controller
 {
-    private const SIZES = ['256x256', '512x512', '1024x1024', '1024x1792', '1792x1024'];
+    private const CANCELLATION = [
+        'generation_mode' => 'synchronous',
+        'can_cancel' => false,
+        'cancel_reason_code' => 'synchronous_generation',
+        'cancel_reason' => 'Image generation cannot be cancelled after submission. Closing the page does not stop generation or refund tokens.',
+    ];
 
-    public function models(): JsonResponse
+    public function models(Request $request): JsonResponse
     {
-        $rates = UsageRate::query()
-            ->active()
-            ->where('service', 'image')
-            ->where('meter', 'unit')
-            ->whereNotNull('price_usd')
-            ->get()
-            ->keyBy('model');
-        $models = AiModelProfile::query()
-            ->with('provider')
-            ->where('category', 'image')
-            ->where('is_enabled', true)
-            ->where('is_available', true)
-            ->whereHas('provider', fn ($query) => $query->where('is_enabled', true))
-            ->orderBy('display_name')
-            ->get()
-            ->filter(function (AiModelProfile $model) use ($rates): bool {
-                $rate = $rates->get($model->model_id);
+        $user = $request->user();
+        $models = AiModelProfile::query()->with('provider')->where('category', 'image')
+            ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
+            ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
+                && $model->token_cost > 0)
+            ->map(fn (AiModelProfile $model): array => MediaModelConfig::publicModel($model))
+            ->values()->all();
 
-                return $rate !== null && $rate->price_usd !== null;
-            })
-            ->map(function (AiModelProfile $model) use ($rates): array {
-                $rate = $rates->get($model->model_id);
-
-                return [
-                    'id' => $model->model_id,
-                    'name' => $model->display_name,
-                    'tier' => $model->tier,
-                    'capabilities' => $model->capabilities ?? [],
-                    'provider' => $model->provider?->name,
-                    'price_usd' => (float) $rate->price_usd,
-                    'price_idr' => (float) $rate->price_idr,
-                    'unit' => $rate->unit,
-                ];
-            })
-            ->values()
-            ->all();
-
-        return response()->json(['models' => $models]);
+        return response()->json(['models' => $models, 'balance' => UserToken::getBalance($user->id), ...self::CANCELLATION]);
     }
 
     public function generate(Request $request, ImageGenerationService $generation): JsonResponse
@@ -71,8 +53,8 @@ class ImageController extends Controller
                 ),
             ],
             'prompt' => 'required|string|max:4000',
-            'size' => ['required', 'string', Rule::in(self::SIZES)],
-            'n' => 'required|integer|min:1|max:4',
+            'size' => ['nullable', 'string', 'max:32'],
+            'n' => 'required|integer|min:1|max:10',
         ]);
 
         try {
@@ -80,30 +62,30 @@ class ImageController extends Controller
                 $request->user(),
                 $validated['model'],
                 $validated['prompt'],
-                $validated['size'],
+                $validated['size'] ?? 'auto',
                 $validated['n'],
             );
         } catch (ImageGenerationException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),
                 'job' => $exception->job() ? $this->imagePayload($exception->job()) : null,
+                'balance' => UserToken::getBalance($request->user()->id),
             ], $exception->responseStatus());
         }
 
-        return response()->json(['job' => $this->imagePayload($job)], 201);
+        return response()->json(['job' => $this->imagePayload($job), 'balance' => UserToken::getBalance($request->user()->id)], 201);
     }
 
     public function history(Request $request): JsonResponse
     {
-        $jobs = ImageJob::query()
-            ->where('user_id', $request->user()->id)
-            ->latest()
-            ->limit(50)
-            ->get()
+        $query = ImageJob::query()->where('user_id', $request->user()->id);
+        $active = (clone $query)->whereIn('status', ['pending', 'processing'])->latest()->get();
+        $recent = (clone $query)->whereIn('status', ['completed', 'failed'])->latest()->limit(50)->get();
+        $jobs = $active->concat($recent)->sortByDesc('created_at')->values()
             ->map(fn (ImageJob $job): array => $this->imagePayload($job))
             ->all();
 
-        return response()->json(['jobs' => $jobs]);
+        return response()->json(['jobs' => $jobs, 'balance' => UserToken::getBalance($request->user()->id)]);
     }
 
     public function show(Request $request, string $jobId): JsonResponse
@@ -113,7 +95,20 @@ class ImageController extends Controller
             ->where('job_id', $jobId)
             ->firstOrFail();
 
-        return response()->json(['job' => $this->imagePayload($job)]);
+        return response()->json(['job' => $this->imagePayload($job), 'balance' => UserToken::getBalance($request->user()->id)]);
+    }
+
+    public function asset(Request $request, string $jobId, int $index): BinaryFileResponse
+    {
+        $job = ImageJob::query()->where('job_id', $jobId)->firstOrFail();
+        abort_unless($request->user()->isAdmin() || $job->user_id === $request->user()->id, 404);
+        $asset = $job->asset_paths[(string) $index] ?? null;
+        abort_unless(is_array($asset) && Storage::disk('local')->exists($asset['path']), 404);
+
+        return response()->file(Storage::disk('local')->path($asset['path']), [
+            'Content-Type' => $asset['mime'], 'Cache-Control' => 'private, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function adminQueue(Request $request): JsonResponse
@@ -125,9 +120,11 @@ class ImageController extends Controller
         $limit = $validated['limit'] ?? 100;
         $imageQuery = ImageJob::query()->with('user:id,name,email')->latest();
         $videoQuery = VideoJob::query()->with('user:id,name,email')->latest();
+        $audioQuery = AudioJob::query()->with('user:id,name,email')->latest();
         if (isset($validated['status'])) {
             $imageQuery->where('status', $validated['status']);
             $videoQuery->where('status', $validated['status']);
+            $audioQuery->where('status', $validated['status']);
         }
 
         return response()->json([
@@ -136,6 +133,12 @@ class ImageController extends Controller
                 ->all(),
             'videos' => $videoQuery->limit($limit)->get()
                 ->map(fn (VideoJob $job): array => $this->videoPayload($job))
+                ->all(),
+            'audio' => $audioQuery->limit($limit)->get()
+                ->map(fn (AudioJob $job): array => [
+                    ...AudioGenerationService::payload($job),
+                    'user' => $job->user?->only(['id', 'name', 'email']),
+                ])
                 ->all(),
         ]);
     }
@@ -149,10 +152,14 @@ class ImageController extends Controller
             'size' => $job->size,
             'n' => $job->quantity,
             'status' => $job->status,
+            'stage' => $job->stage,
+            ...self::CANCELLATION,
             'result_urls' => $job->result_urls ?? [],
             'error' => $job->error_message,
             'billing_status' => $job->billing_status,
             'cost_microusd' => $job->billing_reserved_microusd,
+            'billing_mode' => $job->billing_mode,
+            'tokens_reserved' => $job->tokens_reserved,
             'created_at' => $job->created_at?->toISOString(),
             'updated_at' => $job->updated_at?->toISOString(),
         ];
@@ -176,12 +183,20 @@ class ImageController extends Controller
             'prompt' => $job->prompt,
             'aspect_ratio' => $job->aspect_ratio,
             'duration' => $job->duration,
+            'pro_mode' => (bool) $job->pro_mode,
+            'has_reference' => (bool) $job->has_reference,
+            'reference_url' => $job->reference_path ? '/api/v/'.$job->job_id.'/reference' : null,
             'status' => $job->status,
             'video_url' => $job->video_url,
             'thumbnail_url' => $job->thumbnail_url,
             'error' => $job->error_message,
             'billing_status' => $job->billing_status,
             'cost_microusd' => $job->billing_reserved_microusd,
+            'stage' => $job->stage,
+            ...VideoGenerationService::cancellation($job),
+            'billing_mode' => $job->billing_mode,
+            'tokens_reserved' => $job->tokens_reserved,
+            'completed_at' => $job->completed_at?->toISOString(),
             'created_at' => $job->created_at?->toISOString(),
             'updated_at' => $job->updated_at?->toISOString(),
             'user' => $job->user ? [

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\NotificationChanged;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\User;
@@ -24,7 +25,19 @@ class EngagementController extends Controller
             'segment' => ['required', Rule::in(['all', 'active', 'expired'])],
             'title' => ['required', 'string', 'max:160'],
             'body' => ['required', 'string', 'max:10000'],
-            'action_url' => ['sometimes', 'nullable', 'string', 'max:2048'],
+            'action_url' => ['bail', 'sometimes', 'nullable', 'string', 'max:255', function (string $attribute, mixed $value, \Closure $fail): void {
+                if ($value === null) {
+                    return;
+                }
+
+                $decoded = rawurldecode($value);
+                $path = parse_url($decoded, PHP_URL_PATH);
+                if (! str_starts_with($decoded, '/') || str_starts_with($decoded, '//')
+                    || str_starts_with($decoded, '/en//') || preg_match('/[\\\\\x00-\x20\x7f]/', $decoded)
+                    || ! is_string($path) || preg_match('~(?:^|/)\.{1,2}(?:/|$)~', $path)) {
+                    $fail('The action URL must be a local application path.');
+                }
+            }],
         ]);
 
         $broadcastId = (string) Str::uuid();
@@ -56,6 +69,9 @@ class EngagementController extends Controller
                     }
 
                     Notification::query()->insert($rows);
+                    foreach ($recipients as $recipient) {
+                        event(new NotificationChanged((int) $recipient->id, 'created'));
+                    }
                     $count += count($rows);
                 });
 

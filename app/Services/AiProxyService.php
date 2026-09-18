@@ -2,13 +2,15 @@
 
 namespace App\Services;
 
-use App\Http\Controllers\Api\ExternalApiController;
 use App\Exceptions\AiProxyException;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Http\Client\ConnectionException;
+use App\Http\Controllers\Api\ExternalApiController;
+use App\Models\AiModelProfile;
+use App\Models\AiProviderProfile;
+use Generator;
 use Illuminate\Support\Facades\Log;
-use Throwable;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class AiProxyService
 {
@@ -18,70 +20,24 @@ class AiProxyService
 
     private const BLOCKED_MODEL_NAMES = ['au'.'to', 'au'.'to router'];
 
-    private string $baseUrl;
-
-    private string $apiKey;
-
-    public function __construct()
-    {
-        $this->baseUrl = rtrim(config('services.ai_proxy.url', 'https://api.ultrai.id'), '/');
-        $this->apiKey = config('services.ai_proxy.key', '');
-    }
+    public function __construct(private readonly AiProviderTransport $transport) {}
 
     /**
      * Get available AI models (filtered to chat category)
      */
-    public function getModels(array $allowedTiers = []): array
+    public function getModels(array $allowedTiers = ['Standard', 'MAX']): array
     {
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$this->apiKey,
-            ])->timeout(10)->get($this->baseUrl.'/v1/models');
+        $categories = in_array('Canva', $allowedTiers, true) ? ['chat', 'image', 'canva'] : ['chat'];
 
-            if ($response->successful()) {
-                $data = $response->json();
-                $tierMap = [
-                    'Standard' => 'Original',
-                    'MAX' => 'Authentic',
-                    'Codex' => 'Codex',
-                    'Wavespeed' => 'Wavespeed',
-                    'YepAPI' => 'YepAPI',
-                    'Canva' => 'Canva',
-                ];
-
-                if (empty($allowedTiers)) {
-                    $allowedTiers = ['Standard', 'MAX'];
-                }
-
-                $allowedCategories = ['chat'];
-                if (in_array('Canva', $allowedTiers)) {
-                    $allowedCategories[] = 'image';
-                    $allowedCategories[] = 'canva';
-                }
-
-                // Models that should only appear in Authentic (MAX), not Original (Standard)
-                $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
-
-                return collect($this->sanitizeModels($data['data'] ?? []))
-                    ->filter(fn ($m) => in_array($m['category'] ?? '', $allowedCategories))
-                    ->filter(fn ($m) => in_array($m['tier'] ?? '', $allowedTiers))
-                    ->filter(fn ($m) => ! (in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
-                    ->map(fn ($m) => $this->scrubModel($m, $tierMap))
-                    ->values()
-                    ->toArray();
-            }
-
-            Log::warning('AI Proxy models request failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return [];
-        } catch (\Exception $e) {
-            Log::error('AI Proxy connection failed', ['error' => $e->getMessage()]);
-
-            return [];
-        }
+        return collect($this->getAllModelsFiltered($allowedTiers))
+            ->filter(fn (array $model): bool => in_array($model['category'], $categories, true))
+            ->map(fn (array $model): array => [
+                'id' => $model['id'],
+                'name' => $model['name'],
+                'category' => $model['tier'],
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -89,142 +45,153 @@ class AiProxyService
      */
     public function getAllModels(): array
     {
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$this->apiKey,
-            ])->timeout(10)->get($this->baseUrl.'/v1/models');
-
-            return $response->successful()
-                ? $this->sanitizeModels($response->json()['data'] ?? [])
-                : [];
-        } catch (\Exception $e) {
-            Log::error('AI Proxy connection failed', ['error' => $e->getMessage()]);
-
-            return [];
+        $profiles = Schema::hasTable('ai_model_profiles') ? AiModelProfile::query()->with('provider')->get() : collect();
+        if ($profiles->isNotEmpty()) {
+            return $this->sanitizeModels($profiles
+                ->filter(fn (AiModelProfile $profile): bool => $profile->is_enabled
+                    && $profile->is_available && $profile->provider?->is_enabled)
+                ->map(fn (AiModelProfile $profile): array => [
+                    'id' => $profile->model_id,
+                    'name' => $profile->display_name ?: $profile->model_id,
+                    'provider' => $profile->provider_name,
+                    'category' => $profile->category,
+                    'tier' => $profile->tier,
+                    'context_length' => $profile->context_window,
+                    'max_output_tokens' => $profile->max_output_tokens,
+                    'capabilities' => $profile->capabilities ?? [],
+                    'input_modalities' => $profile->input_modalities ?? ['text'],
+                    'output_modalities' => $profile->output_modalities ?? ['text'],
+                ])->values()->all());
         }
+
+        return [];
+
     }
-    public function fetchCatalog(): array
+
+    public function fetchCatalog(?AiProviderProfile $provider = null): array
     {
-        $this->ensureConfigured();
+        $models = $this->transport->catalog($provider);
+        $sensitive = array_values(array_filter([
+            $provider?->base_url !== null ? $provider->api_key : config('services.ai_proxy.key', ''),
+            $provider?->base_url ?? config('services.ai_proxy.url', ''),
+        ], fn ($value): bool => is_string($value) && $value !== ''));
 
-        try {
-            $response = Http::withToken($this->apiKey)
-                ->acceptJson()
-                ->timeout(10)
-                ->get($this->baseUrl.'/v1/models');
-        } catch (ConnectionException $exception) {
-            throw new AiProxyException('The AI provider is unavailable.', 503, $exception);
-        } catch (Throwable $exception) {
-            throw new AiProxyException('The AI provider is unavailable.', 503, $exception);
-        }
-
-        if (! $response->successful()) {
-            $status = $response->status() === 429 || $response->serverError() ? 503 : 502;
-            $message = $status === 503
-                ? 'The AI provider is unavailable.'
-                : 'The AI provider rejected the catalog request.';
-
-            throw new AiProxyException($message, $status);
-        }
-
-        $models = $response->json('data');
-        if (! is_array($models)) {
-            throw new AiProxyException('The AI provider returned an invalid catalog.', 502);
-        }
-
-        return collect($this->sanitizeModels(
-            collect($models)->filter(fn ($model): bool => is_array($model))->all(),
-        ))
-            ->map(fn (array $model): ?array => $this->catalogModel($model))
+        return collect($this->sanitizeModels(array_filter($models, 'is_array')))
+            ->map(fn (array $model): ?array => $this->catalogModel($model, $sensitive))
             ->filter()
             ->values()
             ->all();
     }
 
-    public function generateImages(string $model, string $prompt, string $size, int $quantity): array
+    public function generateImages(string $model, string $prompt, string $size, int $quantity, ?\Closure $beforeRequest = null): array
     {
-        $this->ensureConfigured();
-
-        try {
-            $response = Http::withToken($this->apiKey)
-                ->acceptJson()
-                ->timeout(120)
-                ->post($this->baseUrl.'/v1/images/generations', [
-                    'model' => $model,
-                    'prompt' => $prompt,
-                    'size' => $size,
-                    'n' => $quantity,
-                ]);
-        } catch (ConnectionException $exception) {
-            throw new AiProxyException('The AI image provider is unavailable.', 503, $exception);
-        } catch (Throwable $exception) {
-            throw new AiProxyException('The AI image provider is unavailable.', 503, $exception);
+        [$provider, $upstreamModel] = $this->routeModel($model);
+        $profile = AiModelProfile::query()->where('model_id', $model)->firstOrFail();
+        $config = MediaModelConfig::forModel($profile);
+        $payload = ['model' => $upstreamModel, 'prompt' => $prompt];
+        if ($config['supports_size'] && $size !== 'auto') {
+            $payload['size'] = $size;
         }
-
-        if (! $response->successful()) {
-            if (in_array($response->status(), [404, 405, 501], true)) {
-                throw new AiProxyException('Image generation is not supported by the AI provider.', 502);
+        if ($config['supports_n']) {
+            $payload['n'] = $quantity;
+        }
+        $requests = $config['supports_n'] ? 1 : $quantity;
+        $images = [];
+        for ($index = 0; $index < $requests; $index++) {
+            $beforeRequest?->__invoke();
+            $response = $this->transport->imageGeneration($provider, $payload, $config['image_path']);
+            $items = $response['data'] ?? null;
+            if (! is_array($items) || count($items) !== ($config['supports_n'] ? $quantity : 1)) {
+                throw new AiProxyException('The AI image provider returned an incomplete response.', 502);
             }
-
-            $status = $response->status() === 429 || $response->serverError() ? 503 : 502;
-            $message = $status === 503
-                ? 'The AI image provider is unavailable.'
-                : 'The AI image provider rejected the request.';
-
-            throw new AiProxyException($message, $status);
+            foreach ($items as $item) {
+                if (! is_array($item) || (! is_string($item['url'] ?? null) && ! is_string($item['b64_json'] ?? null))) {
+                    throw new AiProxyException('The AI image provider returned an invalid image.', 502);
+                }
+                $images[] = array_intersect_key($item, array_flip(['url', 'b64_json']));
+            }
         }
 
-        $data = $response->json('data');
-        if (! is_array($data)) {
-            throw new AiProxyException('The AI image provider returned an invalid response.', 502);
-        }
-
-        $urls = collect($data)
-            ->filter(fn ($item): bool => is_array($item))
-            ->map(fn (array $item) => $item['url'] ?? null)
-            ->filter(fn ($url): bool => is_string($url) && $this->isPublicResultUrl($url))
-            ->values()
-            ->all();
-
-        if (count($urls) !== $quantity) {
-            throw new AiProxyException('The AI image provider returned an incomplete response.', 502);
-        }
-
-        return $urls;
+        return $images;
     }
-
 
     /**
      * Send chat completion (non-streaming)
      */
-    public function chatCompletion(array $messages, string $model, array $options = []): ?array
+    public function chatCompletion(array $messages, string $model, array $options = []): array
     {
-        try {
-            $payload = array_merge([
-                'model' => $model,
-                'messages' => $messages,
-                'stream' => false,
-            ], $options);
+        [$provider, $upstreamModel] = $this->routeModel($model);
+        if (! isset($options['max_tokens']) && ! isset($options['max_completion_tokens'])) {
+            $options[$provider?->base_url !== null && $provider->protocol === 'openai' ? 'max_completion_tokens' : 'max_tokens'] = 4096;
+        }
+        $result = $this->transport->complete($provider, [
+            ...$options,
+            'model' => $upstreamModel,
+            'messages' => $messages,
+            'stream' => false,
+        ]);
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->timeout(120)->post($this->baseUrl.'/v1/chat/completions', $payload);
+        return $this->publicResponse($result, $model);
+    }
 
-            if ($response->successful()) {
-                return $response->json();
+    public function streamChatCompletion(array $messages, string $model, array $options = []): Generator
+    {
+        [$provider, $upstreamModel] = $this->routeModel($model);
+        if (! isset($options['max_tokens']) && ! isset($options['max_completion_tokens'])) {
+            $options[$provider?->base_url !== null && $provider->protocol === 'openai' ? 'max_completion_tokens' : 'max_tokens'] = 4096;
+        }
+        $buffers = [];
+        foreach ($this->transport->stream($provider, [
+            ...$options,
+            'model' => $upstreamModel,
+            'messages' => $messages,
+            'stream' => true,
+        ]) as $event) {
+            $event = $this->publicResponse($event, $model);
+            foreach ($event['choices'] ?? [] as $position => $choice) {
+                $index = $choice['index'] ?? $position;
+                $choice['delta'] = (array) ($choice['delta'] ?? []);
+                $event['choices'][$position]['delta'] = $choice['delta'];
+                foreach (['content', 'refusal'] as $field) {
+                    $text = $choice['delta'][$field] ?? null;
+                    if (is_string($text)) {
+                        $buffers[$index][$field] = ($buffers[$index][$field] ?? '').$text;
+                        $safe = $this->drainStreamText($buffers[$index][$field]);
+                        if ($safe === '') {
+                            unset($event['choices'][$position]['delta'][$field]);
+                        } else {
+                            $event['choices'][$position]['delta'][$field] = $safe;
+                        }
+                    }
+                }
+                if (($choice['finish_reason'] ?? null) !== null) {
+                    foreach ($buffers[$index] ?? [] as $field => $remaining) {
+                        if ($remaining !== '') {
+                            $event['choices'][$position]['delta'][$field] = ($event['choices'][$position]['delta'][$field] ?? '').ExternalApiController::clean($remaining);
+                        }
+                    }
+                    unset($buffers[$index]);
+                }
+                if (($event['choices'][$position]['delta'] ?? null) === []) {
+                    $event['choices'][$position]['delta'] = new \stdClass;
+                }
             }
-
-            Log::warning('AI Proxy chat completion failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return null;
-        } catch (\Exception $e) {
-            Log::error('AI Proxy chat error', ['error' => $e->getMessage()]);
-
-            return null;
+            yield $event;
+        }
+        foreach ($buffers as $index => $fields) {
+            $delta = [];
+            foreach ($fields as $field => $remaining) {
+                if ($remaining !== '') {
+                    $delta[$field] = ExternalApiController::clean($remaining);
+                }
+            }
+            if ($delta !== []) {
+                yield [
+                    'object' => 'chat.completion.chunk',
+                    'model' => $model,
+                    'choices' => [['index' => $index, 'delta' => $delta, 'finish_reason' => null]],
+                ];
+            }
         }
     }
 
@@ -234,66 +201,41 @@ class AiProxyService
      */
     public function chatCompletionStream(array $messages, string $model, ?\Closure $onChunk = null): StreamedResponse
     {
-        return new StreamedResponse(function () use ($messages, $model, $onChunk) {
-            $ch = curl_init();
-
-            $postData = json_encode([
-                'model' => $model,
-                'messages' => $messages,
-                'stream' => true,
-            ]);
-
+        return new StreamedResponse(function () use ($messages, $model, $onChunk): void {
             $fullResponse = '';
-
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $this->baseUrl.'/v1/chat/completions',
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $postData,
-                CURLOPT_HTTPHEADER => [
-                    'Authorization: Bearer '.$this->apiKey,
-                    'Content-Type: application/json',
-                    'Accept: text/event-stream',
-                ],
-                CURLOPT_RETURNTRANSFER => false,
-                CURLOPT_TIMEOUT => 120,
-                CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$fullResponse) {
-                    $data = ExternalApiController::clean($data);
-
-                    echo $data;
+            $usage = null;
+            try {
+                foreach ($this->streamChatCompletion($messages, $model) as $event) {
+                    $delta = (array) ($event['choices'][0]['delta'] ?? []);
+                    $content = $delta['content'] ?? $delta['refusal'] ?? null;
+                    if (is_string($content)) {
+                        $fullResponse .= $content;
+                    }
+                    if (is_array($event['usage'] ?? null)) {
+                        $usage = $event['usage'];
+                    }
+                    echo 'data: '.json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n";
                     if (ob_get_level() > 0) {
                         ob_flush();
                     }
                     flush();
-
-                    // Parse for collecting full response (non-blocking)
-                    $lines = explode("\n", $data);
-                    foreach ($lines as $line) {
-                        if (str_starts_with($line, 'data: ') && $line !== 'data: [DONE]') {
-                            $json = json_decode(substr($line, 6), true);
-                            $content = $json['choices'][0]['delta']['content'] ?? null;
-                            if ($content) {
-                                $fullResponse .= $content;
-                            }
-                        }
-                    }
-
-                    return strlen($data);
-                },
-            ]);
-
-            curl_exec($ch);
-
-            $error = curl_error($ch);
-            if ($error) {
-                Log::error('AI Proxy stream error', ['error' => $error]);
+                }
+                if ($onChunk && $fullResponse !== '') {
+                    $onChunk($fullResponse, $usage);
+                }
+                echo "data: [DONE]\n\n";
+            } catch (Throwable $exception) {
+                $status = $exception instanceof AiProxyException ? $exception->responseStatus() : 502;
+                Log::warning('AI stream failed', ['status' => $status]);
+                $message = $exception instanceof AiProxyException
+                    ? $exception->getMessage()
+                    : 'The AI provider is unavailable. Please try again later.';
+                echo 'data: '.json_encode(['error' => ['message' => $message, 'type' => 'upstream_error']], JSON_THROW_ON_ERROR)."\n\n";
             }
-
-            curl_close($ch);
-
-            // Callback with full response for saving to DB etc.
-            if ($onChunk && $fullResponse) {
-                $onChunk($fullResponse);
+            if (ob_get_level() > 0) {
+                ob_flush();
             }
+            flush();
         }, 200, [
             'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache',
@@ -307,15 +249,7 @@ class AiProxyService
      */
     public function healthCheck(): bool
     {
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$this->apiKey,
-            ])->timeout(5)->get($this->baseUrl.'/v1/models');
-
-            return $response->successful();
-        } catch (\Exception $e) {
-            return false;
-        }
+        return $this->getStatus()['online'];
     }
 
     /**
@@ -323,85 +257,53 @@ class AiProxyService
      */
     public function getStatus(): array
     {
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$this->apiKey,
-            ])->timeout(5)->get($this->baseUrl.'/v1/models');
+        $providers = AiProviderProfile::query()->where('is_enabled', true)->get();
+        $online = $providers->contains(fn (AiProviderProfile $provider): bool => $provider->status === 'healthy');
+        $models = $this->getAllModels();
 
-            if ($response->successful()) {
-                $models = $this->sanitizeModels($response->json()['data'] ?? []);
-
-                return [
-                    'online' => true,
-                    'total_models' => count($models),
-                    'chat_models' => collect($models)->where('category', 'chat')->count(),
-                ];
-            }
-
-            return ['online' => false];
-        } catch (\Exception $e) {
-            return ['online' => false];
-        }
+        return [
+            'online' => $online,
+            'total_models' => count($models),
+            'chat_models' => count(array_filter($models, fn (array $model): bool => ($model['category'] ?? 'chat') === 'chat')),
+        ];
     }
 
     /**
      * Get all models across ALL categories (chat, image, video, audio) with tier filtering
      * Used by the full-page chat UI
      */
-    public function getAllModelsFiltered(array $allowedTiers = []): array
+    public function getAllModelsFiltered(array $allowedTiers = ['Standard', 'MAX']): array
     {
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.$this->apiKey,
-            ])->timeout(10)->get($this->baseUrl.'/v1/models');
-
-            if ($response->successful()) {
-                $data = $response->json();
-                $tierMap = [
-                    'Standard' => 'Original',
-                    'MAX' => 'Authentic',
-                    'Codex' => 'Codex',
-                    'Wavespeed' => 'Wavespeed',
-                    'YepAPI' => 'YepAPI',
-                    'Canva' => 'Canva',
-                ];
-
-                if (empty($allowedTiers)) {
-                    $allowedTiers = ['Standard', 'MAX'];
-                }
-
-                // Models that should only appear in Authentic (MAX), not Original (Standard)
-                $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
-
-                return collect($this->sanitizeModels($data['data'] ?? []))
-                    ->filter(fn ($m) => in_array($m['tier'] ?? '', $allowedTiers))
-                    ->filter(fn ($m) => ! str_contains(strtolower($m['id'] ?? ''), 'default'))
-                    ->filter(fn ($m) => ! (in_array($m['id'] ?? '', $authenticOnly) && ($m['tier'] ?? '') === 'Standard'))
-                    ->map(fn ($m) => $this->scrubModelFull($m, $tierMap))
-                    ->values()
-                    ->toArray();
-            }
-
-            return [];
-        } catch (\Exception $e) {
-            Log::error('AI Proxy connection failed', ['error' => $e->getMessage()]);
-
-            return [];
-        }
+        return $allowedTiers === [] ? [] : $this->filterModelsForTiers($this->getAllModels(), $allowedTiers);
     }
 
-    /**
-     * Scrub model data — only return safe fields, remove all sensitive info
-     */
-    private function scrubModel(array $model, array $tierMap = []): array
+    public function filterModelsForTiers(array $models, array $allowedTiers): array
     {
-        $tier = $model['tier'] ?? 'Standard';
+        if ($allowedTiers === []) {
+            return [];
+        }
 
-        return [
-            'id' => $model['id'] ?? 'unknown',
-            'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
-            'category' => $tierMap[$tier] ?? 'Original',
+        $models = collect($models)->keyBy('id');
+
+        $rawTiers = ['Original' => 'Standard', 'Authentic' => 'MAX'];
+        $tierLabels = [
+            'Standard' => 'Original', 'MAX' => 'Authentic',
+            'Codex' => 'Codex', 'Wavespeed' => 'Wavespeed', 'YepAPI' => 'YepAPI', 'Canva' => 'Canva',
+            'Original' => 'Original', 'Authentic' => 'Authentic',
         ];
+        $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
+
+        return collect($this->sanitizeModels($models->values()->all()))
+            ->filter(function (array $model) use ($allowedTiers, $rawTiers, $authenticOnly): bool {
+                $tier = $rawTiers[$model['tier'] ?? ''] ?? ($model['tier'] ?? '');
+
+                return in_array($tier, $allowedTiers, true)
+                    && ! str_contains(strtolower($model['id']), 'default')
+                    && ! (in_array($model['id'], $authenticOnly, true) && $tier === 'Standard');
+            })
+            ->map(fn (array $model): array => $this->scrubModelFull($model, $tierLabels))
+            ->values()
+            ->all();
     }
 
     public function firstAvailableModel(array $allowedTiers = []): ?string
@@ -409,38 +311,92 @@ class AiProxyService
         return $this->getAllModelsFiltered($allowedTiers)[0]['id'] ?? null;
     }
 
-    private function ensureConfigured(): void
+    private function routeModel(string $model): array
     {
-        if ($this->apiKey === '' || filter_var($this->baseUrl, FILTER_VALIDATE_URL) === false) {
-            throw new AiProxyException('The AI provider is unavailable.', 503);
+        if ($this->sanitizeModels([['id' => $model]]) === []) {
+            throw new AiProxyException('The selected model is unavailable.', 403);
         }
+        $profile = AiModelProfile::query()->with('provider')->where('model_id', $model)->first();
+        if ($profile) {
+            if (! $profile->is_enabled || ! $profile->is_available || ! $profile->provider?->is_enabled) {
+                throw new AiProxyException('The selected model is unavailable.', 403);
+            }
+
+            return [$profile->provider, $profile->upstream_model_id ?: $profile->model_id];
+        }
+        throw new AiProxyException('The selected model is unavailable.', 403);
     }
 
-    private function catalogModel(array $model): ?array
+    private function publicResponse(array $response, string $model): array
     {
-        $id = trim((string) ($model['id'] ?? ''));
-        if ($id === '' || strlen($id) > 160 || str_contains($id, '://') || str_contains($id, $this->apiKey)) {
+        $response = array_intersect_key($response, array_flip(['id', 'object', 'created', 'model', 'choices', 'usage']));
+        $response['model'] = $model;
+        foreach ($response['choices'] ?? [] as $position => $choice) {
+            foreach (['content', 'refusal'] as $field) {
+                if (is_string($choice['message'][$field] ?? null)) {
+                    $response['choices'][$position]['message'][$field] = ExternalApiController::deepClean(ExternalApiController::clean($choice['message'][$field]));
+                }
+            }
+        }
+
+        return $response;
+    }
+
+    private function drainStreamText(string &$buffer): string
+    {
+        $retain = 0;
+        foreach (self::BLOCKED_MODEL_FRAGMENTS as $fragment) {
+            for ($length = 1; $length < strlen($fragment); $length++) {
+                if (strlen($buffer) >= $length && strcasecmp(substr($buffer, -$length), substr($fragment, 0, $length)) === 0) {
+                    $retain = max($retain, $length);
+                }
+            }
+        }
+        $text = $retain > 0 ? substr($buffer, 0, -$retain) : $buffer;
+        $buffer = $retain > 0 ? substr($buffer, -$retain) : '';
+
+        return ExternalApiController::clean($text);
+    }
+
+    private function catalogModel(array $model, array $sensitive): ?array
+    {
+        if (! is_string($model['id'] ?? null)) {
+            return null;
+        }
+        $id = trim($model['id']);
+        if ($id === '' || strlen($id) > 160 || ! preg_match('/^[A-Za-z0-9._\/:\-]+$/', $id)
+            || str_contains($id, '://') || $this->containsSensitiveMetadata($id, $sensitive)) {
             return null;
         }
 
-        $category = strtolower(trim((string) ($model['category'] ?? 'chat')));
+        $model = MediaModelConfig::catalogModel($model);
+        $category = is_string($model['category'] ?? null) ? strtolower(trim($model['category'])) : 'chat';
         $category = match ($category) {
             'image', 'images', 'canva' => 'image',
             'video', 'audio', 'embedding', 'embeddings' => rtrim($category, 's'),
             default => 'chat',
         };
-        $tier = isset($model['tier']) ? $this->safeText((string) $model['tier'], 40) : null;
+        $tier = is_string($model['tier'] ?? null) ? $this->safeText($model['tier'], 40, $sensitive) : null;
+        $provider = $model['provider'] ?? $model['owned_by'] ?? null;
+        $name = is_string($model['name'] ?? null) ? $model['name'] : $id;
+        $context = filter_var($model['context_length'] ?? $model['context_window'] ?? null, FILTER_VALIDATE_INT);
+        $outputLimit = filter_var($model['max_output_tokens'] ?? null, FILTER_VALIDATE_INT);
 
         return [
             'id' => $id,
-            'name' => $this->safeText((string) ($model['name'] ?? $id), 160),
+            'name' => $this->safeText($name, 160, $sensitive),
             'category' => $category,
             'tier' => $tier !== '' ? $tier : null,
-            'capabilities' => $this->safeCapabilities($model['capabilities'] ?? []),
+            'capabilities' => $this->safeCapabilities($model['capabilities'] ?? [], $sensitive),
+            'provider' => is_string($provider) ? $this->safeText($provider, 120, $sensitive) : null,
+            'context_length' => $context !== false && $context > 0 && $context <= 10000000 ? $context : null,
+            'max_output_tokens' => $outputLimit !== false && $outputLimit > 0 && $outputLimit <= 10000000 ? $outputLimit : null,
+            'input_modalities' => $this->safeCapabilities($model['input_modalities'] ?? ['text'], $sensitive),
+            'output_modalities' => $this->safeCapabilities($model['output_modalities'] ?? ['text'], $sensitive),
         ];
     }
 
-    private function safeCapabilities(mixed $capabilities): array
+    private function safeCapabilities(mixed $capabilities, array $sensitive): array
     {
         if (! is_array($capabilities)) {
             return [];
@@ -453,7 +409,8 @@ class AiProxyService
             }
 
             if (is_array($value)) {
-                $safe = [...$safe, ...$this->safeCapabilities($value)];
+                $safe = [...$safe, ...$this->safeCapabilities($value, $sensitive)];
+
                 continue;
             }
 
@@ -463,9 +420,7 @@ class AiProxyService
             if ($candidate === '' || strlen($candidate) > 64 || str_contains($candidate, '://')) {
                 continue;
             }
-            if ($this->isSensitiveMetadataName($candidate)
-                || str_contains($candidate, $this->apiKey)
-                || str_contains($candidate, $this->baseUrl)) {
+            if ($this->isSensitiveMetadataName($candidate) || $this->containsSensitiveMetadata($candidate, $sensitive)) {
                 continue;
             }
             if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._ -]*$/', $candidate) !== 1) {
@@ -483,33 +438,38 @@ class AiProxyService
         return preg_match('/(?:api[_. -]?key|secret|password|credential|endpoint|base[_. -]?url|access[_. -]?token)/i', $value) === 1;
     }
 
-    private function safeText(string $value, int $maximumLength): string
+    private function safeText(string $value, int $maximumLength, array $sensitive): string
     {
-        $value = str_replace([$this->apiKey, $this->baseUrl], '[redacted]', strip_tags($value));
+        $value = str_replace($sensitive, '[redacted]', strip_tags($value));
         $value = trim((string) preg_replace('/\s+/', ' ', $value));
 
         return mb_substr($value, 0, $maximumLength);
     }
 
-    private function isPublicResultUrl(string $url): bool
+    private function containsSensitiveMetadata(string $value, array $sensitive): bool
     {
-        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
-            return false;
+        foreach ($sensitive as $secret) {
+            if (str_contains($value, $secret)) {
+                return true;
+            }
         }
 
-        return in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true);
+        return false;
     }
 
     private function sanitizeModels(array $models): array
     {
-        return array_values(array_filter($models, static function (array $model): bool {
-            $id = strtolower(trim((string) ($model['id'] ?? '')));
-            $name = strtolower(trim((string) ($model['name'] ?? '')));
+        return array_values(array_filter($models, static function ($model): bool {
+            if (! is_array($model) || ! is_string($model['id'] ?? null)) {
+                return false;
+            }
+            $id = strtolower(trim($model['id']));
+            $name = is_string($model['name'] ?? null) ? strtolower(trim($model['name'])) : '';
             $identity = strtolower(implode(' ', [
                 $id,
                 $name,
-                (string) ($model['provider'] ?? ''),
-                (string) ($model['owned_by'] ?? ''),
+                is_string($model['provider'] ?? null) ? $model['provider'] : '',
+                is_string($model['owned_by'] ?? null) ? $model['owned_by'] : '',
             ]));
 
             if ($id === '' || in_array($id, self::BLOCKED_MODEL_IDS, true) || in_array($name, self::BLOCKED_MODEL_NAMES, true)) {

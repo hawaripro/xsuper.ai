@@ -41,11 +41,18 @@
 <body class="public-site {{ $page['type'] === 'policy' ? 'policy-site' : 'landing-site' }}" data-motion="paused" data-copy-success="{{ __('Kode berhasil disalin.') }}" data-copy-failure="{{ __('Penyalinan otomatis tidak tersedia. Pilih teks kode lalu salin secara manual.') }}">
     @include('public.partials.header')
     @if(!empty($site['announcement']))
-        <aside class="site-announcement" role="status" data-level="{{ $site['announcement']['level'] ?? 'info' }}">
-            <span>{{ $site['announcement']['message'] }}</span>
-            @if(!empty($site['announcement']['action']))
-                <a href="{{ $site['announcement']['action']['url'] }}">{{ $site['announcement']['action']['label'] }}</a>
-            @endif
+        <aside class="site-announcement" role="status" data-level="{{ $site['announcement']['level'] ?? 'info' }}" aria-label="{{ $site['announcement']['message'] }}">
+            <div class="site-announcement-track">
+                @foreach([false, true] as $duplicate)
+                    <span class="site-announcement-copy" @if($duplicate) aria-hidden="true" @endif>
+                        <strong>{{ $site['announcement']['message'] }}</strong>
+                        @if(!empty($site['announcement']['action']))
+                            <a href="{{ $site['announcement']['action']['url'] }}">{{ $site['announcement']['action']['label'] }}</a>
+                        @endif
+                        <span aria-hidden="true">•</span>
+                    </span>
+                @endforeach
+            </div>
         </aside>
     @endif
     @yield('content')
