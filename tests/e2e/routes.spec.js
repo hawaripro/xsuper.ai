@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { login, captureErrors, databaseRows } from './helpers.js';
 
 const memberRoutes = [
-    '/dashboard', '/profile', '/chat', '/video', '/templates', '/history',
+    '/dashboard', '/profile', '/chat', '/video', '/audio', '/downloads', '/converter', '/templates', '/library',
     '/generate-image', '/token-usage', '/deposit', '/paket', '/referral', '/bantuan', '/notifications',
 ];
 const adminRoutes = [

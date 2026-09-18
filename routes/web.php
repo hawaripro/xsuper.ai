@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\EngagementController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\ImageController;
+use App\Http\Controllers\Api\LibraryController;
 use App\Http\Controllers\Api\MediaToolController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
@@ -98,6 +99,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
         Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
         Route::get('/realtime/config', [RealtimeController::class, 'show']);
+        Route::get('/library', [LibraryController::class, 'index']);
 
         // Feedback and support
         Route::get('/feedback', [FeedbackController::class, 'index']);

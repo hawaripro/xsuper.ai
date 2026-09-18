@@ -201,7 +201,7 @@ class DashboardRevisionTest extends TestCase
     {
         foreach ([
             '/en/login', '/en/dashboard', '/en/profile', '/en/chat', '/en/video',
-            '/en/templates', '/en/history', '/en/generate-image', '/en/token-usage',
+            '/en/templates', '/en/library', '/en/generate-image', '/en/token-usage',
             '/en/paket', '/en/referral', '/en/bantuan', '/en/notifications',
             '/en/admin', '/en/admin/overview', '/en/admin/users', '/en/admin/operations',
             '/en/admin/token-usage', '/en/admin/ai', '/en/admin/content', '/en/admin/system',

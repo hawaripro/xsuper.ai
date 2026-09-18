@@ -1,0 +1,55 @@
+/* Library grid — lives inside the shared dashboard workspace shell. */
+.dashboard-workspace .lib-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.dashboard-workspace .lib-filter { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 7px 12px; border: 1px solid var(--dw-line); border-radius: 999px; background: var(--dw-surface); color: var(--dw-ink); font-size: 12px; font-weight: 650; transition: background 160ms var(--dw-ease), border-color 160ms var(--dw-ease), color 160ms var(--dw-ease); }
+.dashboard-workspace .lib-filter svg { width: 15px; height: 15px; color: var(--lib-tone, var(--dw-accent)); }
+.dashboard-workspace .lib-filter small { padding: 1px 7px; border-radius: 999px; background: var(--dw-surface-alt); color: var(--dw-muted); font-size: 10px; font-weight: 700; }
+.dashboard-workspace .lib-filter:hover { border-color: var(--dw-muted); }
+.dashboard-workspace .lib-filter[aria-selected="true"] { border-color: var(--dw-accent); background: var(--dw-accent-soft); color: var(--dw-accent); }
+.dashboard-workspace .lib-filter[aria-selected="true"] small { background: color-mix(in srgb, var(--dw-accent) 14%, transparent); color: var(--dw-accent); }
+.dashboard-workspace .lib-tone-red { --lib-tone: #b82d47; }
+.dashboard-workspace .lib-tone-fuchsia { --lib-tone: #c026d3; }
+.dashboard-workspace .lib-tone-violet { --lib-tone: #7c3aed; }
+.dashboard-workspace .lib-tone-pink { --lib-tone: #db2777; }
+.dashboard-workspace .lib-tone-amber { --lib-tone: #d97706; }
+.dashboard-workspace .lib-tone-blue { --lib-tone: #2563eb; }
+.dashboard-workspace .lib-tone-cyan { --lib-tone: #0891b2; }
+.dark .dashboard-workspace .lib-tone-red { --lib-tone: #ff9cae; }
+.dark .dashboard-workspace .lib-tone-fuchsia { --lib-tone: #e879f9; }
+.dark .dashboard-workspace .lib-tone-violet { --lib-tone: #c4b5fd; }
+.dark .dashboard-workspace .lib-tone-pink { --lib-tone: #f9a8d4; }
+.dark .dashboard-workspace .lib-tone-amber { --lib-tone: #fbbf24; }
+.dark .dashboard-workspace .lib-tone-blue { --lib-tone: #93c5fd; }
+.dark .dashboard-workspace .lib-tone-cyan { --lib-tone: #67e8f9; }
+.dashboard-workspace .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.dashboard-workspace .lib-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--dw-line); border-radius: 14px; background: var(--dw-surface); animation: lib-card-in 320ms var(--dw-ease) both; }
+@keyframes lib-card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.dashboard-workspace .lib-tile { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; padding: 0; border: 0; border-bottom: 1px solid var(--dw-line); background: var(--dw-surface-alt); cursor: zoom-in; overflow: hidden; }
+.dashboard-workspace .lib-tile :is(img, video) { width: 100%; height: 100%; object-fit: cover; transition: transform 320ms var(--dw-ease); }
+.dashboard-workspace .lib-tile:hover :is(img, video) { transform: scale(1.03); }
+.dashboard-workspace .lib-tile-icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: color-mix(in srgb, var(--lib-tone, var(--dw-accent)) 12%, transparent); color: var(--lib-tone, var(--dw-accent)); }
+.dashboard-workspace .lib-tile-icon svg { width: 26px; height: 26px; }
+.dashboard-workspace .lib-badge { position: absolute; top: 10px; left: 10px; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--dw-surface) 88%, transparent); color: var(--lib-tone, var(--dw-accent)); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; backdrop-filter: blur(6px); }
+.dashboard-workspace .lib-card-body { display: grid; gap: 4px; padding: 12px 14px 14px; }
+.dashboard-workspace .lib-card-body h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.dashboard-workspace .lib-card-body p { color: var(--dw-muted); font-size: 11px; }
+.dashboard-workspace .lib-card-body time { color: var(--dw-muted); font-size: 11px; }
+.dashboard-workspace .lib-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.dashboard-workspace .lib-action { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 10px; border: 1px solid var(--dw-line); border-radius: 8px; background: var(--dw-surface); color: var(--dw-ink); font-size: 11px; font-weight: 650; text-decoration: none; transition: background 160ms var(--dw-ease), border-color 160ms var(--dw-ease), color 160ms var(--dw-ease); }
+.dashboard-workspace .lib-action svg { width: 14px; height: 14px; }
+.dashboard-workspace .lib-action:hover { background: var(--dw-surface-alt); border-color: var(--dw-muted); }
+.dashboard-workspace .lib-action-danger:hover { color: var(--dw-accent); border-color: var(--dw-accent); background: var(--dw-accent-soft); }
+.dashboard-workspace .lib-card-skeleton .lib-tile { background: linear-gradient(90deg, var(--dw-surface-alt), var(--dw-surface), var(--dw-surface-alt)); background-size: 200% 100%; animation: lib-shimmer 1.4s linear infinite; }
+.dashboard-workspace .lib-card-skeleton .dw-skeleton { display: block; height: 12px; border-radius: 6px; background: var(--dw-surface-alt); }
+@keyframes lib-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.dashboard-workspace .lib-empty { display: grid; justify-items: center; gap: 10px; padding: 48px 24px; text-align: center; border: 1px dashed var(--dw-line); border-radius: 14px; }
+.dashboard-workspace .lib-empty p { max-width: 46ch; color: var(--dw-muted); }
+.dashboard-workspace .lib-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+.dashboard-workspace .lib-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; color: var(--dw-muted); font-size: 12px; }
+.lib-lightbox { display: grid; place-items: center; min-height: 160px; border-radius: 12px; overflow: hidden; background: #0b1220; }
+.lib-lightbox :is(img, video) { display: block; max-width: 100%; max-height: min(70vh, 640px); }
+.lib-lightbox audio { width: 100%; margin: 24px 0; }
+.lib-lightbox-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.lib-lightbox-actions .dw-button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 13px; border-radius: 8px; background: #b82d47; color: #fff; font-size: 12px; font-weight: 650; text-decoration: none; }
+.lib-lightbox-actions .dw-button svg { width: 16px; height: 16px; }
+@media (max-width: 767px) { .dashboard-workspace .lib-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; } }
+@media (prefers-reduced-motion: reduce) { .dashboard-workspace .lib-card, .dashboard-workspace .lib-card-skeleton .lib-tile { animation: none; } .dashboard-workspace .lib-tile :is(img, video) { transition: none; } }

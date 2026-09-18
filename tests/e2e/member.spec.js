@@ -34,23 +34,37 @@ test('profile edit persists in database and reload, password mismatch does not m
     expect(errors).toEqual([]);
 });
 
-test('saved history loads real messages and deletes only the member conversation', async ({ page, browser }) => {
+test('saved history opens from a chat deep link and deletes only the member conversation', async ({ page, browser }) => {
     const errors = captureErrors(page);
     await login(page, 'member');
-    await page.goto('/en/history');
-    await page.getByRole('button').filter({ hasText: 'QA saved conversation' }).first().click();
+    await page.goto('/en/chat?conversation=qa-member-history');
     await expect(page.getByText('Saved integration answer', { exact: true })).toBeVisible();
     const other = await newSession(browser, 'other');
     const forbiddenRead = await other.page.request.get('/api/c/h/qa-member-history');
     const otherMessages = (await forbiddenRead.json()).messages || [];
     expect(otherMessages).toEqual([]);
     await other.context.close();
+    const conversation = page.locator('.cw-conv').filter({ hasText: 'QA saved conversation' }).first();
+    await expect(conversation).toBeVisible();
     const deletion = page.waitForResponse(response => response.url().endsWith('/api/c/h/qa-member-history') && response.request().method() === 'DELETE');
     page.on('dialog', dialog => dialog.accept());
-    await page.getByRole('button', { name: 'Delete QA saved conversation', exact: true }).click();
+    await conversation.getByRole('button', { name: /Delete conversation|Hapus percakapan/ }).click();
     expect((await deletion).status()).toBe(200);
     expect(databaseRows('chat_history', { conversation_id: 'qa-member-history' })).toHaveLength(0);
     await page.reload();
     await expect(page.getByText('QA saved conversation', { exact: true })).toHaveCount(0);
+    expect(errors).toEqual([]);
+});
+
+test('library page renders and its API returns a consistent owned-file listing', async ({ page }) => {
+    const errors = captureErrors(page);
+    await login(page, 'member');
+    await page.goto('/en/library');
+    await expect(page.getByRole('heading', { level: 1, name: 'Library' })).toBeVisible();
+    const library = await page.request.get('/api/library');
+    expect(library.status()).toBe(200);
+    const payload = await library.json();
+    expect(payload.counts.all).toBe(payload.items.length);
+    expect(payload.items.every(item => typeof item.id === 'string' && item.type)).toBe(true);
     expect(errors).toEqual([]);
 });

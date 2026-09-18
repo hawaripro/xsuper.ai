@@ -19,7 +19,7 @@ class DashboardLocaleCatalogTest extends TestCase
     {
         $paths = [
             '/en/login', '/en/dashboard', '/en/profile', '/en/chat', '/en/video',
-            '/en/templates', '/en/history', '/en/generate-image', '/en/token-usage',
+            '/en/templates', '/en/library', '/en/generate-image', '/en/token-usage',
             '/en/paket', '/en/referral', '/en/bantuan', '/en/notifications',
             '/en/admin', '/en/admin/overview', '/en/admin/users', '/en/admin/token-usage',
             '/en/admin/operations', '/en/admin/content', '/en/admin/ai',

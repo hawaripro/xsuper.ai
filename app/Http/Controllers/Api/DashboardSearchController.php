@@ -85,7 +85,8 @@ class DashboardSearchController extends Controller
         $sections = [
             ['workspace', 'Workspace', [
                 ['dashboard', 'Dashboard', 'Ringkasan akun dan aktivitas', '/dashboard', true, 'overview beranda'],
-                ['history', 'Riwayat chat', 'Baca percakapan yang tersimpan', '/history', $access['history'], 'history conversation library percakapan'],
+                ['library', 'Library', 'Unggahan dan semua hasil studio Anda', '/library', true, 'library file gambar video audio unduhan konversi'],
+                ['history', 'Riwayat chat', 'Baca percakapan yang tersimpan', '/chat', $access['history'], 'history conversation percakapan'],
                 ['templates', 'Template Prompt', 'Pilih prompt untuk percakapan baru', '/templates', $access['templates'], 'prompt library'],
                 ['notifications', 'Notifikasi', 'Pesan dan pembaruan akun', '/notifications', true, 'notifications inbox'],
             ]],
@@ -224,7 +225,7 @@ class DashboardSearchController extends Controller
 
         return $rows->map(fn (object $row): array => $this->result('conversation', $row->conversation_id,
             $row->title ?: 'Percakapan tanpa judul', 'Riwayat chat',
-            '/history?'.http_build_query(['conversation' => $row->conversation_id], '', '&', PHP_QUERY_RFC3986)))->all();
+            '/chat?'.http_build_query(['conversation' => $row->conversation_id], '', '&', PHP_QUERY_RFC3986)))->all();
     }
 
     private function media(User $user, string $table, string $kind, string $path, string $pattern): array

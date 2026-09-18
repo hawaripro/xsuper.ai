@@ -234,8 +234,8 @@ class DashboardController extends Controller
         if ($hasAccess && $user->hasPermission('chat')) {
             $actions[] = ['key' => 'chat', 'label' => 'Chat AI', 'href' => '/chat'];
         }
-        if ($hasAccess && $user->hasPermission('chat_history')) {
-            $actions[] = ['key' => 'history', 'label' => 'Riwayat chat', 'href' => '/history'];
+        if ($hasAccess) {
+            $actions[] = ['key' => 'library', 'label' => 'Library', 'href' => '/library'];
         }
         if ($hasAccess && $user->hasPermission('video_generator')) {
             $actions[] = ['key' => 'video', 'label' => 'Video generator', 'href' => '/video'];

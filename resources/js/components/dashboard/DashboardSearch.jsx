@@ -7,7 +7,7 @@ import { apiRequest } from "../../lib/api";
 import "./dashboard-search.css";
 
 const DESTINATIONS = new Set([
-    "/dashboard", "/chat", "/history", "/templates", "/generate-image", "/video", "/audio",
+    "/dashboard", "/chat", "/library", "/templates", "/generate-image", "/video", "/audio",
     "/downloads", "/converter", "/notifications", "/token-usage", "/deposit", "/referral", "/bantuan", "/profile",
     "/admin/overview", "/admin/users", "/admin/token-usage", "/admin/operations", "/admin/content", "/admin/ai", "/admin/system", "/admin/settings",
 ]);

@@ -82,7 +82,7 @@ export default function DashboardLayout({ children }) {
         ...(allowed('audio_generator') ? [{ name: 'Audio', href: '/audio', icon: Icons.audio, tone: 'pink' }] : []),
         ...(allowed('video_downloader') ? [{ name: 'Downloads', href: '/downloads', icon: Icons.download, tone: 'blue' }] : []),
         ...(allowed('media_converter') ? [{ name: 'Converter', href: '/converter', icon: Icons.convert, tone: 'teal' }] : []),
-        ...(allowed('chat_history') ? [{ name: 'Library', href: '/history', icon: Icons.history, tone: 'blue' }] : []),
+        { name: 'Library', href: '/library', icon: Icons.history, tone: 'blue' },
         { name: 'Template Prompt', href: '/templates', icon: Icons.template, tone: 'amber' },
         { name: 'Usage & Billing', href: '/token-usage', icon: Icons.token, tone: 'cyan' },
         { name: 'Deposit', href: '/deposit', icon: Icons.paket, tone: 'orange' },

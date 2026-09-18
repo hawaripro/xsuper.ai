@@ -21,7 +21,7 @@ import ErrorPage from './pages/ErrorPage';
 
 // User pages
 import TemplatePrompt from './pages/TemplatePrompt';
-import ChatHistory from './pages/ChatHistory';
+import Library from './pages/Library';
 import GenerateImage from './pages/GenerateImage';
 import TokenPemakaian from './pages/TokenPemakaian';
 import Deposit from './pages/Deposit';
@@ -102,7 +102,8 @@ function LocalizedAppRoutes() {
             <Route path={path('/downloads')} element={<DL permission="video_downloader"><VideoDownloader /></DL>} />
             <Route path={path('/converter')} element={<DL permission="media_converter"><MediaConverter /></DL>} />
             <Route path={path('/templates')} element={<DL><TemplatePrompt /></DL>} />
-            <Route path={path('/history')} element={<DL permission="chat_history"><ChatHistory /></DL>} />
+            <Route path={path('/library')} element={<DL><Library /></DL>} />
+            <Route path={path('/history')} element={<Navigate to={path('/chat')} replace />} />
             <Route path={path('/generate-image')} element={<DL><GenerateImage /></DL>} />
             <Route path={path('/token-usage')} element={<DL><TokenPemakaian /></DL>} />
             <Route path={path('/deposit')} element={<DL><Deposit /></DL>} />
