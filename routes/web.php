@@ -143,9 +143,12 @@ Route::prefix('api')->middleware('web')->group(function () {
 
         Route::get('/media-tools/capabilities', [MediaToolController::class, 'capabilities']);
         Route::get('/media-tools', [MediaToolController::class, 'history']);
+        Route::delete('/media-tools', [MediaToolController::class, 'destroyAll']);
+        Route::post('/media-tools/inspect', [MediaToolController::class, 'inspect'])->middleware(['check.expiry', 'throttle:20,1']);
         Route::post('/media-tools/download', [MediaToolController::class, 'download'])->middleware(['check.expiry', 'throttle:10,1']);
         Route::post('/media-tools/convert', [MediaToolController::class, 'convert'])->middleware(['check.expiry', 'throttle:10,1']);
         Route::get('/media-tools/{jobId}', [MediaToolController::class, 'show']);
+        Route::delete('/media-tools/{jobId}', [MediaToolController::class, 'destroy']);
         Route::post('/media-tools/{jobId}/cancel', [MediaToolController::class, 'cancel']);
         Route::get('/media-tools/{jobId}/asset', [MediaToolController::class, 'asset']);
 

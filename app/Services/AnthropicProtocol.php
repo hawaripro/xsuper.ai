@@ -432,7 +432,8 @@ final class AnthropicProtocol
         if (array_key_exists('max_tokens', $payload) && array_key_exists('max_completion_tokens', $payload)) {
             throw self::unsupported('multiple token limits');
         }
-        $value = $payload['max_tokens'] ?? $payload['max_completion_tokens'] ?? 4096;
+        // Every current Claude generation accepts at least 8192 output tokens; 4096 cut long answers short.
+        $value = $payload['max_tokens'] ?? $payload['max_completion_tokens'] ?? 8192;
         if (! is_int($value) || $value < 1) {
             throw self::unsupported('token limit');
         }

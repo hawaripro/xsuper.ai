@@ -11,7 +11,7 @@ class MediaToolJob extends Model
 
     protected $fillable = [
         'user_id', 'job_id', 'kind', 'status', 'stage', 'progress', 'title', 'source_url',
-        'input_name', 'format', 'mime_type', 'size_bytes', 'duration', 'error_message',
+        'input_name', 'format', 'options', 'mime_type', 'size_bytes', 'duration', 'error_message',
         'lease_token', 'heartbeat_at', 'cancel_requested_at', 'dispatched_at', 'completed_at',
     ];
 
@@ -19,6 +19,7 @@ class MediaToolJob extends Model
     {
         return [
             'source_url' => 'encrypted',
+            'options' => 'array',
             'progress' => 'float',
             'duration' => 'float',
             'size_bytes' => 'integer',

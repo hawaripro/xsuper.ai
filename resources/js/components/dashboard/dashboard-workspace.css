@@ -76,7 +76,9 @@
     --dw-row-space: 16px;
     --dw-metric-space: 24px;
 }
-.dashboard-workspace[data-density="compact"] { --dw-space: 16px; --dw-body-space: 16px; --dw-row-space: 11px; --dw-metric-space: 18px; padding-top: 24px; }
+.dashboard-workspace .dw-eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 5px 11px 5px 9px; border: 1px solid color-mix(in srgb, var(--dw-accent) 22%, transparent); border-radius: 999px; background: var(--dw-accent-soft); color: var(--dw-accent); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; animation: dw-eyebrow-in 420ms var(--dw-ease) both; }
+@keyframes dw-eyebrow-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .dashboard-workspace .dw-eyebrow { animation: none; } }
 .dashboard-workspace > * + * { margin-top: var(--dw-space); }
 .dashboard-workspace ::selection { color: var(--dw-ink); background: var(--dw-accent-soft); }
 .dashboard-workspace :is(input, select) { accent-color: var(--dw-accent); caret-color: var(--dw-accent); }
@@ -243,7 +245,6 @@
 .dashboard-workspace .ui-table { font-variant-numeric: tabular-nums; }
 .dashboard-workspace .ui-table thead th { background: var(--dw-surface-alt); color: var(--dw-muted); font-size: 11px; }
 .dashboard-workspace .ui-table td { font-size: 12px; padding-block: var(--dw-row-space); }
-.dashboard-workspace[data-density="compact"] .dw-module > summary { min-height: 55px; padding-block: 10px; }
 
 @supports (interpolate-size: allow-keywords) {
     .dashboard-workspace .dw-module { interpolate-size: allow-keywords; }

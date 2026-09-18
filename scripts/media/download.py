@@ -33,12 +33,40 @@ OUTPUT_MAX = 256 * 1024 * 1024
 MIME = {
     "mp4": "video/mp4", "webm": "video/webm", "mp3": "audio/mpeg",
     "wav": "audio/wav", "flac": "audio/flac", "png": "image/png",
-    "jpg": "image/jpeg", "webp": "image/webp",
+    "jpg": "image/jpeg", "webp": "image/webp", "gif": "image/gif",
 }
 IMAGE_FORMATS = {"png", "jpg", "webp"}
 IMAGE_DEMUXERS = {"png_pipe", "jpeg_pipe", "webp_pipe"}
-CODECS = "h264,hevc,av1,libdav1d,libaom-av1,vp8,vp9,mpeg4,mpeg2video,aac,mp3,mp3float,opus,libopus,vorbis,libvorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,pcm_u8,png,mjpeg,webp"
+CODECS = "h264,hevc,av1,libdav1d,libaom-av1,vp8,vp9,mpeg4,mpeg2video,aac,mp3,mp3float,opus,libopus,vorbis,libvorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,pcm_u8,png,mjpeg,webp,gif"
 SAFE_PROTOCOLS = {"http", "https", "m3u8_native", "m3u8", "http_dash_segments"}
+QUALITY_HEIGHTS = {"1080": 1080, "720": 720, "480": 480, "360": 360}
+RESOLUTIONS = {"1080": (1920, 1080), "720": (1280, 720), "480": (854, 480), "360": (640, 360)}
+ENCODINGS = {"high": ("18", "5000k", "3200k"), "balanced": ("23", "2500k", "1800k"), "small": ("28", "1200k", "900k")}
+AUDIO_BITRATES = {128, 192, 320}
+GIF_MAX_SECONDS = 15
+
+
+def options_of(manifest):
+    """Server-validated processing options; anything unexpected is treated as absent."""
+    raw = manifest.get("options")
+    if not isinstance(raw, dict):
+        return {}
+    options = {}
+    if raw.get("quality") in QUALITY_HEIGHTS:
+        options["quality"] = raw["quality"]
+    if raw.get("resolution") in RESOLUTIONS:
+        options["resolution"] = raw["resolution"]
+    if raw.get("encoding") in ENCODINGS:
+        options["encoding"] = raw["encoding"]
+    if raw.get("audio_bitrate") in AUDIO_BITRATES and not isinstance(raw.get("audio_bitrate"), bool):
+        options["audio_bitrate"] = int(raw["audio_bitrate"])
+    for key in ("trim_start", "trim_end"):
+        value = numeric(raw.get(key))
+        if value is not None and 0 <= value <= 600:
+            options[key] = value
+    if "trim_start" in options and "trim_end" in options and options["trim_end"] <= options["trim_start"]:
+        del options["trim_end"]
+    return options
 
 
 class MediaError(Exception):
@@ -75,9 +103,10 @@ class Supervisor:
             uuid.UUID(self.root.name)
         except ValueError:
             raise MediaError("runtime") from None
+        self.inspect = manifest.get("kind") == "inspect"
         self.lease = self.root / "lease"
         self.token = manifest.get("lease")
-        if not isinstance(self.token, str) or not re.fullmatch(r"[a-f0-9]{64}", self.token):
+        if not self.inspect and (not isinstance(self.token, str) or not re.fullmatch(r"[a-f0-9]{64}", self.token)):
             raise MediaError("runtime")
         self.input_limit = bounded_int(manifest.get("input_limit"), INPUT_MAX)
         self.output_limit = bounded_int(manifest.get("output_limit"), OUTPUT_MAX)
@@ -103,11 +132,12 @@ class Supervisor:
             raise MediaError("timeout")
         if (self.root / "cancel").exists():
             raise MediaError("cancelled")
-        try:
-            if self.lease.is_symlink() or self.lease.read_text(encoding="ascii") != self.token or time.time() - self.lease.stat().st_mtime > 15:
-                raise MediaError("timeout")
-        except OSError:
-            raise MediaError("timeout") from None
+        if not self.inspect:
+            try:
+                if self.lease.is_symlink() or self.lease.read_text(encoding="ascii") != self.token or time.time() - self.lease.stat().st_mtime > 15:
+                    raise MediaError("timeout")
+            except OSError:
+                raise MediaError("timeout") from None
         total = 0
         count = 0
         for entry in self.work.iterdir():
@@ -522,7 +552,9 @@ def download_media(manifest, supervisor):
     FFmpegPostProcessor.run_ffmpeg = deny_external
     FFmpegPostProcessor.run_ffmpeg_multiple_files = deny_external
 
-    def choose_formats(formats):
+    options_ = options_of(manifest)
+
+    def safe_candidates(formats):
         candidates = []
         for item in reversed(formats):
             if item.get("protocol") not in SAFE_PROTOCOLS or item.get("has_drm") or item.get("is_live"):
@@ -535,9 +567,19 @@ def download_media(manifest, supervisor):
                 continue
             checked_url(item.get("url"))
             candidates.append(item)
+        return candidates
+
+    def choose_formats(formats):
+        candidates = safe_candidates(formats)
         audio = [item for item in candidates if item.get("acodec") != "none"]
         video = [item for item in candidates if item.get("vcodec") != "none"]
         audio.sort(key=lambda item: item.get("vcodec") != "none")
+        target_height = QUALITY_HEIGHTS.get(options_.get("quality"))
+        if target_height:
+            # Highest format at or under the requested height; otherwise the smallest available.
+            fitting = [item for item in video if (numeric(item.get("height")) or 0) <= target_height]
+            pool = fitting or sorted(video, key=lambda item: numeric(item.get("height")) or 0)[:1]
+            video = sorted(pool, key=lambda item: numeric(item.get("height")) or 0, reverse=True)
         if manifest["format"] == "mp3":
             if audio:
                 return [audio[0]]
@@ -550,6 +592,19 @@ def download_media(manifest, supervisor):
             if video:
                 return [video[0]]
         raise MediaError("source")
+
+    def inspection(info):
+        candidates = safe_candidates(info.get("formats") or [info])
+        heights = sorted({int(numeric(item.get("height")) or 0) for item in candidates if item.get("vcodec") != "none" and numeric(item.get("height"))}, reverse=True)
+        thumbnail = info.get("thumbnail")
+        if not isinstance(thumbnail, str) or not thumbnail.startswith("https://") or len(thumbnail) > 2000:
+            thumbnail = None
+        title = info.get("title") if isinstance(info.get("title"), str) else None
+        uploader = info.get("uploader") if isinstance(info.get("uploader"), str) else None
+        emit("result", title=(title or "")[:200], duration=numeric(info.get("duration")), thumbnail=thumbnail,
+             uploader=(uploader or "")[:120], heights=heights[:12],
+             has_video=any(item.get("vcodec") != "none" for item in candidates),
+             has_audio=any(item.get("acodec") != "none" for item in candidates))
 
     def select_format(context):
         # Metadata selection only. Up to two native streams are downloaded explicitly
@@ -608,6 +663,9 @@ def download_media(manifest, supervisor):
             info = downloader.extract_info(manifest["url"], download=False)
             if not info or info.get("_type", "video") != "video":
                 raise MediaError("source")
+            if supervisor.inspect:
+                inspection(info)
+                return
             selected = choose_formats(info.get("formats") or [info])
             download_state["count"] = len(selected)
             for index, stream in enumerate(selected):
@@ -689,6 +747,8 @@ def sniff(path, maximum):
         return "jpeg_pipe"
     if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
         return "webp_pipe"
+    if header.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
     if header.startswith(b"RIFF") and header[8:12] == b"WAVE":
         return "wav"
     if header.startswith(b"fLaC"):
@@ -773,29 +833,45 @@ def convert_media(manifest, supervisor):
             raise MediaError("invalid_media")
         if info["duration"] and audio_info["duration"] and audio_info["duration"] < info["duration"] - 1:
             raise MediaError("invalid_media")
-    if format_ in ("mp4", "webm") and (not info["video"] or info["image"]):
+    if format_ in ("mp4", "webm", "gif") and (not info["video"] or info["image"]):
         raise MediaError("incompatible")
     if format_ in ("mp3", "wav", "flac") and not info["audio"]:
         raise MediaError("incompatible")
     if format_ in IMAGE_FORMATS and not info["video"]:
         raise MediaError("incompatible")
+    options_ = options_of(manifest)
+    trim_start = options_.get("trim_start") if not info["image"] and format_ not in IMAGE_FORMATS else None
+    trim_end = options_.get("trim_end") if not info["image"] and format_ not in IMAGE_FORMATS else None
+    if trim_start is not None and info["duration"] and trim_start >= info["duration"]:
+        raise MediaError("incompatible")
+    # Expected output length after trimming; GIF clips are additionally capped.
+    available = (info["duration"] - (trim_start or 0)) if info["duration"] else None
+    clip = min(value for value in (available, (trim_end - (trim_start or 0)) if trim_end is not None else None, supervisor.duration_limit + 1) if value is not None)
+    if format_ == "gif":
+        clip = min(clip, GIF_MAX_SECONDS)
     output = supervisor.work / ("result." + format_)
-    command = [ffmpeg, "-hide_banner", "-v", "error", "-nostdin", "-n", "-max_alloc", "67108864",
-               *input_options(info["demuxer"], supervisor), "-i", str(source)]
+    command = [ffmpeg, "-hide_banner", "-v", "error", "-nostdin", "-n", "-max_alloc", "67108864"]
+    seek = ["-ss", f"{trim_start:.3f}"] if trim_start else []
+    command += [*input_options(info["demuxer"], supervisor), *seek, "-i", str(source)]
     if audio_info:
-        command += [*input_options(audio_info["demuxer"], supervisor), "-i", str(secondary)]
+        command += [*input_options(audio_info["demuxer"], supervisor), *seek, "-i", str(secondary)]
     command += ["-map_metadata", "-1", "-map_chapters", "-1", "-sn", "-dn", "-threads", "2",
-                "-filter_threads", "1", "-t", str(supervisor.duration_limit + 1),
+                "-filter_threads", "1", "-t", f"{clip:.3f}",
                 "-fs", str(supervisor.output_limit), "-progress", "pipe:1", "-stats_period", "0.5"]
     if format_ in ("mp4", "webm"):
-        command += ["-map", "0:v:0", "-map", "1:a:0" if audio_info else "0:a:0?", "-vf", "scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1", "-r", "30", "-pix_fmt", "yuv420p", "-ac", "2", "-ar", "48000"]
+        width, height = RESOLUTIONS.get(options_.get("resolution"), (1920, 1080))
+        crf, maxrate, vp9_rate = ENCODINGS.get(options_.get("encoding"), ENCODINGS["balanced"])
+        command += ["-map", "0:v:0", "-map", "1:a:0" if audio_info else "0:a:0?", "-vf", f"scale=w='min({width},iw)':h='min({height},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1", "-r", "30", "-pix_fmt", "yuv420p", "-ac", "2", "-ar", "48000"]
         if format_ == "mp4":
-            command += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-maxrate", "2500k", "-bufsize", "5000k", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-f", "mp4"]
+            command += ["-c:v", "libx264", "-preset", "veryfast", "-crf", crf, "-maxrate", maxrate, "-bufsize", "5000k", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-f", "mp4"]
         else:
-            command += ["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "6", "-row-mt", "1", "-b:v", "1800k", "-maxrate", "2500k", "-bufsize", "5000k", "-c:a", "libopus", "-b:a", "128k", "-f", "webm"]
+            command += ["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "6", "-row-mt", "1", "-b:v", vp9_rate, "-maxrate", maxrate, "-bufsize", "5000k", "-c:a", "libopus", "-b:a", "128k", "-f", "webm"]
+    elif format_ == "gif":
+        command += ["-map", "0:v:0", "-an", "-vf", "fps=12,scale=w='min(480,iw)':h=-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=192:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3", "-loop", "0", "-f", "gif"]
     elif format_ in ("mp3", "wav", "flac"):
+        bitrate = f"{options_.get('audio_bitrate', 192)}k"
         command += ["-map", "0:a:0", "-vn", "-ac", "2", "-ar", "48000"]
-        command += {"mp3": ["-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3"],
+        command += {"mp3": ["-c:a", "libmp3lame", "-b:a", bitrate, "-f", "mp3"],
                     "wav": ["-c:a", "pcm_s16le", "-f", "wav"],
                     "flac": ["-c:a", "flac", "-sample_fmt", "s16", "-f", "flac"]}[format_]
     else:
@@ -807,6 +883,7 @@ def convert_media(manifest, supervisor):
     supervisor.progress("converting", offset if not info["image"] else None, force=True)
     child = supervisor.spawn(command)
     processed = 0.0
+    expected = clip if not info["image"] and format_ not in IMAGE_FORMATS else None
     while True:
         line = child.stdout.readline(4097)
         if not line:
@@ -818,8 +895,8 @@ def convert_media(manifest, supervisor):
             elapsed = numeric(line.partition(b"=")[2])
             if elapsed is not None and elapsed >= 0:
                 processed = max(processed, elapsed / 1000000)
-                if info["duration"] and format_ not in IMAGE_FORMATS:
-                    supervisor.progress("converting", offset + min(1, processed / info["duration"]) * (95 - offset))
+                if expected:
+                    supervisor.progress("converting", offset + min(1, processed / expected) * (95 - offset))
         supervisor.check()
     if child.wait() != 0:
         raise MediaError("failed")
@@ -827,7 +904,7 @@ def convert_media(manifest, supervisor):
     if not output.is_file() or output.stat().st_size >= supervisor.output_limit:
         raise MediaError("output_limit")
     result = probe(output, ffprobe, supervisor, supervisor.output_limit)
-    if format_ not in IMAGE_FORMATS and info["duration"] and (result["duration"] is None or result["duration"] < info["duration"] - max(1, info["duration"] * 0.01)):
+    if expected and (result["duration"] is None or result["duration"] < expected - max(1, expected * 0.01)):
         raise MediaError("output_limit")
     supervisor.check()
     emit("result", mime_type=MIME[format_], size_bytes=output.stat().st_size, duration=result["duration"])
@@ -843,6 +920,15 @@ def main():
     os.environ.update({"HOME": str(Path.cwd()), "USERPROFILE": str(Path.cwd()), "APPDATA": str(Path.cwd()), "PATH": "", "YTDLP_NO_PLUGINS": "1"})
     if sys.argv[1:] == ["check"]:
         runtime_check(manifest)
+        return
+    if sys.argv[1:] == ["inspect"] and manifest.get("kind") == "inspect":
+        supervisor = Supervisor(manifest)
+        try:
+            checked_url(manifest.get("url"))
+            download_media({**manifest, "format": "mp4"}, supervisor)
+        finally:
+            supervisor.stopped.set()
+            supervisor.stop_child()
         return
     if sys.argv[1:] != ["run"] or manifest.get("format") not in MIME or manifest.get("kind") not in ("download", "convert"):
         raise MediaError("runtime")

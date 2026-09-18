@@ -7,30 +7,16 @@ import { Button, StatePanel, formatCount, formatLocalDate } from '../member/Memb
 import Icons from '../../layouts/SidebarIcons';
 import './dashboard-workspace.css';
 
-export default function DashboardWorkspace({ title, description, actions, children }) {
-    const { t } = useLocale();
-    const [density, setDensity] = useState(() => {
-        try { return localStorage.getItem('ultrai-dashboard-density') === 'compact' ? 'compact' : 'comfortable'; }
-        catch { return 'comfortable'; }
-    });
-
-    function toggleDensity() {
-        const next = density === 'compact' ? 'comfortable' : 'compact';
-        setDensity(next);
-        try { localStorage.setItem('ultrai-dashboard-density', next); }
-        catch { /* The current view remains usable when preference storage is unavailable. */ }
-    }
-
+export default function DashboardWorkspace({ eyebrow, title, description, actions, children }) {
     return (
-        <div className="dashboard-workspace" data-density={density}>
+        <div className="dashboard-workspace">
             <header className="dw-heading">
-                <div><h1>{title}</h1><p>{description}</p></div>
-                <div className="dw-heading-actions">
-                    <button type="button" className="dw-button" onClick={toggleDensity} aria-pressed={density === 'compact'}>
-                        {Icons.density}<span>{t('Tampilan ringkas')}</span>
-                    </button>
-                    {actions}
+                <div>
+                    {eyebrow && <p className="dw-eyebrow">{eyebrow}</p>}
+                    <h1>{title}</h1>
+                    <p>{description}</p>
                 </div>
+                {actions && <div className="dw-heading-actions">{actions}</div>}
             </header>
             {children}
         </div>

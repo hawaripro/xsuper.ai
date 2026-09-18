@@ -112,11 +112,11 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             'api:'.Str::uuid(),
         );
         if ($validated['stream'] ?? false) {
-            return $this->handleStreamingRequest($user, $requestedModel, $messages, $options, $reservation);
+            return $this->handleStreamingRequest($user, $requestedModel, $messages, $options, $reservation, $maximumOutput);
         }
 
         try {
-            $data = $this->aiProxy->chatCompletion($messages, $requestedModel, $options);
+            $data = $this->aiProxy->chatCompletion($messages, $requestedModel, $options, $maximumOutput);
         } catch (Throwable $exception) {
             Wallet::release($user->id, $reservation, 'API upstream request failed');
 
@@ -139,9 +139,9 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
     }
 
     /** Forward canonical provider events without dropping tools or actual token usage. */
-    private function handleStreamingRequest($user, string $model, array $messages, array $options, array $reservation): StreamedResponse
+    private function handleStreamingRequest($user, string $model, array $messages, array $options, array $reservation, int $maximumOutput): StreamedResponse
     {
-        return new StreamedResponse(function () use ($user, $model, $messages, $options, $reservation): void {
+        return new StreamedResponse(function () use ($user, $model, $messages, $options, $reservation, $maximumOutput): void {
             $usage = null;
             $settled = false;
             $emit = static function (array $event): void {
@@ -153,7 +153,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             };
 
             try {
-                foreach ($this->aiProxy->streamChatCompletion($messages, $model, $options) as $event) {
+                foreach ($this->aiProxy->streamChatCompletion($messages, $model, $options, $maximumOutput) as $event) {
                     if (is_array($event['usage'] ?? null)) {
                         $usage = $event['usage'];
                     }

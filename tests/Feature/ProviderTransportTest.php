@@ -85,7 +85,7 @@ class ProviderTransportTest extends TestCase
         $this->assertSame('tool_calls', $result['choices'][0]['finish_reason']);
         $this->assertSame(16, $result['usage']['total_tokens']);
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://anthropic.test/v1/messages'
-            && $request['model'] === 'native-claude' && $request['max_tokens'] === 4096
+            && $request['model'] === 'native-claude' && $request['max_tokens'] === 8192
             && $request['tools'][0]['name'] === 'lookup' && ! isset($request['stream']));
     }
 

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLocale } from "../../contexts/LocaleContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import MediaActionDialog from "../MediaActionDialog";
 import { errorMessage, formatLocalDate, validationErrors } from "../member/MemberUI";
 import useMediaToolQueue, { isActiveJob } from "./useMediaToolQueue";
 import "./media-tools.css";
@@ -10,6 +11,7 @@ import "./media-tools.css";
 const FORMAT_INFO = {
     mp4: { type: "video", label: "Video" },
     webm: { type: "video", label: "Video" },
+    gif: { type: "video", label: "GIF animasi", output: "gif" },
     mp3: { type: "audio", label: "Audio" },
     wav: { type: "audio", label: "Audio" },
     flac: { type: "audio", label: "Audio" },
@@ -17,6 +19,11 @@ const FORMAT_INFO = {
     jpg: { type: "image", label: "Gambar" },
     webp: { type: "image", label: "Gambar" },
 };
+const QUALITIES = [["best", "Terbaik yang tersedia"], ["1080", "Maksimal 1080p"], ["720", "Maksimal 720p"], ["480", "Maksimal 480p"], ["360", "Maksimal 360p"]];
+const RESOLUTIONS = [["source", "Ikuti sumber (maks. 1080p)"], ["1080", "1080p"], ["720", "720p"], ["480", "480p"], ["360", "360p"]];
+const ENCODINGS = [["high", "Kualitas tinggi", "File lebih besar"], ["balanced", "Seimbang", "Bawaan"], ["small", "Hemat ukuran", "Kompresi kuat"]];
+const AUDIO_BITRATES = ["128", "192", "320"];
+const GIF_MAX_SECONDS = 15;
 const STAGE_LABELS = {
     pending: "Menunggu antrean", queued: "Menunggu antrean", processing: "Sedang diproses",
     downloading: "Mengunduh sumber", probing: "Memeriksa media", converting: "Mengonversi media",
@@ -24,6 +31,15 @@ const STAGE_LABELS = {
     failed: "Proses gagal", cancelled: "Dibatalkan",
 };
 const ACCEPTED_FILES = ".mp4,.mov,.m4v,.mkv,.webm,.mp3,.wav,.flac,.ogg,.oga,.ogv,.ts,.mts,.m2ts,.jpg,.jpeg,.png,.webp";
+
+function clockToSeconds(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return null;
+    if (/^\d+(?:[.,]\d+)?$/.test(text)) return Number(text.replace(",", "."));
+    const parts = text.split(":").map((part) => part.trim());
+    if (parts.length > 3 || parts.some((part) => !/^\d+(?:[.,]\d+)?$/.test(part))) return NaN;
+    return parts.reduce((total, part) => total * 60 + Number(part.replace(",", ".")), 0);
+}
 
 const TOOL_ICON_PATHS = {
         download: <><path d="M12 3v12m-5-5 5 5 5-5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></>,
@@ -44,6 +60,9 @@ const TOOL_ICON_PATHS = {
         arrow: <path d="M4 12h16m-6-6 6 6-6 6" />,
         warning: <><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v5m0 3v.1" /></>,
         clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+        trash: <><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></>,
+        search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 5 5" /></>,
+        settings: <><path d="M4 7h10m4 0h2M4 17h4m4 0h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>
 };
 
 function ToolIcon({ name, className = "" }) {
@@ -228,6 +247,10 @@ function WorkspaceSession({ kind, user }) {
     const [format, setFormat] = useState("");
     const [localErrors, setLocalErrors] = useState({});
     const [submittedInputs, setSubmittedInputs] = useState([]);
+    const [options, setOptions] = useState({ quality: "best", resolution: "source", encoding: "balanced", audio_bitrate: "192", trim_start: "", trim_end: "" });
+    const [preview, setPreview] = useState({ url: "", data: null, loading: false, error: null });
+    const [pendingDelete, setPendingDelete] = useState(null);
+    const previewRequest = useRef(null);
     const fileInput = useRef(null);
     const urlInput = useRef(null);
     const resultRef = useRef(null);
@@ -281,6 +304,30 @@ function WorkspaceSession({ kind, user }) {
         setFile(next);
     };
     const removeFile = () => { setFile(null); editSource(); fileInput.current?.focus(); };
+    const setOption = (name, value) => setOptions((current) => ({ ...current, [name]: value }));
+    const outputType = chosenFormat ? FORMAT_INFO[chosenFormat].type : null;
+    const isGif = chosenFormat === "gif";
+    const trimmable = !download && chosenFormat && outputType !== "image";
+    const trimStart = clockToSeconds(options.trim_start);
+    const trimEnd = clockToSeconds(options.trim_end);
+    const trimProblem = !trimmable ? null
+        : Number.isNaN(trimStart) || Number.isNaN(trimEnd) ? "Gunakan detik atau format mm:ss untuk waktu potong."
+            : trimStart != null && trimEnd != null && trimEnd <= trimStart ? "Akhir potongan harus setelah awal potongan."
+                : isGif && (trimEnd ?? GIF_MAX_SECONDS + 1) - (trimStart ?? 0) > GIF_MAX_SECONDS ? "GIF dibatasi 15 detik. Tentukan awal dan akhir potongan yang lebih pendek." : null;
+    const inspectSource = async () => {
+        const problem = urlProblem(url);
+        if (problem) { setLocalErrors({ url: problem }); urlInput.current?.focus(); return; }
+        previewRequest.current?.abort();
+        const controller = new AbortController();
+        previewRequest.current = controller;
+        setPreview({ url: url.trim(), data: null, loading: true, error: null });
+        try {
+            const data = await queue.inspect(url.trim(), controller.signal);
+            if (!controller.signal.aborted && mounted.current) setPreview({ url: url.trim(), data: data?.source || null, loading: false, error: null });
+        } catch (error) {
+            if (!controller.signal.aborted && mounted.current) setPreview({ url: url.trim(), data: null, loading: false, error });
+        }
+    };
     const submit = async (event) => {
         event.preventDefault();
         if (formDisabled || duplicateJob) return;
@@ -291,6 +338,7 @@ function WorkspaceSession({ kind, user }) {
         } else if (!file) invalid.file = "Pilih file sumber terlebih dahulu.";
         else if (!uploadLimit || file.size > uploadLimit) invalid.file = "Ukuran file melebihi batas unggah yang tersedia.";
         if (!chosenFormat) invalid.format = "Pilih format hasil yang tersedia.";
+        if (trimProblem) invalid.trim_end = trimProblem;
         setLocalErrors(invalid);
         if (Object.keys(invalid).length) {
             if (invalid.url) urlInput.current?.focus();
@@ -298,8 +346,17 @@ function WorkspaceSession({ kind, user }) {
             return;
         }
         let body;
-        if (download) body = { url: url.trim(), format: chosenFormat };
-        else { body = new FormData(); body.append("file", file); body.append("format", chosenFormat); }
+        if (download) {
+            body = { url: url.trim(), format: chosenFormat, ...(outputType === "video" && options.quality !== "best" ? { quality: options.quality } : {}) };
+        } else {
+            body = new FormData();
+            body.append("file", file);
+            body.append("format", chosenFormat);
+            if (outputType === "video" && !isGif) { body.append("resolution", options.resolution); body.append("encoding", options.encoding); }
+            if (chosenFormat === "mp3") body.append("audio_bitrate", options.audio_bitrate);
+            if (trimmable && trimStart != null) body.append("trim_start", String(trimStart));
+            if (trimmable && trimEnd != null) body.append("trim_end", String(trimEnd));
+        }
         const job = await queue.submit(body, chosenFormat, file?.name || null);
         if (job && mounted.current) {
             setSubmittedInputs((current) => [
@@ -309,12 +366,25 @@ function WorkspaceSession({ kind, user }) {
             chooseJob(job.job_id);
         }
     };
+    const confirmDelete = async () => {
+        if (!pendingDelete) return;
+        const ok = pendingDelete === "all" ? (await queue.clear()) !== null : await queue.remove(pendingDelete);
+        if (ok && mounted.current) {
+            setPendingDelete(null);
+            if (pendingDelete === "all" || pendingDelete.job_id === selected?.job_id) chooseJob(null);
+        }
+    };
+    const deletableCount = queue.jobs.filter((job) => !isActiveJob(job)).length;
     const title = t(download ? "Download Video" : "Konverter Media");
     const runtimeUnavailable = !queue.capabilityLoading && !queue.capabilityError && !available;
 
     return <div className={`media-tools-workspace media-tools-workspace--${kind}`} data-theme={theme}>
-        <header className="mt-page-heading"><div><h1><ToolIcon name={kind} />{title}</h1><p>{t(download ? "Simpan video atau audio dari tautan publik, dalam format yang Anda perlukan." : "Ubah format video, audio, dan gambar tanpa mengubah file sumber.")}</p></div>
-            {otherAllowed && <Link className="mt-button mt-button--quiet" to={localizedPath(download ? "/converter" : "/downloads")}><ToolIcon name={download ? "convert" : "download"} />{t(download ? "Konverter Media" : "Download Video")}<ToolIcon name="arrow" /></Link>}
+        <header className="mt-page-heading">
+            <div className="mt-page-title"><span className="mt-title-icon"><ToolIcon name={kind} /></span><div><h1>{title}</h1><p>{t(download ? "Simpan video atau audio dari tautan publik, dalam format yang Anda perlukan." : "Ubah format video, audio, dan gambar tanpa mengubah file sumber.")}</p></div></div>
+            <div className="mt-page-actions">
+                {otherAllowed && <Link className="mt-button mt-button--secondary" to={localizedPath(download ? "/converter" : "/downloads")}><ToolIcon name={download ? "convert" : "download"} />{t(download ? "Konverter Media" : "Download Video")}</Link>}
+                <button type="button" className="mt-button mt-button--secondary" disabled={queue.historyLoading} onClick={queue.refresh}><ToolIcon name="refresh" />{t("Muat ulang")}</button>
+            </div>
         </header>
         {!canUse && <Notice tone="error">{t("Akun Anda tidak memiliki izin untuk membuat pekerjaan baru di alat ini. Riwayat milik Anda tetap dapat diperiksa.")}</Notice>}
         {(expired || inactive) && <Notice tone="warning">{t(expired ? "Masa aktif akun berakhir. Perpanjang akses untuk membuat pekerjaan baru; hasil lama tetap dapat diperiksa." : "Akun tidak aktif. Hubungi dukungan untuk memulihkan akses.")}</Notice>}
@@ -331,6 +401,16 @@ function WorkspaceSession({ kind, user }) {
                             {url && <button type="button" className="mt-clear-source" disabled={busy} aria-label={t("Hapus tautan")} onClick={() => { setUrl(""); editSource(); urlInput.current?.focus(); }}><ToolIcon name="close" /></button>}</div>
                             <p id="media-tool-url-help" className="mt-help">{t("Tautan publik HTTP(S), satu video per pekerjaan. Konten berbayar, login, DRM, playlist, dan siaran langsung tidak didukung.")}</p>
                             {urlError && <p className="mt-field-error" id="media-tool-url-error" role="alert">{t(urlError)}</p>}
+                            <div className="mt-inspect-row"><button type="button" className="mt-button mt-button--secondary" disabled={formDisabled || !url.trim() || preview.loading} onClick={inspectSource}><ToolIcon name="search" />{t(preview.loading ? "Memeriksa tautan…" : "Periksa tautan")}</button><span className="mt-help">{t("Lihat judul, durasi, dan kualitas yang tersedia sebelum mengunduh.")}</span></div>
+                            {preview.error && preview.url === url.trim() && <p className="mt-field-error" role="alert">{t(errorMessage(preview.error))}</p>}
+                            {preview.data && preview.url === url.trim() && <div className="mt-source-preview" role="status">
+                                {preview.data.thumbnail ? <img src={preview.data.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <span className="mt-source-thumb"><ToolIcon name="video" /></span>}
+                                <div className="mt-source-details">
+                                    <strong>{preview.data.title || t("Judul tidak tersedia")}</strong>
+                                    <span>{[preview.data.uploader, preview.data.source_host, duration(preview.data.duration)].filter(Boolean).join(" · ")}</span>
+                                    <span>{preview.data.heights?.length ? `${t("Kualitas tersedia")}: ${preview.data.heights.map((height) => `${height}p`).join(", ")}` : t(preview.data.has_video ? "Kualitas ditentukan server dari sumber." : "Sumber ini hanya memiliki audio.")}</span>
+                                </div>
+                            </div>}
                         </div> : <FileInput file={file} onFile={chooseFile} onRemove={removeFile} disabled={formDisabled} removeDisabled={busy} maxBytes={uploadLimit} error={fileError} t={t} locale={locale} inputRef={fileInput} />}
                         <fieldset className="mt-format-field" disabled={formDisabled || !formats.length} aria-describedby={`media-tool-format-help${formatError ? " media-tool-format-error" : ""}`}>
                             <legend>{t("Format hasil")}</legend>
@@ -342,6 +422,16 @@ function WorkspaceSession({ kind, user }) {
                             {formatError && <p className="mt-field-error" id="media-tool-format-error" role="alert">{t(formatError)}</p>}
                         </fieldset>
                         <p id="media-tool-format-help" className="mt-help">{t(download ? "Format yang tidak tersedia pada sumber akan ditolak. Audio MP3 hanya tersedia jika sumber memiliki audio." : chosenFormat && FORMAT_INFO[chosenFormat].type === "image" ? "Dari video, hasil gambar menggunakan frame pertama. Format sumber sebenarnya diperiksa server." : chosenFormat && FORMAT_INFO[chosenFormat].type === "audio" ? "Sumber harus memiliki jalur audio. Format dan jalur media sebenarnya diperiksa server." : "Hasil video memerlukan sumber video. Format dan jalur media sebenarnya diperiksa server.")}</p>
+                        {chosenFormat && (download ? outputType === "video" : outputType !== "image") && <fieldset className="mt-options" disabled={formDisabled}>
+                            <legend><ToolIcon name="settings" />{t("Pengaturan hasil")}</legend>
+                            {download && outputType === "video" && <div className="mt-option-field"><label htmlFor="media-tool-quality">{t("Kualitas video")}</label><select id="media-tool-quality" value={options.quality} onChange={(event) => setOption("quality", event.target.value)}>{QUALITIES.map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select><p className="mt-help">{t("Server memilih stream tertinggi di bawah batas ini. Audio selalu disertakan bila tersedia.")}</p></div>}
+                            {!download && outputType === "video" && !isGif && <>
+                                <div className="mt-option-field"><label htmlFor="media-tool-resolution">{t("Resolusi")}</label><select id="media-tool-resolution" value={options.resolution} onChange={(event) => setOption("resolution", event.target.value)}>{RESOLUTIONS.map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></div>
+                                <div className="mt-option-field"><span className="mt-field-label">{t("Kompresi")}</span><div className="mt-choice-row" role="radiogroup" aria-label={t("Kompresi")}>{ENCODINGS.map(([value, label, detail]) => <label key={value} className={`mt-choice ${options.encoding === value ? "is-selected" : ""}`}><input type="radio" name="media-tool-encoding" value={value} checked={options.encoding === value} onChange={() => setOption("encoding", value)} /><strong>{t(label)}</strong><span>{t(detail)}</span></label>)}</div></div>
+                            </>}
+                            {!download && chosenFormat === "mp3" && <div className="mt-option-field"><label htmlFor="media-tool-bitrate">{t("Bitrate audio")}</label><select id="media-tool-bitrate" value={options.audio_bitrate} onChange={(event) => setOption("audio_bitrate", event.target.value)}>{AUDIO_BITRATES.map((value) => <option key={value} value={value}>{value} kbps</option>)}</select></div>}
+                            {trimmable && <div className="mt-option-field"><span className="mt-field-label">{t("Potong durasi")}</span><div className="mt-trim-row"><label><span>{t("Mulai")}</span><input type="text" inputMode="decimal" placeholder="0:00" value={options.trim_start} aria-invalid={Boolean(trimProblem)} onChange={(event) => { setOption("trim_start", event.target.value); editSource(); }} /></label><label><span>{t("Selesai")}</span><input type="text" inputMode="decimal" placeholder={isGif ? `0:${String(GIF_MAX_SECONDS).padStart(2, "0")}` : t("akhir")} value={options.trim_end} aria-invalid={Boolean(trimProblem)} onChange={(event) => { setOption("trim_end", event.target.value); editSource(); }} /></label></div><p className="mt-help">{t(isGif ? "Detik atau mm:ss. GIF maksimal 15 detik, 12 fps, lebar 480 px." : "Detik atau mm:ss. Kosongkan untuk memakai seluruh durasi.")}</p>{(trimProblem || fieldMessage(errors, "trim_end") || fieldMessage(errors, "trim_start")) && <p className="mt-field-error" role="alert">{t(trimProblem || fieldMessage(errors, "trim_end") || fieldMessage(errors, "trim_start"))}</p>}</div>}
+                        </fieldset>}
                         {queue.capabilities?.limits && <dl className="mt-limits">
                             <div><dt>{t("Durasi maksimal")}</dt><dd>{duration(Number(queue.capabilities.limits.max_duration_seconds)) || "—"}</dd></div>
                             <div><dt>{t("Ukuran hasil maksimal")}</dt><dd>{bytes(Number(queue.capabilities.limits.max_output_bytes), locale)}</dd></div>
@@ -366,14 +456,26 @@ function WorkspaceSession({ kind, user }) {
             </section>
         </div>
         <section className="mt-history" aria-labelledby="media-tool-history-heading">
-            <div className="mt-history-heading"><div><h2 id="media-tool-history-heading"><ToolIcon name="history" />{t(download ? "Riwayat unduhan" : "Riwayat konversi")}</h2><p>{t("Pilih pekerjaan untuk melihat status dan hasil aslinya.")}{activeCount > 0 && <> {new Intl.NumberFormat(locale).format(activeCount)} {t("pekerjaan sedang berjalan.")}</>}</p></div><button type="button" className="mt-button mt-button--secondary" disabled={queue.historyLoading} onClick={queue.refresh}><ToolIcon name="refresh" />{t(queue.historyLoading ? "Memperbarui…" : "Perbarui riwayat")}</button></div>
+            <div className="mt-history-heading"><div><h2 id="media-tool-history-heading"><ToolIcon name="history" />{t(download ? "Riwayat unduhan" : "Riwayat konversi")}</h2><p>{t("Pilih pekerjaan untuk melihat status dan hasil aslinya.")}{activeCount > 0 && <> {new Intl.NumberFormat(locale).format(activeCount)} {t("pekerjaan sedang berjalan.")}</>}</p></div>
+                <div className="mt-history-actions">
+                    <button type="button" className="mt-button mt-button--secondary" disabled={queue.historyLoading} onClick={queue.refresh}><ToolIcon name="refresh" />{t(queue.historyLoading ? "Memperbarui…" : "Perbarui riwayat")}</button>
+                    {deletableCount > 0 && <button type="button" className="mt-button mt-button--danger" disabled={Boolean(queue.deleting)} onClick={() => { queue.clearDeleteError(); setPendingDelete("all"); }}><ToolIcon name="trash" />{t("Bersihkan riwayat")}</button>}
+                </div>
+            </div>
             {queue.historyError && <Notice tone="error" action={<button type="button" className="mt-text-button" disabled={queue.historyLoading} onClick={queue.refresh}>{t("Coba lagi")}</button>}>{t(errorMessage(queue.historyError))}<p>{t("Status yang ditampilkan mungkin belum terbaru. Pembaruan tidak mengirim pekerjaan baru.")}</p></Notice>}
-            {queue.jobs.length > 0 ? <ul className="mt-history-list">{queue.jobs.map((job) => <li key={job.job_id}><button type="button" className="mt-history-choice" aria-pressed={selected?.job_id === job.job_id} onClick={() => chooseJob(job.job_id, true)}>
+            {queue.deleteError && !pendingDelete && <Notice tone="error">{t(errorMessage(queue.deleteError.error))}</Notice>}
+            {queue.jobs.length > 0 ? <ul className="mt-history-list">{queue.jobs.map((job) => <li key={job.job_id}><div className="mt-history-row"><button type="button" className="mt-history-choice" aria-pressed={selected?.job_id === job.job_id} onClick={() => chooseJob(job.job_id, true)}>
                 <span className={`mt-history-file mt-tone--${FORMAT_INFO[job.format]?.type || "file"}`}><ToolIcon name={FORMAT_INFO[job.format]?.type || "file"} /><span>{(job.format || "").toUpperCase()}</span></span>
                 <span className="mt-history-content"><strong>{job.title || job.input_name || t(download ? "Unduhan video" : "Konversi media")}</strong><span>{sourceName(job.source_url) || job.input_name || t("Pekerjaan media")}<span aria-hidden="true"> · </span><time dateTime={job.created_at}>{formatLocalDate(job.created_at, { locale })}</time></span></span>
                 <span className="mt-history-state"><JobStatus job={job} t={t} />{isActiveJob(job) && progressOf(job) != null && <span>{new Intl.NumberFormat(locale).format(progressOf(job))}%</span>}{job.status === "completed" && typeof job.size_bytes === "number" && <span>{bytes(job.size_bytes, locale)}</span>}</span><ToolIcon name="arrow" />
-            </button></li>)}</ul> : <div className="mt-history-empty" role="status"><ToolIcon name="history" /><div><strong>{t(queue.historyLoading ? "Memuat riwayat…" : queue.historyError ? "Riwayat belum dapat dimuat" : download ? "Belum ada unduhan" : "Belum ada konversi")}</strong><p>{t("Pekerjaan pertama Anda akan muncul di sini setelah diterima server.")}</p></div></div>}
+            </button>{!isActiveJob(job) && <button type="button" className="mt-history-delete" aria-label={`${t("Hapus")} ${job.title || job.input_name || job.job_id}`} title={t("Hapus dari riwayat")} disabled={Boolean(queue.deleting)} onClick={() => { queue.clearDeleteError(); setPendingDelete(job); }}><ToolIcon name="trash" /></button>}</div></li>)}</ul> : <div className="mt-history-empty" role="status"><ToolIcon name="history" /><div><strong>{t(queue.historyLoading ? "Memuat riwayat…" : queue.historyError ? "Riwayat belum dapat dimuat" : download ? "Belum ada unduhan" : "Belum ada konversi")}</strong><p>{t("Pekerjaan pertama Anda akan muncul di sini setelah diterima server.")}</p></div></div>}
         </section>
+        {pendingDelete && <MediaActionDialog
+            title={t(pendingDelete === "all" ? "Bersihkan riwayat?" : "Hapus dari riwayat?")}
+            description={t(pendingDelete === "all" ? "Semua pekerjaan yang sudah selesai, gagal, atau dibatalkan beserta file hasilnya akan dihapus permanen. Pekerjaan yang sedang berjalan tetap dipertahankan." : "Pekerjaan ini beserta file hasilnya akan dihapus permanen dari akun Anda.")}
+            closeLabel={t("Batal")} confirmLabel={t(pendingDelete === "all" ? "Hapus semua" : "Hapus")} busyLabel={t("Menghapus…")}
+            busy={Boolean(queue.deleting)} error={queue.deleteError ? t(errorMessage(queue.deleteError.error)) : null}
+            onConfirm={confirmDelete} onClose={() => { if (!queue.deleting) { setPendingDelete(null); queue.clearDeleteError(); } }} />}
     </div>;
 }
 

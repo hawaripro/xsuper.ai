@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiRequest } from '../lib/api';
 import { useLocale } from '../contexts/LocaleContext';
@@ -10,18 +10,43 @@ const levelStyles = {
     critical: 'bg-red-50 text-red-800 border-red-200/70 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/25',
 };
 
+const SPEED_PX_PER_SECOND = 70;
+
 /**
  * Left-moving announcement marquee. Fetches the localized announcement from
  * the real endpoint (`GET /api/content/announcement?locale=…`, dashboard
  * surface resolved server-side); renders nothing when the backend returns no
- * announcement. The track duplicates content for a seamless loop;
- * reduced-motion users get a static line via the global
- * `prefers-reduced-motion` override in app.css.
+ * announcement.
+ *
+ * The message is repeated until one group is at least as wide as the ribbon,
+ * then the group is duplicated and the track slides by exactly one group
+ * width (-50%). The loop therefore restarts pixel-identical: the text never
+ * jumps in from the middle when a short message sits in a wide viewport.
+ * Duration scales with the group width so the speed stays constant.
+ * Reduced-motion users get a static line via the global override in app.css.
  */
 export default function AnnouncementRibbon({ surface = 'dashboard' }) {
     const { locale, localizedPath } = useLocale();
     const { key: locationKey } = useLocation();
     const [announcement, setAnnouncement] = useState(null);
+    const ribbon = useRef(null);
+    const probe = useRef(null);
+    const [layout, setLayout] = useState({ copies: 2, duration: 30 });
+
+    useLayoutEffect(() => {
+        if (!announcement?.message || !ribbon.current || !probe.current) return undefined;
+        const measure = () => {
+            const container = ribbon.current.getBoundingClientRect().width;
+            const unit = probe.current.getBoundingClientRect().width;
+            if (!container || !unit) return;
+            const copies = Math.max(2, Math.ceil(container / unit) + 1);
+            setLayout({ copies, duration: Math.max(12, Math.round((copies * unit) / SPEED_PX_PER_SECOND)) });
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(ribbon.current);
+        return () => observer.disconnect();
+    }, [announcement]);
 
     useEffect(() => {
         let controller;
@@ -62,16 +87,24 @@ export default function AnnouncementRibbon({ surface = 'dashboard' }) {
         </>
     );
 
+    const group = (hidden) => Array.from({ length: layout.copies }, (_, index) => (
+        <span key={index} ref={!hidden && index === 0 ? probe : undefined} className="flex items-center pl-4">{line}</span>
+    ));
+
     return (
         <aside
+            ref={ribbon}
             role="status"
             data-level={announcement.level ?? 'info'}
             aria-label={announcement.message}
             className={`relative overflow-hidden border-b text-xs leading-5 ${level}`}
         >
-            <div className="flex w-max whitespace-nowrap py-1.5 will-change-transform motion-safe:animate-[ribbon-scroll_30s_linear_infinite]">
-                <span className="flex items-center px-4">{line}</span>
-                <span className="flex items-center px-4" aria-hidden="true">{line}</span>
+            <div
+                className="flex w-max whitespace-nowrap py-1.5 will-change-transform motion-safe:animate-[ribbon-scroll_var(--ribbon-duration)_linear_infinite]"
+                style={{ '--ribbon-duration': `${layout.duration}s` }}
+            >
+                <span className="flex">{group(false)}</span>
+                <span className="flex" aria-hidden="true">{group(true)}</span>
             </div>
         </aside>
     );

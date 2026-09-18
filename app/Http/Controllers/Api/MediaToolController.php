@@ -31,21 +31,52 @@ class MediaToolController extends Controller
         return response()->json(['jobs' => $active->concat($recent)->sortByDesc('created_at')->values()->map(fn (MediaToolJob $job) => $tools->payload($job))]);
     }
 
+    public function inspect(Request $request, MediaToolService $tools): JsonResponse
+    {
+        $input = $request->validate(['url' => ['required', 'string', 'max:2048']]);
+
+        return response()->json(['source' => $tools->inspect($request->user(), $input['url'])]);
+    }
+
     public function download(Request $request, MediaToolService $tools): JsonResponse
     {
-        $input = $request->validate(['url' => ['required', 'string', 'max:2048'], 'format' => ['required', Rule::in(['mp4', 'webm', 'mp3'])]]);
+        $input = $request->validate([
+            'url' => ['required', 'string', 'max:2048'],
+            'format' => ['required', Rule::in(['mp4', 'webm', 'mp3'])],
+            'quality' => ['sometimes', 'nullable', Rule::in(MediaToolService::QUALITIES)],
+        ]);
 
         return response()->json(['job' => $tools->payload($tools->download($request->user(), $input))], 202);
     }
 
     public function convert(Request $request, MediaToolService $tools): JsonResponse
     {
+        $limit = min(600, (int) config('media_tools.max_duration_seconds', 600));
         $input = $request->validate([
             'file' => ['required', 'file', 'max:'.intdiv(min(128 * 1024 * 1024, (int) config('media_tools.max_upload_bytes', 128 * 1024 * 1024)), 1024)],
             'format' => ['required', Rule::in(array_keys(MediaToolService::MIME_TYPES))],
+            'resolution' => ['sometimes', 'nullable', Rule::in(MediaToolService::RESOLUTIONS)],
+            'encoding' => ['sometimes', 'nullable', Rule::in(MediaToolService::ENCODING)],
+            'audio_bitrate' => ['sometimes', 'nullable', 'integer', Rule::in(MediaToolService::AUDIO_BITRATES)],
+            'trim_start' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:'.$limit],
+            'trim_end' => ['sometimes', 'nullable', 'numeric', 'min:0.1', 'max:'.$limit],
         ]);
 
-        return response()->json(['job' => $tools->payload($tools->convert($request->user(), $request->file('file'), $input['format']))], 202);
+        return response()->json(['job' => $tools->payload($tools->convert($request->user(), $request->file('file'), $input['format'], $input))], 202);
+    }
+
+    public function destroy(Request $request, string $jobId, MediaToolService $tools): JsonResponse
+    {
+        $tools->destroy($request->user(), $jobId);
+
+        return response()->json(['deleted' => $jobId]);
+    }
+
+    public function destroyAll(Request $request, MediaToolService $tools): JsonResponse
+    {
+        $input = $request->validate(['kind' => ['required', Rule::in(['download', 'convert'])]]);
+
+        return response()->json(['deleted_count' => $tools->destroyAll($request->user(), $input['kind'])]);
     }
 
     public function show(Request $request, string $jobId, MediaToolService $tools): JsonResponse

@@ -78,6 +78,8 @@ export default function useMediaToolQueue({ kind, userId, jobId }) {
     const [submitError, setSubmitError] = useState(null);
     const [cancelling, setCancelling] = useState(null);
     const [cancelError, setCancelError] = useState(null);
+    const [deleting, setDeleting] = useState(null);
+    const [deleteError, setDeleteError] = useState(null);
     const [pollVersion, setPollVersion] = useState(0);
     const mounted = useRef(false);
     const jobsRef = useRef(jobs);
@@ -300,11 +302,46 @@ export default function useMediaToolQueue({ kind, userId, jobId }) {
         }
     }, [kind, rememberJob, loadHistory]);
 
+    const remove = useCallback(async (job) => {
+        setDeleteError(null);
+        setDeleting(job.job_id);
+        try {
+            await apiRequest(`${API}/${encodeURIComponent(job.job_id)}`, { method: "DELETE" });
+            mutationVersion.current += 1;
+            setJobs((current) => current.filter((item) => item.job_id !== job.job_id));
+            return true;
+        } catch (error) {
+            if (mounted.current) setDeleteError({ jobId: job.job_id, error });
+            return false;
+        } finally {
+            if (mounted.current) { setDeleting(null); loadHistory(); }
+        }
+    }, [loadHistory]);
+
+    const clear = useCallback(async () => {
+        setDeleteError(null);
+        setDeleting("all");
+        try {
+            const data = await apiRequest(`${API}?kind=${kind}`, { method: "DELETE" });
+            mutationVersion.current += 1;
+            setJobs((current) => current.filter((job) => isActiveJob(job)));
+            return Number(data?.deleted_count) || 0;
+        } catch (error) {
+            if (mounted.current) setDeleteError({ jobId: null, error });
+            return null;
+        } finally {
+            if (mounted.current) { setDeleting(null); loadHistory(); }
+        }
+    }, [kind, loadHistory]);
+
+    const inspect = useCallback(async (url, signal) => apiRequest(`${API}/inspect`, { method: "POST", body: { url }, signal }), []);
+
     return {
         jobs, capabilities, capabilityLoading, capabilityError,
         historyLoading, historyLoaded, historyError, deepLoading, deepError,
-        submitting, recovery, submitError, cancelling, cancelError,
-        refresh, loadCapabilities, loadHistory, loadJob, submit, cancel,
+        submitting, recovery, submitError, cancelling, cancelError, deleting, deleteError,
+        refresh, loadCapabilities, loadHistory, loadJob, submit, cancel, remove, clear, inspect,
         clearSubmitError: () => setSubmitError(null),
+        clearDeleteError: () => setDeleteError(null),
     };
 }

@@ -118,12 +118,10 @@ class AiProxyService
     /**
      * Send chat completion (non-streaming)
      */
-    public function chatCompletion(array $messages, string $model, array $options = []): array
+    public function chatCompletion(array $messages, string $model, array $options = [], ?int $defaultOutputLimit = null): array
     {
         [$provider, $upstreamModel] = $this->routeModel($model);
-        if (! isset($options['max_tokens']) && ! isset($options['max_completion_tokens'])) {
-            $options[$provider?->base_url !== null && $provider->protocol === 'openai' ? 'max_completion_tokens' : 'max_tokens'] = 4096;
-        }
+        $options = $this->withOutputLimit($options, $provider, $model, $defaultOutputLimit);
         $result = $this->transport->complete($provider, [
             ...$options,
             'model' => $upstreamModel,
@@ -134,12 +132,10 @@ class AiProxyService
         return $this->publicResponse($result, $model);
     }
 
-    public function streamChatCompletion(array $messages, string $model, array $options = []): Generator
+    public function streamChatCompletion(array $messages, string $model, array $options = [], ?int $defaultOutputLimit = null): Generator
     {
         [$provider, $upstreamModel] = $this->routeModel($model);
-        if (! isset($options['max_tokens']) && ! isset($options['max_completion_tokens'])) {
-            $options[$provider?->base_url !== null && $provider->protocol === 'openai' ? 'max_completion_tokens' : 'max_tokens'] = 4096;
-        }
+        $options = $this->withOutputLimit($options, $provider, $model, $defaultOutputLimit);
         $buffers = [];
         foreach ($this->transport->stream($provider, [
             ...$options,
@@ -325,6 +321,26 @@ class AiProxyService
             return [$profile->provider, $profile->upstream_model_id ?: $profile->model_id];
         }
         throw new AiProxyException('The selected model is unavailable.', 403);
+    }
+
+    /**
+     * Web chat sends no explicit token limit. Use the catalog's per-model output
+     * limit when it is known; otherwise let the provider apply the model maximum
+     * instead of a fixed 4096, which truncated long and reasoning-heavy answers.
+     * API callers pass the limit their wallet reservation covers.
+     */
+    private function withOutputLimit(array $options, ?AiProviderProfile $provider, string $model, ?int $default): array
+    {
+        if (isset($options['max_tokens']) || isset($options['max_completion_tokens'])) {
+            return $options;
+        }
+        $limit = $default ?? (int) (AiModelProfile::query()->where('model_id', $model)->value('max_output_tokens') ?? 0);
+        if ($limit > 0) {
+            $key = $provider?->base_url !== null && $provider->protocol === 'openai' ? 'max_completion_tokens' : 'max_tokens';
+            $options[$key] = $limit;
+        }
+
+        return $options;
     }
 
     private function publicResponse(array $response, string $model): array

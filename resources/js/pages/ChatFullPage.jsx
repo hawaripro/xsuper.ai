@@ -6,6 +6,8 @@ import { useLocale } from '../contexts/LocaleContext';
 import AnnouncementRibbon from '../components/AnnouncementRibbon';
 import { apiRequest } from '../lib/api';
 import GenerationProgress from '../components/GenerationProgress';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './chat-workspace.css';
 
 // ============================================
@@ -78,26 +80,39 @@ function rebrandText(text) {
 }
 
 // ============================================
-// Markdown renderer
+// Markdown renderer (GFM, no raw HTML)
 // ============================================
-function formatContent(text, isDark) {
-    if (!text) return '';
-    text = rebrandText(text);
-    let html = text
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const markdownComponents = {
+    a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+    pre: ({ node: _node, children }) => <>{children}</>,
+    code: ({ node: _node, className, children, ...props }) => {
+        const match = /language-([\w-]+)/.exec(className || '');
+        const text = String(children);
+        if (!match && !text.includes('\n')) return <code className="chat-inline-code" {...props}>{children}</code>;
+        return (
+            <pre className="chat-code-block">
+                <div className="chat-code-header">{match ? match[1] : 'code'}</div>
+                <code className={className}>{text.replace(/\n$/, '')}</code>
+            </pre>
+        );
+    },
+};
 
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-        const header = '<div class="chat-code-header">' + (lang || 'code') + '</div>';
-        return '<pre class="chat-code-block">' + header + '<code>' + code.trim() + '</code></pre>';
-    });
-    html = html.replace(/```([\s\S]*?)```/g, '<pre class="chat-code-block"><code>$1</code></pre>');
-    html = html.replace(/`([^`]+)`/g, '<code class="chat-inline-code">$1</code>');
-    const boldClass = isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold';
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="' + boldClass + '">$1</strong>');
-    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    html = html.replace(/\n/g, '<br>');
-    return html;
+function MessageMarkdown({ text }) {
+    return <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{rebrandText(text)}</ReactMarkdown>;
 }
+
+// Typing pace: characters per second. The reveal follows the model's actual
+// stream rate (with a small lead so the caret never sits idle), clamped to a
+// range that still reads as typing; reasoning-tier models start slower.
+const TYPING = { minCps: 28, maxCps: 480, lead: 1.15, drainSeconds: 1.1 };
+function baseTypingSpeed(model) {
+    const id = String(model?.id || '').toLowerCase();
+    const reasoning = /(^|[^a-z])o[134](?:-|$)|gpt-5|reason|think|deepseek-r|opus/.test(id) || model?.tier === 'Authentic';
+    return reasoning ? 55 : 90;
+}
+
+const CONTINUE_PROMPT = 'Lanjutkan jawaban Anda tepat dari kata terakhir yang terpotong, tanpa mengulang bagian yang sudah ditulis dan tanpa pengantar.';
 
 // ============================================
 // CSRF Token
@@ -114,7 +129,7 @@ function getCsrfToken() {
 // ============================================
 // Chat Message Component
 // ============================================
-function ChatMessage({ message, userName, isDark, categoryColor, t }) {
+function ChatMessage({ message, userName, isDark, categoryColor, t, onContinue, canContinue }) {
     const isUser = message.role === 'user';
     const catCfg = CATEGORY_CONFIG[categoryColor] || CATEGORY_CONFIG.chat;
     const [copied, setCopied] = useState(false);
@@ -166,11 +181,17 @@ function ChatMessage({ message, userName, isDark, categoryColor, t }) {
                     </div>
                 )}
 
-                {displayText && (
-                    <div
-                        className={`chat-content cw-msg-content ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                        dangerouslySetInnerHTML={{ __html: formatContent(displayText, isDark) }}
-                    />
+                {(displayText || message._typing) && (
+                    <div className={`chat-content cw-msg-content cw-markdown ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <MessageMarkdown text={displayText} />
+                        {message._typing && <span className="cw-caret" aria-hidden="true" />}
+                    </div>
+                )}
+                {message._truncated && !message._typing && (
+                    <div className="cw-truncated" role="status">
+                        <span>{t('Jawaban terhenti karena batas panjang model.')}</span>
+                        {onContinue && <button type="button" className="cw-continue-btn" onClick={onContinue} disabled={!canContinue}>{Icon.arrow}{t('Lanjutkan jawaban')}</button>}
+                    </div>
                 )}
             </div>
         </div>
@@ -468,6 +489,13 @@ export default function ChatFullPage() {
         }
     };
 
+    // Deep link: /chat?conversation=<id> (dashboard search, library, notifications)
+    const requestedConversation = new URLSearchParams(location.search).get('conversation');
+    useEffect(() => {
+        if (!requestedConversation || requestedConversation === currentConvId) return;
+        loadConversation(requestedConversation);
+    }, [requestedConversation]);
+
     // Delete conversation
     const deleteConversation = async (convId) => {
         try {
@@ -516,8 +544,9 @@ export default function ChatFullPage() {
         return result;
     };
 
-    // Stream chat with real AbortController
-    const streamChat = async (apiMessages, model, convId) => {
+    // Stream chat with real AbortController. `options.continuation` extends the
+    // assistant message at `options.targetIndex` instead of appending a new one.
+    const streamChat = async (apiMessages, model, convId, options = {}) => {
         const safeMessages = apiMessages.map(m => {
             const content = m.content;
             if (Array.isArray(content)) {
@@ -538,6 +567,7 @@ export default function ChatFullPage() {
             model: String(model),
             messages: safeMessages,
             conversation_id: String(convId || ''),
+            ...(options.continuation ? { continuation: true } : {}),
         });
 
         const res = await fetch('/api/c/s', {
@@ -561,33 +591,70 @@ export default function ChatFullPage() {
         if (!reader) throw new Error('No response body');
 
         const decoder = new TextDecoder();
+        const prefix = options.continuation ? String(options.prefix || '') : '';
         let buffer = '';
         let fullText = '';
         let displayedLen = 0;
         let animFrame = null;
+        let firstChunkAt = 0;
+        let lastFrameAt = 0;
+        let streamDone = false;
+        let finishReason = null;
+        let carry = 0;
+        const baseCps = baseTypingSpeed(selectedChatModel);
 
-        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+        const targetIndex = options.continuation ? options.targetIndex : null;
+        const patch = (updater) => setMessages(prev => {
+            const updated = [...prev];
+            const index = targetIndex ?? updated.length - 1;
+            if (!updated[index] || updated[index].role !== 'assistant') return prev;
+            updated[index] = updater(updated[index]);
+            return updated;
+        });
+        if (!options.continuation) setMessages(prev => [...prev, { role: 'assistant', content: '', _typing: true }]);
+        else patch(message => ({ ...message, _typing: true, _truncated: false }));
 
-        const revealText = () => {
-            if (displayedLen >= fullText.length) { animFrame = null; return; }
-            const remaining = fullText.length - displayedLen;
-            const step = remaining > 100 ? 8 : remaining > 30 ? 4 : 2;
-            displayedLen = Math.min(displayedLen + step, fullText.length);
-            setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText.slice(0, displayedLen)) };
-                return updated;
-            });
-            animFrame = requestAnimationFrame(revealText);
+        // Characters per second: follow the measured stream rate with a small lead,
+        // and drain whatever is left within ~1s once the provider has finished.
+        const targetCps = () => {
+            const elapsed = firstChunkAt ? (performance.now() - firstChunkAt) / 1000 : 0;
+            const measured = elapsed > 0.25 ? (fullText.length / elapsed) * TYPING.lead : baseCps;
+            let cps = Math.min(TYPING.maxCps, Math.max(TYPING.minCps, measured));
+            if (streamDone) cps = Math.max(cps, (fullText.length - displayedLen) / TYPING.drainSeconds);
+            return cps;
         };
 
-        const flush = () => {
+        const revealText = (now) => {
+            if (displayedLen >= fullText.length) {
+                animFrame = null;
+                if (streamDone) patch(message => ({ ...message, content: prefix + fullText, _typing: false, _truncated: finishReason === 'length' }));
+                return;
+            }
+            const seconds = lastFrameAt ? Math.min(0.1, (now - lastFrameAt) / 1000) : 1 / 60;
+            lastFrameAt = now;
+            carry += seconds * targetCps();
+            const step = Math.floor(carry);
+            if (step > 0) {
+                carry -= step;
+                displayedLen = Math.min(displayedLen + step, fullText.length);
+                patch(message => ({ ...message, content: prefix + fullText.slice(0, displayedLen), _typing: true }));
+            }
+            animFrame = requestAnimationFrame(revealText);
+        };
+        const startReveal = () => { if (!animFrame) { lastFrameAt = 0; animFrame = requestAnimationFrame(revealText); } };
+
+        // Every character the model produced ends up rendered, even when the
+        // connection ends without a [DONE] marker or the user stops the stream.
+        const flush = (truncated = finishReason === 'length') => {
+            streamDone = true;
             if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
-            setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: rebrandText(fullText) };
-                return updated;
-            });
+            displayedLen = fullText.length;
+            patch(message => ({ ...message, content: prefix + fullText, _typing: false, _truncated: truncated }));
+        };
+        const finish = () => {
+            streamDone = true;
+            if (displayedLen >= fullText.length) flush();
+            else startReveal();
         };
 
         try {
@@ -603,31 +670,64 @@ export default function ChatFullPage() {
                     if (!line.startsWith('data: ')) continue;
                     const data = line.slice(6);
                     if (data === '[DONE]') {
-                        flush();
+                        finish();
                         return fullText;
                     }
 
                     let event;
                     try { event = JSON.parse(data); } catch { continue; }
                     if (event.error) throw new Error(event.error.message || 'The AI provider is unavailable.');
-                    const delta = event.choices?.[0]?.delta;
+                    const choice = event.choices?.[0];
+                    if (choice?.finish_reason) finishReason = choice.finish_reason;
+                    const delta = choice?.delta;
                     if (delta?.content) {
+                        if (!firstChunkAt) firstChunkAt = performance.now();
                         fullText += delta.content;
-                        if (!animFrame) animFrame = requestAnimationFrame(revealText);
+                        startReveal();
                     }
                 }
+            }
+            buffer += decoder.decode();
+            const tail = buffer.trim();
+            if (tail.startsWith('data: ') && tail.slice(6) !== '[DONE]') {
+                try {
+                    const event = JSON.parse(tail.slice(6));
+                    const delta = event.choices?.[0]?.delta;
+                    if (delta?.content) fullText += delta.content;
+                } catch { /* an incomplete trailing frame carries no renderable text */ }
             }
         } catch (err) {
             if (err?.name === 'AbortError') {
                 // User stopped generation — keep partial text
-                flush();
+                flush(false);
                 return fullText;
             }
+            flush(false);
             throw err;
         }
 
-        flush();
+        finish();
         return fullText;
+    };
+
+    const continueAnswer = async (index) => {
+        const target = messages[index];
+        if (!target || target.role !== 'assistant' || isStreaming || !canSendToModel) return;
+        const partial = typeof target.content === 'string' ? target.content : '';
+        setIsStreaming(true);
+        setWaitStartedAt(Date.now());
+        setWaitModel(selectedChatModel?.name || selectedModel);
+        try {
+            const apiMessages = [...buildApiMessages(messages.slice(0, index + 1)), { role: 'user', content: CONTINUE_PROMPT }];
+            await streamChat(apiMessages, selectedModel, currentConvId, { continuation: true, targetIndex: index, prefix: partial });
+        } catch (err) {
+            if (err?.name === 'AbortError') return;
+            setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + err.message }]);
+        } finally {
+            setIsStreaming(false);
+            abortRef.current = null;
+            inputRef.current?.focus();
+        }
     };
 
     const stopStreaming = () => {
@@ -1035,6 +1135,8 @@ export default function ChatFullPage() {
                                     isDark={isDark}
                                     categoryColor={currentCategory}
                                     t={t}
+                                    onContinue={msg._truncated ? () => continueAnswer(i) : undefined}
+                                    canContinue={!isStreaming && canSendToModel}
                                 />
                             ))}
                             {isStreaming && (messages[messages.length - 1]?.role !== 'assistant' || !messages[messages.length - 1]?.content) && (

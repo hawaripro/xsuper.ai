@@ -98,6 +98,9 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
             'messages.*.content' => 'required',  // string or array (multimodal)
             'model' => 'required|string|max:120',
             'conversation_id' => 'nullable|string|max:100',
+            // A continuation resumes an answer cut off by the model's output limit:
+            // the trailing instruction is not stored and the reply extends the previous turn.
+            'continuation' => 'sometimes|boolean',
         ]);
 
         $user = Auth::user();
@@ -114,10 +117,11 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
             ], 403);
         }
         $conversationId = $request->input('conversation_id');
+        $continuation = $request->boolean('continuation');
 
         // Extract text content for chat history (multimodal messages store text only)
         $lastMsg = end($messages);
-        if ($conversationId && $lastMsg) {
+        if ($conversationId && $lastMsg && ! $continuation) {
             $historyContent = $lastMsg['content'];
             if (is_array($historyContent)) {
                 // Extract only text parts for history storage
@@ -142,16 +146,23 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         return $this->aiProxy->chatCompletionStream(
             $messages,
             $model,
-            function (string $fullResponse, ?array $usage = null) use ($user, $conversationId, $model) {
+            function (string $fullResponse, ?array $usage = null) use ($user, $conversationId, $model, $continuation) {
                 if ($fullResponse && $conversationId) {
-                    DB::table('chat_history')->insert([
-                        'user_id' => $user->id,
-                        'conversation_id' => $conversationId,
-                        'role' => 'assistant',
-                        'content' => $fullResponse,
-                        'model' => $model,
-                        'created_at' => now(),
-                    ]);
+                    $previous = $continuation ? DB::table('chat_history')
+                        ->where('user_id', $user->id)->where('conversation_id', $conversationId)
+                        ->orderByDesc('created_at')->orderByDesc('id')->first(['id', 'role', 'content']) : null;
+                    if ($previous && $previous->role === 'assistant') {
+                        DB::table('chat_history')->where('id', $previous->id)->update(['content' => $previous->content.$fullResponse]);
+                    } else {
+                        DB::table('chat_history')->insert([
+                            'user_id' => $user->id,
+                            'conversation_id' => $conversationId,
+                            'role' => 'assistant',
+                            'content' => $fullResponse,
+                            'model' => $model,
+                            'created_at' => now(),
+                        ]);
+                    }
                 }
                 try {
                     UsageLog::record($user->id, $model, $usage ?? [], 'web');

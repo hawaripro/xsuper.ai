@@ -4,10 +4,8 @@ import { apiRequest } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale } from '../contexts/LocaleContext';
 import OnboardingWizard from '../components/OnboardingWizard';
-import QrisCheckout from '../components/QrisCheckout';
-import MediaActionDialog from '../components/MediaActionDialog';
 import DashboardWorkspace, { WorkspaceInbox, WorkspaceLoading, WorkspaceMetric, WorkspaceModule, WorkspaceUsageChart } from '../components/dashboard/DashboardWorkspace';
-import { Button, InlineAlert, StatePanel, StatusBadge, errorMessage, formatCount, formatLocalDate, formatUsdMicros } from '../components/member/MemberUI';
+import { Button, InlineAlert, PingDot, StatePanel, StatusBadge, errorMessage, formatCount, formatLocalDate, formatUsdMicros } from '../components/member/MemberUI';
 import Icons from '../layouts/SidebarIcons';
 
 const INITIAL_SOURCES = {
@@ -33,29 +31,15 @@ function greeting(t) {
     return t(hour < 12 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 18 ? 'Selamat sore' : 'Selamat malam');
 }
 
-function PurchaseModal({ onClose, packages, packagesLoading, packagesError, reloadPackages, accountDays, onOrdered }) {
-    const { t } = useLocale();
-    return (
-        <MediaActionDialog title={t('Tambah durasi')} description={`${t('Sisa akun saat ini')}: ${accountDays === undefined ? t('Belum tersedia') : accountDays === null ? t('Tanpa batas waktu') : `${formatCount(accountDays)} ${t('hari')}`}`} closeLabel={t('Tutup')} onClose={onClose}>
-            <QrisCheckout packages={packages} loading={packagesLoading} error={packagesError} onReloadPackages={reloadPackages} onApproved={onOrdered} onClose={onClose} />
-        </MediaActionDialog>
-    );
-}
-
 export default function Dashboard() {
-    const { user, refreshUser } = useAuth();
+    const { user } = useAuth();
     const { locale, t, localizedPath } = useLocale();
     const [sources, setSources] = useState(INITIAL_SOURCES);
     const [period, setPeriod] = useState('daily');
     const requests = useRef({});
-    const [packages, setPackages] = useState([]);
-    const [packagesLoading, setPackagesLoading] = useState(false);
-    const [packagesError, setPackagesError] = useState(null);
-    const [showPurchase, setShowPurchase] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [onboardingError, setOnboardingError] = useState(null);
     const [onboardingRevision, setOnboardingRevision] = useState(0);
-    const packageRequest = useRef(null);
 
     const loadSource = useCallback(async (key, selectedPeriod = 'daily') => {
         requests.current[key]?.abort();
@@ -71,29 +55,12 @@ export default function Dashboard() {
         }
     }, []);
 
-    const loadPackages = useCallback(async () => {
-        packageRequest.current?.abort();
-        const controller = new AbortController();
-        packageRequest.current = controller;
-        setPackagesLoading(true);
-        setPackagesError(null);
-        try {
-            const response = await apiRequest('/api/period/packages', { signal: controller.signal });
-            const catalog = response?.packages && typeof response.packages === 'object' ? response.packages : {};
-            if (!controller.signal.aborted) setPackages(Object.entries(catalog).filter(([, pkg]) => pkg?.is_active).map(([key, pkg]) => ({ key, ...pkg })));
-        } catch (error) {
-            if (!controller.signal.aborted) { setPackagesError(error); setPackages([]); }
-        } finally {
-            if (!controller.signal.aborted) setPackagesLoading(false);
-        }
-    }, []);
-
     useEffect(() => {
         const currentRequests = requests.current;
         setSources(INITIAL_SOURCES);
         loadSource('dashboard');
         loadSource('balance');
-        return () => { Object.values(currentRequests).forEach(controller => controller.abort()); packageRequest.current?.abort(); };
+        return () => { Object.values(currentRequests).forEach(controller => controller.abort()); };
     }, [loadSource, user?.id]);
     useEffect(() => { loadSource('usage', period); }, [loadSource, period, user?.id]);
     useEffect(() => {
@@ -104,18 +71,6 @@ export default function Dashboard() {
         }).catch(error => { if (!controller.signal.aborted) setOnboardingError(error); });
         return () => controller.abort();
     }, [onboardingRevision, user?.id]);
-    useEffect(() => {
-        if (showPurchase) loadPackages();
-        return () => packageRequest.current?.abort();
-    }, [showPurchase, loadPackages]);
-
-    function refreshDashboard() {
-        loadSource('dashboard');
-        loadSource('balance');
-        loadSource('usage', period);
-    }
-    function purchaseApproved() { refreshDashboard(); refreshUser(); }
-
     const dashboard = sources.dashboard.data;
     const account = dashboard?.account;
     const usage = dashboard?.usage;
@@ -129,7 +84,7 @@ export default function Dashboard() {
     const hasHistory = allowed('chat_history') && allowed('chat');
     const dateLocale = locale === 'en' ? 'en-US' : 'id-ID';
     const unavailable = t('Belum tersedia');
-    const loadingAny = Object.values(sources).some(source => source.loading);
+    const healthy = Boolean(account && account.is_active && !account.is_expired);
     const studioActions = [
         ...(allowed('chat') ? [{ key: 'chat', label: 'Mulai percakapan', href: '/chat' }] : []),
         { key: 'image', label: 'Buat gambar', href: '/generate-image' },
@@ -151,11 +106,11 @@ export default function Dashboard() {
     }
 
     return (
-        <DashboardWorkspace title={`${greeting(t)}, ${account?.name || user?.name || t('Pengguna')}`} description={t('Mulai berkarya, pantau pemakaian, dan lanjutkan pekerjaan Anda.')} actions={<><button type="button" className="dw-button" onClick={refreshDashboard} disabled={loadingAny}>{Icons.refresh}<span>{t('Muat ulang')}</span></button><button type="button" className="dw-button dw-button-primary" onClick={() => setShowPurchase(true)}>{Icons.period}<span>{t('Tambah durasi')}</span></button></>}>
+        <DashboardWorkspace eyebrow={<><PingDot tone={!account ? 'slate' : healthy ? 'red' : 'amber'} />{t('Selamat datang kembali')}</>} title={`${greeting(t)}, ${account?.name || user?.name || t('Pengguna')}`} description={t('Mulai berkarya, pantau pemakaian, dan lanjutkan pekerjaan Anda.')}>
             {showOnboarding && locale === 'id' && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
             {onboardingError && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => setOnboardingRevision(value => value + 1)}>{t('Coba lagi')}</Button>}>{t('Status onboarding tidak dapat diperiksa')}: {t(errorMessage(onboardingError))}</InlineAlert>}
             {sources.dashboard.error && <InlineAlert tone="error" action={<Button variant="ghost" onClick={() => loadSource('dashboard')}>{t('Coba lagi')}</Button>}><strong>{t('Ringkasan akun tidak dapat diperbarui.')}</strong> {t(errorMessage(sources.dashboard.error))}{dashboard && <span> {t('Data terakhir tetap ditampilkan.')}</span>}</InlineAlert>}
-            {account?.is_expired && <InlineAlert tone="error" action={<Button variant="ghost" onClick={() => setShowPurchase(true)}>{t('Tambah durasi')}</Button>}><strong>{t('Masa aktif akun berakhir.')}</strong> {t('Perpanjang durasi untuk memulihkan akses fitur yang dilindungi.')}</InlineAlert>}
+            {account?.is_expired && <InlineAlert tone="error" action={<Link className="dw-button dw-button-primary" to={localizedPath('/deposit?tab=subscription')}>{t('Perpanjang langganan')}</Link>}><strong>{t('Masa aktif akun berakhir.')}</strong> {t('Perpanjang durasi untuk memulihkan akses fitur yang dilindungi.')}</InlineAlert>}
             {account?.is_active === false && <InlineAlert tone="error"><strong>{t('Akun tidak aktif.')}</strong> {t('Hubungi dukungan jika status ini tidak sesuai.')} <Link className="underline" to={localizedPath('/bantuan')}>{t('Help & Support')}</Link></InlineAlert>}
             {Number(activity?.devices?.pending || 0) > 0 && <InlineAlert tone="warning">{formatCount(activity.devices.pending)} {t('perangkat menunggu persetujuan. Fitur tertentu dapat ditolak sampai perangkat disetujui.')}</InlineAlert>}
 
@@ -199,7 +154,6 @@ export default function Dashboard() {
                 </div>
             </div>
             <p className="dw-note">{Icons.density}{t('Klik judul modul untuk merapikan ruang kerja. Ringkasan angka dan grafik tetap terlihat.')}</p>
-            {showPurchase && <PurchaseModal onClose={() => setShowPurchase(false)} packages={packages} packagesLoading={packagesLoading} packagesError={packagesError} reloadPackages={loadPackages} accountDays={account?.days_remaining} onOrdered={purchaseApproved} />}
         </DashboardWorkspace>
     );
 }

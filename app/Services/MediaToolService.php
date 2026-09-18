@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\ProcessMediaToolJob;
 use App\Models\MediaToolJob;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -20,8 +21,18 @@ final class MediaToolService
     public const MIME_TYPES = [
         'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mp3' => 'audio/mpeg',
         'wav' => 'audio/wav', 'flac' => 'audio/flac', 'png' => 'image/png',
-        'jpg' => 'image/jpeg', 'webp' => 'image/webp',
+        'jpg' => 'image/jpeg', 'webp' => 'image/webp', 'gif' => 'image/gif',
     ];
+
+    public const QUALITIES = ['best', '1080', '720', '480', '360'];
+
+    public const RESOLUTIONS = ['source', '1080', '720', '480', '360'];
+
+    public const ENCODING = ['high', 'balanced', 'small'];
+
+    public const AUDIO_BITRATES = [128, 192, 320];
+
+    public const GIF_MAX_SECONDS = 15;
 
     private const ERRORS = [
         'source' => 'This source cannot be downloaded safely. Use a public, unencrypted single-item HTTP(S) source.',
@@ -69,20 +80,166 @@ final class MediaToolService
     public function download(User $user, array $input): MediaToolJob
     {
         $url = $this->validateUrl($input['url']);
+        $options = [];
+        if (in_array($input['format'], ['mp4', 'webm'], true) && ($input['quality'] ?? 'best') !== 'best') {
+            $options['quality'] = (string) $input['quality'];
+        }
 
-        return $this->admit($user, 'download', $input['format'], $url, null);
+        return $this->admit($user, 'download', $input['format'], $url, null, $options);
     }
 
-    public function convert(User $user, UploadedFile $file, string $format): MediaToolJob
+    public function convert(User $user, UploadedFile $file, string $format, array $input = []): MediaToolJob
     {
         if (! $file->isValid() || $file->getSize() < 1 || $file->getSize() > $this->inputLimit()) {
             throw ValidationException::withMessages(['file' => self::ERRORS['input_limit']]);
         }
 
-        return $this->admit($user, 'convert', $format, null, $file);
+        return $this->admit($user, 'convert', $format, null, $file, $this->conversionOptions($format, $input));
     }
 
-    private function admit(User $user, string $kind, string $format, ?string $url, ?UploadedFile $file): MediaToolJob
+    /**
+     * Inspect a public URL without downloading media: title, duration, thumbnail,
+     * available heights and stream availability, as sanitized by the private runner.
+     */
+    public function inspect(User $user, string $url): array
+    {
+        $url = $this->validateUrl($url);
+        $capabilities = $this->capabilities();
+        if (! ($capabilities['available']['download'] ?? false)) {
+            abort(503, self::ERRORS['runtime']);
+        }
+        $paths = $this->runtimePaths();
+        $manifest = [...$paths, 'kind' => 'inspect', 'url' => $url, 'timeout' => 40,
+            'input_limit' => $this->inputLimit(), 'output_limit' => $this->outputLimit(),
+            'duration_limit' => min(600, (int) config('media_tools.max_duration_seconds', 600)),
+            'dimension_limit' => min(4096, (int) config('media_tools.max_dimension', 4096)),
+            'pixel_limit' => min(16777216, (int) config('media_tools.max_pixels', 16777216)),
+        ];
+        // The runner only accepts `<uuid>/work` as its cwd; the scratch tree is removed afterwards.
+        $scratch = $this->directory((string) Str::uuid());
+        if (! mkdir($scratch.'/work', 0700, true)) {
+            abort(503, self::ERRORS['runtime']);
+        }
+        $process = null;
+        try {
+            $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'inspect'], $scratch.'/work', $this->environment($scratch.'/work'), json_encode($manifest, JSON_THROW_ON_ERROR), 45);
+            $process->run();
+            $result = null;
+            $error = 'source';
+            foreach (explode("\n", substr($process->getOutput(), 0, 65536)) as $line) {
+                $event = json_decode($line, true);
+                if (($event['event'] ?? null) === 'result') {
+                    $result = $event;
+                } elseif (($event['event'] ?? null) === 'error') {
+                    $error = isset(self::ERRORS[$event['code'] ?? '']) ? $event['code'] : 'source';
+                }
+            }
+        } catch (Throwable) {
+            $result = null;
+            $error = 'timeout';
+        } finally {
+            $this->remove($scratch);
+        }
+        if (! is_array($result) || ! $process?->isSuccessful()) {
+            throw ValidationException::withMessages(['url' => self::ERRORS[$error] ?? self::ERRORS['source']]);
+        }
+        $heights = array_values(array_filter(array_map('intval', (array) ($result['heights'] ?? [])), fn (int $height): bool => $height > 0 && $height <= 4320));
+        rsort($heights);
+        $thumbnail = is_string($result['thumbnail'] ?? null) && preg_match('#^https://[^\s"\'<>]{1,2000}$#', $result['thumbnail']) ? $result['thumbnail'] : null;
+
+        return [
+            'title' => mb_substr(trim((string) ($result['title'] ?? '')), 0, 200) ?: null,
+            'duration' => is_numeric($result['duration'] ?? null) ? round((float) $result['duration'], 1) : null,
+            'thumbnail' => $thumbnail,
+            'uploader' => mb_substr(trim((string) ($result['uploader'] ?? '')), 0, 120) ?: null,
+            'source_host' => parse_url($url, PHP_URL_HOST),
+            'heights' => array_slice($heights, 0, 12),
+            'has_video' => (bool) ($result['has_video'] ?? false),
+            'has_audio' => (bool) ($result['has_audio'] ?? false),
+        ];
+    }
+
+    /**
+     * Delete a finished job and its private files. Running work is cancelled first;
+     * its files are removed by the worker once the cancellation lands.
+     */
+    public function destroy(User $user, string $jobId): void
+    {
+        $job = MediaToolJob::query()->where('user_id', $user->id)->where('job_id', $jobId)->firstOrFail();
+        if (in_array($job->status, ['pending', 'processing'], true)) {
+            $job = $this->cancel($user, $jobId);
+        }
+        if (in_array($job->status, ['pending', 'processing'], true)) {
+            throw ValidationException::withMessages(['job' => 'The task is still finishing its cancellation. Try again in a moment.']);
+        }
+        $this->forget($job);
+    }
+
+    /** Delete every finished job of a kind; running tasks stay untouched. */
+    public function destroyAll(User $user, string $kind): int
+    {
+        $removed = 0;
+        MediaToolJob::query()->where('user_id', $user->id)->where('kind', $kind)
+            ->whereNotIn('status', ['pending', 'processing'])->orderBy('id')->chunkById(50, function ($jobs) use (&$removed): void {
+                foreach ($jobs as $job) {
+                    $this->forget($job);
+                    $removed++;
+                }
+            });
+
+        return $removed;
+    }
+
+    private function forget(MediaToolJob $job): void
+    {
+        DB::transaction(function () use ($job): void {
+            Notification::query()->where('user_id', $job->user_id)->where('kind', 'media')
+                ->where('metadata->job_id', $job->job_id)->delete();
+            $job->delete();
+        });
+        if (($lock = $this->lock($job->job_id)) !== null) {
+            $this->cleanup($job->job_id);
+            flock($lock, LOCK_UN);
+            fclose($lock);
+            @unlink($this->directory($job->job_id).'/work.lock');
+            @rmdir($this->directory($job->job_id));
+        }
+    }
+
+    private function conversionOptions(string $format, array $input): array
+    {
+        $options = [];
+        $video = in_array($format, ['mp4', 'webm'], true);
+        if ($video && ($input['resolution'] ?? 'source') !== 'source') {
+            $options['resolution'] = (string) $input['resolution'];
+        }
+        if ($video && ($input['encoding'] ?? 'balanced') !== 'balanced') {
+            $options['encoding'] = (string) $input['encoding'];
+        }
+        if ($format === 'mp3' && (int) ($input['audio_bitrate'] ?? 192) !== 192) {
+            $options['audio_bitrate'] = (int) $input['audio_bitrate'];
+        }
+        if (! in_array($format, ['png', 'jpg', 'webp'], true)) {
+            $start = isset($input['trim_start']) && $input['trim_start'] !== '' ? (float) $input['trim_start'] : null;
+            $end = isset($input['trim_end']) && $input['trim_end'] !== '' ? (float) $input['trim_end'] : null;
+            if ($start !== null && $end !== null && $end <= $start) {
+                throw ValidationException::withMessages(['trim_end' => 'The end of the clip must come after its start.']);
+            }
+            if ($format === 'gif' && ($end ?? self::GIF_MAX_SECONDS + 1) - ($start ?? 0) > self::GIF_MAX_SECONDS) {
+                throw ValidationException::withMessages(['trim_end' => 'GIF clips are limited to '.self::GIF_MAX_SECONDS.' seconds. Set a shorter start and end.']);
+            }
+            if ($start !== null && $start > 0) {
+                $options['trim_start'] = round($start, 3);
+            }
+            if ($end !== null) {
+                $options['trim_end'] = round($end, 3);
+            }
+        }
+
+        return $options;
+    }
+
+    private function admit(User $user, string $kind, string $format, ?string $url, ?UploadedFile $file, array $options = []): MediaToolJob
     {
         $capabilities = $this->capabilities();
         if (! ($capabilities['available'][$kind] ?? false)) {
@@ -95,7 +252,7 @@ final class MediaToolService
         $directory = $this->directory($jobId);
         $job = null;
         try {
-            $job = DB::transaction(function () use ($user, $kind, $format, $url, $file, $jobId, $directory): MediaToolJob {
+            $job = DB::transaction(function () use ($user, $kind, $format, $url, $file, $jobId, $directory, $options): MediaToolJob {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 if (MediaToolJob::query()->where('user_id', $user->id)->whereIn('status', ['pending', 'processing'])->count() >= min(2, max(1, (int) config('media_tools.max_concurrent_jobs', 2)))) {
                     throw ValidationException::withMessages(['file' => 'Wait for or cancel an active media task before starting another.']);
@@ -113,6 +270,7 @@ final class MediaToolService
 
                 return MediaToolJob::create([
                     'user_id' => $user->id, 'job_id' => $jobId, 'kind' => $kind, 'format' => $format,
+                    'options' => $options ?: null,
                     'source_url' => $url, 'input_name' => $name,
                     'title' => $name ?: mb_substr('Download from '.parse_url($url, PHP_URL_HOST), 0, 240),
                     'status' => 'pending', 'stage' => 'queued', 'dispatched_at' => now(),
@@ -169,7 +327,7 @@ final class MediaToolService
             }
             @chmod($directory.'/lease', 0600);
             $timeout = min(360, max(30, (int) config('media_tools.process_timeout', 360)));
-            $manifest = [...$paths, 'kind' => $job->kind, 'format' => $job->format, 'url' => $job->source_url,
+            $manifest = [...$paths, 'kind' => $job->kind, 'format' => $job->format, 'url' => $job->source_url, 'options' => $job->options ?: new \stdClass,
                 'lease' => $job->lease_token, 'timeout' => $timeout - 5, 'input_limit' => $this->inputLimit(), 'output_limit' => $this->outputLimit(),
                 'duration_limit' => min(600, (int) config('media_tools.max_duration_seconds', 600)),
                 'dimension_limit' => min(4096, (int) config('media_tools.max_dimension', 4096)),
@@ -361,7 +519,7 @@ final class MediaToolService
             'job_id' => $job->job_id, 'kind' => $job->kind, 'status' => $job->status, 'stage' => $job->stage,
             'progress' => $job->progress, 'title' => $job->title,
             'source_url' => $source ? parse_url($source, PHP_URL_SCHEME).'://'.parse_url($source, PHP_URL_HOST) : null,
-            'input_name' => $job->input_name, 'format' => $job->format,
+            'input_name' => $job->input_name, 'format' => $job->format, 'options' => $job->options ?: new \stdClass,
             'result_url' => $job->status === 'completed' ? '/api/media-tools/'.$job->job_id.'/asset' : null,
             'mime_type' => $job->mime_type, 'size_bytes' => $job->size_bytes, 'duration' => $job->duration,
             'error' => $job->error_message, 'can_cancel' => in_array($job->status, ['pending', 'processing'], true) && $job->cancel_requested_at === null,
@@ -421,7 +579,7 @@ final class MediaToolService
             return;
         }
         foreach (new \DirectoryIterator($directory) as $entry) {
-            if ($entry->isDot() || $entry->getFilename() === 'work.lock' || ($keepResult && preg_match('/^result\.(mp4|webm|mp3|wav|flac|png|jpg|webp)$/D', $entry->getFilename()))) {
+            if ($entry->isDot() || $entry->getFilename() === 'work.lock' || ($keepResult && preg_match('/^result\.(mp4|webm|mp3|wav|flac|png|jpg|webp|gif)$/D', $entry->getFilename()))) {
                 continue;
             }
             $this->remove($entry->getPathname());
