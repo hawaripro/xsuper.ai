@@ -9,7 +9,7 @@ const pageSizeOptions = [25, 50, 100];
 const mediaCategories = ["image", "video", "audio"];
 const integer = (value, min, max) => value !== "" && Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max;
 
-export default function ModelBulkTable({ models, providers = [], onRefresh, onEdit, onToggle, mediaOnly = false, disabled = false }) {
+export default function ModelBulkTable({ models, providers = [], onRefresh, onEdit, onToggle, mediaOnly = false, disabled = false, providerId }) {
     const { t } = useLocale();
     const [search, setSearch] = useState("");
     const [providerFilter, setProviderFilter] = useState("");
@@ -37,14 +37,15 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const byId = useMemo(() => new Map(scopedModels.map((model) => [model.id, model])), [scopedModels]);
     const selection = useMemo(() => new Set(selected), [selected]);
     const categories = useMemo(() => [...new Set([...scopedModels.map((model) => model.category), ...(mediaOnly ? mediaCategories : ["chat", ...mediaCategories])])].sort(), [scopedModels, mediaOnly]);
+    const activeProvider = providerId !== undefined ? String(providerId ?? "") : providerFilter;
     const visible = useMemo(() => {
         const needle = search.trim().toLowerCase();
         return scopedModels.filter((model) => (!selectedOnly || selection.has(model.id))
-            && (!providerFilter || String(model.provider_id ?? model.provider?.id ?? "") === providerFilter)
+            && (!activeProvider || String(model.provider_id ?? model.provider?.id ?? "") === activeProvider)
             && (!categoryFilter || model.category === categoryFilter)
             && (!publicationFilter || String(model.is_enabled) === publicationFilter)
             && (!needle || [model.id, model.model_id, model.upstream_model_id, model.display_name, model.provider_name, model.tier].some((value) => String(value ?? "").toLowerCase().includes(needle))));
-    }, [scopedModels, selectedOnly, selection, providerFilter, categoryFilter, publicationFilter, search]);
+    }, [scopedModels, selectedOnly, selection, activeProvider, categoryFilter, publicationFilter, search]);
     const lastPage = Math.max(1, Math.ceil(visible.length / pageSize));
     const currentPage = Math.min(page, lastPage);
     const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -53,7 +54,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const selectedDirty = dirtyIds.filter((id) => selection.has(id));
     const selectedOffPage = selected.filter((id) => !pageRows.some((model) => model.id === id)).length;
 
-    useEffect(() => { setPage(1); }, [search, providerFilter, categoryFilter, publicationFilter, selectedOnly, pageSize]);
+    useEffect(() => { setPage(1); }, [search, activeProvider, categoryFilter, publicationFilter, selectedOnly, pageSize]);
     useEffect(() => { setSelected((current) => current.every((id) => byId.has(id)) ? current : current.filter((id) => byId.has(id))); }, [byId]);
     useEffect(() => {
         if (!confirmation && deletionCompleted.current) {
@@ -207,12 +208,12 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             <label className="min-w-48 flex-1 text-xs font-medium">{t("Cari model")}
                 <input ref={searchInput} type="search" className="ui-input mt-1 min-h-10" placeholder={t("ID, nama, provider, atau tier")} value={search} onChange={(event) => setSearch(event.target.value)} />
             </label>
-            <label className="text-xs font-medium">{t("Penyedia")}
+            {providerId === undefined && <label className="text-xs font-medium">{t("Penyedia")}
                 <select className="ui-input mt-1 min-h-10" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)}>
                     <option value="">{t("Semua penyedia")}</option>
                     {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name || provider.slug}</option>)}
                 </select>
-            </label>
+            </label>}
             <label className="text-xs font-medium">{t("Kategori")}
                 <select className="ui-input mt-1 min-h-10" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="">{t("Semua kategori")}</option>{categories.map((category) => <option key={category}>{category}</option>)}</select>
             </label>
@@ -266,11 +267,11 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                             <td className="p-3"><input className={tableInput} aria-label={`${t("Token per hasil")} ${model.model_id}`} type="number" min="1" max="2147483647" step="1" value={row.token_cost ?? ""} placeholder={t("Belum diatur")} disabled={locked || !isMedia} aria-invalid={!!errors.token_cost} onChange={(event) => patch(model.id, "token_cost", event.target.value)} />{fieldError(model.id, "token_cost")}</td>
                             <td className="p-3"><input className="ui-input min-h-10 w-24" aria-label={`${t("Urutan")} ${model.model_id}`} type="number" min="0" max="65535" step="1" value={row.sort_order ?? 0} disabled={locked} aria-invalid={!!errors.sort_order} onChange={(event) => patch(model.id, "sort_order", event.target.value)} />{fieldError(model.id, "sort_order")}</td>
                             <td className="min-w-40 p-3"><label className="flex min-h-10 items-center gap-2"><input type="checkbox" aria-label={`${t("Publikasikan")} ${model.model_id}`} checked={!!row.is_enabled} disabled={locked} onChange={(event) => patch(model.id, "is_enabled", event.target.checked)} />{t(row.is_enabled ? "Dipublikasikan" : "Draf")}</label><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(model.is_available ? "Tersedia di upstream" : "Belum tersedia di upstream")}</span></td>
-                            <td className="min-w-40 p-3"><div className="flex flex-wrap gap-2">
-                                {isMedia && <button type="button" className="ui-btn-secondary" aria-expanded={isExpanded} disabled={locked} onClick={() => setExpanded((current) => isExpanded ? current.filter((id) => id !== model.id) : [...current, model.id])}>{t("Konfigurasi")}</button>}
-                                {onEdit && <button type="button" className="ui-btn-secondary" disabled={locked || !!drafts[model.id]} onClick={() => onEdit(model)}>{t("Edit model")}</button>}
-                                {onToggle && <button type="button" className="ui-btn-secondary" disabled={locked || !!drafts[model.id]} onClick={() => onToggle(model)}>{t(model.is_enabled ? "Nonaktifkan" : "Aktifkan")}</button>}
-                                <button type="button" className="ui-btn-secondary text-red-700 dark:text-red-300" disabled={locked} onClick={(event) => prepareDeletion([model.id], event)} aria-label={`${t("Hapus model")} ${model.display_name || model.model_id}`}>{t("Hapus model")}</button>
+                            <td className="min-w-40 p-3"><div className="flex flex-wrap gap-1">
+                                {isMedia && <button type="button" className="ui-btn-mini" aria-expanded={isExpanded} disabled={locked} onClick={() => setExpanded((current) => isExpanded ? current.filter((id) => id !== model.id) : [...current, model.id])}>{t("Konfigurasi")}</button>}
+                                {onEdit && <button type="button" className="ui-btn-mini" disabled={locked || !!drafts[model.id]} onClick={() => onEdit(model)}>{t("Edit model")}</button>}
+                                {onToggle && <button type="button" className="ui-btn-mini" disabled={locked || !!drafts[model.id]} onClick={() => onToggle(model)}>{t(model.is_enabled ? "Nonaktifkan" : "Aktifkan")}</button>}
+                                <button type="button" className="ui-btn-mini ui-btn-mini-danger" disabled={locked} onClick={(event) => prepareDeletion([model.id], event)} aria-label={`${t("Hapus model")} ${model.display_name || model.model_id}`}>{t("Hapus")}</button>
                             </div></td>
                         </tr>
                         {isMedia && isExpanded && <tr className="border-t border-slate-200 dark:border-white/10"><td colSpan={8} className="p-4"><div className="max-w-3xl">

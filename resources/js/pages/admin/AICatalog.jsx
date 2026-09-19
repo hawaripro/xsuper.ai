@@ -81,6 +81,8 @@ export default function AICatalog() {
     const { t } = useLocale();
     const [catalog, setCatalog] = useState(emptyResource);
     const [queue, setQueue] = useState(emptyResource);
+    const [providerScope, setProviderScope] = useState("");
+    const [railQuery, setRailQuery] = useState("");
     const [section, setSection] = useState("catalog");
     const [queueType, setQueueType] = useState("images");
     const [queueStatus, setQueueStatus] = useState("");
@@ -152,6 +154,17 @@ export default function AICatalog() {
     const editorProvider = modelEditor ? providers.find((provider) => provider.slug === modelEditor.provider_slug) : null;
     const generationConfigReadOnly = editorProvider?.protocol === "fal" || (modelEditor?.generation_config_readonly && modelEditor.provider_slug === modelEditor.original_provider_slug);
     const enabledModels = models.filter((model) => model.is_enabled).length;
+    const modelCounts = models.reduce((counts, model) => {
+        const key = String(model.provider_id ?? model.provider?.id ?? "");
+        counts[key] = (counts[key] || 0) + 1;
+        return counts;
+    }, {});
+    const railNeedle = railQuery.trim().toLowerCase();
+    const railProviders = railNeedle
+        ? providers.filter((provider) => [provider.name, provider.slug, provider.protocol].some((value) => String(value ?? "").toLowerCase().includes(railNeedle)))
+        : providers;
+    const scopedProvider = providerScope ? providers.find((provider) => String(provider.id) === providerScope) : null;
+    if (providerScope && !scopedProvider && catalog.data && !catalog.loading) setProviderScope("");
     const unhealthyProviders = providers.filter(
         (provider) =>
             !provider.is_enabled ||
@@ -476,24 +489,64 @@ export default function AICatalog() {
                 </button>
             </div>
 
-            <div hidden={section !== "catalog"}>
+            <div hidden={section !== "catalog"} className="ai-workspace">
+                <aside className="ai-rail" aria-label={t("Daftar penyedia")}>
+                    <div className="ai-rail-head">
+                        <h2 className="ui-section-title">{t("Penyedia")}</h2>
+                        <span className="ai-rail-count">{count(providers.length)}</span>
+                    </div>
+                    {providers.length > 6 && (
+                        <input
+                            type="search"
+                            className="ui-input min-h-9 text-xs"
+                            placeholder={t("Cari penyedia")}
+                            aria-label={t("Cari penyedia")}
+                            value={railQuery}
+                            onChange={(event) => setRailQuery(event.target.value)}
+                        />
+                    )}
+                    <ul className="ai-rail-list">
+                        <li>
+                            <button type="button" className="ai-rail-item" aria-pressed={providerScope === ""} onClick={() => setProviderScope("")}>
+                                <span className="ai-rail-dot" data-tone="neutral" aria-hidden="true" />
+                                <span className="ai-rail-name">{t("Semua penyedia")}</span>
+                                <span className="ai-rail-count">{count(models.length)}</span>
+                            </button>
+                        </li>
+                        {railProviders.map((provider) => {
+                            const tone = !provider.is_enabled ? "neutral" : ["online", "healthy", "active"].includes(provider.status) ? "good" : provider.status === "degraded" ? "warn" : ["offline", "failed", "error", "unavailable"].includes(provider.status) ? "bad" : "neutral";
+                            return (
+                                <li key={provider.id}>
+                                    <button type="button" className="ai-rail-item" aria-pressed={providerScope === String(provider.id)} onClick={() => setProviderScope(String(provider.id))}>
+                                        <span className="ai-rail-dot" data-tone={tone} aria-hidden="true" />
+                                        <span className="ai-rail-name">{provider.name || provider.slug}</span>
+                                        <span className="ai-rail-count">{count(modelCounts[String(provider.id)] || 0)}</span>
+                                    </button>
+                                </li>
+                            );
+                        })}
+                        {!railProviders.length && providers.length > 0 && <li className="ai-rail-empty">{t("Tidak ada penyedia yang cocok.")}</li>}
+                    </ul>
+                </aside>
+
+                <div className="ai-main">
                     <ProviderConnections
                         providers={providers}
+                        focusId={scopedProvider?.id ?? null}
                         loading={catalog.loading}
                         error={catalog.error}
                         hasData={!!catalog.data}
                         onRefresh={loadCatalog}
                     />
-            </div>
 
-                    <section hidden={section !== "catalog"} className="ui-card-flat min-w-0" aria-labelledby="models-title">
+                    <section className="ui-card-flat min-w-0" aria-labelledby="models-title">
                         <div className="ui-card-header">
                             <div>
                                 <h2
                                     id="models-title"
                                     className="ui-section-title"
                                 >
-                                    {t("Metadata & harga model")}
+                                    {scopedProvider ? `${t("Model")} · ${scopedProvider.name || scopedProvider.slug}` : t("Metadata & harga model")}
                                 </h2>
                                 <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                                     {t("Edit banyak baris lalu simpan sekaligus. Publikasi profil terpisah dari ketersediaan upstream.")}
@@ -515,6 +568,7 @@ export default function AICatalog() {
                             <ModelBulkTable
                                 models={models}
                                 providers={providers}
+                                providerId={providerScope}
                                 onRefresh={loadCatalog}
                                 onEdit={openModelEditor}
                                 onToggle={(model) => setConfirmation({ type: "toggle", model })}
@@ -522,6 +576,8 @@ export default function AICatalog() {
                             />
                         )}
                     </section>
+                </div>
+            </div>
 
             {section === "queue" && (
                 <section className="ui-card" aria-labelledby="queue-title">

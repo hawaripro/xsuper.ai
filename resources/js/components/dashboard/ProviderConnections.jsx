@@ -21,7 +21,7 @@ const healthStates = {
 };
 const idleForm = { busy: false, error: "", fields: {} };
 
-export default function ProviderConnections({ providers, loading, error, hasData, onRefresh }) {
+export default function ProviderConnections({ providers, focusId = null, loading, error, hasData, onRefresh }) {
     const { t, locale } = useLocale();
     const [draft, setDraft] = useState(null);
     const [formState, setFormState] = useState(idleForm);
@@ -321,7 +321,7 @@ export default function ProviderConnections({ providers, loading, error, hasData
                 </div>
             ) : (
                 <ul className="divide-y divide-slate-200 dark:divide-white/10">
-                    {providers.map((provider) => {
+                    {(focusId === null ? providers : providers.filter((provider) => provider.id === focusId)).map((provider) => {
                         const operation = operations[provider.id] || {};
                         const busy = !!operation.action || (deletion?.id === provider.id && deletion.busy);
                         const editing = draft?.id === provider.id;
