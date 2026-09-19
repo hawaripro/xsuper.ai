@@ -35,7 +35,7 @@ class BackgroundRemovalBillingTest extends TestCase
 
     public function test_the_endpoint_requires_authentication(): void
     {
-        $this->postJson('/api/media-tools/remove-background')->assertUnauthorized();
+        $this->postJson('/api/media-tools/rembg')->assertUnauthorized();
     }
 
     public function test_the_tool_is_unavailable_without_a_configured_runtime(): void
@@ -45,7 +45,7 @@ class BackgroundRemovalBillingTest extends TestCase
 
         // No sandbox runtime in the test environment: the tool refuses rather than pretending.
         $this->actingAs($user)
-            ->postJson('/api/media-tools/remove-background', ['file' => \Illuminate\Http\Testing\File::image('photo.png', 64, 64)])
+            ->postJson('/api/media-tools/rembg', ['file' => \Illuminate\Http\Testing\File::image('photo.png', 64, 64)])
             ->assertStatus(503);
         $this->assertDatabaseCount('media_tool_jobs', 0);
     }
