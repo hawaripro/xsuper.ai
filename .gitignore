@@ -36,3 +36,5 @@ deploy_files.py
 /playwright-report
 /test-results
 /.tmp-chrome-announcement
+
+__pycache__/
