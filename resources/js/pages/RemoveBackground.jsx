@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLocale } from "../contexts/LocaleContext";
@@ -30,10 +30,16 @@ export default function RemoveBackground() {
     const { user } = useAuth();
     const { theme } = useTheme();
     const { t, locale, localizedPath } = useLocale();
-    const location = useLocation();
-    const [searchParams] = useSearchParams();
-    const queryJob = new URLSearchParams(location.search).get("job") || "";
+    const [searchParams, setSearchParams] = useSearchParams();
+    const queryJob = searchParams.get("job") || "";
     const queue = useMediaToolQueue({ kind: "rembg", userId: user.id, jobId: queryJob });
+
+    const chooseJob = (id) => {
+        const params = new URLSearchParams(searchParams);
+        if (id) params.set("job", id); else params.delete("job");
+        setSearchParams(params, { replace: true });
+        if (id) queue.loadJob(id);
+    };
     const [file, setFile] = useState(null);
     const [localError, setLocalError] = useState("");
     const [pendingDelete, setPendingDelete] = useState(null);
@@ -73,12 +79,16 @@ export default function RemoveBackground() {
         const body = new FormData();
         body.append("file", file);
         const job = await queue.submit(body, "png", file.name);
-        if (job) { setFile(null); if (fileInput.current) fileInput.current.value = ""; }
+        if (job) {
+            setFile(null);
+            if (fileInput.current) fileInput.current.value = "";
+            chooseJob(job.job_id);
+        }
     };
-
-    const selected = queue.jobs.find((job) => job.job_id === queryJob) || queue.jobs.find((job) => job.status === "completed") || queue.jobs[0] || null;
     const activeCount = queue.jobs.filter(isActiveJob).length;
     const deletableCount = queue.jobs.filter((job) => !isActiveJob(job)).length;
+    // Open fresh: only a deep-linked or in-flight job auto-opens; finished history stays below.
+    const selected = queue.jobs.find((job) => job.job_id === queryJob) || queue.jobs.find(isActiveJob) || null;
     const stageLabel = (job) => t(STAGE_LABELS[job.stage] || STAGE_LABELS[job.status] || "Memproses");
     const costLabel = isAdmin ? t("Gratis untuk admin") : `${tokens} ${t("token / gambar")}`;
 
@@ -167,7 +177,7 @@ export default function RemoveBackground() {
                 {queue.jobs.length > 0 ? (
                     <ul className="mt-history-list">{queue.jobs.map((job) => (
                         <li key={job.job_id}><div className="mt-history-row">
-                            <button type="button" className="mt-history-choice" aria-pressed={selected?.job_id === job.job_id} onClick={() => { const params = new URLSearchParams(searchParams); params.set("job", job.job_id); window.history.replaceState({}, "", `${location.pathname}?${params}`); queue.loadJob(job.job_id); }}>
+                            <button type="button" className="mt-history-choice" aria-pressed={selected?.job_id === job.job_id} onClick={() => chooseJob(job.job_id)}>
                                 <span className="mt-history-file mt-tone--image"><Icon path={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" /></>} /><span>PNG</span></span>
                                 <span className="mt-history-content"><strong>{job.title || job.input_name || t("Hapus latar")}</strong><span>{job.input_name || t("Pekerjaan media")}<span aria-hidden="true"> · </span><time dateTime={job.created_at}>{formatLocalDate(job.created_at, { locale })}</time></span></span>
                                 <span className="mt-history-state">{isActiveJob(job) ? <span className="ui-status ui-status-warn">{stageLabel(job)}</span> : job.status === "completed" ? <span className="ui-status ui-status-good">{t("Selesai")}</span> : <span className="ui-status ui-status-bad">{t(job.status === "cancelled" ? "Dibatalkan" : "Gagal")}</span>}{job.status === "completed" && typeof job.size_bytes === "number" && <span>{bytes(job.size_bytes, locale)}</span>}</span>

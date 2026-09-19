@@ -48,7 +48,10 @@ class AiCatalogController extends Controller
                 'tier' => $validated['tier'] ?? 'Original',
                 'is_enabled' => (bool) ($validated['is_enabled'] ?? false),
                 'sort_order' => $validated['sort_order'] ?? 0,
-                'is_available' => false,
+                // A manual add is the admin asserting the model exists upstream; the
+                // next provider sync re-verifies and flips this off if it is missing.
+                'is_available' => true,
+                'last_seen_at' => now(),
             ]));
             $this->normalizeGenerationConfig($model);
             $this->saveModel($model);

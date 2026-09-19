@@ -131,12 +131,16 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/v/models', [VideoController::class, 'models']);
             Route::post('/v/gen', [VideoController::class, 'generate']);
             Route::get('/v/history', [VideoController::class, 'history']);
+            Route::delete('/v/history', [VideoController::class, 'destroyAll']);
+            Route::delete('/v/{jobId}', [VideoController::class, 'destroy']);
             Route::get('/v/status/{jobId}', [VideoController::class, 'status']);
             Route::get('/v/{jobId}/asset', [VideoController::class, 'asset']);
 
             Route::get('/images/models', [ImageController::class, 'models']);
             Route::post('/images', [ImageController::class, 'generate']);
             Route::get('/images', [ImageController::class, 'history']);
+            Route::delete('/images', [ImageController::class, 'destroyAll']);
+            Route::delete('/images/{jobId}', [ImageController::class, 'destroy']);
             Route::get('/images/{jobId}/assets/{index}', [ImageController::class, 'asset'])->whereNumber('index');
             Route::get('/images/{jobId}', [ImageController::class, 'show']);
         });

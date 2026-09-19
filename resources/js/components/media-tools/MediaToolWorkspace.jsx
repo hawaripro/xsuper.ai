@@ -278,7 +278,8 @@ function WorkspaceSession({ kind, user }) {
     const urlError = fieldMessage(errors, "url");
     const fileError = fieldMessage(errors, "file");
     const formatError = fieldMessage(errors, "format");
-    const selected = queryJob ? queue.jobs.find((job) => job.job_id.toLowerCase() === queryJob.toLowerCase()) : queue.jobs[0];
+    // Open fresh: an explicit deep link or an in-flight job shows; finished history never auto-opens.
+    const selected = queryJob ? queue.jobs.find((job) => job.job_id.toLowerCase() === queryJob.toLowerCase()) : (queue.jobs.find(isActiveJob) || null);
     const activeCount = queue.jobs.filter(isActiveJob).length;
     const otherAllowed = isAdmin || user.permissions?.[download ? "media_converter" : "video_downloader"] !== false;
 

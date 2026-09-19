@@ -98,6 +98,53 @@ class ImageController extends Controller
         return response()->json(['job' => $this->imagePayload($job), 'balance' => UserToken::getBalance($request->user()->id)]);
     }
 
+    /** Delete one finished image job with its private assets. Active work is protected. */
+    public function destroy(Request $request, string $jobId): JsonResponse
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $jobId): void {
+            $job = ImageJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
+            if (in_array($job->status, ['pending', 'processing'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
+            }
+            $this->removeImageAssets($job);
+            $job->delete();
+        });
+
+        return response()->json(['deleted_count' => 1]);
+    }
+
+    /** Clear every finished image job; running generations stay untouched. */
+    public function destroyAll(Request $request): JsonResponse
+    {
+        $removed = 0;
+        ImageJob::query()->where('user_id', $request->user()->id)
+            ->whereNotIn('status', ['pending', 'processing'])->orderBy('id')
+            ->chunkById(50, function ($jobs) use (&$removed): void {
+                foreach ($jobs as $job) {
+                    \Illuminate\Support\Facades\DB::transaction(function () use ($job, &$removed): void {
+                        $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+                        if (! $locked || in_array($locked->status, ['pending', 'processing'], true)) {
+                            return;
+                        }
+                        $this->removeImageAssets($locked);
+                        $locked->delete();
+                        $removed++;
+                    });
+                }
+            });
+
+        return response()->json(['deleted_count' => $removed]);
+    }
+
+    private function removeImageAssets(ImageJob $job): void
+    {
+        foreach ((array) $job->asset_paths as $asset) {
+            if (is_array($asset) && is_string($asset['path'] ?? null)) {
+                Storage::disk('local')->delete($asset['path']);
+            }
+        }
+    }
+
     public function asset(Request $request, string $jobId, int $index): BinaryFileResponse
     {
         $job = ImageJob::query()->where('job_id', $jobId)->firstOrFail();
