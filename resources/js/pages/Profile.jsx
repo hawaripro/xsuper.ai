@@ -2,6 +2,155 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
+import { apiRequest } from '../lib/api';
+
+/* ============================================================
+   Two-factor authentication (TOTP) enrolment and management
+   ============================================================ */
+function TwoFactorSection({ isDark, card, head, muted }) {
+    const { t } = useLocale();
+    const [security, setSecurity] = useState(null);
+    const [error, setError] = useState('');
+    const [password, setPassword] = useState('');
+    const [code, setCode] = useState('');
+    const [busy, setBusy] = useState('');
+    const [recoveryCodes, setRecoveryCodes] = useState(null);
+    const [mode, setMode] = useState('idle'); // idle | enable | disable | regenerate
+
+    const load = async () => {
+        try {
+            const data = await apiRequest('/api/u/security');
+            setSecurity(data.two_factor);
+        } catch (requestError) {
+            setError(requestError.message);
+        }
+    };
+    useEffect(() => { load(); }, []);
+
+    const run = async (action, request) => {
+        setBusy(action);
+        setError('');
+        try {
+            const data = await request();
+            setSecurity(data.two_factor);
+            if (Array.isArray(data.recovery_codes)) setRecoveryCodes(data.recovery_codes);
+            setPassword('');
+            setCode('');
+            return true;
+        } catch (requestError) {
+            setError(requestError.message);
+            return false;
+        } finally {
+            setBusy('');
+        }
+    };
+
+    const start = async (event) => {
+        event.preventDefault();
+        if (mode === 'enable') {
+            await run('enable', () => apiRequest('/api/u/security/two-factor', { method: 'POST', body: { password } }));
+        } else if (mode === 'disable') {
+            if (await run('disable', () => apiRequest('/api/u/security/two-factor', { method: 'DELETE', body: { password } }))) { setMode('idle'); setRecoveryCodes(null); }
+        } else if (mode === 'regenerate') {
+            if (await run('regenerate', () => apiRequest('/api/u/security/two-factor/recovery-codes', { method: 'POST', body: { password } }))) setMode('idle');
+        }
+    };
+
+    const confirm = async (event) => {
+        event.preventDefault();
+        if (await run('confirm', () => apiRequest('/api/u/security/two-factor/confirm', { method: 'POST', body: { code } }))) setMode('idle');
+    };
+
+    const inputClass = `w-full px-4 py-3 rounded-xl text-sm transition-all duration-200 ${isDark ? 'bg-white/[0.04] border border-white/[0.08] text-white placeholder-gray-600' : 'bg-gray-50/70 border border-gray-200 text-slate-900 placeholder-gray-400'} focus:outline-none focus:border-red-500/60 focus:ring-4 focus:ring-red-500/15`;
+    const labelClass = `block text-xs font-bold uppercase tracking-[0.12em] mb-2 ${isDark ? 'text-gray-400' : 'text-slate-600'}`;
+    const enabled = !!security?.enabled;
+    const pending = !!security?.pending;
+
+    return (
+        <section className={`p-5 lg:p-6 rounded-2xl border ${card} animate-fade-in-up`} aria-labelledby="two-factor-title" data-two-factor>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h2 id="two-factor-title" className={`text-sm font-bold flex items-center gap-2 ${head}`}>
+                        <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-md">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
+                        </span>
+                        {t("Autentikasi dua langkah")}
+                    </h2>
+                    <p className={`mt-2 text-xs leading-5 ${muted}`}>{t("Lindungi akun dengan kode dari aplikasi authenticator (Google Authenticator, Authy, 1Password) setiap kali masuk.")}</p>
+                </div>
+                {security && (
+                    <span className={`ui-status ${enabled ? 'ui-status-good' : pending ? 'ui-status-warn' : 'ui-status-neutral'}`}>
+                        {t(enabled ? 'Aktif' : pending ? 'Menunggu konfirmasi' : 'Nonaktif')}
+                    </span>
+                )}
+            </div>
+
+            {error && <p role="alert" className="mt-3 rounded-xl border border-red-500/25 bg-red-500/5 p-3 text-xs text-red-700 dark:text-red-300">{error}</p>}
+
+            {security && !pending && mode === 'idle' && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {enabled ? (
+                        <>
+                            <button type="button" className="ui-btn-ghost" onClick={() => setMode('regenerate')}>{t("Buat ulang kode pemulihan")}</button>
+                            <button type="button" className="ui-btn-ghost text-red-600 dark:text-red-300" onClick={() => setMode('disable')}>{t("Nonaktifkan")}</button>
+                        </>
+                    ) : (
+                        <button type="button" className="ui-btn-ghost" onClick={() => setMode('enable')}>{t("Aktifkan dua langkah")}</button>
+                    )}
+                    {enabled && <span className={`self-center text-xs ${muted}`}>{security.recovery_codes_remaining} {t("kode pemulihan tersisa")}</span>}
+                </div>
+            )}
+
+            {security && !pending && mode !== 'idle' && (
+                <form onSubmit={start} className="mt-4 space-y-3">
+                    <label htmlFor="two-factor-password" className={labelClass}>{t("Konfirmasi password Anda")}</label>
+                    <input id="two-factor-password" type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} placeholder="••••••••" />
+                    <div className="flex flex-wrap gap-2">
+                        <button type="submit" className="ui-btn-ghost" disabled={!!busy}>
+                            {busy ? t("Memproses...") : t(mode === 'enable' ? 'Lanjutkan' : mode === 'disable' ? 'Nonaktifkan dua langkah' : 'Buat ulang kode')}
+                        </button>
+                        <button type="button" className="ui-btn-ghost" onClick={() => { setMode('idle'); setPassword(''); setError(''); }}>{t("Batal")}</button>
+                    </div>
+                </form>
+            )}
+
+            {pending && (
+                <form onSubmit={confirm} className="mt-4 grid gap-4 md:grid-cols-[176px_minmax(0,1fr)]">
+                    <div className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10" aria-label={t("Kode QR authenticator")} dangerouslySetInnerHTML={{ __html: security.qr_svg }} />
+                    <div className="space-y-3">
+                        <p className={`text-xs leading-5 ${muted}`}>{t("Pindai kode QR dengan aplikasi authenticator, atau masukkan kunci ini secara manual, lalu ketik kode 6 digit yang muncul.")}</p>
+                        <code className={`block break-all rounded-lg px-3 py-2 font-mono text-xs ${isDark ? 'bg-white/5 text-gray-200' : 'bg-gray-100 text-slate-700'}`}>{security.secret}</code>
+                        <label htmlFor="two-factor-code" className={labelClass}>{t("Kode autentikasi")}</label>
+                        <input id="two-factor-code" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(event) => setCode(event.target.value)} className={`${inputClass} font-mono tracking-[0.2em]`} placeholder="123456" />
+                        <div className="flex flex-wrap gap-2">
+                            <button type="submit" className="ui-btn-ghost" disabled={!!busy}>{busy ? t("Memproses...") : t("Konfirmasi & aktifkan")}</button>
+                            <button type="button" className="ui-btn-ghost" disabled={!!busy} onClick={() => { setMode('disable'); }}>{t("Batalkan pengaktifan")}</button>
+                        </div>
+                        {mode === 'disable' && (
+                            <div className="space-y-2">
+                                <input type="password" autoComplete="current-password" aria-label={t("Konfirmasi password Anda")} value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} placeholder={t("Password untuk membatalkan")} />
+                                <button type="button" className="ui-btn-ghost" disabled={!!busy || !password} onClick={() => run('disable', () => apiRequest('/api/u/security/two-factor', { method: 'DELETE', body: { password } })).then((ok) => ok && setMode('idle'))}>{t("Konfirmasi pembatalan")}</button>
+                            </div>
+                        )}
+                    </div>
+                </form>
+            )}
+
+            {recoveryCodes && (
+                <div className={`mt-4 rounded-xl border p-4 ${isDark ? 'border-amber-500/30 bg-amber-500/5' : 'border-amber-200 bg-amber-50'}`} role="status">
+                    <p className={`text-xs font-semibold ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>{t("Simpan kode pemulihan ini di tempat aman. Setiap kode hanya bisa dipakai sekali dan tidak akan ditampilkan lagi.")}</p>
+                    <ul className="mt-3 grid grid-cols-2 gap-1 font-mono text-xs sm:grid-cols-4">
+                        {recoveryCodes.map((item) => <li key={item} className={`rounded-md px-2 py-1 ${isDark ? 'bg-black/30 text-gray-100' : 'bg-white text-slate-800'}`}>{item}</li>)}
+                    </ul>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button type="button" className="ui-btn-ghost" onClick={() => navigator.clipboard?.writeText(recoveryCodes.join('\n'))}>{t("Salin kode")}</button>
+                        <button type="button" className="ui-btn-ghost" onClick={() => setRecoveryCodes(null)}>{t("Sudah saya simpan")}</button>
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
 
 /* ============================================================
    Duration Countdown — shows remaining time for member
@@ -449,6 +598,8 @@ export default function Profile() {
                     </div>
                 </form>
             </section>
+
+            <TwoFactorSection isDark={isDark} card={card} head={head} muted={muted} />
         </div>
     );
 }

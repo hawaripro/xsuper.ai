@@ -43,5 +43,12 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('two-factor', function (Request $request) {
             return Limit::perMinute(5)->by($request->session()->get('login.id'));
         });
+
+        // SPA login endpoint: brute-force protection per account and address without blocking normal retries.
+        RateLimiter::for('api-login', function (Request $request) {
+            $throttleKey = Str::transliterate(Str::lower((string) $request->input('email')).'|'.$request->ip());
+
+            return Limit::perMinute(30)->by($throttleKey);
+        });
     }
 }

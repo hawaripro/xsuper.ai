@@ -29,8 +29,15 @@ export function AuthProvider({ children }) {
         finally { setLoading(false); }
     };
 
-    const login = async (email, password) => {
-        const r = await fetch('/api/login', {
+    const finishLogin = async (data) => {
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta && typeof data.csrf_token === 'string') csrfMeta.content = data.csrf_token;
+        await checkAuth();
+        return true;
+    };
+
+    const postAuth = async (path, body) => {
+        const r = await fetch(path, {
             method: 'POST', credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
@@ -38,17 +45,27 @@ export function AuthProvider({ children }) {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': getCsrfToken(),
             },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify(body),
         });
+        const data = await r.json().catch(() => ({}));
         if (!r.ok) {
-            const d = await r.json().catch(() => ({}));
-            throw new Error(d.message || 'Login gagal.');
+            const error = new Error(data.message || 'Login gagal.');
+            error.status = r.status;
+            throw error;
         }
-        const data = await r.json();
-        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-        if (csrfMeta && typeof data.csrf_token === 'string') csrfMeta.content = data.csrf_token;
-        await checkAuth();
-        return true;
+        return data;
+    };
+
+    // Resolves to `{ twoFactor: true }` when the account needs an authenticator code before the session opens.
+    const login = async (email, password) => {
+        const data = await postAuth('/api/login', { email, password });
+        if (data.two_factor === true) return { twoFactor: true };
+        return finishLogin(data);
+    };
+
+    const completeTwoFactor = async ({ code, recoveryCode }) => {
+        const data = await postAuth('/api/login/two-factor', recoveryCode ? { recovery_code: recoveryCode } : { code });
+        return finishLogin(data);
     };
 
     const logout = async () => {
@@ -66,7 +83,7 @@ export function AuthProvider({ children }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, refreshUser: checkAuth }}>
+        <AuthContext.Provider value={{ user, loading, login, completeTwoFactor, logout, refreshUser: checkAuth }}>
             {children}
         </AuthContext.Provider>
     );

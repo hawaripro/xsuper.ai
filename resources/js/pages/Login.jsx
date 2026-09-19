@@ -6,7 +6,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import UltrLogo from '../components/UltrLogo';
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, completeTwoFactor } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const { locale, t, localizedPath, otherLocalePath } = useLocale();
     const isDark = theme === 'dark';
@@ -17,6 +17,9 @@ export default function Login() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [challenge, setChallenge] = useState(false);
+    const [useRecovery, setUseRecovery] = useState(false);
+    const [otp, setOtp] = useState('');
 
     // Check for Google OAuth error from URL params
     React.useEffect(() => {
@@ -29,20 +32,39 @@ export default function Login() {
         }
     }, [t]);
 
+    const finish = () => {
+        const redirect = searchParams.get('redirect');
+        if (redirect === 'dash') {
+            window.location.href = 'https://dash.ultrai.id';
+            return;
+        }
+        navigate(localizedPath('/dashboard'));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
 
         try {
-            await login(email, password);
-            const redirect = searchParams.get('redirect');
-            if (redirect === 'dash') {
-                window.location.href = 'https://dash.ultrai.id';
+            if (challenge) {
+                await completeTwoFactor(useRecovery ? { recoveryCode: otp.trim() } : { code: otp.trim() });
+                finish();
                 return;
             }
-            navigate(localizedPath('/dashboard'));
+            const result = await login(email, password);
+            if (result && result.twoFactor) {
+                setChallenge(true);
+                setOtp('');
+                return;
+            }
+            finish();
         } catch (err) {
+            if (challenge && err.status === 419) {
+                // The challenge session expired; start over with credentials.
+                setChallenge(false);
+                setOtp('');
+            }
             setError(err.message || t('Login gagal. Periksa email dan password Anda.'));
         } finally {
             setLoading(false);
@@ -147,6 +169,35 @@ export default function Login() {
                             </div>
                         )}
 
+                        {challenge ? (
+                            <div className="mb-6">
+                                <p className={`mb-4 text-sm leading-6 ${isDark ? 'text-gray-300' : 'text-slate-600'}`}>
+                                    {t(useRecovery ? 'Masukkan salah satu kode pemulihan yang Anda simpan saat mengaktifkan autentikasi dua langkah.' : 'Akun ini dilindungi autentikasi dua langkah. Masukkan kode 6 digit dari aplikasi authenticator Anda.')}
+                                </p>
+                                <label htmlFor="login-otp" className={labelClass}>{t(useRecovery ? 'Kode pemulihan' : 'Kode autentikasi')}</label>
+                                <input
+                                    id="login-otp"
+                                    type="text"
+                                    inputMode={useRecovery ? 'text' : 'numeric'}
+                                    autoComplete="one-time-code"
+                                    value={otp}
+                                    onChange={(e) => setOtp(e.target.value)}
+                                    placeholder={useRecovery ? 'xxxxx-xxxxx' : '123456'}
+                                    required
+                                    autoFocus
+                                    className={`${inputClass} tracking-[0.2em] font-mono`}
+                                />
+                                <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs">
+                                    <button type="button" className={`font-medium ${isDark ? 'text-gray-400 hover:text-white' : 'text-slate-500 hover:text-red-600'}`} onClick={() => { setUseRecovery((value) => !value); setOtp(''); setError(''); }}>
+                                        {t(useRecovery ? 'Gunakan kode authenticator' : 'Gunakan kode pemulihan')}
+                                    </button>
+                                    <button type="button" className={`font-medium ${isDark ? 'text-gray-400 hover:text-white' : 'text-slate-500 hover:text-red-600'}`} onClick={() => { setChallenge(false); setUseRecovery(false); setOtp(''); setError(''); }}>
+                                        {t('Kembali ke login')}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                        <>
                         {/* Email */}
                         <div className="mb-5">
                             <label htmlFor="login-email" className={labelClass}>{t('Email')}</label>
@@ -205,6 +256,8 @@ export default function Login() {
                                 </button>
                             </div>
                         </div>
+                        </>
+                        )}
 
                         {/* Submit */}
                         <button
@@ -222,12 +275,13 @@ export default function Login() {
                                 </>
                             ) : (
                                 <>
-                                    <span>{t('Masuk')}</span>
+                                    <span>{t(challenge ? 'Verifikasi' : 'Masuk')}</span>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
                                 </>
                             )}
                         </button>
 
+                        {!challenge && (<>
                         {/* Divider */}
                         <div className="relative my-6">
                             <div className="absolute inset-0 flex items-center">
@@ -255,6 +309,7 @@ export default function Login() {
                             </svg>
                             {t('Masuk dengan Google')}
                         </a>
+                        </>)}
 
                         {/* Back */}
                         <div className="mt-6 text-center">

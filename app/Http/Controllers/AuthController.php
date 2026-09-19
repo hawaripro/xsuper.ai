@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
+use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 
 class AuthController extends Controller
 {
@@ -24,32 +26,90 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
-            $request->session()->regenerate();
-            $user = Auth::user();
-
-            $response = response()->json([
-                'csrf_token' => $request->session()->token(),
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'role' => $user->role,
-                    'avatar' => $user->avatar,
-                ],
-            ]);
-
-            // Set dash_token cookie for admin users (allows access to dash.ultrai.id)
-            if ($user->isAdmin()) {
-                $token = hash('sha256', $user->id.'|'.config('app.key').'|dash');
-                $response->withCookie(cookie('dash_token', $token, 10080, '/', '.ultrai.id', true, true, false, 'Lax'));
-            }
-
-            return $response;
+        if (! Auth::validate($credentials)) {
+            return response()->json([
+                'message' => 'Email atau password salah.',
+            ], 422);
         }
 
-        return response()->json([
-            'message' => 'Email atau password salah.',
-        ], 422);
+        $user = Auth::getLastAttempted();
+
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            // Credentials are correct but the session stays unauthenticated until a valid TOTP code arrives.
+            $request->session()->put([
+                'login.id' => $user->getKey(),
+                'login.remember' => $request->boolean('remember'),
+            ]);
+
+            return response()->json(['two_factor' => true]);
+        }
+
+        Auth::login($user, $request->boolean('remember'));
+
+        return $this->authenticated($request, $user);
+    }
+
+    /**
+     * Complete a login that was paused by two-factor authentication.
+     */
+    public function twoFactorChallenge(Request $request, TwoFactorAuthenticationProvider $provider)
+    {
+        $request->validate([
+            'code' => 'nullable|string|max:12',
+            'recovery_code' => 'nullable|string|max:64',
+        ]);
+
+        $user = $request->session()->has('login.id')
+            ? User::query()->find($request->session()->get('login.id'))
+            : null;
+
+        if (! $user || ! $user->hasEnabledTwoFactorAuthentication()) {
+            $request->session()->forget(['login.id', 'login.remember']);
+
+            return response()->json(['message' => 'Sesi login sudah berakhir. Masuk kembali.'], 419);
+        }
+
+        $code = trim((string) $request->input('code', ''));
+        $recovery = trim((string) $request->input('recovery_code', ''));
+
+        if ($recovery !== '') {
+            $known = collect($user->recoveryCodes())->first(fn ($candidate) => hash_equals($candidate, $recovery));
+            if ($known === null) {
+                throw ValidationException::withMessages(['recovery_code' => 'Kode pemulihan tidak valid.']);
+            }
+            $user->replaceRecoveryCode($known);
+        } elseif ($code === '' || ! $provider->verify(decrypt($user->two_factor_secret), $code)) {
+            throw ValidationException::withMessages(['code' => 'Kode autentikasi tidak valid.']);
+        }
+
+        $remember = (bool) $request->session()->pull('login.remember', false);
+        $request->session()->forget('login.id');
+        Auth::login($user, $remember);
+
+        return $this->authenticated($request, $user);
+    }
+
+    private function authenticated(Request $request, User $user)
+    {
+        $request->session()->regenerate();
+
+        $response = response()->json([
+            'csrf_token' => $request->session()->token(),
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $user->role,
+                'avatar' => $user->avatar,
+            ],
+        ]);
+
+        // Set dash_token cookie for admin users (allows access to dash.ultrai.id)
+        if ($user->isAdmin()) {
+            $token = hash('sha256', $user->id.'|'.config('app.key').'|dash');
+            $response->withCookie(cookie('dash_token', $token, 10080, '/', '.ultrai.id', true, true, false, 'Lax'));
+        }
+
+        return $response;
     }
 
     public function register(Request $request)

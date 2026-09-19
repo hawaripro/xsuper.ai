@@ -72,7 +72,8 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
 
     // Auth routes (custom, Fortify handles /login /logout /register natively)
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:api-login');
+    Route::post('/login/two-factor', [AuthController::class, 'twoFactorChallenge'])->middleware('throttle:two-factor');
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
     Route::post('/referrals/capture', [ReferralController::class, 'capture']);
     Route::post('/analytics/events', [AnalyticsController::class, 'store'])->middleware('auth');
@@ -89,6 +90,11 @@ Route::prefix('api')->middleware('web')->group(function () {
         });
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
+        Route::get('/u/security', [ProfileController::class, 'security']);
+        Route::post('/u/security/two-factor', [ProfileController::class, 'enableTwoFactor'])->middleware('throttle:10,1');
+        Route::post('/u/security/two-factor/confirm', [ProfileController::class, 'confirmTwoFactor'])->middleware('throttle:10,1');
+        Route::post('/u/security/two-factor/recovery-codes', [ProfileController::class, 'regenerateRecoveryCodes'])->middleware('throttle:10,1');
+        Route::delete('/u/security/two-factor', [ProfileController::class, 'disableTwoFactor'])->middleware('throttle:10,1');
 
         // Member control center
         Route::get('/dashboard', [ApiDashboardController::class, 'show']);
