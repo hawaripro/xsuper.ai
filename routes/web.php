@@ -194,7 +194,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/pricing/rates', [PricingController::class, 'saveUsageRate']);
             Route::put('/pricing/rates/{usageRate}', [PricingController::class, 'saveUsageRate']);
             Route::delete('/pricing/rates/{usageRate}', [PricingController::class, 'destroyUsageRate']);
-            Route::post('/pricing/wallet/topup', [PricingController::class, 'topupWallet']);
+            Route::post('/pricing/rates/auto', [PricingController::class, 'autoPriceRates']);
             Route::get('/admin/deposits', [DepositController::class, 'adminIndex']);
             Route::post('/admin/deposits/{depositOrder}/approve', [DepositController::class, 'approve']);
             Route::post('/admin/deposits/{depositOrder}/reject', [DepositController::class, 'reject']);

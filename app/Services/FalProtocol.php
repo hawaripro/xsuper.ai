@@ -11,6 +11,13 @@ final class FalProtocol
 
     public const IMAGE_PRO = 'fal-ai/flux-2-pro';
 
+    // Cheap text-to-image endpoints that share the flux `image_size` schema.
+    public const IMAGE_DEV = 'fal-ai/flux/dev';
+
+    public const IMAGE_SDXL = 'fal-ai/fast-sdxl';
+
+    public const IMAGE_SANA = 'fal-ai/sana';
+
     public const VIDEO = 'fal-ai/longcat-video/distilled/text-to-video/480p';
 
     public const VIDEO_REFERENCE = 'fal-ai/longcat-video/distilled/image-to-video/480p';
@@ -32,6 +39,9 @@ final class FalProtocol
     public const MEDIA_MODELS = [
         self::IMAGE_SCHNELL => 'image',
         self::IMAGE_PRO => 'image',
+        self::IMAGE_DEV => 'image',
+        self::IMAGE_SDXL => 'image',
+        self::IMAGE_SANA => 'image',
         self::VIDEO => 'video',
         self::VIDEO_REFERENCE => 'video',
         self::AUDIO_SPEECH => 'audio',
@@ -58,7 +68,7 @@ final class FalProtocol
             'aspect_ratios' => $video && ! $reference ? ['16:9', '9:16', '1:1'] : [],
             'max_quantity' => $speech || $music ? 1 : 4,
             'supports_size' => $image,
-            'supports_n' => $model === self::IMAGE_SCHNELL,
+            'supports_n' => $image && $model !== self::IMAGE_PRO,
             'supports_duration' => $video,
             'supports_aspect_ratio' => $video && ! $reference,
             'supports_pro' => $video,
@@ -90,7 +100,8 @@ final class FalProtocol
     public static function imageRequest(array $payload): array
     {
         $model = $payload['model'] ?? null;
-        if (! in_array($model, [self::IMAGE_SCHNELL, self::IMAGE_PRO], true)) {
+        $config = is_string($model) ? self::mediaConfig($model) : null;
+        if ($config === null || (self::MEDIA_MODELS[$model] ?? null) !== 'image') {
             throw new AiProxyException('This fal image model is not supported.', 422);
         }
         $request = [
@@ -98,17 +109,18 @@ final class FalProtocol
             'enable_safety_checker' => true,
             'output_format' => 'png',
         ];
-        $size = $payload['size'] ?? '1024x1024';
-        if (! is_string($size) || ! in_array($size, self::mediaConfig($model)['sizes'], true)) {
+        $size = $payload['size'] ?? ($config['sizes'][0] ?? '1024x1024');
+        if (! is_string($size) || ! in_array($size, $config['sizes'], true)) {
             throw new AiProxyException('The selected image size is not supported by this fal model.', 422);
         }
         [$width, $height] = explode('x', $size);
         $request['image_size'] = ['width' => (int) $width, 'height' => (int) $height];
         $quantity = $payload['n'] ?? 1;
-        if (! is_int($quantity) || $quantity < 1 || $quantity > ($model === self::IMAGE_SCHNELL ? 4 : 1)) {
+        $maxQuantity = $config['supports_n'] ? $config['max_quantity'] : 1;
+        if (! is_int($quantity) || $quantity < 1 || $quantity > $maxQuantity) {
             throw new AiProxyException('The selected image quantity is not supported by this fal model.', 422);
         }
-        if ($model === self::IMAGE_SCHNELL) {
+        if ($config['supports_n']) {
             $request['num_images'] = $quantity;
         }
 
