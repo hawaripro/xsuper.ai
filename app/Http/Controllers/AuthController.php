@@ -168,6 +168,7 @@ class AuthController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'email_verified' => $user->email_verified_at !== null,
             'expires_at' => $user->expires_at?->toISOString(),
             'role' => $user->role,
             'avatar' => $user->avatar,

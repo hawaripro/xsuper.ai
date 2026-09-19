@@ -79,7 +79,7 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::post('/analytics/events', [AnalyticsController::class, 'store'])->middleware('auth');
 
     // Protected routes — track device on ALL authenticated requests
-    Route::middleware(['auth', 'track.device'])->group(function () {
+    Route::middleware(['auth', 'track.device', \App\Http\Middleware\EnsureEmailVerified::class])->group(function () {
         Route::post('/broadcasting/auth', [BroadcastController::class, 'authenticate']);
 
         // Profile
@@ -90,6 +90,8 @@ Route::prefix('api')->middleware('web')->group(function () {
         });
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
+        Route::post('/u/verify-email/send', [ProfileController::class, 'sendEmailOtp'])->middleware('throttle:6,1');
+        Route::post('/u/verify-email', [ProfileController::class, 'verifyEmailOtp'])->middleware('throttle:12,1');
         Route::get('/u/security', [ProfileController::class, 'security']);
         Route::post('/u/security/two-factor', [ProfileController::class, 'enableTwoFactor'])->middleware('throttle:10,1');
         Route::post('/u/security/two-factor/confirm', [ProfileController::class, 'confirmTwoFactor'])->middleware('throttle:10,1');

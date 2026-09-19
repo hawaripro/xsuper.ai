@@ -5,6 +5,79 @@ import { useLocale } from '../contexts/LocaleContext';
 import { apiRequest } from '../lib/api';
 
 /* ============================================================
+   Email activation (OTP) — required before the account unlocks
+   ============================================================ */
+function EmailActivationSection({ isDark, card, head, muted }) {
+    const { t } = useLocale();
+    const { user, refreshUser } = useAuth();
+    const [code, setCode] = useState('');
+    const [status, setStatus] = useState('');
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState('');
+    const [cooldown, setCooldown] = useState(0);
+
+    useEffect(() => {
+        if (cooldown <= 0) return undefined;
+        const timer = setInterval(() => setCooldown(value => Math.max(0, value - 1)), 1000);
+        return () => clearInterval(timer);
+    }, [cooldown > 0]);
+
+    if (!user || user.email_verified !== false) return null;
+
+    const sendCode = async () => {
+        setBusy('send');
+        setError('');
+        setStatus('');
+        try {
+            await apiRequest('/api/u/verify-email/send', { method: 'POST' });
+            setStatus(t('Kode aktivasi dikirim. Periksa kotak masuk (dan folder spam) email Anda.'));
+            setCooldown(60);
+        } catch (requestError) {
+            setError(requestError.message);
+        } finally {
+            setBusy('');
+        }
+    };
+
+    const verify = async (event) => {
+        event.preventDefault();
+        setBusy('verify');
+        setError('');
+        try {
+            await apiRequest('/api/u/verify-email', { method: 'POST', body: { code } });
+            setStatus(t('Email berhasil diaktifkan. Semua fitur terbuka.'));
+            await refreshUser();
+        } catch (requestError) {
+            setError(requestError.message);
+        } finally {
+            setBusy('');
+        }
+    };
+
+    return (
+        <section className={`p-5 lg:p-6 rounded-2xl border-2 ${isDark ? 'border-amber-500/40 bg-amber-500/5' : 'border-amber-300 bg-amber-50'} animate-fade-in-up`} aria-labelledby="email-activation-title" data-email-activation>
+            <h2 id="email-activation-title" className={`text-sm font-bold flex items-center gap-2 ${head}`}>
+                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
+                </span>
+                {t('Aktivasi email diperlukan')}
+            </h2>
+            <p className={`mt-2 text-xs leading-5 ${muted}`}>{t('Akun Anda belum aktif. Kirim kode ke')} <strong>{user.email}</strong> {t('lalu masukkan 6 digit kodenya di sini. Fitur lain terkunci sampai email aktif.')}</p>
+            {status && <p role="status" className={`mt-3 rounded-xl border p-3 text-xs ${isDark ? 'border-emerald-500/25 bg-emerald-500/5 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{status}</p>}
+            {error && <p role="alert" className="mt-3 rounded-xl border border-red-500/25 bg-red-500/5 p-3 text-xs text-red-700 dark:text-red-300">{error}</p>}
+            <form onSubmit={verify} className="mt-4 flex flex-wrap items-end gap-3">
+                <div className="min-w-40 flex-1">
+                    <label htmlFor="email-otp" className={`block text-xs font-bold uppercase tracking-[0.12em] mb-2 ${isDark ? 'text-gray-400' : 'text-slate-600'}`}>{t('Kode aktivasi')}</label>
+                    <input id="email-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className={`w-full px-4 py-3 rounded-xl font-mono text-sm tracking-[0.3em] ${isDark ? 'bg-white/[0.04] border border-white/[0.08] text-white' : 'bg-white border border-gray-200 text-slate-900'} focus:outline-none focus:border-amber-500/60 focus:ring-4 focus:ring-amber-500/15`} placeholder="123456" />
+                </div>
+                <button type="submit" className="ui-btn-primary min-h-11 px-5" disabled={busy !== '' || code.length !== 6}>{busy === 'verify' ? t('Memeriksa…') : t('Aktifkan')}</button>
+                <button type="button" className="ui-btn-ghost min-h-11" disabled={busy !== '' || cooldown > 0} onClick={sendCode}>{busy === 'send' ? t('Mengirim…') : cooldown > 0 ? `${t('Kirim ulang')} (${cooldown}s)` : t('Kirim kode')}</button>
+            </form>
+        </section>
+    );
+}
+
+/* ============================================================
    Two-factor authentication (TOTP) enrolment and management
    ============================================================ */
 function TwoFactorSection({ isDark, card, head, muted }) {
@@ -417,6 +490,7 @@ export default function Profile() {
 
     return (
         <div className="p-4 lg:p-6 space-y-5 max-w-3xl mx-auto">
+            <EmailActivationSection isDark={isDark} card={card} head={head} muted={muted} />
             {/* Header */}
             <div className="animate-fade-in-up">
                 <h1 className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${head}`}>{t("Profil Saya")}</h1>

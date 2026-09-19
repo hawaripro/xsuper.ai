@@ -65,6 +65,10 @@ function ProtectedRoute({ children, adminOnly = false, permission = null }) {
     }
 
     if (!user) return <Navigate to={localizedPath('/login')} replace />;
+    // Unactivated accounts may only open the profile, where activation lives.
+    if (user.role !== 'admin' && user.email_verified === false && !window.location.pathname.endsWith('/profile')) {
+        return <Navigate to={localizedPath('/profile')} replace />;
+    }
     if (adminOnly && user.role !== 'admin') return <ErrorPage code={403} />;
 
     if (permission && user.role !== 'admin') {

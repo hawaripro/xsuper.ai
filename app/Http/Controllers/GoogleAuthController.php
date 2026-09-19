@@ -58,6 +58,7 @@ class GoogleAuthController extends Controller
             $user = User::create([
                 'name' => $googleUser->getName() ?: Str::before($address, '@'),
                 'email' => $address,
+                'email_verified_at' => now(), // Google has already verified this address.
                 'email_provider' => $email->provider($address),
                 'google_id' => $googleUser->getId(),
                 'avatar' => $googleUser->getAvatar(),
