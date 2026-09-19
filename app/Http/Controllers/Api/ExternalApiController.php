@@ -229,6 +229,238 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
         return $messages;
     }
 
+    /**
+     * Anthropic Messages API compatible endpoint (POST /v1/messages).
+     * Accepts the Anthropic request shape, proxies through the same billed
+     * pipeline as OpenAI chat completions, and returns Anthropic-shaped output.
+     */
+    public function messages(Request $request)
+    {
+        $user = $request->get('_api_user');
+        $apiKey = $request->get('_api_key');
+        $validated = $request->validate([
+            'model' => 'required|string|max:120',
+            'messages' => 'required|array|min:1',
+            'messages.*.role' => 'required|string|in:user,assistant',
+            'messages.*.content' => 'required',
+            'system' => 'nullable',
+            'max_tokens' => 'required|integer|min:1|max:1000000',
+            'stream' => 'nullable|boolean',
+            'temperature' => 'nullable|numeric',
+            'top_p' => 'nullable|numeric',
+            'top_k' => 'nullable|integer',
+            'stop_sequences' => 'nullable|array',
+            'metadata' => 'sometimes|array',
+        ]);
+
+        $requestedModel = $validated['model'];
+        if ($apiKey->allowed_models && ! in_array($requestedModel, $apiKey->allowed_models, true)) {
+            return response()->json(['type' => 'error', 'error' => ['type' => 'permission_error', 'message' => 'Model not allowed']], 403);
+        }
+        $allowedModels = $this->aiProxy->getModels($user->getAllowedTiers());
+        if (! in_array($requestedModel, array_column($allowedModels, 'id'), true)) {
+            return response()->json(['type' => 'error', 'error' => ['type' => 'permission_error', 'message' => 'Model not available']], 403);
+        }
+
+        $messages = $this->injectSystemPrompt(
+            $this->anthropicToOpenAiMessages($validated['messages'], $validated['system'] ?? null),
+            $requestedModel,
+        );
+        $maximumOutput = (int) $validated['max_tokens'];
+        $options = array_filter([
+            'temperature' => $validated['temperature'] ?? null,
+            'top_p' => $validated['top_p'] ?? null,
+            'max_tokens' => $maximumOutput,
+            'stop' => $validated['stop_sequences'] ?? null,
+        ], static fn ($value) => $value !== null);
+
+        $reservation = $this->billing->reserveApi(
+            $user->id,
+            $requestedModel,
+            $this->billing->estimateInputTokens($messages),
+            $maximumOutput,
+            'api:'.Str::uuid(),
+        );
+
+        if ($validated['stream'] ?? false) {
+            return $this->handleAnthropicStream($user, $requestedModel, $messages, $options, $reservation, $maximumOutput);
+        }
+
+        try {
+            $data = $this->aiProxy->chatCompletion($messages, $requestedModel, $options, $maximumOutput);
+        } catch (Throwable $exception) {
+            Wallet::release($user->id, $reservation, 'Anthropic API upstream request failed');
+
+            return $this->anthropicError($exception);
+        }
+
+        if (is_array($data['usage'] ?? null)) {
+            $costMicrousd = $this->billing->settleApi($user->id, $requestedModel, $data['usage'], $reservation);
+            UsageLog::record($user->id, $requestedModel, [
+                ...$data['usage'],
+                'cost_microusd' => $costMicrousd,
+            ], 'api');
+        } else {
+            Wallet::release($user->id, $reservation, 'Anthropic API response did not report usage');
+        }
+
+        return response()->json($this->openAiToAnthropicResponse($data, $requestedModel));
+    }
+
+    /** Flatten Anthropic message/system blocks into OpenAI-style chat messages. */
+    private function anthropicToOpenAiMessages(array $messages, $system): array
+    {
+        $out = [];
+        if ($system !== null) {
+            $systemText = is_array($system)
+                ? implode("\n", array_map(static fn ($block) => is_array($block) ? ($block['text'] ?? '') : (string) $block, $system))
+                : (string) $system;
+            if (trim($systemText) !== '') {
+                $out[] = ['role' => 'system', 'content' => $systemText];
+            }
+        }
+        foreach ($messages as $message) {
+            $content = $message['content'];
+            if (is_string($content)) {
+                $out[] = ['role' => $message['role'], 'content' => $content];
+                continue;
+            }
+            $parts = [];
+            foreach ((array) $content as $block) {
+                $type = $block['type'] ?? 'text';
+                if ($type === 'text') {
+                    $parts[] = ['type' => 'text', 'text' => $block['text'] ?? ''];
+                } elseif ($type === 'image' && isset($block['source']['data'])) {
+                    $media = $block['source']['media_type'] ?? 'image/png';
+                    $parts[] = ['type' => 'image_url', 'image_url' => ['url' => "data:{$media};base64,".$block['source']['data']]];
+                } elseif ($type === 'tool_result') {
+                    $parts[] = ['type' => 'text', 'text' => is_array($block['content'] ?? null)
+                        ? implode("\n", array_map(static fn ($c) => is_array($c) ? ($c['text'] ?? '') : (string) $c, $block['content']))
+                        : (string) ($block['content'] ?? '')];
+                }
+            }
+            $out[] = ['role' => $message['role'], 'content' => $parts];
+        }
+
+        return $out;
+    }
+
+    /** Map an OpenAI finish_reason onto the Anthropic stop_reason vocabulary. */
+    private static function anthropicStopReason(?string $finish): string
+    {
+        return match ($finish) {
+            'length' => 'max_tokens',
+            'tool_calls', 'function_call' => 'tool_use',
+            'content_filter' => 'end_turn',
+            default => 'end_turn',
+        };
+    }
+
+    private function openAiToAnthropicResponse(array $data, string $model): array
+    {
+        $choice = $data['choices'][0] ?? [];
+        $text = $choice['message']['content'] ?? '';
+        if (is_array($text)) {
+            $text = implode('', array_map(static fn ($p) => is_array($p) ? ($p['text'] ?? '') : (string) $p, $text));
+        }
+        $usage = $data['usage'] ?? [];
+
+        return [
+            'id' => 'msg_'.Str::random(24),
+            'type' => 'message',
+            'role' => 'assistant',
+            'model' => $model,
+            'content' => [['type' => 'text', 'text' => (string) $text]],
+            'stop_reason' => self::anthropicStopReason($choice['finish_reason'] ?? null),
+            'stop_sequence' => null,
+            'usage' => [
+                'input_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
+                'output_tokens' => (int) ($usage['completion_tokens'] ?? 0),
+            ],
+        ];
+    }
+
+    private function anthropicError(Throwable $exception): JsonResponse
+    {
+        return response()->json([
+            'type' => 'error',
+            'error' => [
+                'type' => 'api_error',
+                'message' => $exception instanceof AiProxyException
+                    ? $exception->getMessage()
+                    : 'The AI provider is unavailable. Please try again later.',
+            ],
+        ], $exception instanceof AiProxyException ? $exception->responseStatus() : 502);
+    }
+
+    /** Emit an Anthropic-framed SSE stream bridged from the internal OpenAI stream. */
+    private function handleAnthropicStream($user, string $model, array $messages, array $options, array $reservation, int $maximumOutput): StreamedResponse
+    {
+        return new StreamedResponse(function () use ($user, $model, $messages, $options, $reservation, $maximumOutput): void {
+            $usage = null;
+            $settled = false;
+            $messageId = 'msg_'.Str::random(24);
+            $finish = 'stop';
+            $emit = static function (string $event, array $payload): void {
+                echo 'event: '.$event."\n";
+                echo 'data: '.json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n";
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            };
+
+            $emit('message_start', ['type' => 'message_start', 'message' => [
+                'id' => $messageId, 'type' => 'message', 'role' => 'assistant', 'model' => $model,
+                'content' => [], 'stop_reason' => null, 'stop_sequence' => null,
+                'usage' => ['input_tokens' => 0, 'output_tokens' => 0],
+            ]]);
+            $emit('content_block_start', ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '']]);
+
+            try {
+                foreach ($this->aiProxy->streamChatCompletion($messages, $model, $options, $maximumOutput) as $event) {
+                    if (is_array($event['usage'] ?? null)) {
+                        $usage = $event['usage'];
+                    }
+                    $delta = $event['choices'][0]['delta']['content'] ?? '';
+                    if ($event['choices'][0]['finish_reason'] ?? null) {
+                        $finish = $event['choices'][0]['finish_reason'];
+                    }
+                    if (is_string($delta) && $delta !== '') {
+                        $emit('content_block_delta', ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => $delta]]);
+                    }
+                }
+                if ($usage !== null) {
+                    $costMicrousd = $this->billing->settleApi($user->id, $model, $usage, $reservation);
+                    $settled = true;
+                    UsageLog::record($user->id, $model, [...$usage, 'cost_microusd' => $costMicrousd], 'api');
+                } else {
+                    Wallet::release($user->id, $reservation, 'Streaming Anthropic API response did not report usage');
+                    $settled = true;
+                }
+                $emit('content_block_stop', ['type' => 'content_block_stop', 'index' => 0]);
+                $emit('message_delta', ['type' => 'message_delta',
+                    'delta' => ['stop_reason' => self::anthropicStopReason($finish), 'stop_sequence' => null],
+                    'usage' => ['output_tokens' => (int) ($usage['completion_tokens'] ?? 0)],
+                ]);
+                $emit('message_stop', ['type' => 'message_stop']);
+            } catch (Throwable $exception) {
+                if (! $settled) {
+                    Wallet::release($user->id, $reservation, 'Streaming Anthropic API request failed');
+                }
+                $emit('error', ['type' => 'error', 'error' => [
+                    'type' => 'api_error',
+                    'message' => $exception instanceof AiProxyException ? $exception->getMessage() : 'The AI provider is unavailable. Please try again later.',
+                ]]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
     public static function clean(string $text): string
     {
         return str_ireplace(self::BLOCKED_RESPONSE_FRAGMENTS, 'UltrAI', $text);

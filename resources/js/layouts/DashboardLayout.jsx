@@ -116,6 +116,7 @@ export default function DashboardLayout({ children }) {
         { name: 'Content & Support', href: '/admin/content', icon: Icons.feedback, tone: 'amber' },
         { name: 'System Activity', href: '/admin/system', icon: Icons.audit, tone: 'indigo' },
         { name: 'Pricing Settings', href: '/admin/settings', icon: Icons.settings, tone: 'slate' },
+        { name: 'API Keys', href: '/admin/api-keys', icon: Icons.key, tone: 'red' },
     ];
     const isActive = href => location.pathname === localizedPath(href);
     const currentPage = t([...userNav, ...(isAdmin ? adminNav : [])].find(item => isActive(item.href))?.name || 'Dashboard');
