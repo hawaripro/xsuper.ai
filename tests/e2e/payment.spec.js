@@ -7,9 +7,9 @@ test('QRIS paid confirmation becomes a persisted order then admin approval exten
     await login(page, 'member');
     const member = databaseRows('users', { email: 'member@dashboard-e2e.test' })[0];
     const beforeExpiry = new Date(member.expires_at).getTime();
-    await page.getByRole('button', { name: 'Extend access', exact: true }).click();
+    await page.goto('/en/deposit?tab=subscription');
     const checkout = page.waitForResponse(response => response.url().endsWith('/api/period/checkout') && response.request().method() === 'POST');
-    await page.getByRole('dialog').getByRole('button', { name: /1 Week|1 Minggu/ }).click();
+    await page.locator('.deposit-subscription').getByRole('button', { name: /1 Week|1 Minggu/ }).click();
     const reference = (await (await checkout).json()).checkout.payment_reference;
     await expect(page.getByRole('img', { name: 'QRIS payment code' })).toBeVisible();
     await expect(page.getByText('Scan the QRIS code to pay', { exact: true })).toBeVisible();

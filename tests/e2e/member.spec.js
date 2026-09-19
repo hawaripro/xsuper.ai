@@ -48,6 +48,7 @@ test('saved history opens from a chat deep link and deletes only the member conv
     await expect(conversation).toBeVisible();
     const deletion = page.waitForResponse(response => response.url().endsWith('/api/c/h/qa-member-history') && response.request().method() === 'DELETE');
     page.on('dialog', dialog => dialog.accept());
+    await conversation.hover();
     await conversation.getByRole('button', { name: /Delete conversation|Hapus percakapan/ }).click();
     expect((await deletion).status()).toBe(200);
     expect(databaseRows('chat_history', { conversation_id: 'qa-member-history' })).toHaveLength(0);
