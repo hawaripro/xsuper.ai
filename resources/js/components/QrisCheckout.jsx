@@ -135,6 +135,28 @@ export default function QrisCheckout({ packages, loading = false, error: package
         }
     }, [checkout, selected, stopCountdown]);
 
+    // Step 3: the member may withdraw a pending order before the admin decision.
+    const [cancelPrompt, setCancelPrompt] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
+    const cancelOrder = useCallback(async () => {
+        if (!order?.id || cancelling) return;
+        setCancelling(true); setError(null);
+        try {
+            await apiRequest(`/api/period/order/${order.id}/cancel`, { method: "POST" });
+            if (!mountedRef.current) return;
+            stopPolling();
+            setCancelPrompt(false);
+            setOrder(null);
+            setSelected(null);
+            setCheckout(null);
+            setStep("select");
+        } catch (requestError) {
+            if (mountedRef.current) setError(requestError);
+        } finally {
+            if (mountedRef.current) setCancelling(false);
+        }
+    }, [order?.id, cancelling, stopPolling]);
+
     // Step 3: poll every 3s until the order reaches a terminal status.
     useEffect(() => {
         if (step !== "wait") { stopPolling(); return undefined; }
@@ -241,6 +263,18 @@ export default function QrisCheckout({ packages, loading = false, error: package
                     <div className="flex justify-center"><Spinner label={t("Menunggu persetujuan admin")} /></div>
                     <p className="text-[12px] text-slate-500 dark:text-slate-400">{t("Order Anda sudah tercatat dan menunggu persetujuan admin. Halaman ini diperbarui otomatis.")}</p>
                     {order?.id && <p className="text-[11px] text-slate-400 dark:text-slate-500">ULTR-{String(order.id).padStart(4, "0")}</p>}
+                    {error && <InlineAlert tone="error">{errorMessage(error, t("Order tidak dapat dibatalkan."))}</InlineAlert>}
+                    {cancelPrompt ? (
+                        <div className="space-y-2">
+                            <p className="text-[12px] font-semibold text-red-600 dark:text-red-300">{t("Batalkan order langganan ini? Jika Anda sudah transfer, jangan batalkan - tunggu peninjauan admin.")}</p>
+                            <div className="flex justify-center gap-2">
+                                <Button variant="secondary" onClick={cancelOrder} disabled={cancelling}>{cancelling ? t("Membatalkan…") : t("Ya, batalkan order")}</Button>
+                                <Button variant="ghost" onClick={() => setCancelPrompt(false)} disabled={cancelling}>{t("Kembali")}</Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <Button variant="ghost" onClick={() => setCancelPrompt(true)} disabled={cancelling}>{t("Batalkan order")}</Button>
+                    )}
                 </div>
             )}
 

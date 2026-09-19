@@ -4,6 +4,7 @@ import { Button, formatLocalDate } from '../member/MemberUI';
 
 const statusLabels = {
     checkout: 'Belum dikonfirmasi',
+    cancelled: 'Dibatalkan',
     expired: 'Kedaluwarsa',
     pending: 'Menunggu persetujuan',
     approved: 'Disetujui',

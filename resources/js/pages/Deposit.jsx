@@ -16,7 +16,7 @@ const tabs = [
     { key: 'subscription', label: 'Langganan' },
 ];
 const historyStatuses = [
-    ['checkout', 'Belum dikonfirmasi'], ['pending', 'Menunggu persetujuan'],
+    ['checkout', 'Belum dikonfirmasi'], ['pending', 'Menunggu persetujuan'], ['cancelled', 'Dibatalkan'],
     ['approved', 'Disetujui'], ['rejected', 'Ditolak'], ['expired', 'Kedaluwarsa'],
 ];
 

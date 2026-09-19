@@ -177,6 +177,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/deposits', [DepositController::class, 'store']);
         Route::get('/deposits', [DepositController::class, 'index']);
         Route::get('/deposits/{depositOrder}', [DepositController::class, 'show']);
+        Route::post('/deposits/{depositOrder}/cancel', [DepositController::class, 'cancel'])->middleware('throttle:20,1');
 
         Route::get('/referrals/me', [ReferralController::class, 'memberStats']);
         // Admin
@@ -275,6 +276,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::get('/period/packages', [PeriodController::class, 'packages']);
         Route::post('/period/checkout', [PeriodController::class, 'checkout']);
         Route::post('/period/order', [PeriodController::class, 'store']);
+        Route::post('/period/order/{order}/cancel', [PeriodController::class, 'cancel'])->middleware('throttle:20,1');
         Route::get('/period/my-orders', [PeriodController::class, 'myOrders']);
 
         // Onboarding & Templates

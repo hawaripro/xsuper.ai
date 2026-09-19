@@ -259,6 +259,31 @@ class DepositController extends Controller
         ]);
     }
 
+    /**
+     * Member cancels their own deposit before an admin decision. No value has
+     * moved yet (crediting only happens at approval), so this is a pure
+     * status transition kept in the immutable history.
+     */
+    public function cancel(Request $request, DepositOrder $depositOrder): JsonResponse
+    {
+        $user = $this->authenticatedUser($request);
+        abort_unless((int) $depositOrder->user_id === (int) $user->id, 404);
+
+        $order = DB::transaction(function () use ($depositOrder, $user): DepositOrder {
+            $order = DepositOrder::query()->lockForUpdate()->findOrFail($depositOrder->id);
+            if (! in_array($order->status, [DepositOrder::STATUS_CHECKOUT, DepositOrder::STATUS_PENDING], true)) {
+                throw ValidationException::withMessages(['order' => ['Deposit yang sudah diproses admin tidak dapat dibatalkan.']]);
+            }
+
+            $order->update(['status' => DepositOrder::STATUS_CANCELLED, 'note' => 'Dibatalkan oleh pemilik akun.']);
+            $this->audit->record($user, 'deposit.cancelled', $order, ['kind' => $order->kind]);
+
+            return $order;
+        });
+
+        return response()->json(['message' => 'Deposit dibatalkan.', 'order' => $order->toApiArray()]);
+    }
+
     public function adminIndex(Request $request): JsonResponse
     {
         $this->adminUser($request);

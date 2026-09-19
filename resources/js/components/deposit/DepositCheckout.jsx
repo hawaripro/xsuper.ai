@@ -6,7 +6,7 @@ import { Button } from '../member/MemberUI';
 import { DepositCredit, DepositNotice, DepositStatus, depositErrorText, useDepositFormat } from './DepositUI';
 
 const OPEN_STATUSES = ['checkout', 'pending'];
-const ORDER_STATUSES = [...OPEN_STATUSES, 'expired', 'approved', 'rejected'];
+const ORDER_STATUSES = [...OPEN_STATUSES, 'expired', 'approved', 'rejected', 'cancelled'];
 
 function countdown(expiresAt, now) {
     const remaining = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000));
@@ -150,6 +150,28 @@ export default function DepositCheckout({ id, initialOrder, onClose, onBalances,
         setRefresh(value => value + 1);
     };
 
+    const [cancelPrompt, setCancelPrompt] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
+    const [cancelError, setCancelError] = useState(null);
+    const cancelOrder = async () => {
+        if (cancelling || !order?.id) return;
+        setCancelling(true);
+        setCancelError(null);
+        readController.current?.abort();
+        clearTimeout(timer.current);
+        try {
+            const result = await apiRequest(`/api/deposits/${order.id}/cancel`, { method: 'POST' });
+            if (!mounted.current) return;
+            receiveOrder(result?.order);
+            setCancelPrompt(false);
+            onChanged?.(result?.order);
+        } catch (requestError) {
+            if (mounted.current) setCancelError(requestError);
+        } finally {
+            if (mounted.current) { setCancelling(false); setRefresh(value => value + 1); }
+        }
+    };
+
     return (
         <section className="deposit-payment deposit-surface" aria-labelledby="deposit-payment-title" aria-busy={confirming}>
             <div className="deposit-section-heading">
@@ -195,6 +217,18 @@ export default function DepositCheckout({ id, initialOrder, onClose, onBalances,
                     <p>{t('Konfirmasi Anda tersimpan. Admin akan mencocokkan pembayaran sebelum menambahkan kredit. Tidak perlu membayar ulang.')}</p>
                     <p className="deposit-fine-print">{t('Anda boleh meninggalkan halaman ini. Pantau deposit yang sama dari riwayat.')}</p>
                 </div>}
+                {['checkout', 'pending'].includes(order.status) && <div className="deposit-cancel-area">
+                    {cancelError && <DepositNotice tone="error"><p>{depositErrorText(cancelError, t)}</p></DepositNotice>}
+                    {cancelPrompt ? <DepositNotice tone="error">
+                        <strong>{t('Batalkan deposit ini?')}</strong>
+                        <p>{order.status === 'pending' ? t('Jika Anda sudah transfer, jangan batalkan - tunggu peninjauan admin. Pembatalan bersifat permanen.') : t('Checkout ditutup permanen dan QRIS ini tidak boleh dibayar lagi.')}</p>
+                        <div className="deposit-cancel-actions">
+                            <Button variant="secondary" onClick={cancelOrder} disabled={cancelling}>{cancelling ? t('Membatalkan…') : t('Ya, batalkan deposit')}</Button>
+                            <Button variant="ghost" onClick={() => setCancelPrompt(false)} disabled={cancelling}>{t('Kembali')}</Button>
+                        </div>
+                    </DepositNotice> : <Button variant="ghost" className="deposit-cancel-link" onClick={() => setCancelPrompt(true)} disabled={confirming || cancelling}>{t('Batalkan deposit')}</Button>}
+                </div>}
+                {order.status === 'cancelled' && <DepositNotice><strong>{t('Deposit dibatalkan')}</strong><p>{t('Tidak ada kredit yang ditambahkan. Buka deposit baru dari katalog kapan saja.')}</p></DepositNotice>}
                 {order.status === 'approved' && <DepositNotice tone="success"><strong>{t('Deposit disetujui')}</strong><p>{order.kind === 'tokens' ? t('Kredit token sudah ditambahkan ke akun Anda.') : t('Saldo USD sudah ditambahkan ke dompet API PAYG Anda.')}</p></DepositNotice>}
                 {order.status === 'rejected' && <DepositNotice tone="error"><strong>{t('Deposit ditolak')}</strong><p>{t('Tidak ada kredit yang ditambahkan. Jika Anda sudah transfer, hubungi bantuan dengan referensi pembayaran ini.')}</p></DepositNotice>}
                 {order.status === 'expired' && <DepositNotice><strong>{t('Checkout kedaluwarsa')}</strong><p>{t('Checkout ini tidak menerima konfirmasi lagi. Jika sudah transfer, hubungi bantuan sebelum membuat pembayaran lain.')}</p></DepositNotice>}
