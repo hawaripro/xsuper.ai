@@ -45,6 +45,7 @@ import AICatalog from './pages/admin/AICatalog';
 import SystemActivity from './pages/admin/SystemActivity';
 import Settings from './pages/admin/Settings';
 import ApiKeys from './pages/admin/ApiKeys';
+import Security from './pages/admin/Security';
 
 // Layout
 import DashboardLayout from './layouts/DashboardLayout';
@@ -133,6 +134,7 @@ function LocalizedAppRoutes() {
             <Route path={path('/admin/system')} element={<DL adminOnly><SystemActivity /></DL>} />
             <Route path={path('/admin/settings')} element={<DL adminOnly><Settings /></DL>} />
             <Route path={path('/admin/api-keys')} element={<DL adminOnly><ApiKeys /></DL>} />
+            <Route path={path('/admin/security')} element={<DL adminOnly><Security /></DL>} />
             <Route path={path('/admin')} element={<Navigate to={path('/admin/overview')} replace />} />
             <Route path={path('/usage')} element={<Navigate to={path('/admin/token-usage')} replace />} />
             <Route path="*" element={<ErrorPage code={404} />} />

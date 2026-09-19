@@ -123,7 +123,7 @@ export default function ApiKeys() {
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         if (!q) return keys;
-        return keys.filter((k) => [k.name, k.user_name, k.masked_key, k.key].some((v) => (v || '').toLowerCase().includes(q)));
+        return keys.filter((k) => [k.name, k.user_name, k.masked_key].some((v) => (v || '').toLowerCase().includes(q)));
     }, [keys, search]);
 
     const stats = useMemo(() => ({
@@ -242,8 +242,7 @@ export default function ApiKeys() {
                                     <div className={`text-xs ${muted}`}>{k.user_name}</div>
                                 </div>
                                 <div className={`flex items-center gap-2 rounded-lg px-2 py-1 ${dark ? 'bg-black/30' : 'bg-gray-100'}`}>
-                                    <code className={`max-w-[220px] truncate font-mono text-xs ${dark ? 'text-gray-300' : 'text-gray-600'}`}>{k.key}</code>
-                                    <button type="button" onClick={() => copy(k.key)} className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${copied === k.key ? 'bg-emerald-500/20 text-emerald-500' : dark ? 'bg-white/[0.06] text-gray-300 hover:bg-white/[0.12]' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{copied === k.key ? '✓' : 'Copy'}</button>
+                                    <code className={`max-w-[220px] truncate font-mono text-xs ${dark ? 'text-gray-300' : 'text-gray-600'}`}>{k.masked_key}</code>
                                 </div>
                                 <div className={`hidden text-center text-xs sm:block ${muted}`}>
                                     <div className={`font-bold ${head}`}>{(k.total_requests || 0).toLocaleString('id-ID')}</div>

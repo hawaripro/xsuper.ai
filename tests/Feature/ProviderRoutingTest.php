@@ -73,7 +73,7 @@ class ProviderRoutingTest extends TestCase
         $this->model($provider, 'public-tools', 'private-tools');
         $user = User::factory()->create(['role' => 'admin']);
         Wallet::credit($user->id, 1_000_000, 'Fixture balance');
-        $key = ApiKey::create(['user_id' => $user->id, 'name' => 'Fixture', 'key' => 'ultrai-provider-test', 'is_active' => true, 'rate_limit' => 60]);
+        $key = ApiKey::generate($user->id, 'Fixture');
         foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
             UsageRate::create(['service' => 'api', 'meter' => $meter, 'model' => 'public-tools', 'label' => $meter, 'unit' => '1M tokens', 'price_usd' => $price, 'price_idr' => 16000 * $price, 'is_active' => true]);
         }
@@ -84,7 +84,7 @@ class ProviderRoutingTest extends TestCase
             'usage' => ['input_tokens' => 10, 'output_tokens' => 5, 'cache_read_input_tokens' => 3, 'cache_creation_input_tokens' => 2],
         ])]);
 
-        $response = $this->withToken($key->key)->postJson('/v1/chat/completions', [
+        $response = $this->withToken($key->plainKey)->postJson('/v1/chat/completions', [
             'model' => 'public-tools', 'max_tokens' => 20,
             'messages' => [['role' => 'user', 'content' => 'Weather?']],
             'tools' => [['type' => 'function', 'function' => ['name' => 'weather', 'parameters' => ['type' => 'object', 'properties' => ['city' => ['type' => 'string']]]]]],
@@ -188,7 +188,7 @@ class ProviderRoutingTest extends TestCase
             ->push($body, 200, ['Content-Type' => 'text/event-stream'])
             ->push(['error' => ['message' => 'openai-fixture-key must not be forwarded']], 401)]);
         $payload = ['model' => 'public-billed-stream', 'stream' => true, 'max_completion_tokens' => 20, 'messages' => [['role' => 'user', 'content' => 'Hello']]];
-        $stream = $this->withToken($key->key)->postJson('/v1/chat/completions', $payload)->assertOk()->streamedContent();
+        $stream = $this->withToken($key->plainKey)->postJson('/v1/chat/completions', $payload)->assertOk()->streamedContent();
         $this->assertSame(1, substr_count($stream, 'data: [DONE]'));
         $text = '';
         foreach (explode("\n", $stream) as $line) {
@@ -219,7 +219,7 @@ class ProviderRoutingTest extends TestCase
         Http::fake(['https://anthropic.example.test/v1/messages' => Http::response([
             'type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'anthropic-fixture-key at https://anthropic.example.test is invalid'],
         ], 401)]);
-        $response = $this->withToken($key->key)->postJson('/v1/chat/completions', [
+        $response = $this->withToken($key->plainKey)->postJson('/v1/chat/completions', [
             'model' => 'public-failed', 'max_tokens' => 20, 'messages' => [['role' => 'user', 'content' => 'Hello']],
         ])->assertStatus(502);
         $this->assertStringNotContainsString('anthropic-fixture-key', $response->getContent());

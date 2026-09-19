@@ -37,7 +37,7 @@ class AnthropicApiCompatibilityTest extends TestCase
         $this->app->instance(AiProxyService::class, $proxy);
         $this->fakeBilling();
 
-        $response = $this->withHeaders(['Authorization' => 'Bearer '.$key->key])
+        $response = $this->withHeaders(['Authorization' => 'Bearer '.$key->plainKey])
             ->postJson('/v1/messages', [
                 'model' => 'claude-test',
                 'max_tokens' => 100,
@@ -68,7 +68,7 @@ class AnthropicApiCompatibilityTest extends TestCase
         $this->app->instance(AiProxyService::class, $proxy);
         $this->fakeBilling();
 
-        $response = $this->withHeaders(['Authorization' => 'Bearer '.$key->key])
+        $response = $this->withHeaders(['Authorization' => 'Bearer '.$key->plainKey])
             ->postJson('/v1/messages', [
                 'model' => 'not-a-real-model',
                 'max_tokens' => 100,

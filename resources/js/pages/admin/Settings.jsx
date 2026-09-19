@@ -12,6 +12,25 @@ const apiMeters = ["input_tokens", "output_tokens", "cache_read", "cache_write"]
 const nullableNumber = (value) => value === "" || value == null ? null : Number(value);
 const priceInRange = (value, min, max) => value !== "" && Number.isFinite(Number(value)) && Number(value) >= min && Number(value) <= max;
 
+const TONES = {
+    red: "from-red-500 to-rose-600",
+    blue: "from-blue-500 to-indigo-500",
+    violet: "from-violet-500 to-fuchsia-500",
+    emerald: "from-emerald-500 to-teal-500",
+    amber: "from-amber-500 to-orange-500",
+    cyan: "from-cyan-500 to-sky-500",
+};
+
+function SectionHead({ dark, tone, icon, id, title, subtitle }) {
+    return <div className={`flex items-start gap-3 border-b p-4 ${dark ? "border-white/[0.06]" : "border-gray-200/70"}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${TONES[tone]} text-white shadow-md`} aria-hidden="true">{icon}</span>
+        <div className="min-w-0">
+            <h2 id={id} className={`text-sm font-bold ${dark ? "text-white" : "text-slate-900"}`}>{title}</h2>
+            {subtitle && <p className={`mt-0.5 text-xs leading-5 ${dark ? "text-gray-400" : "text-gray-500"}`}>{subtitle}</p>}
+        </div>
+    </div>;
+}
+
 export default function Settings() {
     const { t } = useLocale();
     const { theme } = useTheme();
@@ -38,7 +57,7 @@ export default function Settings() {
     const [rowErrors, setRowErrors] = useState({});
     const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState({ error: "", success: "" });
-    const [topup, setTopup] = useState({ user_id: "", amount_usd: "", description: "" });
+    const [autoForm, setAutoForm] = useState({ margin: 1, idr_per_usd: 16000, overwrite: false });
     const requests = useRef({ pricing: 0, models: 0 });
 
     const loadPricing = useCallback(async (signal) => {
@@ -99,7 +118,11 @@ export default function Settings() {
     const selectedDirtyRates = dirtyRateIds.filter((id) => selectedSet.has(id));
     const dirtyPackages = Object.keys(durationDrafts);
     const selectedDirtyPackages = dirtyPackages.filter((id) => durationSelection.includes(id));
-    const panel = "ui-card-flat min-w-0";
+    const card = dark ? "bg-white/[0.02] border-white/[0.08]" : "bg-white border-gray-200/80";
+    const head = dark ? "text-white" : "text-slate-900";
+    const muted = dark ? "text-gray-400" : "text-gray-500";
+    const field = `w-full rounded-xl px-3 py-2.5 text-sm ${dark ? "bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-gray-600" : "bg-white border border-gray-200 text-slate-900 placeholder:text-gray-400"} focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10`;
+    const panel = `min-w-0 rounded-2xl border ${card} animate-fade-in-up`;
     const input = "ui-input min-h-10";
     const patchRate = (id, key, value) => setRateDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
     const patchDuration = (id, key, value) => setDurationDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
@@ -198,26 +221,85 @@ export default function Settings() {
             setStatus({ error: error.message, success: "" });
         } finally { setBusy(false); }
     };
-    const topupWallet = async (event) => {
-        event.preventDefault();
+    const autoPrice = async () => {
         setBusy(true);
         setStatus({ error: "", success: "" });
         try {
-            const data = await apiRequest("/api/pricing/wallet/topup", { method: "POST", body: topup });
-            setStatus({ error: "", success: `${t("Saldo wallet diperbarui untuk user")} #${topup.user_id}: $${Number(data.balance_usd).toFixed(2)}.` });
-            setTopup({ user_id: "", amount_usd: "", description: "" });
+            const data = await apiRequest("/api/pricing/rates/auto", { method: "POST", body: { margin: Number(autoForm.margin), idr_per_usd: Number(autoForm.idr_per_usd), overwrite: autoForm.overwrite } });
+            setStatus({ error: "", success: `${t("Harga otomatis diterapkan ke")} ${data.updated_count} ${t("tarif model.")}` });
+            await Promise.all([loadPricing(), loadModels()]);
         } catch (error) { setStatus({ error: error.message, success: "" }); }
         finally { setBusy(false); }
     };
     const fieldError = (type, id, field) => rowErrors[type]?.[id]?.[field] && <span className="mt-1 block max-w-52 whitespace-normal text-xs text-red-600 dark:text-red-300">{t([rowErrors[type][id][field]].flat()[0])}</span>;
 
-    return <div className="p-6 lg:p-8 min-w-0 space-y-6 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" style={{ fontSize: "90%" }}>
-        <div><h1 className={`text-2xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>Pricing &amp; Billing</h1><p className={dark ? "text-gray-400" : "text-gray-500"}>{t("Ubah harga paket, tarif PAYG, dan publikasi tanpa rebuild frontend.")}</p></div>
+    return <div className="mx-auto min-w-0 max-w-7xl space-y-6 p-4 lg:p-6 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" style={{ fontSize: "90%" }}>
+        <header className={`relative overflow-hidden rounded-2xl border p-5 lg:p-6 ${dark ? "border-white/[0.08] bg-gradient-to-br from-red-500/[0.08] via-transparent to-violet-500/[0.06]" : "border-gray-200/80 bg-gradient-to-br from-red-50 via-white to-violet-50"} animate-fade-in-up`}>
+            <div className="pointer-events-none absolute -right-10 -top-12 h-44 w-44 rounded-full bg-gradient-to-br from-red-500 to-rose-600 opacity-10 blur-3xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -bottom-16 right-1/4 h-40 w-40 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 opacity-[0.08] blur-3xl" aria-hidden="true" />
+            <div className="relative flex flex-wrap items-center gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/25 animate-pop-in">
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
+                </span>
+                <div className="min-w-0">
+                    <h1 className={`text-2xl font-bold tracking-tight ${head}`}>Pricing &amp; Billing</h1>
+                    <p className={`text-sm ${muted}`}>{t("Ubah harga paket, tarif PAYG, dan publikasi tanpa rebuild frontend.")}</p>
+                </div>
+            </div>
+        </header>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+                { label: t("Paket durasi"), value: packages.length, tone: "blue", icon: <><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></> },
+                { label: t("Tarif PAYG"), value: rates.length, tone: "violet", icon: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /> },
+                { label: t("Dipublikasikan"), value: rates.filter((rate) => rate.is_active).length, tone: "emerald", icon: <><circle cx="12" cy="12" r="9" /><polyline points="8.5 12 11 14.5 15.5 9.5" /></> },
+                { label: t("Draf belum disimpan"), value: dirtyRateIds.length + dirtyPackages.length, tone: "amber", icon: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></> },
+            ].map((stat, index) => <div key={stat.label} className={`relative overflow-hidden rounded-2xl border p-4 ${card} transition-all hover:-translate-y-0.5 animate-fade-in-up [animation-fill-mode:both]`} style={{ animationDelay: `${index * 60}ms` }}>
+                <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br ${TONES[stat.tone]} opacity-10 blur-2xl`} aria-hidden="true" />
+                <span className={`relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${TONES[stat.tone]} text-white shadow-md`}><svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">{stat.icon}</svg></span>
+                <div className={`relative mt-3 text-2xl font-bold tabular-nums ${head}`}>{stat.value}</div>
+                <div className={`relative text-xs ${muted}`}>{stat.label}</div>
+            </div>)}
+        </div>
         {(status.error || status.success) && <p role={status.error ? "alert" : "status"} className={`rounded-xl border p-3 text-sm ${status.error ? "border-red-500/20 text-red-700 dark:text-red-300" : "border-emerald-500/20 text-emerald-700 dark:text-emerald-300"}`}>{status.error || status.success}</p>}
+        <section className={`relative overflow-hidden rounded-2xl border p-5 ${dark ? "border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-teal-500/[0.05]" : "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50"} animate-fade-in-up`} aria-labelledby="auto-price-title">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 opacity-10 blur-3xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -bottom-12 left-1/4 h-32 w-32 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-500 opacity-[0.07] blur-3xl" aria-hidden="true" />
+            <div className="relative flex flex-wrap items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25 animate-pop-in">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3l2.4 5.6L21 11l-5.6 2.4L13 19l-2.4-5.6L5 11l5.6-2.4z" /><path d="M5 3v3" /><path d="M3.5 4.5h3" /><path d="M18 17v3" /><path d="M16.5 18.5h3" /></svg>
+                </span>
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h2 id="auto-price-title" className={`text-sm font-bold ${head}`}>{t("Harga otomatis per tier")}</h2>
+                        <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-500">{t("Otomatis")}</span>
+                    </div>
+                    <p className={`mt-0.5 text-xs leading-5 ${muted}`}>{t("Admin tidak perlu lagi mengisi harga input/output per model secara manual. Harga dibuat otomatis untuk semua model chat: harga = dasar per tier × margin.")}</p>
+                </div>
+            </div>
+            <div className="relative mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,150px)_minmax(0,180px)_1fr_auto] lg:items-end">
+                <div>
+                    <label htmlFor="auto-margin" className={`mb-1.5 block text-xs font-bold uppercase tracking-wide ${muted}`}>{t("Margin (×)")}</label>
+                    <input id="auto-margin" type="number" min="0.1" max="100" step="0.1" className={field} value={autoForm.margin} disabled={busy} onChange={(event) => setAutoForm((current) => ({ ...current, margin: event.target.value }))} />
+                </div>
+                <div>
+                    <label htmlFor="auto-idr" className={`mb-1.5 block text-xs font-bold uppercase tracking-wide ${muted}`}>{t("IDR per USD")}</label>
+                    <input id="auto-idr" type="number" min="1" step="1" className={field} value={autoForm.idr_per_usd} disabled={busy} onChange={(event) => setAutoForm((current) => ({ ...current, idr_per_usd: event.target.value }))} />
+                </div>
+                <label className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-medium ${dark ? "border-white/[0.08] bg-white/[0.03] text-gray-300" : "border-gray-200 bg-white/70 text-slate-700"}`}>
+                    <input type="checkbox" className="h-4 w-4 accent-emerald-500" checked={autoForm.overwrite} disabled={busy} onChange={(event) => setAutoForm((current) => ({ ...current, overwrite: event.target.checked }))} />
+                    {t("Timpa tarif yang sudah ada")}
+                </label>
+                <button type="button" onClick={autoPrice} disabled={busy} className="ui-btn-primary min-h-11 px-5">{busy ? t("Menerapkan…") : t("Terapkan harga otomatis")}</button>
+            </div>
+            <p className={`relative mt-3 flex items-start gap-2 text-[11px] leading-5 ${muted}`}>
+                <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><line x1="12" y1="11" x2="12" y2="16" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                {t("Tier standar: input 0.15 / output 0.60 USD per 1 juta token. Tier MAX: input 3.00 / output 15.00 USD per 1 juta token.")}
+            </p>
+        </section>
         {loadErrors.pricing && <ErrorState message={loadErrors.pricing} onRetry={() => loadPricing()} />}
         {loading.pricing && !catalog ? <LoadingState label={t("Memuat pricing…")} /> : catalog && <>
             <section className={panel} aria-labelledby="duration-prices-title">
-                <div className="ui-card-header"><h2 id="duration-prices-title" className="ui-section-title">{t("Paket durasi")}</h2><p className="text-xs text-slate-600 dark:text-slate-400">{t("Minimal satu paket tetap aktif. Kredit token Deposit dikelola terpisah.")}</p></div>
+                <SectionHead dark={dark} tone="blue" id="duration-prices-title" title={t("Paket durasi")} subtitle={t("Minimal satu paket tetap aktif. Kredit token Deposit dikelola terpisah.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} />
                 <div className="max-w-full overflow-x-auto"><table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr><th className="p-3"><input type="checkbox" aria-label={t("Pilih semua paket di tabel")} checked={packages.length > 0 && packages.every(([id]) => durationSelection.includes(id))} disabled={busy} onChange={(event) => setDurationSelection(event.target.checked ? packages.map(([id]) => id) : [])} /></th><th className="p-3">{t("Paket")}</th><th className="p-3">IDR</th><th className="p-3">USD</th><th className="p-3">{t("Urutan")}</th><th className="p-3">{t("Aktif")}</th></tr></thead>
                     <tbody>{packages.map(([id, original]) => {
@@ -235,7 +317,7 @@ export default function Settings() {
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4 dark:border-white/10"><span className="text-xs">{durationSelection.length} {t("dipilih")} · {dirtyPackages.length} {t("draf berubah")}</span><div className="flex flex-wrap gap-2"><button className="ui-btn-secondary" disabled={busy || !dirtyPackages.length} onClick={() => { setDurationDrafts({}); setRowErrors((current) => ({ ...current, durations: {} })); }}>{t("Buang draf")}</button><button className="ui-btn-secondary" disabled={busy || !selectedDirtyPackages.length} onClick={() => prepareSave("durations", selectedDirtyPackages)}>{t("Simpan pilihan")} ({selectedDirtyPackages.length})</button><button className="ui-btn-primary" disabled={busy || !dirtyPackages.length} onClick={() => prepareSave("durations", dirtyPackages)}>{t("Simpan paket")} ({dirtyPackages.length})</button></div></div>
             </section>
             <section className={panel} aria-labelledby="usage-prices-title">
-                <div className="ui-card-header"><h2 id="usage-prices-title" className="ui-section-title">{t("Tarif pay as you go")}</h2><p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("API: input, output, cache read/write per 1 juta token. Image/video: per hasil. Kosong bukan harga nol; pasangan API dipublikasikan bersama.")}</p></div>
+                <SectionHead dark={dark} tone="violet" id="usage-prices-title" title={t("Tarif pay as you go")} subtitle={t("API: input, output, cache read/write per 1 juta token. Image/video: per hasil. Kosong bukan harga nol; pasangan API dipublikasikan bersama.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>} />
                 <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4 dark:border-white/10">
                     <label className="min-w-48 flex-1 text-xs font-medium">{t("Cari tarif")}<input type="search" className={`${input} mt-1`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("ID, model, nama, atau meter")} /></label>
                     <label className="text-xs font-medium">{t("Layanan")}<select className={`${input} mt-1`} value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="">{t("Semua layanan")}</option>{["api", "image", "video", "audio"].map((service) => <option key={service}>{service}</option>)}</select></label>
@@ -277,15 +359,10 @@ export default function Settings() {
         </>}
         <TokenPackageTable />
         <section className={panel} aria-labelledby="media-token-prices-title">
-            <div className="ui-card-header"><h2 id="media-token-prices-title" className="ui-section-title">{t("Harga token & konfigurasi media")}</h2><p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Per model, lintas provider. Semua akun, termasuk admin, membayar token per hasil × jumlah. Ini terpisah dari wallet PAYG dan paket Deposit.")}</p></div>
+            <SectionHead dark={dark} tone="cyan" id="media-token-prices-title" title={t("Harga token & konfigurasi media")} subtitle={t("Per model, lintas provider. Semua akun, termasuk admin, membayar token per hasil × jumlah. Ini terpisah dari wallet PAYG dan paket Deposit.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>} />
             {loadErrors.models && <div className="p-4"><ErrorState message={loadErrors.models} onRetry={() => loadModels()} /></div>}
             {loading.models && !modelCatalog ? <div className="p-4"><LoadingState label={t("Memuat model…")} /></div> : modelCatalog && <ModelBulkTable models={modelCatalog.models} providers={modelCatalog.providers} mediaOnly disabled={busy} onRefresh={async () => { await Promise.all([loadModels(), loadPricing()]); }} />}
         </section>
-        <section className={`${panel} p-5`} aria-labelledby="wallet-topup-title"><h2 id="wallet-topup-title" className="ui-section-title">{t("Top up wallet PAYG")}</h2><p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t("Saldo disimpan dalam micro-USD dan setiap perubahan masuk ledger.")}</p><form className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-[150px_160px_1fr_120px]" onSubmit={topupWallet}>
-            <label className="text-xs font-medium">{t("User ID")}<input className={`${input} mt-1`} required type="number" min="1" step="1" disabled={busy} value={topup.user_id} onChange={(event) => setTopup((current) => ({ ...current, user_id: event.target.value }))} /></label>
-            <label className="text-xs font-medium">{t("Amount USD")}<input className={`${input} mt-1`} required type="number" min="0.01" max="1000000" step="0.01" disabled={busy} value={topup.amount_usd} onChange={(event) => setTopup((current) => ({ ...current, amount_usd: event.target.value }))} /></label>
-            <label className="text-xs font-medium">{t("Keterangan")}<input className={`${input} mt-1`} maxLength={255} disabled={busy} value={topup.description} onChange={(event) => setTopup((current) => ({ ...current, description: event.target.value }))} /></label><button type="submit" className="ui-btn-primary self-end" disabled={busy}>{t("Top up")}</button>
-        </form></section>
         {confirmation && <BulkConfirmDialog title={t(confirmation.type === "deleteRates" ? "Hapus tarif terpilih?" : confirmation.type === "durations" ? "Simpan paket durasi?" : "Simpan tarif terpilih?")} count={confirmation.ids.length} rows={confirmation.ids.map((id) => ({ id, label: confirmation.type === "durations" ? catalog.duration_packages[id]?.label : `${rateById.get(id)?.model} · ${rateById.get(id)?.meter}` }))} description={t(confirmation.type === "deleteRates" ? "Hanya tarif dengan ID ini yang dihapus. Jika pasangan API tidak lengkap, tarif saudara dinonaktifkan. Riwayat dan saldo tidak dihapus." : confirmation.type === "durations" ? "Simpan seluruh perubahan paket dalam satu transaksi. Minimal satu paket harus tetap aktif." : "Simpan seluruh baris dalam satu transaksi. Publikasi input/output API mengikuti pasangan; seluruh harga aktif wajib lengkap.")} destructive={confirmation.type === "deleteRates"} busy={busy} onCancel={() => setConfirmation(null)} onConfirm={mutate} />}
     </div>;
 }

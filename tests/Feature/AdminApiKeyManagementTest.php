@@ -32,7 +32,9 @@ class AdminApiKeyManagementTest extends TestCase
         // List (admin sees the full key)
         $list = $this->actingAs($admin)->getJson('/api/k/list?user_id='.$member->id);
         $list->assertOk();
-        $this->assertSame($key, $list->json('keys.0.key'));
+        // The full key is never returned after creation — only a masked prefix.
+        $this->assertNull($list->json('keys.0.key'));
+        $this->assertNotNull($list->json('keys.0.masked_key'));
 
         // Toggle deactivates
         $this->actingAs($admin)->postJson('/api/k/toggle/'.$row->id)->assertOk()->assertJson(['is_active' => false]);

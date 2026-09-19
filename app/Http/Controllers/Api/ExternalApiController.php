@@ -45,8 +45,8 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
 
     public function models(Request $request)
     {
-        $user = $request->get('_api_user');
-        $apiKey = $request->get('_api_key');
+        $user = $request->attributes->get('api_user');
+        $apiKey = $request->attributes->get('api_key');
         $allowedTiers = $user->getAllowedTiers();
         $models = $this->aiProxy->getModels($allowedTiers);
 
@@ -64,8 +64,8 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
 
     public function chatCompletions(Request $request)
     {
-        $user = $request->get('_api_user');
-        $apiKey = $request->get('_api_key');
+        $user = $request->attributes->get('api_user');
+        $apiKey = $request->attributes->get('api_key');
         $validated = $request->validate([
             'model' => 'required|string|max:120',
             'messages' => 'required|array|min:1',
@@ -236,8 +236,8 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
      */
     public function messages(Request $request)
     {
-        $user = $request->get('_api_user');
-        $apiKey = $request->get('_api_key');
+        $user = $request->attributes->get('api_user');
+        $apiKey = $request->attributes->get('api_key');
         $validated = $request->validate([
             'model' => 'required|string|max:120',
             'messages' => 'required|array|min:1',

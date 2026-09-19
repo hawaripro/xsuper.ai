@@ -42,16 +42,17 @@ class FortifyServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($throttleKey);
         });
 
-        // Rate limiting for two-factor authentication
+        // Rate limiting for two-factor authentication. Fall back to the client IP
+        // when there is no pending challenge so requests are not bucketed under null.
         RateLimiter::for('two-factor', function (Request $request) {
-            return Limit::perMinute(5)->by($request->session()->get('login.id'));
+            return Limit::perMinute(5)->by((string) $request->session()->get('login.id') ?: 'ip:'.$request->ip());
         });
 
         // SPA login endpoint: brute-force protection per account and address without blocking normal retries.
         RateLimiter::for('api-login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower((string) $request->input('email')).'|'.$request->ip());
 
-            return Limit::perMinute(30)->by($throttleKey);
+            return Limit::perMinute(8)->by($throttleKey);
         });
     }
 }

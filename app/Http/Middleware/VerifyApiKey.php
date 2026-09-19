@@ -4,10 +4,9 @@ namespace App\Http\Middleware;
 
 use App\Models\ApiKey;
 use App\Models\UserDevice;
-use App\Models\UsageLog;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
 class VerifyApiKey
@@ -16,52 +15,59 @@ class VerifyApiKey
     {
         $bearer = $request->bearerToken();
 
-        if (!$bearer || !str_starts_with($bearer, 'ultrai-')) {
+        if (! $bearer || ! str_starts_with($bearer, 'ultrai-')) {
             return response()->json([
-                'error' => ['message' => 'Invalid API key', 'type' => 'authentication_error']
+                'error' => ['message' => 'Invalid API key', 'type' => 'authentication_error'],
             ], 401);
         }
 
-        $apiKey = ApiKey::where('key', $bearer)->first();
+        // Keys are stored hashed; look up by sha256 so a DB leak yields no secrets.
+        $apiKey = ApiKey::findByPlainKey($bearer);
 
-        if (!$apiKey || !$apiKey->isValid()) {
+        if (! $apiKey || ! $apiKey->isValid()) {
             return response()->json([
-                'error' => ['message' => 'Invalid or expired API key', 'type' => 'authentication_error']
+                'error' => ['message' => 'Invalid or expired API key', 'type' => 'authentication_error'],
             ], 401);
         }
 
-        // Check user expiry
         $user = $apiKey->user;
-        if ($user->isExpired()) {
+        if (! $user || $user->isExpired() || $user->is_active === false) {
             return response()->json([
-                'error' => ['message' => 'Account expired', 'type' => 'authentication_error']
+                'error' => ['message' => 'Account expired or disabled', 'type' => 'authentication_error'],
             ], 403);
         }
 
-        // Rate limiting (per minute)
-        $rateLimitKey = 'api_rate:' . $apiKey->id;
-        $requests = Cache::get($rateLimitKey, 0);
-        if ($requests >= $apiKey->rate_limit) {
+        // The API is a gated capability; the permission is re-checked on every call
+        // so revoking it takes effect immediately even for existing keys.
+        if (! $user->isAdmin() && ! $user->hasPermission('ai_api')) {
             return response()->json([
-                'error' => ['message' => 'Rate limit exceeded. Max ' . $apiKey->rate_limit . ' requests/min', 'type' => 'rate_limit_error']
-            ], 429);
+                'error' => ['message' => 'API access is not enabled for this account', 'type' => 'permission_error'],
+            ], 403);
         }
-        Cache::put($rateLimitKey, $requests + 1, 60);
 
-        // Record usage
-        $apiKey->recordUsage();
-
-        // Track device for ALL users
+        // Device policy mirrors the session middleware: block blocked/pending devices.
         $maxDevices = $user->isAdmin() ? 999 : 2;
         $device = UserDevice::trackDevice($user->id, $request, $maxDevices);
-        if ($device === null && !$user->isAdmin()) {
+        if (! $user->isAdmin() && ($device === null || $device->status === 'pending')) {
             return response()->json([
-                'error' => ['message' => 'Device limit reached (max 2). Contact admin.', 'type' => 'device_limit_error']
+                'error' => ['message' => 'Device limit reached (max 2) or awaiting approval. Contact admin.', 'type' => 'device_limit_error'],
             ], 403);
         }
 
-        // Store user & apiKey for downstream use
-        $request->merge(['_api_user' => $user, '_api_key' => $apiKey]);
+        // Atomic fixed-window limiter (no read-modify-write race) keyed per key.
+        $limiterKey = 'api_rate:'.$apiKey->id;
+        if (RateLimiter::tooManyAttempts($limiterKey, $apiKey->rate_limit)) {
+            return response()->json([
+                'error' => ['message' => 'Rate limit exceeded. Max '.$apiKey->rate_limit.' requests/min', 'type' => 'rate_limit_error'],
+            ], 429);
+        }
+        RateLimiter::hit($limiterKey, 60);
+
+        $apiKey->recordUsage();
+
+        // Trusted identity travels via request attributes — never through input.
+        $request->attributes->set('api_user', $user);
+        $request->attributes->set('api_key', $apiKey);
 
         return $next($request);
     }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import PageHeader from "../../components/dashboard/PageHeader";
+import { useTheme } from "../../contexts/ThemeContext";
 import ProviderConnections from "../../components/dashboard/ProviderConnections";
 import ModelBulkTable from "../../components/dashboard/ModelBulkTable";
 import GenerationConfigFields, { generationConfigDraft, parseGenerationConfig } from "../../components/dashboard/GenerationConfigFields";
@@ -9,7 +9,6 @@ import {
     ErrorState,
     LoadingState,
 } from "../../components/dashboard/AsyncState";
-import StatCard from "../../components/dashboard/StatCard";
 import StatusBadge from "../../components/dashboard/StatusBadge";
 import DataTable from "../../components/dashboard/DataTable";
 import { apiRequest, formatCurrency, formatDateTime } from "../../lib/api";
@@ -20,6 +19,77 @@ const mediaCategories = ["image", "video", "audio"];
 
 function count(value) {
     return new Intl.NumberFormat("id-ID").format(Number(value || 0));
+}
+
+const categoryOrder = ["chat", "image", "video", "audio"];
+const categoryMeta = {
+    chat: { label: "Chat", grad: "from-sky-500 to-blue-600", icon: "chat" },
+    image: { label: "Gambar", grad: "from-violet-500 to-fuchsia-600", icon: "image" },
+    video: { label: "Video", grad: "from-rose-500 to-pink-600", icon: "video" },
+    audio: { label: "Audio", grad: "from-amber-500 to-orange-500", icon: "audio" },
+};
+
+function Icon({ name, className = "h-4 w-4" }) {
+    const common = {
+        className,
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 2,
+        viewBox: "0 0 24 24",
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": true,
+    };
+    switch (name) {
+        case "chat":
+            return (<svg {...common}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>);
+        case "image":
+            return (<svg {...common}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>);
+        case "video":
+            return (<svg {...common}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M10 9l5 3-5 3z" /></svg>);
+        case "audio":
+            return (<svg {...common}><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>);
+        case "provider":
+            return (<svg {...common}><rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" /><path d="M6 6h.01M6 18h.01" /></svg>);
+        case "cube":
+            return (<svg {...common}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" /></svg>);
+        case "power":
+            return (<svg {...common}><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10" /></svg>);
+        case "sync":
+            return (<svg {...common}><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>);
+        case "activity":
+            return (<svg {...common}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>);
+        case "alert":
+            return (<svg {...common}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><path d="M12 9v4M12 17h.01" /></svg>);
+        case "spark":
+            return (<svg {...common}><path d="M12 3v3m0 12v3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M3 12h3m12 0h3M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1" /></svg>);
+        case "shield":
+            return (<svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>);
+        case "plus":
+            return (<svg {...common}><path d="M12 5v14M5 12h14" /></svg>);
+        case "grid":
+            return (<svg {...common}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>);
+        case "layers":
+            return (<svg {...common}><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>);
+        default:
+            return null;
+    }
+}
+
+function StatTile({ dark, grad, icon, label, value, detail, tone }) {
+    return (
+        <div className={`relative overflow-hidden rounded-2xl border p-4 transition-all hover:-translate-y-0.5 animate-fade-in-up ${dark ? "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.14]" : "border-gray-200/80 bg-white hover:shadow-[0_16px_40px_-16px_rgba(15,23,42,0.2)]"}`}>
+            <div className={`absolute -right-6 -top-8 h-20 w-20 rounded-full bg-gradient-to-br ${grad} opacity-10 blur-2xl`} aria-hidden="true" />
+            <div className="flex items-start justify-between gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${grad} text-white shadow-md`}>
+                    <Icon name={icon} />
+                </span>
+            </div>
+            <div className={`mt-2 text-2xl font-bold ${tone || (dark ? "text-white" : "text-slate-900")}`}>{value}</div>
+            {detail ? <p className="mt-0.5 text-[11px] text-gray-500">{detail}</p> : null}
+        </div>
+    );
 }
 
 function ConfirmDialog({
@@ -79,11 +149,14 @@ function ConfirmDialog({
 
 export default function AICatalog() {
     const { t } = useLocale();
+    const { theme } = useTheme();
+    const dark = theme === "dark";
     const [catalog, setCatalog] = useState(emptyResource);
     const [queue, setQueue] = useState(emptyResource);
     const [providerScope, setProviderScope] = useState("");
     const [railQuery, setRailQuery] = useState("");
     const [section, setSection] = useState("catalog");
+    const [categoryScope, setCategoryScope] = useState("");
     const [queueType, setQueueType] = useState("images");
     const [queueStatus, setQueueStatus] = useState("");
     const [confirmation, setConfirmation] = useState(null);
@@ -154,6 +227,19 @@ export default function AICatalog() {
     const editorProvider = modelEditor ? providers.find((provider) => provider.slug === modelEditor.provider_slug) : null;
     const generationConfigReadOnly = editorProvider?.protocol === "fal" || (modelEditor?.generation_config_readonly && modelEditor.provider_slug === modelEditor.original_provider_slug);
     const enabledModels = models.filter((model) => model.is_enabled).length;
+    const availableModels = models.filter((model) => model.is_available).length;
+    const categoryCounts = models.reduce((acc, model) => {
+        const key = model.category || "chat";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {});
+    const tableModels = categoryScope
+        ? models.filter((model) => (model.category || "chat") === categoryScope)
+        : models;
+    const catStat = (value) =>
+        catalog.loading && !catalog.data ? "…" : catalog.error && !catalog.data ? "—" : count(value);
+    const queueStat = (value) =>
+        queue.loading && !queue.data ? "…" : queue.error && !queue.data ? "—" : count(value);
     const modelCounts = models.reduce((counts, model) => {
         const key = String(model.provider_id ?? model.provider?.id ?? "");
         counts[key] = (counts[key] || 0) + 1;
@@ -374,23 +460,56 @@ export default function AICatalog() {
 
     return (
         <div className="ui-page space-y-5">
-            <PageHeader
-                eyebrow={t("Operasi AI")}
-                title={t("Katalog AI & antrean media")}
-                description={t("Sinkronkan metadata model upstream, atur harga dan publikasi, serta pantau pekerjaan gambar, video, dan audio tanpa menampilkan kredensial.")}
-                actions={
-                    <>
+            <header className="relative overflow-hidden rounded-2xl border p-5 animate-fade-in-up sm:p-6 border-gray-200/80 bg-white dark:border-white/[0.08] dark:bg-white/[0.02]">
+                <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-red-500 to-orange-500 opacity-10 blur-3xl" aria-hidden="true" />
+                <div className="pointer-events-none absolute -bottom-16 left-10 h-40 w-40 rounded-full bg-gradient-to-br from-sky-500 to-violet-600 opacity-10 blur-3xl" aria-hidden="true" />
+                <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-3">
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25">
+                                <Icon name="layers" className="h-6 w-6" />
+                            </span>
+                            <div className="min-w-0">
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-red-500">{t("Operasi AI")}</p>
+                                <h1 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">{t("Katalog AI otomatis")}</h1>
+                            </div>
+                        </div>
+                        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                            {t("Model terdeteksi otomatis dari setiap penyedia saat sinkronisasi. Penambahan manual diverifikasi ulang pada sinkronisasi berikutnya, jadi Anda tidak perlu menuliskan daftar model satu per satu.")}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-300">
+                                <Icon name="spark" className="h-3.5 w-3.5" /> {t("Deteksi otomatis")}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold text-sky-600 dark:text-sky-300">
+                                <Icon name="shield" className="h-3.5 w-3.5" /> {t("Kredensial tersembunyi")}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold text-violet-600 dark:text-violet-300">
+                                <Icon name="cube" className="h-3.5 w-3.5" /> {count(models.length)} {t("model")}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
                         <button
                             type="button"
-                            className="ui-btn-secondary"
+                            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 text-sm font-bold text-white shadow-lg shadow-red-500/25 transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => loadCatalog()}
+                            disabled={catalog.loading}
+                        >
+                            <Icon name="sync" className={`h-4 w-4 ${catalog.loading ? "animate-spin" : ""}`} />
+                            {catalog.loading ? t("Memuat…") : t("Muat ulang katalog")}
+                        </button>
+                        <button
+                            type="button"
+                            className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 border-gray-200 bg-white text-slate-700 hover:border-red-500/40 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200"
                             onClick={openNewModelEditor}
                             disabled={mutation.busy || !providers.length}
                         >
-                            {t("Model baru")}
+                            <Icon name="plus" className="h-4 w-4" /> {t("Model baru")}
                         </button>
-                    </>
-                }
-            />
+                    </div>
+                </div>
+            </header>
 
             {(mutation.error || mutation.success) && (
                 <div
@@ -402,56 +521,50 @@ export default function AICatalog() {
             )}
 
             <section aria-labelledby="ai-summary-title" className="space-y-3">
-                <h2 id="ai-summary-title" className="ui-section-title">
-                    Operational summary
-                </h2>
-                <div className="ui-stat-grid">
-                    <StatCard
+                <h2 id="ai-summary-title" className="sr-only">{t("Ringkasan operasional")}</h2>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <StatTile
+                        dark={dark}
+                        grad="from-sky-500 to-blue-600"
+                        icon="provider"
                         label={t("Penyedia")}
-                        value={
-                            catalog.loading && !catalog.data
-                                ? "…"
-                                : catalog.error && !catalog.data
-                                  ? "Unavailable"
-                                  : count(providers.length)
-                        }
-                        detail={`${unhealthyProviders} need attention`}
-                        tone={unhealthyProviders ? "warn" : "good"}
+                        value={catStat(providers.length)}
+                        detail={`${count(unhealthyProviders)} ${t("perlu perhatian")}`}
+                        tone={unhealthyProviders ? "text-amber-500" : ""}
                     />
-                    <StatCard
+                    <StatTile
+                        dark={dark}
+                        grad="from-violet-500 to-fuchsia-600"
+                        icon="cube"
+                        label={t("Total model")}
+                        value={catStat(models.length)}
+                        detail={`${count(availableModels)} ${t("tersedia upstream")}`}
+                    />
+                    <StatTile
+                        dark={dark}
+                        grad="from-emerald-500 to-teal-500"
+                        icon="power"
                         label={t("Model aktif")}
-                        value={
-                            catalog.loading && !catalog.data
-                                ? "…"
-                                : catalog.error && !catalog.data
-                                  ? "Unavailable"
-                                  : count(enabledModels)
-                        }
-                        detail={`${count(models.length)} synchronized models`}
+                        value={catStat(enabledModels)}
+                        detail={t("Dipublikasikan ke pengguna")}
                     />
-                    <StatCard
+                    <StatTile
+                        dark={dark}
+                        grad="from-amber-500 to-orange-500"
+                        icon="activity"
                         label={t("Pekerjaan media aktif")}
-                        value={
-                            queue.loading && !queue.data
-                                ? "…"
-                                : queue.error && !queue.data
-                                  ? "Unavailable"
-                                  : count(activeJobs)
-                        }
-                        detail="Pending and processing globally"
-                        tone={activeJobs ? "warn" : "neutral"}
+                        value={queueStat(activeJobs)}
+                        detail={t("Menunggu & diproses")}
+                        tone={activeJobs ? "text-amber-500" : ""}
                     />
-                    <StatCard
+                    <StatTile
+                        dark={dark}
+                        grad="from-rose-500 to-red-600"
+                        icon="alert"
                         label={t("Pekerjaan media gagal")}
-                        value={
-                            queue.loading && !queue.data
-                                ? "…"
-                                : queue.error && !queue.data
-                                  ? "Unavailable"
-                                  : count(failedJobs)
-                        }
-                        detail="Current status filter response"
-                        tone={failedJobs ? "bad" : "good"}
+                        value={queueStat(failedJobs)}
+                        detail={t("Perlu ditinjau")}
+                        tone={failedJobs ? "text-rose-500" : ""}
                     />
                 </div>
             </section>
@@ -465,29 +578,63 @@ export default function AICatalog() {
                     type="button"
                     role="tab"
                     aria-selected={section === "catalog"}
-                    className={
-                        section === "catalog"
-                            ? "ui-btn-primary min-h-10 px-4 text-xs"
-                            : "ui-btn-secondary"
-                    }
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-xs font-semibold transition-all ${section === "catalog" ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md shadow-red-500/20" : dark ? "border border-white/[0.1] bg-white/[0.03] text-slate-300 hover:border-white/[0.2]" : "border border-gray-200 bg-white text-slate-600 hover:border-red-500/30"}`}
                     onClick={() => setSection("catalog")}
                 >
-                    {t("Katalog & kesehatan")}
+                    <Icon name="grid" className="h-4 w-4" /> {t("Katalog & kesehatan")}
                 </button>
                 <button
                     type="button"
                     role="tab"
                     aria-selected={section === "queue"}
-                    className={
-                        section === "queue"
-                            ? "ui-btn-primary min-h-10 px-4 text-xs"
-                            : "ui-btn-secondary"
-                    }
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-xs font-semibold transition-all ${section === "queue" ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md shadow-red-500/20" : dark ? "border border-white/[0.1] bg-white/[0.03] text-slate-300 hover:border-white/[0.2]" : "border border-gray-200 bg-white text-slate-600 hover:border-red-500/30"}`}
                     onClick={() => setSection("queue")}
                 >
-                    {t("Antrean media global")}
+                    <Icon name="activity" className="h-4 w-4" /> {t("Antrean media global")}
+                    {(activeJobs > 0 || failedJobs > 0) && (
+                        <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${section === "queue" ? "bg-white/20 text-white" : "bg-amber-500/15 text-amber-500"}`}>{count(activeJobs + failedJobs)}</span>
+                    )}
                 </button>
             </div>
+
+            <section hidden={section !== "catalog"} aria-labelledby="ai-category-title" className="rounded-2xl border p-4 animate-fade-in-up border-gray-200/80 bg-white dark:border-white/[0.08] dark:bg-white/[0.02]">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                    <h2 id="ai-category-title" className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-100 dark:to-white dark:text-slate-900">
+                            <Icon name="layers" className="h-4 w-4" />
+                        </span>
+                        {t("Kategori model")}
+                    </h2>
+                    {categoryScope && (
+                        <button type="button" onClick={() => setCategoryScope("")} className="text-[11px] font-semibold text-red-500 transition-colors hover:text-red-600 hover:underline">
+                            {t("Tampilkan semua")}
+                        </button>
+                    )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {categoryOrder.map((cat) => {
+                        const meta = categoryMeta[cat];
+                        const active = categoryScope === cat;
+                        return (
+                            <button
+                                key={cat}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => setCategoryScope(active ? "" : cat)}
+                                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all hover:-translate-y-0.5 ${active ? `border-transparent bg-gradient-to-br ${meta.grad} text-white shadow-md` : dark ? "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16]" : "border-gray-200/80 bg-white hover:shadow-sm"}`}
+                            >
+                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${active ? "bg-white/20 text-white" : `bg-gradient-to-br ${meta.grad} text-white shadow`}`}>
+                                    <Icon name={meta.icon} className="h-4 w-4" />
+                                </span>
+                                <span className="min-w-0">
+                                    <span className={`block text-[11px] font-bold uppercase tracking-wide ${active ? "text-white/80" : "text-gray-500"}`}>{t(meta.label)}</span>
+                                    <span className={`block text-lg font-bold ${active ? "text-white" : dark ? "text-white" : "text-slate-900"}`}>{count(categoryCounts[cat] || 0)}</span>
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
 
             <div hidden={section !== "catalog"} className="ai-workspace">
                 <aside className="ai-rail" aria-label={t("Daftar penyedia")}>
@@ -530,6 +677,15 @@ export default function AICatalog() {
                 </aside>
 
                 <div className="ai-main">
+                    <div className="flex items-start gap-3 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 to-transparent p-4 animate-fade-in-up">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
+                            <Icon name="sync" className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                            <p className="font-bold text-slate-900 dark:text-white">{t("Sinkronisasi otomatis mendeteksi model")}</p>
+                            <p className="mt-0.5">{t("Tekan Sinkronkan pada koneksi mana pun untuk menarik daftar model terbaru. Model yang tidak lagi ditemukan dinonaktifkan otomatis; model manual diverifikasi ulang.")}</p>
+                        </div>
+                    </div>
                     <ProviderConnections
                         providers={providers}
                         focusId={scopedProvider?.id ?? null}
@@ -566,7 +722,7 @@ export default function AICatalog() {
                             </div>
                         ) : (
                             <ModelBulkTable
-                                models={models}
+                                models={tableModels}
                                 providers={providers}
                                 providerId={providerScope}
                                 onRefresh={loadCatalog}
@@ -582,22 +738,23 @@ export default function AICatalog() {
             {section === "queue" && (
                 <section className="ui-card" aria-labelledby="queue-title">
                     <div className="ui-card-header">
-                        <div>
-                            <h2 id="queue-title" className="ui-section-title">
-                                Global media queue
-                            </h2>
-                            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                                Authorized cross-account job status, billing,
-                                outputs, and operational failures.
-                            </p>
+                        <div className="flex items-center gap-3">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 text-white shadow-md">
+                                <Icon name="activity" className="h-5 w-5" />
+                            </span>
+                            <div className="min-w-0">
+                                <h2 id="queue-title" className="ui-section-title">{t("Antrean media global")}</h2>
+                                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Status pekerjaan lintas akun yang diizinkan, penagihan, keluaran, dan kegagalan operasional.")}</p>
+                            </div>
                         </div>
                         <button
                             type="button"
-                            className="ui-btn-secondary"
+                            className="ui-btn-secondary inline-flex items-center gap-2"
                             onClick={() => loadQueue()}
                             disabled={queue.loading}
                         >
-                            Refresh
+                            <Icon name="sync" className={`h-4 w-4 ${queue.loading ? "animate-spin" : ""}`} />
+                            {t("Muat ulang")}
                         </button>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-white/10">

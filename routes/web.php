@@ -79,7 +79,7 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::post('/analytics/events', [AnalyticsController::class, 'store'])->middleware('auth');
 
     // Protected routes — track device on ALL authenticated requests
-    Route::middleware(['auth', 'track.device', \App\Http\Middleware\EnsureEmailVerified::class])->group(function () {
+    Route::middleware(['auth', 'track.device', \App\Http\Middleware\EnsureEmailVerified::class, 'ensure.active'])->group(function () {
         Route::post('/broadcasting/auth', [BroadcastController::class, 'authenticate']);
 
         // Profile
@@ -183,9 +183,12 @@ Route::prefix('api')->middleware('web')->group(function () {
 
         Route::get('/referrals/me', [ReferralController::class, 'memberStats']);
         // Admin
-        Route::middleware('admin')->group(function () {
+        Route::middleware(['admin', 'admin.ip'])->group(function () {
             // Admin: topup tokens
             Route::post('/t/topup', [TokenController::class, 'topup']);
+            // Admin: security controls (IP allowlist, admin 2FA policy)
+            Route::get('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'index']);
+            Route::put('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'update']);
             Route::get('/pricing/settings', [PricingController::class, 'index']);
             Route::patch('/pricing/durations/bulk', [PricingController::class, 'bulkSaveDurations']);
             Route::patch('/pricing/rates/bulk', [PricingController::class, 'bulkUpdateUsageRates']);
