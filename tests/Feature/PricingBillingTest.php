@@ -179,7 +179,8 @@ class PricingBillingTest extends TestCase
             'messages' => [['role' => 'user', 'content' => 'hello']],
             'max_tokens' => 1_000_000,
         ]);
-        $request->merge(['_api_user' => $user, '_api_key' => new ApiKey(['allowed_models' => null])]);
+        $request->attributes->set('api_user', $user);
+        $request->attributes->set('api_key', new ApiKey(['allowed_models' => null]));
 
         $response = (new ExternalApiController($proxy, app(UsageBillingService::class)))->chatCompletions($request);
         $this->assertSame(200, $response->getStatusCode());
@@ -277,7 +278,7 @@ class PricingBillingTest extends TestCase
         $key = ApiKey::generate($admin->id);
 
         foreach ([false, true] as $stream) {
-            $this->withToken($key->key)->postJson('/v1/chat/completions', [
+            $this->withToken($key->plainKey)->postJson('/v1/chat/completions', [
                 'model' => 'unpriced-model',
                 'messages' => [['role' => 'user', 'content' => 'hello']],
                 'max_tokens' => 100,

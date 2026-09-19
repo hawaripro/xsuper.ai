@@ -203,6 +203,26 @@ class PeriodController extends Controller
     }
 
     /**
+     * Member cancels their own pending subscription order before an admin decision.
+     */
+    public function cancel(Request $request, DurationOrder $order)
+    {
+        abort_unless((int) $order->user_id === (int) $request->user()->id, 404);
+
+        $cancelled = DB::transaction(function () use ($order): DurationOrder {
+            $locked = DurationOrder::query()->lockForUpdate()->findOrFail($order->id);
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages(['order' => 'Order yang sudah diproses tidak dapat dibatalkan.']);
+            }
+            $locked->update(['status' => 'cancelled', 'note' => 'Dibatalkan oleh pemilik akun.']);
+
+            return $locked;
+        });
+
+        return response()->json(['message' => 'Order langganan dibatalkan.', 'order' => $cancelled]);
+    }
+
+    /**
      * Admin rejects an order
      */
     public function reject(Request $request, DurationOrder $order)

@@ -9,7 +9,6 @@ use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
 use App\Models\UsageRate;
 use App\Services\AiProxyService;
-use App\Services\ReferralService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -22,10 +21,6 @@ class PublicSiteController extends Controller
     {
         if ($redirect = $this->legacyLanguageRedirect($request)) {
             return $redirect;
-        }
-
-        if ($request->filled('ref')) {
-            app(ReferralService::class)->capture($request, (string) $request->query('ref'));
         }
 
         $data = $this->sharedData($request, 'landing');

@@ -34,6 +34,12 @@ class AuthController extends Controller
 
         $user = Auth::getLastAttempted();
 
+        if ($user->is_active === false && $user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Akun Anda dinonaktifkan. Hubungi admin.',
+            ], 403);
+        }
+
         if ($user->hasEnabledTwoFactorAuthentication()) {
             // Credentials are correct but the session stays unauthenticated until a valid TOTP code arrives.
             $request->session()->put([
@@ -103,51 +109,21 @@ class AuthController extends Controller
             ],
         ]);
 
-        // Set dash_token cookie for admin users (allows access to dash.ultrai.id)
+        // Random, hashed, expiring, per-login dash token stored server-side so it
+        // can be revoked (logout/admin) — never derivable from APP_KEY.
         if ($user->isAdmin()) {
-            $token = hash('sha256', $user->id.'|'.config('app.key').'|dash');
-            $response->withCookie(cookie('dash_token', $token, 10080, '/', '.ultrai.id', true, true, false, 'Lax'));
+            $raw = \App\Models\DashToken::issueFor($user->id);
+            $response->withCookie(cookie('dash_token', $raw, 10080, '/', '.ultrai.id', true, true, false, 'Lax'));
         }
 
         return $response;
     }
 
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => ['required', 'confirmed', Password::min(8)],
-        ]);
-
-        $user = DB::transaction(function () use ($request): User {
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'role' => 'member',
-            ]);
-
-            $this->referrals->attribute($user, $request);
-
-            return $user;
-        });
-
-        Auth::login($user);
-
-        return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role,
-            ],
-            'redirect' => '/dashboard',
-        ]);
-    }
-
     public function logout(Request $request)
     {
+        $userId = $request->user()?->id;
+        \App\Models\DashToken::revokeFor($userId);
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -168,6 +144,7 @@ class AuthController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'email_verified' => $user->email_verified_at !== null,
             'expires_at' => $user->expires_at?->toISOString(),
             'role' => $user->role,
             'avatar' => $user->avatar,

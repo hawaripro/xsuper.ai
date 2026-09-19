@@ -273,7 +273,7 @@
     .dashboard-workspace .dw-module[open]::details-content { height: auto; }
 }
 @media (min-width: 1024px) {
-    .ultrai-workspace-shell .dw-sidebar { position: sticky; inset: auto; top: 0; height: 100dvh; flex-shrink: 0; z-index: 20; transform: none; }
+    .ultrai-workspace-shell .dw-sidebar { position: sticky; inset: auto; top: var(--dw-ribbon-h, 0px); height: calc(100dvh - var(--dw-ribbon-h, 0px)); flex-shrink: 0; z-index: 20; transform: none; }
     .ultrai-workspace-shell .dw-sidebar.is-open { box-shadow: none; }
     .ultrai-workspace-shell .dw-shell-control.dw-mobile-control { display: none; }
     .ultrai-workspace-shell .dw-nav-overlay { display: none; }

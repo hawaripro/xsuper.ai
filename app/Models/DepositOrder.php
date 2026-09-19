@@ -19,9 +19,11 @@ class DepositOrder extends Model
 
     public const STATUS_REJECTED = 'rejected';
 
+    public const STATUS_CANCELLED = 'cancelled';
+
     public const KINDS = [self::KIND_TOKENS, self::KIND_WALLET];
 
-    public const STATUSES = [self::STATUS_CHECKOUT, self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_REJECTED];
+    public const STATUSES = [self::STATUS_CHECKOUT, self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_REJECTED, self::STATUS_CANCELLED];
 
     protected $fillable = [
         'payment_reference',

@@ -6,6 +6,8 @@
 # ============================================
 
 set -e
+# Secrets must never be world/group readable: force restrictive creation mask.
+umask 077
 
 # Config
 BACKUP_DIR="/home/superpro/backups"
@@ -21,18 +23,21 @@ if [ ! -r "$PGPASSFILE" ]; then
     exit 1
 fi
 
-# Buat folder backup
+# Buat folder backup (restrict to owner only)
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 
 echo "[$(date)] Starting backup..."
 
 # 1. Backup database PostgreSQL
 echo "[$(date)] Backing up database..."
 PGPASSFILE="$PGPASSFILE" pg_dump -U "$DB_USER" -h 127.0.0.1 "$DB_NAME" | gzip > "$BACKUP_DIR/db_${DATE}.sql.gz"
+chmod 600 "$BACKUP_DIR/db_${DATE}.sql.gz"
 
 # 2. Backup .env (contains secrets)
 echo "[$(date)] Backing up .env..."
 cp "$PROJECT_DIR/.env" "$BACKUP_DIR/env_${DATE}.bak"
+chmod 600 "$BACKUP_DIR/env_${DATE}.bak"
 
 # 3. Backup uploaded files (if any)
 if [ -d "$PROJECT_DIR/storage/app/public" ]; then

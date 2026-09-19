@@ -57,6 +57,27 @@ class ProfileController extends Controller
         return response()->json(['message' => 'Password berhasil diperbarui']);
     }
 
+    /** Sends (or resends) the email activation code. */
+    public function sendEmailOtp(Request $request, \App\Services\EmailOtpService $otp)
+    {
+        $user = $request->user();
+        if ($user->email_verified_at !== null) {
+            return response()->json(['message' => 'Email sudah aktif.', 'verified' => true]);
+        }
+        $otp->send($user);
+
+        return response()->json(['message' => 'Kode aktivasi dikirim ke email Anda.', 'verified' => false]);
+    }
+
+    /** Confirms the activation code and unlocks the account. */
+    public function verifyEmailOtp(Request $request, \App\Services\EmailOtpService $otp)
+    {
+        $request->validate(['code' => 'required|string|max:12']);
+        $otp->verify($request->user(), (string) $request->input('code'));
+
+        return response()->json(['message' => 'Email berhasil diaktifkan.', 'verified' => true]);
+    }
+
     /**
      * Account security overview: two-factor state without exposing secrets.
      */

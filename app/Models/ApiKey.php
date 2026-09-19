@@ -8,9 +8,12 @@ use Illuminate\Support\Str;
 class ApiKey extends Model
 {
     protected $fillable = [
-        'user_id', 'key', 'name', 'is_active', 'allowed_models',
+        'user_id', 'key_hash', 'key_prefix', 'name', 'is_active', 'allowed_models',
         'rate_limit', 'total_requests', 'last_used_at', 'expires_at',
     ];
+
+    /** Transient plaintext key, set only at create/regenerate time for one-time display. */
+    public ?string $plainKey = null;
 
     protected function casts(): array
     {
@@ -27,17 +30,44 @@ class ApiKey extends Model
         return $this->belongsTo(User::class);
     }
 
+    public static function hashKey(string $key): string
+    {
+        return hash('sha256', $key);
+    }
+
+    public static function findByPlainKey(string $key): ?self
+    {
+        return static::where('key_hash', self::hashKey($key))->first();
+    }
+
     public static function generate(int $userId, string $name = 'Default', array $options = []): self
     {
-        return static::create([
+        $plain = 'ultrai-'.Str::random(48);
+        $model = static::create([
             'user_id' => $userId,
-            'key' => 'ultrai-' . Str::random(48),
+            'key_hash' => self::hashKey($plain),
+            'key_prefix' => substr($plain, 0, 12),
             'name' => $name,
             'is_active' => true,
             'rate_limit' => $options['rate_limit'] ?? 60,
             'allowed_models' => $options['allowed_models'] ?? null,
             'expires_at' => $options['expires_at'] ?? null,
         ]);
+        $model->plainKey = $plain;
+
+        return $model;
+    }
+
+    /** Rotate the key in place, returning the model carrying the new plaintext once. */
+    public function regenerateKey(): self
+    {
+        $plain = 'ultrai-'.Str::random(48);
+        $this->key_hash = self::hashKey($plain);
+        $this->key_prefix = substr($plain, 0, 12);
+        $this->save();
+        $this->plainKey = $plain;
+
+        return $this;
     }
 
     public function isValid(): bool
@@ -55,6 +85,6 @@ class ApiKey extends Model
 
     public function maskedKey(): string
     {
-        return substr($this->key, 0, 12) . '...' . substr($this->key, -6);
+        return ($this->key_prefix ?: 'ultrai-').'…';
     }
 }

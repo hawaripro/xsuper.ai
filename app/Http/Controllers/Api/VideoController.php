@@ -56,6 +56,56 @@ class VideoController extends Controller
         ]);
     }
 
+    /** Delete one finished video job, its private asset, and its reference image. */
+    public function destroy(Request $request, string $jobId, VideoReferenceStore $references): JsonResponse
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $jobId, $references): void {
+            $job = VideoJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
+            if (in_array($job->status, ['pending', 'processing'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Batalkan dulu sebelum menghapusnya.']);
+            }
+            $this->removeVideoAssets($job, $references);
+            $job->delete();
+        });
+
+        return response()->json(['deleted_count' => 1]);
+    }
+
+    /** Clear every finished video job; queued and running work stays untouched. */
+    public function destroyAll(Request $request, VideoReferenceStore $references): JsonResponse
+    {
+        $removed = 0;
+        VideoJob::query()->where('user_id', $request->user()->id)
+            ->whereNotIn('status', ['pending', 'processing'])->orderBy('id')
+            ->chunkById(50, function ($jobs) use (&$removed, $references): void {
+                foreach ($jobs as $job) {
+                    \Illuminate\Support\Facades\DB::transaction(function () use ($job, $references, &$removed): void {
+                        $locked = VideoJob::query()->lockForUpdate()->find($job->id);
+                        if (! $locked || in_array($locked->status, ['pending', 'processing'], true)) {
+                            return;
+                        }
+                        $this->removeVideoAssets($locked, $references);
+                        $locked->delete();
+                        $removed++;
+                    });
+                }
+            });
+
+        return response()->json(['deleted_count' => $removed]);
+    }
+
+    private function removeVideoAssets(VideoJob $job, VideoReferenceStore $references): void
+    {
+        $asset = GeneratedVideoStore::path($job->job_id);
+        if (Storage::disk('local')->exists($asset)) {
+            Storage::disk('local')->delete($asset);
+        }
+        $reference = $references->existingPath($job);
+        if ($reference !== null) {
+            $references->delete($reference);
+        }
+    }
+
     public function status(Request $request, string $jobId, VideoGenerationService $videos): JsonResponse
     {
         $job = VideoJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->firstOrFail();

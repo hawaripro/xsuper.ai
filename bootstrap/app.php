@@ -17,9 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'admin.ip' => \App\Http\Middleware\AdminIpAllowlist::class,
             'check.expiry' => \App\Http\Middleware\CheckExpiry::class,
             'verify.apikey' => \App\Http\Middleware\VerifyApiKey::class,
             'track.device' => \App\Http\Middleware\TrackDevice::class,
+            'ensure.active' => \App\Http\Middleware\EnsureActive::class,
         ]);
 
         // Make auth middleware return JSON 401 for AJAX/API requests
@@ -34,8 +36,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Security headers for all responses
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
-        // Remember `?ref=CODE` referral links on any web landing so signups attribute correctly.
-        $middleware->web(append: [\App\Http\Middleware\CaptureReferral::class]);
+        // Throttle abuse-prone auth endpoints (register/forgot/reset) and remember referral links.
+        $middleware->web(append: [
+            \App\Http\Middleware\ThrottleAuthEndpoints::class,
+            \App\Http\Middleware\CaptureReferral::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Return JSON for API errors

@@ -86,7 +86,7 @@ class DashboardLocaleCatalogTest extends TestCase
         $this->assertSame(4, $model->sort_order);
         $this->assertTrue($model->is_available);
         $this->assertSame('Premium', $model->tier);
-        $this->get('/en/models')->assertOk()->assertSee('Curated Provider')->assertDontSee('Upstream Provider');
+        $this->get('/en/models')->assertOk()->assertSee('Curated Name')->assertDontSee('Upstream Name');
     }
 
     public function test_partial_rate_update_does_not_delete_unspecified_rates(): void
@@ -148,7 +148,7 @@ class DashboardLocaleCatalogTest extends TestCase
         $this->assertSame(128000, $model->context_window);
         $this->assertSame(8192, $model->max_output_tokens);
         $this->assertSame(['text', 'image'], $model->input_modalities);
-        $this->get('/en/models')->assertOk()->assertSee('Model Maker')->assertSee('128K');
+        $this->get('/en/models')->assertOk()->assertSee('Vision Context Model')->assertSee('128K');
     }
 
     public function test_admin_model_creation_rejects_ids_beyond_consumers_limit(): void

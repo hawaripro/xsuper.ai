@@ -79,7 +79,7 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::post('/analytics/events', [AnalyticsController::class, 'store'])->middleware('auth');
 
     // Protected routes — track device on ALL authenticated requests
-    Route::middleware(['auth', 'track.device'])->group(function () {
+    Route::middleware(['auth', 'track.device', \App\Http\Middleware\EnsureEmailVerified::class, 'ensure.active'])->group(function () {
         Route::post('/broadcasting/auth', [BroadcastController::class, 'authenticate']);
 
         // Profile
@@ -90,6 +90,8 @@ Route::prefix('api')->middleware('web')->group(function () {
         });
         Route::put('/u/p', [ProfileController::class, 'update']);
         Route::put('/u/pw', [ProfileController::class, 'updatePassword']);
+        Route::post('/u/verify-email/send', [ProfileController::class, 'sendEmailOtp'])->middleware('throttle:6,1');
+        Route::post('/u/verify-email', [ProfileController::class, 'verifyEmailOtp'])->middleware('throttle:12,1');
         Route::get('/u/security', [ProfileController::class, 'security']);
         Route::post('/u/security/two-factor', [ProfileController::class, 'enableTwoFactor'])->middleware('throttle:10,1');
         Route::post('/u/security/two-factor/confirm', [ProfileController::class, 'confirmTwoFactor'])->middleware('throttle:10,1');
@@ -131,12 +133,16 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/v/models', [VideoController::class, 'models']);
             Route::post('/v/gen', [VideoController::class, 'generate']);
             Route::get('/v/history', [VideoController::class, 'history']);
+            Route::delete('/v/history', [VideoController::class, 'destroyAll']);
+            Route::delete('/v/{jobId}', [VideoController::class, 'destroy']);
             Route::get('/v/status/{jobId}', [VideoController::class, 'status']);
             Route::get('/v/{jobId}/asset', [VideoController::class, 'asset']);
 
             Route::get('/images/models', [ImageController::class, 'models']);
             Route::post('/images', [ImageController::class, 'generate']);
             Route::get('/images', [ImageController::class, 'history']);
+            Route::delete('/images', [ImageController::class, 'destroyAll']);
+            Route::delete('/images/{jobId}', [ImageController::class, 'destroy']);
             Route::get('/images/{jobId}/assets/{index}', [ImageController::class, 'asset'])->whereNumber('index');
             Route::get('/images/{jobId}', [ImageController::class, 'show']);
         });
@@ -173,12 +179,16 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/deposits', [DepositController::class, 'store']);
         Route::get('/deposits', [DepositController::class, 'index']);
         Route::get('/deposits/{depositOrder}', [DepositController::class, 'show']);
+        Route::post('/deposits/{depositOrder}/cancel', [DepositController::class, 'cancel'])->middleware('throttle:20,1');
 
         Route::get('/referrals/me', [ReferralController::class, 'memberStats']);
         // Admin
-        Route::middleware('admin')->group(function () {
+        Route::middleware(['admin', 'admin.ip'])->group(function () {
             // Admin: topup tokens
             Route::post('/t/topup', [TokenController::class, 'topup']);
+            // Admin: security controls (IP allowlist, admin 2FA policy)
+            Route::get('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'index']);
+            Route::put('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'update']);
             Route::get('/pricing/settings', [PricingController::class, 'index']);
             Route::patch('/pricing/durations/bulk', [PricingController::class, 'bulkSaveDurations']);
             Route::patch('/pricing/rates/bulk', [PricingController::class, 'bulkUpdateUsageRates']);
@@ -187,7 +197,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/pricing/rates', [PricingController::class, 'saveUsageRate']);
             Route::put('/pricing/rates/{usageRate}', [PricingController::class, 'saveUsageRate']);
             Route::delete('/pricing/rates/{usageRate}', [PricingController::class, 'destroyUsageRate']);
-            Route::post('/pricing/wallet/topup', [PricingController::class, 'topupWallet']);
+            Route::post('/pricing/rates/auto', [PricingController::class, 'autoPriceRates']);
             Route::get('/admin/deposits', [DepositController::class, 'adminIndex']);
             Route::post('/admin/deposits/{depositOrder}/approve', [DepositController::class, 'approve']);
             Route::post('/admin/deposits/{depositOrder}/reject', [DepositController::class, 'reject']);
@@ -271,6 +281,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::get('/period/packages', [PeriodController::class, 'packages']);
         Route::post('/period/checkout', [PeriodController::class, 'checkout']);
         Route::post('/period/order', [PeriodController::class, 'store']);
+        Route::post('/period/order/{order}/cancel', [PeriodController::class, 'cancel'])->middleware('throttle:20,1');
         Route::get('/period/my-orders', [PeriodController::class, 'myOrders']);
 
         // Onboarding & Templates

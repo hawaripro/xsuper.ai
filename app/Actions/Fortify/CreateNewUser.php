@@ -5,6 +5,7 @@ namespace App\Actions\Fortify;
 use App\Models\User;
 use App\Rules\NotDisposableEmail;
 use App\Services\EmailIntelligence;
+use App\Services\EmailOtpService;
 use App\Services\ReferralService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +20,7 @@ class CreateNewUser implements CreatesNewUsers
     public function __construct(
         private readonly ReferralService $referrals,
         private readonly EmailIntelligence $email,
+        private readonly EmailOtpService $otp,
     ) {}
 
 
@@ -46,7 +48,7 @@ class CreateNewUser implements CreatesNewUsers
 
         $provider = $this->email->provider($input['email']);
 
-        return DB::transaction(function () use ($input, $provider): User {
+        $user = DB::transaction(function () use ($input, $provider): User {
             $user = User::create([
                 'name' => $input['name'],
                 'email' => $input['email'],
@@ -59,5 +61,10 @@ class CreateNewUser implements CreatesNewUsers
 
             return $user;
         });
+
+        // Activation gate: the account starts unverified and receives its first code now.
+        $this->otp->sendSilently($user);
+
+        return $user;
     }
 }

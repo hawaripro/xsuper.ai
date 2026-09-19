@@ -26,7 +26,7 @@ class ApiKeyController extends Controller
                 'user_id' => $key->user_id,
                 'user_name' => $key->user->name ?? '-',
                 'name' => $key->name,
-                'key' => $key->key, // Full key shown only to admin
+                // Full key is never returned after creation; only a masked prefix.
                 'masked_key' => $key->maskedKey(),
                 'is_active' => $key->is_active,
                 'rate_limit' => $key->rate_limit,
@@ -59,8 +59,15 @@ class ApiKeyController extends Controller
 
         return response()->json([
             'message' => 'API key berhasil dibuat',
-            'key' => $apiKey->key,
-            'api_key' => $apiKey,
+            // Shown exactly once; only the hash is stored server-side.
+            'key' => $apiKey->plainKey,
+            'api_key' => [
+                'id' => $apiKey->id,
+                'name' => $apiKey->name,
+                'masked_key' => $apiKey->maskedKey(),
+                'is_active' => $apiKey->is_active,
+                'rate_limit' => $apiKey->rate_limit,
+            ],
         ], 201);
     }
 
@@ -92,12 +99,11 @@ class ApiKeyController extends Controller
      */
     public function regenerate(ApiKey $apiKey)
     {
-        $apiKey->key = 'ultrai-' . \Illuminate\Support\Str::random(48);
-        $apiKey->save();
+        $apiKey->regenerateKey();
 
         return response()->json([
             'message' => 'API key berhasil di-regenerate',
-            'key' => $apiKey->key,
+            'key' => $apiKey->plainKey,
         ]);
     }
 }

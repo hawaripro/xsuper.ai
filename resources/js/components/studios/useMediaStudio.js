@@ -3,8 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { apiRequest } from "../../lib/api";
 
 const endpoints = {
-    image: { models: "/api/images/models", history: "/api/images", create: "/api/images", detail: (id) => `/api/images/${id}` },
-    video: { models: "/api/v/models", history: "/api/v/history", create: "/api/v/gen", detail: (id) => `/api/v/status/${id}`, cancel: (id) => `/api/v/${id}/cancel` },
+    image: { models: "/api/images/models", history: "/api/images", create: "/api/images", detail: (id) => `/api/images/${id}`, remove: (id) => `/api/images/${id}`, removeAll: "/api/images" },
+    video: { models: "/api/v/models", history: "/api/v/history", create: "/api/v/gen", detail: (id) => `/api/v/status/${id}`, cancel: (id) => `/api/v/${id}/cancel`, remove: (id) => `/api/v/${id}`, removeAll: "/api/v/history" },
     audio: { models: "/api/audio/models", history: "/api/audio", create: "/api/audio", detail: (id) => `/api/audio/${id}`, cancel: (id) => `/api/audio/${id}/cancel` },
 };
 
@@ -123,7 +123,8 @@ export function useMediaStudio(kind) {
                 const selected = current.find((job) => job.job_id === activeIdRef.current);
                 return selected && !data.jobs.some((job) => job.job_id === selected.job_id) ? [...data.jobs, selected] : data.jobs;
             });
-            setActiveId((current) => current || data.jobs.find(isPending)?.job_id || data.jobs[0]?.job_id || "");
+            // Open fresh: only an in-flight job (or an explicit deep link) auto-opens; finished history stays listed below.
+            setActiveId((current) => current || data.jobs.find(isPending)?.job_id || "");
             setHistoryError(null);
             updateBalance(data);
             return true;
@@ -239,8 +240,49 @@ export function useMediaStudio(kind) {
             throw error;
         }
     }, [paths, remember, loadModels]);
+    // History deletion (image and video studios). Active jobs are protected server-side.
+    const [deleting, setDeleting] = useState(null);
+    const [deleteError, setDeleteError] = useState(null);
+    const remove = useCallback(async (id) => {
+        if (!paths.remove) return false;
+        setDeleting(id);
+        setDeleteError(null);
+        try {
+            await apiRequest(paths.remove(encodeURIComponent(id)), { method: "DELETE" });
+            if (mounted.current) {
+                setJobs((current) => current.filter((job) => job.job_id !== id));
+                setActiveId((current) => (current === id ? "" : current));
+            }
+            return true;
+        } catch (error) {
+            if (mounted.current) setDeleteError({ jobId: id, error });
+            return false;
+        } finally {
+            if (mounted.current) { setDeleting(null); loadHistory(); }
+        }
+    }, [paths, loadHistory]);
+    const clear = useCallback(async () => {
+        if (!paths.removeAll) return null;
+        setDeleting("all");
+        setDeleteError(null);
+        try {
+            const data = await apiRequest(paths.removeAll, { method: "DELETE" });
+            if (mounted.current) {
+                setJobs((current) => current.filter(isPending));
+                setActiveId((current) => (current && !isPending(jobs.find((job) => job.job_id === current) || {}) ? "" : current));
+            }
+            return Number(data?.deleted_count) || 0;
+        } catch (error) {
+            if (mounted.current) setDeleteError({ jobId: null, error });
+            return null;
+        } finally {
+            if (mounted.current) { setDeleting(null); loadHistory(); }
+        }
+    }, [paths, loadHistory, jobs]);
+
 
     return { models, jobs, balance, catalog, modelLoading, modelError, historyLoading, historyError, statusLoading, statusError,
         activeJob: jobs.find((job) => job.job_id === activeId) || null, activeId, requestedModel, requestedJob,
-        submitting, submitError, startedAt, refresh, loadModels, loadHistory, loadJob, selectJob, selectModel, submit, cancel };
+        submitting, submitError, startedAt, refresh, loadModels, loadHistory, loadJob, selectJob, selectModel, submit, cancel,
+        remove: paths.remove ? remove : null, clear: paths.removeAll ? clear : null, deleting, deleteError };
 }

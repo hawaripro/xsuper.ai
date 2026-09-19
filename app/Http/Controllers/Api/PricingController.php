@@ -124,6 +124,67 @@ class PricingController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * Automatically price every chat model in one action so the admin never has
+     * to enter per-model input/output token rates by hand. Prices derive from a
+     * per-tier retail table scaled by a single margin multiplier; input and
+     * output rates are always written together to satisfy publication rules.
+     */
+    public function autoPriceRates(Request $request, AuditService $audit): JsonResponse
+    {
+        $validated = $request->validate([
+            'margin' => ['sometimes', 'numeric', 'min:0.1', 'max:100'],
+            'idr_per_usd' => ['sometimes', 'numeric', 'min:1000', 'max:100000'],
+            'overwrite' => ['sometimes', 'boolean'],
+        ]);
+        $margin = (float) ($validated['margin'] ?? 1.0);
+        $idrPerUsd = (float) ($validated['idr_per_usd'] ?? 16000);
+        $overwrite = (bool) ($validated['overwrite'] ?? false);
+
+        // Retail USD per 1M tokens by tier (input, output), before the margin.
+        $base = ['Standard' => [0.15, 0.60], 'MAX' => [3.00, 15.00]];
+        $tierFor = static fn (?string $tier): string => match ($tier) {
+            'Authentic', 'MAX' => 'MAX',
+            default => 'Standard',
+        };
+
+        $updated = DB::transaction(function () use ($base, $tierFor, $margin, $idrPerUsd, $overwrite, $request, $audit): int {
+            $models = AiModelProfile::query()->where('category', 'chat')->orderBy('id')->lockForUpdate()->get();
+            $count = 0;
+            foreach ($models as $model) {
+                [$inUsd, $outUsd] = $base[$tierFor($model->tier)];
+                foreach (['input_tokens' => $inUsd, 'output_tokens' => $outUsd] as $meter => $usd) {
+                    $rate = UsageRate::query()->where(['service' => 'api', 'meter' => $meter, 'model' => $model->model_id])->first();
+                    if ($rate && ! $overwrite) {
+                        continue;
+                    }
+                    $price = round($usd * $margin, 6);
+                    $before = $rate?->toArray();
+                    $rate ??= new UsageRate(['service' => 'api', 'meter' => $meter, 'model' => $model->model_id]);
+                    $rate->fill([
+                        'label' => $model->display_name.' '.str_replace('_', ' ', $meter),
+                        'unit' => '1M tokens',
+                        'price_usd' => $price,
+                        'price_idr' => round($price * $idrPerUsd, 6),
+                        'is_active' => true,
+                        'sort_order' => $rate->sort_order ?? (($model->sort_order ?? 0) * 10),
+                    ]);
+                    if (! $rate->exists || $rate->isDirty()) {
+                        $rate->save();
+                        $audit->record($request->user(), 'pricing.rate.auto', $rate, ['before' => $before, 'after' => $rate->toArray()]);
+                        $count++;
+                    }
+                }
+            }
+
+            return $count;
+        });
+
+        Cache::forget('public-model-catalog-v3');
+
+        return response()->json(['message' => 'Automatic pricing applied.', 'updated_count' => $updated]);
+    }
+
     private function rateRules(bool $partial = true): array
     {
         $required = $partial ? 'sometimes' : 'required';
@@ -324,26 +385,6 @@ class PricingController extends Controller
         return response()->json([
             'balance_microusd' => Wallet::balance($userId),
             'balance_usd' => Wallet::balance($userId) / 1_000_000,
-        ]);
-    }
-
-    public function topupWallet(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'amount_usd' => 'required|numeric|min:0.01|max:1000000',
-            'description' => 'nullable|string|max:255',
-        ]);
-        $amountMicrousd = (int) round((float) $validated['amount_usd'] * 1_000_000);
-        $balance = Wallet::credit(
-            (int) $validated['user_id'],
-            $amountMicrousd,
-            $validated['description'] ?? 'Usage wallet top-up by admin',
-        );
-
-        return response()->json([
-            'balance_microusd' => $balance,
-            'balance_usd' => $balance / 1_000_000,
         ]);
     }
 }

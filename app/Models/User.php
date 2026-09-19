@@ -66,6 +66,9 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'expires_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
+            'email_otp_expires_at' => 'datetime',
+            'email_otp_sent_at' => 'datetime',
+            'email_otp_attempts' => 'integer',
             'permissions' => 'array',
         ];
     }

@@ -50,7 +50,8 @@ export default function Register() {
             }
             if (!r.ok) throw new Error(data.message || t('Pendaftaran gagal.'));
             await refreshUser();
-            navigate(localizedPath('/dashboard'));
+            // New accounts start on the profile, where the email activation code is entered.
+            navigate(localizedPath('/profile'));
         } catch (err) {
             setError(err.message || t('Pendaftaran gagal.'));
         } finally {
