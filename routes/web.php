@@ -155,6 +155,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/media-tools/inspect', [MediaToolController::class, 'inspect'])->middleware(['check.expiry', 'throttle:20,1']);
         Route::post('/media-tools/download', [MediaToolController::class, 'download'])->middleware(['check.expiry', 'throttle:10,1']);
         Route::post('/media-tools/convert', [MediaToolController::class, 'convert'])->middleware(['check.expiry', 'throttle:10,1']);
+        Route::post('/media-tools/rembg', [MediaToolController::class, 'removeBackground'])->middleware(['check.expiry', 'throttle:10,1']);
         Route::get('/media-tools/{jobId}', [MediaToolController::class, 'show']);
         Route::delete('/media-tools/{jobId}', [MediaToolController::class, 'destroy']);
         Route::post('/media-tools/{jobId}/cancel', [MediaToolController::class, 'cancel']);

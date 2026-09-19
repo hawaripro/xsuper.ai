@@ -14,4 +14,7 @@ return [
     'max_pixels' => 4096 * 4096,
     'max_concurrent_jobs' => 2,
     'process_timeout' => 360,
+    // Background removal (rembg). The model dir persists the u2net weights across jobs.
+    'rembg_model_dir' => env('MEDIA_REMBG_MODEL_DIR'),
+    'rembg_tokens' => (int) env('MEDIA_REMBG_TOKENS', 15),
 ];

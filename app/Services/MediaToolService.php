@@ -18,6 +18,8 @@ use Throwable;
 
 final class MediaToolService
 {
+    public function __construct(private readonly MediaTokenBillingService $billing) {}
+
     public const MIME_TYPES = [
         'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mp3' => 'audio/mpeg',
         'wav' => 'audio/wav', 'flac' => 'audio/flac', 'png' => 'image/png',
@@ -50,7 +52,7 @@ final class MediaToolService
     public function capabilities(): array
     {
         $paths = $this->runtimePaths();
-        $available = ['download' => false, 'convert' => false];
+        $available = ['download' => false, 'convert' => false, 'rembg' => false];
         if (config('media_tools.enabled') && $paths['python'] && $paths['ffmpeg'] && $paths['ffprobe']) {
             try {
                 $available = Cache::remember('media-tools:runtime:'.hash('sha256', json_encode($paths)), 60, function () use ($paths): array {
@@ -58,9 +60,14 @@ final class MediaToolService
                     $process->run();
                     $state = json_decode($process->getOutput(), true);
 
+                    $rembg = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/rembg_tool.py'), 'check'], base_path('scripts/media'), $this->environment(), '', 30);
+                    $rembg->run();
+                    $rembgState = json_decode($rembg->getOutput(), true);
+
                     return [
                         'download' => $process->isSuccessful() && ($state['download'] ?? false) === true,
                         'convert' => $process->isSuccessful() && ($state['convert'] ?? false) === true,
+                        'rembg' => $rembg->isSuccessful() && ($rembgState['rembg'] ?? false) === true,
                     ];
                 });
             } catch (Throwable) {
@@ -73,6 +80,8 @@ final class MediaToolService
             'limits' => ['max_upload_bytes' => $this->inputLimit(), 'max_output_bytes' => $this->outputLimit(), 'max_duration_seconds' => min(600, (int) config('media_tools.max_duration_seconds', 600))],
             'download_formats' => $available['download'] ? ['mp4', 'webm', 'mp3'] : [],
             'convert_formats' => $available['convert'] ? array_keys(self::MIME_TYPES) : [],
+            'rembg_formats' => ($available['rembg'] ?? false) ? ['png'] : [],
+            'rembg_tokens' => max(0, (int) config('media_tools.rembg_tokens', 15)),
             'message' => ! $available['convert'] ? self::ERRORS['runtime'] : (! $available['download'] ? 'Conversion is available, but the private downloader or sandboxed JavaScript runtime is unavailable.' : 'Downloads support public, unencrypted single items with native HTTP(S) streams. Login, live streams and playlists are not supported. Image conversion saves the first frame.'),
         ];
     }
@@ -95,6 +104,21 @@ final class MediaToolService
         }
 
         return $this->admit($user, 'convert', $format, null, $file, $this->conversionOptions($format, $input));
+    }
+
+    /**
+     * Remove an image background (rembg). Members reserve tokens; admins are free.
+     */
+    public function removeBackground(User $user, UploadedFile $file): MediaToolJob
+    {
+        if (! $file->isValid() || $file->getSize() < 1 || $file->getSize() > $this->inputLimit()) {
+            throw ValidationException::withMessages(['file' => self::ERRORS['input_limit']]);
+        }
+        if (! in_array('png', $this->capabilities()['rembg_formats'], true)) {
+            abort(503, self::ERRORS['runtime']);
+        }
+
+        return $this->admit($user, 'rembg', 'png', null, $file, []);
     }
 
     /**
@@ -268,13 +292,26 @@ final class MediaToolService
                     @chmod($directory.'/work/input', 0600);
                 }
 
-                return MediaToolJob::create([
+                // Paid tools (rembg) reserve member tokens; admins run free of charge.
+                $paid = $kind === 'rembg' && ! $user->isAdmin();
+                $unitCost = max(1, (int) config('media_tools.rembg_tokens', 15));
+                $billingMode = $kind === 'rembg' ? ($user->isAdmin() ? 'admin' : 'tokens') : null;
+
+                $job = MediaToolJob::create([
                     'user_id' => $user->id, 'job_id' => $jobId, 'kind' => $kind, 'format' => $format,
                     'options' => $options ?: null,
+                    'billing_mode' => $billingMode, 'tokens_reserved' => $paid ? $unitCost : 0,
                     'source_url' => $url, 'input_name' => $name,
                     'title' => $name ?: mb_substr('Download from '.parse_url($url, PHP_URL_HOST), 0, 240),
                     'status' => 'pending', 'stage' => 'queued', 'dispatched_at' => now(),
                 ]);
+
+                if ($paid) {
+                    // Throws a token-shortfall ValidationException, which rolls back the job.
+                    $this->billing->reserve($user, 'image', 'rembg', 1, $jobId, $unitCost);
+                }
+
+                return $job;
             });
             ProcessMediaToolJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
         } catch (Throwable $exception) {
@@ -319,7 +356,7 @@ final class MediaToolService
             }
             $directory = $this->directory($job->job_id);
             $paths = $this->runtimePaths();
-            if (! $paths['python'] || ! $paths['ffmpeg'] || ! $paths['ffprobe'] || ($job->kind === 'download' && ! $paths['node']) || ! is_dir($directory.'/work') || is_link($directory.'/work')) {
+            if (! $paths['python'] || ($job->kind !== 'rembg' && (! $paths['ffmpeg'] || ! $paths['ffprobe'])) || ($job->kind === 'download' && ! $paths['node']) || ! is_dir($directory.'/work') || is_link($directory.'/work')) {
                 throw new RuntimeException('runtime');
             }
             if (file_put_contents($directory.'/lease', $job->lease_token, LOCK_EX) === false) {
@@ -332,8 +369,10 @@ final class MediaToolService
                 'duration_limit' => min(600, (int) config('media_tools.max_duration_seconds', 600)),
                 'dimension_limit' => min(4096, (int) config('media_tools.max_dimension', 4096)),
                 'pixel_limit' => min(16777216, (int) config('media_tools.max_pixels', 16777216)),
+                'model_dir' => $job->kind === 'rembg' ? (is_string(config('media_tools.rembg_model_dir')) ? config('media_tools.rembg_model_dir') : null) : null,
             ];
-            $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'run'], $directory.'/work', $this->environment($directory.'/work'), json_encode($manifest, JSON_THROW_ON_ERROR), $timeout);
+            $script = $job->kind === 'rembg' ? 'scripts/media/rembg_tool.py' : 'scripts/media/download.py';
+            $process = new Process([$paths['python'], '-I', '-B', '-u', base_path($script), 'run'], $directory.'/work', $this->environment($directory.'/work'), json_encode($manifest, JSON_THROW_ON_ERROR), $timeout);
             $process->start();
             $buffer = '';
             $result = null;
@@ -398,6 +437,11 @@ final class MediaToolService
                 $current->update(['status' => 'completed', 'stage' => 'completed', 'progress' => 100, 'mime_type' => self::MIME_TYPES[$job->format],
                     'size_bytes' => $result['size_bytes'], 'duration' => $result['duration'] ?? null, 'completed_at' => now(), 'lease_token' => null]);
 
+                // Settle the member's token reservation now that the result is retained.
+                if ($current->billing_mode === 'tokens') {
+                    $this->billing->settle($current->user_id, ['reference_id' => $current->job_id], ['kind' => $current->kind, 'size_bytes' => $result['size_bytes']]);
+                }
+
                 return true;
             });
             if (! $completed) {
@@ -432,6 +476,9 @@ final class MediaToolService
             $job = MediaToolJob::query()->where('user_id', $user->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
             if ($job->status === 'pending') {
                 $job->update(['status' => 'cancelled', 'stage' => 'cancelled', 'completed_at' => now(), 'cancel_requested_at' => now()]);
+                if ($job->billing_mode === 'tokens') {
+                    $this->billing->release($job->user_id, ['reference_id' => $job->job_id], 'Media task cancelled');
+                }
             } elseif ($job->status === 'processing' && $job->cancel_requested_at === null) {
                 $job->update(['stage' => 'cancelling', 'cancel_requested_at' => now()]);
             }
@@ -507,6 +554,11 @@ final class MediaToolService
             }
             $job->update(['status' => $status, 'stage' => $status, 'error_message' => $error, 'completed_at' => now(), 'lease_token' => null]);
 
+            // Refund the member's reserved tokens for a paid job that never produced a result.
+            if ($job->billing_mode === 'tokens') {
+                $this->billing->release($job->user_id, ['reference_id' => $job->job_id], 'Media task '.$status);
+            }
+
             return true;
         });
     }
@@ -518,7 +570,7 @@ final class MediaToolService
         return [
             'job_id' => $job->job_id, 'kind' => $job->kind, 'status' => $job->status, 'stage' => $job->stage,
             'progress' => $job->progress, 'title' => $job->title,
-            'source_url' => $source ? parse_url($source, PHP_URL_SCHEME).'://'.parse_url($source, PHP_URL_HOST) : null,
+            'billing_mode' => $job->billing_mode, 'tokens_reserved' => (int) $job->tokens_reserved,
             'input_name' => $job->input_name, 'format' => $job->format, 'options' => $job->options ?: new \stdClass,
             'result_url' => $job->status === 'completed' ? '/api/media-tools/'.$job->job_id.'/asset' : null,
             'mime_type' => $job->mime_type, 'size_bytes' => $job->size_bytes, 'duration' => $job->duration,

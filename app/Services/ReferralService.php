@@ -58,6 +58,32 @@ class ReferralService
         return $code;
     }
 
+    /**
+     * Lenient capture used for `?ref=CODE` landing links and the register form:
+     * remembers a valid referral code in the session and a durable cookie without
+     * throwing on unknown or self codes, so the referrer resolves at signup time.
+     */
+    public function remember(Request $request, ?string $code): ?string
+    {
+        if (! $this->enabled() || ! is_string($code) || trim($code) === '') {
+            return null;
+        }
+
+        $code = $this->normalizeCode($code);
+        $referrer = User::query()->where('referral_code', $code)->first();
+
+        if (! $referrer || $request->user()?->is($referrer)) {
+            return null;
+        }
+
+        if ($request->hasSession()) {
+            $request->session()->put(self::SESSION_KEY, $code);
+        }
+        Cookie::queue($this->cookieName(), $code, max(1, (int) config('referrals.cookie_minutes', 43200)), '/', null, $request->isSecure(), true, false, 'Lax');
+
+        return $code;
+    }
+
     public function attribute(User $user, ?Request $request = null): ?Referral
     {
         if (! $this->enabled()) {

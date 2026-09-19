@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useLocale } from '../../contexts/LocaleContext';
@@ -7,18 +7,59 @@ import { Button, StatePanel, formatCount, formatLocalDate } from '../member/Memb
 import Icons from '../../layouts/SidebarIcons';
 import './dashboard-workspace.css';
 
-export default function DashboardWorkspace({ eyebrow, title, description, actions, children }) {
+export default function DashboardWorkspace({ hero, eyebrow, title, description, actions, children }) {
     return (
         <div className="dashboard-workspace">
-            <header className="dw-heading">
-                <div>
-                    {eyebrow && <p className="dw-eyebrow">{eyebrow}</p>}
-                    <h1>{title}</h1>
-                    <p>{description}</p>
-                </div>
-                {actions && <div className="dw-heading-actions">{actions}</div>}
-            </header>
+            {hero ? (
+                <header className="dw-heading dw-heading-hero">
+                    {hero}
+                    {actions && <div className="dw-heading-actions">{actions}</div>}
+                </header>
+            ) : (
+                <header className="dw-heading">
+                    <div>
+                        {eyebrow && <p className="dw-eyebrow">{eyebrow}</p>}
+                        <h1>{title}</h1>
+                        <p>{description}</p>
+                    </div>
+                    {actions && <div className="dw-heading-actions">{actions}</div>}
+                </header>
+            )}
             {children}
+        </div>
+    );
+}
+
+// Live greeting hero: rounded panel with an animated dot field, a pulsing status pill,
+// the time-of-day greeting, and a clock card that ticks each minute.
+export function DashboardHero({ pill, greeting, name, description, clockLabel, locale = 'id' }) {
+    const [now, setNow] = useState(() => new Date());
+    useEffect(() => {
+        const tick = () => setNow(new Date());
+        const timer = setInterval(tick, 30_000);
+        return () => clearInterval(timer);
+    }, []);
+    const intl = locale === 'en' ? 'en-US' : 'id-ID';
+    const weekday = new Intl.DateTimeFormat(intl, { weekday: 'long' }).format(now);
+    const clock = new Intl.DateTimeFormat(intl, { hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+    const datePart = new Intl.DateTimeFormat(intl, { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+    return (
+        <div className="dw-hero">
+            <div className="dw-hero-dots" aria-hidden="true" />
+            <div className="dw-hero-glow" aria-hidden="true" />
+            <div className="dw-hero-glow dw-hero-glow-2" aria-hidden="true" />
+            <div className="dw-hero-body">
+                <div className="dw-hero-copy">
+                    {pill && <p className="dw-eyebrow dw-hero-pill">{pill}</p>}
+                    <h1 className="dw-hero-title">{greeting}, <span className="dw-hero-name">{name}</span></h1>
+                    {description && <p className="dw-hero-desc">{description}</p>}
+                </div>
+                <div className="dw-hero-clock" role="group" aria-label={clockLabel}>
+                    <span className="dw-hero-weekday">{weekday}</span>
+                    <time className="dw-hero-time" dateTime={now.toISOString()}>{clock}</time>
+                    <span className="dw-hero-date">{datePart}</span>
+                </div>
+            </div>
         </div>
     );
 }

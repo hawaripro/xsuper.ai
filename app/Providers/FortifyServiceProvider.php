@@ -10,6 +10,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
 
@@ -28,8 +29,9 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
-        // SPA mode: views are disabled in config/fortify.php (views => false)
-        // All auth views are handled by React SPA via catch-all route
+        // SPA mode: views are disabled in config/fortify.php (views => false).
+        // All auth screens are the React SPA; point the reset email at its route.
+        ResetPassword::createUrlUsing(fn ($user, string $token) => url('/reset-password?token='.$token.'&email='.urlencode($user->getEmailForPasswordReset())));
 
         // Rate limiting for login attempts
         RateLimiter::for('login', function (Request $request) {

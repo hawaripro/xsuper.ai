@@ -10,6 +10,9 @@ import PageErrorBoundary from './components/dashboard/PageErrorBoundary';
 
 // Pages
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
@@ -17,6 +20,7 @@ import VideoGenerator from './pages/VideoGenerator';
 import AudioGenerator from './pages/AudioGenerator';
 import VideoDownloader from './pages/VideoDownloader';
 import MediaConverter from './pages/MediaConverter';
+import RemoveBackground from './pages/RemoveBackground';
 import ErrorPage from './pages/ErrorPage';
 
 // User pages
@@ -94,6 +98,9 @@ function LocalizedAppRoutes() {
     return (
         <Routes>
             <Route path={path('/login')} element={<GuestRoute><Login /></GuestRoute>} />
+            <Route path={path('/register')} element={<GuestRoute><Register /></GuestRoute>} />
+            <Route path={path('/forgot-password')} element={<GuestRoute><ForgotPassword /></GuestRoute>} />
+            <Route path={path('/reset-password')} element={<GuestRoute><ResetPassword /></GuestRoute>} />
             <Route path={path('/chat')} element={<ProtectedRoute permission="chat"><PageErrorBoundary><ChatFullPage /></PageErrorBoundary></ProtectedRoute>} />
             <Route path={path('/dashboard')} element={<DL><Dashboard /></DL>} />
             <Route path={path('/profile')} element={<DL><Profile /></DL>} />
@@ -101,6 +108,7 @@ function LocalizedAppRoutes() {
             <Route path={path('/audio')} element={<DL permission="audio_generator"><AudioGenerator /></DL>} />
             <Route path={path('/downloads')} element={<DL permission="video_downloader"><VideoDownloader /></DL>} />
             <Route path={path('/converter')} element={<DL permission="media_converter"><MediaConverter /></DL>} />
+            <Route path={path('/remove-background')} element={<DL permission="media_converter"><RemoveBackground /></DL>} />
             <Route path={path('/templates')} element={<DL><TemplatePrompt /></DL>} />
             <Route path={path('/library')} element={<DL><Library /></DL>} />
             <Route path={path('/history')} element={<Navigate to={path('/chat')} replace />} />
