@@ -33,6 +33,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Security headers for all responses
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
+        // Remember `?ref=CODE` referral links on any web landing so signups attribute correctly.
+        $middleware->web(append: [\App\Http\Middleware\CaptureReferral::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Return JSON for API errors

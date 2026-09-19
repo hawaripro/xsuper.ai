@@ -10,6 +10,9 @@ import PageErrorBoundary from './components/dashboard/PageErrorBoundary';
 
 // Pages
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
@@ -94,6 +97,9 @@ function LocalizedAppRoutes() {
     return (
         <Routes>
             <Route path={path('/login')} element={<GuestRoute><Login /></GuestRoute>} />
+            <Route path={path('/register')} element={<GuestRoute><Register /></GuestRoute>} />
+            <Route path={path('/forgot-password')} element={<GuestRoute><ForgotPassword /></GuestRoute>} />
+            <Route path={path('/reset-password')} element={<GuestRoute><ResetPassword /></GuestRoute>} />
             <Route path={path('/chat')} element={<ProtectedRoute permission="chat"><PageErrorBoundary><ChatFullPage /></PageErrorBoundary></ProtectedRoute>} />
             <Route path={path('/dashboard')} element={<DL><Dashboard /></DL>} />
             <Route path={path('/profile')} element={<DL><Profile /></DL>} />

@@ -256,6 +256,9 @@ export default function Login() {
                                 </button>
                             </div>
                         </div>
+                        <div className="-mt-3 mb-2 text-right">
+                            <Link to={localizedPath('/forgot-password')} className={`text-xs font-semibold ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-red-600'}`}>{t('Lupa password?')}</Link>
+                        </div>
                         </>
                         )}
 
@@ -310,6 +313,12 @@ export default function Login() {
                             {t('Masuk dengan Google')}
                         </a>
                         </>)}
+
+                        {!challenge && (
+                            <p className={`mt-6 text-center text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                {t('Belum punya akun?')} <Link to={localizedPath('/register')} className="font-semibold text-red-500 hover:text-red-600">{t('Daftar')}</Link>
+                            </p>
+                        )}
 
                         {/* Back */}
                         <div className="mt-6 text-center">
