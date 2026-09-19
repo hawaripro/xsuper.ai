@@ -2,7 +2,7 @@
 <header class="site-header">
     <div class="container header-inner">
         <a href="{{ $localeUrl('/') }}" class="brand" aria-label="{{ __('XSuper.ai, beranda') }}">
-            <img src="/logo-xsuper.png" width="42" height="42" alt="{{ __('Logo XSuper.ai') }}" fetchpriority="high">
+            <img src="/xsuper-icon.png" width="42" height="42" alt="{{ __('Logo XSuper.ai') }}" fetchpriority="high">
             <span>XSuper<span class="brand-ai">.ai</span></span>
         </a>
         <button id="site-menu-toggle" class="menu-toggle" type="button" aria-label="{{ __('Buka navigasi') }}" aria-expanded="false" aria-controls="site-nav" data-open-label="{{ __('Buka menu navigasi') }}" data-close-label="{{ __('Tutup menu navigasi') }}" hidden>@include('public.partials.icon', ['name' => 'menu'])</button>

@@ -71,7 +71,7 @@ class FalCatalogSeeder extends Seeder
                     'description_en' => $isChat
                         ? 'Cost-efficient chat model for everyday tasks.'
                         : 'Fast, affordable image generator.',
-                    'logo_url' => '/logo-xsuper.png',
+                    'logo_url' => '/xsuper-icon.png',
                     'capabilities' => $isChat ? ['chat'] : ['text-to-image'],
                     'input_modalities' => ['text'],
                     'output_modalities' => $isChat ? ['text'] : ['image'],

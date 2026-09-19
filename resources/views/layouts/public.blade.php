@@ -16,7 +16,7 @@
     <meta property="og:description" content="{{ $page['description'] }}">
     <meta property="og:type" content="{{ $page['type'] === 'policy' ? 'article' : 'website' }}">
     <meta property="og:url" content="{{ $page['canonical'] }}">
-    <meta property="og:image" content="{{ $site['url'] }}/logo-xsuper.png">
+    <meta property="og:image" content="{{ $site['url'] }}/xsuper-logo.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:type" content="image/png">
@@ -26,9 +26,9 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $page['title'] }}">
     <meta name="twitter:description" content="{{ $page['description'] }}">
-    <meta name="twitter:image" content="{{ $site['url'] }}/logo-xsuper.png">
-    <link rel="icon" type="image/png" href="/logo-xsuper.png">
-    <link rel="apple-touch-icon" href="/logo-xsuper.png">
+    <meta name="twitter:image" content="{{ $site['url'] }}/xsuper-logo.png">
+    <link rel="icon" type="image/png" href="/xsuper-icon.png">
+    <link rel="apple-touch-icon" href="/xsuper-icon.png">
     <script>try{if(localStorage.getItem('xsuper-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
     @vite(['resources/css/landing.css', 'resources/js/landing.js'])
     @if(config('services.umami.id'))

@@ -47,7 +47,7 @@ class DashboardLocaleCatalogTest extends TestCase
             'provider_name' => 'Curated Provider',
             'description_id' => 'Deskripsi tetap',
             'description_en' => 'Description stays',
-            'logo_url' => '/logo-xsuper.png',
+            'logo_url' => '/xsuper-icon.png',
             'context_window' => 128000,
             'category' => 'chat',
             'tier' => 'Premium',
@@ -80,7 +80,7 @@ class DashboardLocaleCatalogTest extends TestCase
         $this->assertSame('Curated Provider', $model->provider_name);
         $this->assertSame('Deskripsi tetap', $model->description_id);
         $this->assertSame('Description stays', $model->description_en);
-        $this->assertSame('/logo-xsuper.png', $model->logo_url);
+        $this->assertSame('/xsuper-icon.png', $model->logo_url);
         $this->assertSame(128000, $model->context_window);
         $this->assertSame(['Popular'], $model->badges);
         $this->assertSame(4, $model->sort_order);
