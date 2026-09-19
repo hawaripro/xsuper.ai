@@ -20,7 +20,7 @@ class MediaToolController extends Controller
 
     public function history(Request $request, MediaToolService $tools): JsonResponse
     {
-        $input = $request->validate(['kind' => ['nullable', Rule::in(['download', 'convert'])]]);
+        $input = $request->validate(['kind' => ['nullable', Rule::in(['download', 'convert', 'rembg'])]]);
         $query = MediaToolJob::query()->where('user_id', $request->user()->id);
         if (! empty($input['kind'])) {
             $query->where('kind', $input['kind']);
@@ -65,6 +65,15 @@ class MediaToolController extends Controller
         return response()->json(['job' => $tools->payload($tools->convert($request->user(), $request->file('file'), $input['format'], $input))], 202);
     }
 
+    public function removeBackground(Request $request, MediaToolService $tools): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'image', 'max:'.intdiv(min(128 * 1024 * 1024, (int) config('media_tools.max_upload_bytes', 128 * 1024 * 1024)), 1024)],
+        ]);
+
+        return response()->json(['job' => $tools->payload($tools->removeBackground($request->user(), $request->file('file')))], 202);
+    }
+
     public function destroy(Request $request, string $jobId, MediaToolService $tools): JsonResponse
     {
         $tools->destroy($request->user(), $jobId);
@@ -74,7 +83,7 @@ class MediaToolController extends Controller
 
     public function destroyAll(Request $request, MediaToolService $tools): JsonResponse
     {
-        $input = $request->validate(['kind' => ['required', Rule::in(['download', 'convert'])]]);
+        $input = $request->validate(['kind' => ['required', Rule::in(['download', 'convert', 'rembg'])]]);
 
         return response()->json(['deleted_count' => $tools->destroyAll($request->user(), $input['kind'])]);
     }

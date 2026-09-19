@@ -20,6 +20,7 @@ import VideoGenerator from './pages/VideoGenerator';
 import AudioGenerator from './pages/AudioGenerator';
 import VideoDownloader from './pages/VideoDownloader';
 import MediaConverter from './pages/MediaConverter';
+import RemoveBackground from './pages/RemoveBackground';
 import ErrorPage from './pages/ErrorPage';
 
 // User pages
@@ -107,6 +108,7 @@ function LocalizedAppRoutes() {
             <Route path={path('/audio')} element={<DL permission="audio_generator"><AudioGenerator /></DL>} />
             <Route path={path('/downloads')} element={<DL permission="video_downloader"><VideoDownloader /></DL>} />
             <Route path={path('/converter')} element={<DL permission="media_converter"><MediaConverter /></DL>} />
+            <Route path={path('/remove-background')} element={<DL permission="media_converter"><RemoveBackground /></DL>} />
             <Route path={path('/templates')} element={<DL><TemplatePrompt /></DL>} />
             <Route path={path('/library')} element={<DL><Library /></DL>} />
             <Route path={path('/history')} element={<Navigate to={path('/chat')} replace />} />
