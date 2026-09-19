@@ -4,7 +4,7 @@ import { apiRequest } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale } from '../contexts/LocaleContext';
 import OnboardingWizard from '../components/OnboardingWizard';
-import DashboardWorkspace, { WorkspaceInbox, WorkspaceLoading, WorkspaceMetric, WorkspaceModule, WorkspaceUsageChart } from '../components/dashboard/DashboardWorkspace';
+import DashboardWorkspace, { DashboardHero, WorkspaceInbox, WorkspaceLoading, WorkspaceMetric, WorkspaceModule, WorkspaceUsageChart } from '../components/dashboard/DashboardWorkspace';
 import { Button, InlineAlert, PingDot, StatePanel, StatusBadge, errorMessage, formatCount, formatLocalDate, formatUsdMicros } from '../components/member/MemberUI';
 import Icons from '../layouts/SidebarIcons';
 
@@ -107,7 +107,7 @@ export default function Dashboard() {
     }
 
     return (
-        <DashboardWorkspace eyebrow={<><PingDot tone={!account ? 'slate' : healthy ? 'red' : 'amber'} />{t('Selamat datang kembali')}</>} title={`${greeting(t)}, ${account?.name || user?.name || t('Pengguna')}`} description={t('Mulai berkarya, pantau pemakaian, dan lanjutkan pekerjaan Anda.')}>
+        <DashboardWorkspace hero={<DashboardHero pill={<><PingDot tone={!account ? 'slate' : healthy ? 'red' : 'amber'} />{t('Selamat datang kembali')}</>} greeting={greeting(t)} name={account?.name || user?.name || t('Pengguna')} description={t('Mulai berkarya, pantau pemakaian, dan lanjutkan pekerjaan Anda.')} clockLabel={t('Waktu saat ini')} locale={locale} />}>
             {showOnboarding && locale === 'id' && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
             {onboardingError && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => setOnboardingRevision(value => value + 1)}>{t('Coba lagi')}</Button>}>{t('Status onboarding tidak dapat diperiksa')}: {t(errorMessage(onboardingError))}</InlineAlert>}
             {sources.dashboard.error && <InlineAlert tone="error" action={<Button variant="ghost" onClick={() => loadSource('dashboard')}>{t('Coba lagi')}</Button>}><strong>{t('Ringkasan akun tidak dapat diperbarui.')}</strong> {t(errorMessage(sources.dashboard.error))}{dashboard && <span> {t('Data terakhir tetap ditampilkan.')}</span>}</InlineAlert>}

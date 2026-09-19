@@ -803,6 +803,7 @@ const dictionaries = {
         'Ringkasan akun, penggunaan, dan layanan Anda.': 'Your account, usage, and service summary.',
         'Ringkasan langsung dari aktivitas dan status akun Anda.': 'A live summary of your account activity and status.',
         'Selamat datang kembali': 'Welcome back',
+        'Waktu saat ini': 'Current time',
         'Selamat pagi': 'Good morning',
         'Selamat siang': 'Good afternoon',
         'Selamat sore': 'Good evening',
