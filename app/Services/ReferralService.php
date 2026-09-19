@@ -346,7 +346,7 @@ class ReferralService
 
     public function cookieName(): string
     {
-        return (string) config('referrals.cookie_name', 'ultrai_referral');
+        return (string) config('referrals.cookie_name', 'xsuper_referral');
     }
 
     private function awardDuration(Referral $referral, User $user, string $role, int $days): void

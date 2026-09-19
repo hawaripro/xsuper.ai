@@ -37,8 +37,8 @@ export default function AuthScaffold({ title, subtitle, children, footer }) {
                     <Link to={locale === 'en' ? '/en' : '/'} className="inline-flex items-center gap-2.5 mb-4 group">
                         <UltrLogo className="w-11 h-11 group-hover:scale-105 group-hover:-rotate-3 transition-transform duration-300" />
                         <span className="text-3xl font-black tracking-tight flex items-center gap-[2px]">
-                            <span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span>
-                            <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">AI</span>
+                            <span className={isDark ? 'text-white' : 'text-slate-900'}>XSuper</span>
+                            <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">.ai</span>
                         </span>
                     </Link>
                     <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{title}</h1>
@@ -51,7 +51,7 @@ export default function AuthScaffold({ title, subtitle, children, footer }) {
 
                 {footer && <div className="mt-6 text-center text-sm">{footer}</div>}
                 <p className={`text-center text-xs mt-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                    &copy; {new Date().getFullYear()} UltrAI. {t('Semua hak dilindungi.')}
+                    &copy; {new Date().getFullYear()} XSuper.ai. {t('Semua hak dilindungi.')}
                 </p>
             </div>
         </div>

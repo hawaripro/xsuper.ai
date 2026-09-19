@@ -15,7 +15,7 @@ class VerifyApiKey
     {
         $bearer = $request->bearerToken();
 
-        if (! $bearer || ! str_starts_with($bearer, 'ultrai-')) {
+        if (! $bearer || ! str_starts_with($bearer, 'xsuper-')) {
             return response()->json([
                 'error' => ['message' => 'Invalid API key', 'type' => 'authentication_error'],
             ], 401);

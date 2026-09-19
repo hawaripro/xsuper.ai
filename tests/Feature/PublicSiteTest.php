@@ -206,10 +206,10 @@ class PublicSiteTest extends TestCase
         $response = $this->get('/')->assertOk();
         $html = $this->html($response->getContent());
 
-        $this->assertSame('UltrAI — AI-Powered Platform for UMKM Indonesia', $html->evaluate('string(//title)'));
-        $this->assertCanonicalAndIndexable($html, 'https://ultrai.id');
-        $this->assertSame('https://ultrai.id/og-image.png', $html->evaluate('string(//meta[@property="og:image"]/@content)'));
-        $this->assertSame('/ultr-icons.png', $html->evaluate('string(//link[@rel="icon"]/@href)'));
+        $this->assertSame('XSuper.ai — AI-Powered Platform for UMKM Indonesia', $html->evaluate('string(//title)'));
+        $this->assertCanonicalAndIndexable($html, 'https://xsuper.dev');
+        $this->assertSame('https://xsuper.dev/logo-xsuper.png', $html->evaluate('string(//meta[@property="og:image"]/@content)'));
+        $this->assertSame('/logo-xsuper.png', $html->evaluate('string(//link[@rel="icon"]/@href)'));
 
         $graph = $this->structuredData($html)['@graph'];
         $byType = array_column($graph, null, '@type');
@@ -232,7 +232,7 @@ class PublicSiteTest extends TestCase
         $response = $this->get('/pricing')->assertOk();
         $html = $this->html($response->getContent());
 
-        $this->assertCanonicalAndIndexable($html, 'https://ultrai.id/pricing');
+        $this->assertCanonicalAndIndexable($html, 'https://xsuper.dev/pricing');
         $this->assertCount(1, $html->query('//main//h1'));
         $this->assertCount(count(DurationOrder::PACKAGES), $html->query('//*[@data-plan]'));
 
@@ -251,7 +251,7 @@ class PublicSiteTest extends TestCase
         foreach (DurationOrder::PACKAGES as $id => $package) {
             $this->assertSame(DurationPackagePrice::catalog()[$id]['price_idr'], $offers[$id]['price']);
             $this->assertSame('IDR', $offers[$id]['priceCurrency']);
-            $this->assertSame('https://ultrai.id/pricing', $offers[$id]['url']);
+            $this->assertSame('https://xsuper.dev/pricing', $offers[$id]['url']);
         }
     }
 
@@ -300,7 +300,7 @@ class PublicSiteTest extends TestCase
         foreach ($requirements as $slug => $terms) {
             $response = $this->get('/'.$slug)->assertOk();
             $html = $this->html($response->getContent());
-            $this->assertCanonicalAndIndexable($html, 'https://ultrai.id/'.$slug);
+            $this->assertCanonicalAndIndexable($html, 'https://xsuper.dev/'.$slug);
             $this->assertCount(1, $html->query('//main//h1'));
             $this->assertCount(0, $html->query('//script[@type="application/ld+json"]'));
 
@@ -334,11 +334,11 @@ class PublicSiteTest extends TestCase
         $html = $this->html($response->getContent());
 
         $this->assertSame('en', $html->evaluate('string(/html/@lang)'));
-        $this->assertSame('UltrAI — AI Platform for Creating, Learning, and Building', $html->evaluate('string(//title)'));
-        $this->assertCanonicalAndIndexable($html, 'https://ultrai.id/en');
-        $this->assertSame('https://ultrai.id', $html->evaluate('string(//link[@rel="alternate" and @hreflang="id"]/@href)'));
-        $this->assertSame('https://ultrai.id/en', $html->evaluate('string(//link[@rel="alternate" and @hreflang="en"]/@href)'));
-        $this->assertSame('https://ultrai.id', $html->evaluate('string(//link[@rel="alternate" and @hreflang="x-default"]/@href)'));
+        $this->assertSame('XSuper.ai — AI Platform for Creating, Learning, and Building', $html->evaluate('string(//title)'));
+        $this->assertCanonicalAndIndexable($html, 'https://xsuper.dev/en');
+        $this->assertSame('https://xsuper.dev', $html->evaluate('string(//link[@rel="alternate" and @hreflang="id"]/@href)'));
+        $this->assertSame('https://xsuper.dev/en', $html->evaluate('string(//link[@rel="alternate" and @hreflang="en"]/@href)'));
+        $this->assertSame('https://xsuper.dev', $html->evaluate('string(//link[@rel="alternate" and @hreflang="x-default"]/@href)'));
         $this->assertStringContainsString('One space.', $this->text($html->evaluate('string(//main)')));
         $this->assertStringContainsString('Different minds.', $this->text($html->evaluate('string(//*[@data-orbit-stage])')));
         $this->assertStringContainsString('One workspace.', $this->text($html->evaluate('string(//*[@data-orbit-stage])')));
@@ -346,15 +346,15 @@ class PublicSiteTest extends TestCase
         $this->assertSame('/en/models', $html->evaluate('string(//*[@id="site-nav"]/a[1]/@href)'));
 
         $graph = array_column($this->structuredData($html)['@graph'], null, '@type');
-        $this->assertSame('What is UltrAI?', $graph['FAQPage']['mainEntity'][0]['name']);
+        $this->assertSame('What is XSuper.ai?', $graph['FAQPage']['mainEntity'][0]['name']);
 
         $pricing = $this->html($this->get('/en/pricing')->assertOk()->assertHeader('Content-Language', 'en')->getContent());
-        $this->assertCanonicalAndIndexable($pricing, 'https://ultrai.id/en/pricing');
+        $this->assertCanonicalAndIndexable($pricing, 'https://xsuper.dev/en/pricing');
         $this->assertStringContainsString('Choose your time.', $this->text($pricing->evaluate('string(//main)')));
 
         $policy = $this->html($this->get('/en/privacy-policy')->assertOk()->getContent());
         $this->assertStringContainsString('Scope', $this->text($policy->evaluate('string(//main)')));
-        $this->assertCanonicalAndIndexable($policy, 'https://ultrai.id/en/privacy-policy');
+        $this->assertCanonicalAndIndexable($policy, 'https://xsuper.dev/en/privacy-policy');
 
         $this->get('/?lang=en')->assertRedirect('/en')->assertStatus(301);
         $this->get('/pricing?lang=en')->assertRedirect('/en/pricing')->assertStatus(301);
@@ -369,7 +369,7 @@ class PublicSiteTest extends TestCase
             'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true,
         ]);
         $models = $this->html($this->get('/models')->assertOk()->getContent());
-        $this->assertCanonicalAndIndexable($models, 'https://ultrai.id/models');
+        $this->assertCanonicalAndIndexable($models, 'https://xsuper.dev/models');
         $this->assertStringContainsString($profile->display_name, $this->text($models->evaluate('string(//*[@data-model-table])')));
         $catalogText = strtolower($this->text($models->evaluate('string(//*[@data-model-table])')));
         $this->assertStringNotContainsString('au'.'to', $catalogText);
@@ -432,18 +432,18 @@ class PublicSiteTest extends TestCase
         }
 
         $this->assertSame([
-            'https://ultrai.id',
-            'https://ultrai.id/en',
-            'https://ultrai.id/pricing',
-            'https://ultrai.id/en/pricing',
-            'https://ultrai.id/models',
-            'https://ultrai.id/en/models',
-            'https://ultrai.id/privacy-policy',
-            'https://ultrai.id/en/privacy-policy',
-            'https://ultrai.id/terms-of-service',
-            'https://ultrai.id/en/terms-of-service',
-            'https://ultrai.id/refund-policy',
-            'https://ultrai.id/en/refund-policy',
+            'https://xsuper.dev',
+            'https://xsuper.dev/en',
+            'https://xsuper.dev/pricing',
+            'https://xsuper.dev/en/pricing',
+            'https://xsuper.dev/models',
+            'https://xsuper.dev/en/models',
+            'https://xsuper.dev/privacy-policy',
+            'https://xsuper.dev/en/privacy-policy',
+            'https://xsuper.dev/terms-of-service',
+            'https://xsuper.dev/en/terms-of-service',
+            'https://xsuper.dev/refund-policy',
+            'https://xsuper.dev/en/refund-policy',
         ], $urls);
     }
 
@@ -455,7 +455,7 @@ class PublicSiteTest extends TestCase
         $this->assertCount(1, $html->query('//div[@id="app"]'));
         $this->assertCount(0, $html->query('//*[@data-plan]'));
         $this->assertSame('noindex, follow', $html->evaluate('string(//meta[@name="robots"]/@content)'));
-        $this->assertSame('https://ultrai.id/login', $html->evaluate('string(//link[@rel="canonical"]/@href)'));
+        $this->assertSame('https://xsuper.dev/login', $html->evaluate('string(//link[@rel="canonical"]/@href)'));
         $this->assertCount(0, $html->query('//script[@type="application/ld+json"]'));
     }
 

@@ -24,7 +24,7 @@ class AdminApiKeyManagementTest extends TestCase
         ]);
         $create->assertCreated();
         $key = $create->json('key');
-        $this->assertStringStartsWith('ultrai-', $key);
+        $this->assertStringStartsWith('xsuper-', $key);
         $row = ApiKey::where('user_id', $member->id)->firstOrFail();
         $this->assertTrue($row->is_active);
         $this->assertSame(120, $row->rate_limit);
@@ -47,7 +47,7 @@ class AdminApiKeyManagementTest extends TestCase
         $regen = $this->actingAs($admin)->postJson('/api/k/regen/'.$row->id);
         $regen->assertOk();
         $this->assertNotSame($key, $regen->json('key'));
-        $this->assertStringStartsWith('ultrai-', $regen->json('key'));
+        $this->assertStringStartsWith('xsuper-', $regen->json('key'));
 
         // Delete
         $this->actingAs($admin)->deleteJson('/api/k/'.$row->id)->assertOk();

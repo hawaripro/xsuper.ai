@@ -23,7 +23,7 @@ class DashboardRevisionTest extends TestCase
             ->postJson('/api/period/checkout', ['package' => '1_month'])
             ->assertCreated()
             ->assertJsonPath('checkout.payment_method', 'qris')
-            ->assertJsonPath('checkout.qr_image_url', '/assets/payments/qris-ultrai.png')
+            ->assertJsonPath('checkout.qr_image_url', '/assets/payments/qris-xsuper.png')
             ->json('checkout');
 
         $this->assertTrue(Str::isUuid($checkout['payment_reference']));

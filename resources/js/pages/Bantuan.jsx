@@ -81,7 +81,7 @@ function FeedbackForm() {
         try {
             await apiRequest("/api/feedback", { method: "POST", body: { ...form, rating: Number(form.rating) } });
             setForm(EMPTY_FEEDBACK);
-            setSuccess(t("Masukan Anda sudah tercatat dan akan ditinjau tim UltrAI."));
+            setSuccess(t("Masukan Anda sudah tercatat dan akan ditinjau tim XSuper.ai."));
         } catch (requestError) {
             setError(requestError);
             setErrors(validationErrors(requestError));
@@ -157,7 +157,7 @@ function TicketThread({ ticket, loading, error, reply, setReply, replying, reply
             <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1">
                 {(ticket.messages || []).map((message) => (
                     <article key={message.id} className={`rounded-lg border p-3 ${message.is_staff ? "border-blue-200 bg-blue-50/60 dark:border-blue-400/20 dark:bg-blue-400/[0.07]" : "border-slate-200 bg-slate-50 dark:border-white/[0.07] dark:bg-white/[0.025]"}`}>
-                        <div className="flex items-center justify-between gap-3 text-[10px] text-slate-500"><span className="font-semibold uppercase tracking-wide">{message.is_staff ? t("Tim UltrAI") : t("Anda")}</span><span>{formatLocalDate(message.created_at)}</span></div>
+                        <div className="flex items-center justify-between gap-3 text-[10px] text-slate-500"><span className="font-semibold uppercase tracking-wide">{message.is_staff ? t("Tim XSuper.ai") : t("Anda")}</span><span>{formatLocalDate(message.created_at)}</span></div>
                         <p className="mt-2 whitespace-pre-wrap break-words text-[12px] leading-5 text-slate-700 dark:text-slate-200">{message.body}</p>
                     </article>
                 ))}

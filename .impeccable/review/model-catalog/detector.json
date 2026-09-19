@@ -1,6 +1,0 @@
-{
-  "scan": "Successful Chromium-backed scan of /models, /en/models, /pricing, and /en/pricing after final polish.",
-  "findings": [],
-  "verified": ["no undersized catalog metadata", "no low-contrast pricing selection text", "no edge-flush desktop pricing card", "no oversized catalog hero", "no generated eyebrow kicker"],
-  "result": "No detector findings."
-}

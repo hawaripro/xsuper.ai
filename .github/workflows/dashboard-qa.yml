@@ -60,13 +60,13 @@ jobs:
       postgres:
         image: postgres:18
         env:
-          POSTGRES_DB: ultrai_pg_test
-          POSTGRES_USER: ultrai_pg_test
-          POSTGRES_PASSWORD: ultrai-ci-test-only
+          POSTGRES_DB: xsuper_pg_test
+          POSTGRES_USER: xsuper_pg_test
+          POSTGRES_PASSWORD: xsuper-ci-test-only
         ports:
           - 2209:5432
         options: >-
-          --health-cmd "pg_isready -U ultrai_pg_test -d ultrai_pg_test"
+          --health-cmd "pg_isready -U xsuper_pg_test -d xsuper_pg_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -75,12 +75,12 @@ jobs:
       APP_DEBUG: 'false'
       APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       ULTRAI_DATABASE_TEST_PROFILE: postgres
-      ULTRAI_PG_TEST_PASSWORD: ultrai-ci-test-only
+      ULTRAI_PG_TEST_PASSWORD: xsuper-ci-test-only
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: '2209'
-      DB_DATABASE: ultrai_pg_test
-      DB_USERNAME: ultrai_pg_test
+      DB_DATABASE: xsuper_pg_test
+      DB_USERNAME: xsuper_pg_test
       DB_URL: ''
       CACHE_STORE: array
       SESSION_DRIVER: array

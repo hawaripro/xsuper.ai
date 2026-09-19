@@ -15,7 +15,7 @@ export const tokenPrice = (model) => model?.billing_mode === "tokens" && Number.
 
 // Only text/settings live here. Never persist account credentials, outputs or File objects.
 export function useStudioDraft(kind, userId, defaults) {
-    const key = `ultrai:studio:${kind}:${userId}:v1`;
+    const key = `xsuper:studio:${kind}:${userId}:v1`;
     const [draft, setDraft] = useState(() => {
         try {
             const stored = JSON.parse(sessionStorage.getItem(key) || "null");

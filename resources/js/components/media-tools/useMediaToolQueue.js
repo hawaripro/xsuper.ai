@@ -4,7 +4,7 @@ import { apiRequest } from "../../lib/api";
 const API = "/api/media-tools";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = new Set(["pending", "processing", "completed", "failed", "cancelled"]);
-const SUBMISSION_EVENT = "ultrai:media-tool-submission";
+const SUBMISSION_EVENT = "xsuper:media-tool-submission";
 const submissions = new Map();
 const inFlight = new Set();
 
@@ -63,7 +63,7 @@ function rememberSubmission(key, attempt, job = null) {
 }
 
 export default function useMediaToolQueue({ kind, userId, jobId }) {
-    const storageKey = `ultrai.media-tools.${userId}.${kind}.submission`;
+    const storageKey = `xsuper.media-tools.${userId}.${kind}.submission`;
     const [jobs, setJobs] = useState([]);
     const [capabilities, setCapabilities] = useState(null);
     const [capabilityLoading, setCapabilityLoading] = useState(true);

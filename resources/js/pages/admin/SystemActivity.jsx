@@ -131,7 +131,7 @@ export default function SystemActivity() {
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         const link = document.createElement('a');
         link.href = url;
-        link.download = `ultrai-audit-page-${audit.data.current_page || page}-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.download = `xsuper-audit-page-${audit.data.current_page || page}-${new Date().toISOString().slice(0, 10)}.csv`;
         document.body.appendChild(link);
         link.click();
         link.remove();

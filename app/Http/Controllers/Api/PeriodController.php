@@ -90,7 +90,7 @@ class PeriodController extends Controller
                 'payment_method' => $checkout->payment_method,
                 'amount_idr' => $checkout->amount_idr,
                 'expires_at' => $checkout->expires_at->toISOString(),
-                'qr_image_url' => '/assets/payments/qris-ultrai.png',
+                'qr_image_url' => '/assets/payments/qris-xsuper.png',
             ],
         ], 201);
     }

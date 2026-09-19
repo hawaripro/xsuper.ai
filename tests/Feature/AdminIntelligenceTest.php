@@ -153,10 +153,10 @@ class AdminIntelligenceTest extends TestCase
         $this->get('/en')->assertOk()->assertSee('href="/en/pricing"', false);
 
         $external = $block->published;
-        $external['primary_action']['url'] = 'https://status.ultrai.id';
+        $external['primary_action']['url'] = 'https://status.xsuper.dev';
         $block->update(['draft' => $external, 'published' => $external]);
 
-        $this->get('/en')->assertOk()->assertSee('href="https://status.ultrai.id"', false);
+        $this->get('/en')->assertOk()->assertSee('href="https://status.xsuper.dev"', false);
     }
     public function test_content_keys_and_each_payload_schema_are_strictly_validated(): void
     {
@@ -170,12 +170,12 @@ class AdminIntelligenceTest extends TestCase
                 'primary_action' => ['label' => 'View plans', 'url' => '/pricing'],
             ],
             'home.faq' => [
-                'items' => [['question' => 'What is UltrAI?', 'answer' => 'A private AI workspace.']],
+                'items' => [['question' => 'What is XSuper.ai?', 'answer' => 'A private AI workspace.']],
             ],
             'system.announcement' => [
                 'message' => 'Scheduled maintenance tonight.',
                 'level' => 'warning',
-                'action' => ['label' => 'Read status', 'url' => 'https://status.ultrai.id'],
+                'action' => ['label' => 'Read status', 'url' => 'https://status.xsuper.dev'],
             ],
             'help.articles' => [
                 'items' => [[

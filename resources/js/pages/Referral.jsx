@@ -104,7 +104,7 @@ export default function Referral() {
                             <SectionHeader title={t("Cara kerja")} description={t("Status backend menentukan kapan bonus tercatat.")} />
                             <ol className="mt-4 space-y-3">
                                 {[
-                                    ["1", t("Bagikan link"), t("Calon anggota membuka UltrAI melalui link Anda.")],
+                                    ["1", t("Bagikan link"), t("Calon anggota membuka XSuper.ai melalui link Anda.")],
                                     ["2", t("Atribusi dicatat"), t("Pendaftaran yang valid muncul sebagai teratribusi. Pendaftaran dari jaringan atau perangkat yang sama dengan akun Anda ditinjau lebih dulu.")],
                                     ["3", t("Syarat terpenuhi"), t("Setiap referral terkualifikasi memberi {days} hari sesuai aturan aktif.").replace("{days}", formatCount(data.program?.reward_days))],
                                 ].map(([number, title, description]) => (

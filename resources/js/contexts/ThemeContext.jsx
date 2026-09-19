@@ -5,7 +5,7 @@ const ThemeContext = createContext(null);
 export function ThemeProvider({ children }) {
     const [theme, setTheme] = useState(() => {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('ultrai-theme') || 'light';
+            return localStorage.getItem('xsuper-theme') || 'light';
         }
         return 'light';
     });
@@ -17,7 +17,7 @@ export function ThemeProvider({ children }) {
         } else {
             root.classList.remove('dark');
         }
-        localStorage.setItem('ultrai-theme', theme);
+        localStorage.setItem('xsuper-theme', theme);
     }, [theme]);
 
     const toggleTheme = () => {

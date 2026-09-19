@@ -3,8 +3,8 @@ import { useLocale } from '../../contexts/LocaleContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiRequest, formatDateTime } from '../../lib/api';
 
-const OPENAI_BASE = 'https://api.ultrai.id/v1';
-const ANTHROPIC_BASE = 'https://api.ultrai.id';
+const OPENAI_BASE = 'https://api.xsuper.dev/v1';
+const ANTHROPIC_BASE = 'https://api.xsuper.dev';
 
 /* Connection card — one per wire protocol, with a copyable base URL + snippet. */
 function ConnectionCard({ dark, tone, title, subtitle, badge, baseUrl, snippet, onCopy, copied }) {
@@ -157,12 +157,12 @@ export default function ApiKeys() {
                 <ConnectionCard
                     dark={dark} tone="emerald" title="OpenAI Compatible" subtitle={t('Untuk SDK OpenAI, OpenCode, dsb.')} badge="/v1"
                     baseUrl={OPENAI_BASE} onCopy={copy} copied={copied}
-                    snippet={`from openai import OpenAI\nclient = OpenAI(\n  base_url="${OPENAI_BASE}",\n  api_key="ultrai-xxxx",\n)`}
+                    snippet={`from openai import OpenAI\nclient = OpenAI(\n  base_url="${OPENAI_BASE}",\n  api_key="xsuper-xxxx",\n)`}
                 />
                 <ConnectionCard
                     dark={dark} tone="orange" title="Anthropic Compatible" subtitle={t('Untuk SDK Anthropic (Messages API).')} badge="/v1/messages"
                     baseUrl={ANTHROPIC_BASE} onCopy={copy} copied={copied}
-                    snippet={`from anthropic import Anthropic\nclient = Anthropic(\n  base_url="${ANTHROPIC_BASE}",\n  api_key="ultrai-xxxx",\n)`}
+                    snippet={`from anthropic import Anthropic\nclient = Anthropic(\n  base_url="${ANTHROPIC_BASE}",\n  api_key="xsuper-xxxx",\n)`}
                 />
             </div>
 

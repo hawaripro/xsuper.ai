@@ -241,7 +241,7 @@ class DashboardController extends Controller
             $actions[] = ['key' => 'video', 'label' => 'Video generator', 'href' => '/video'];
         }
         if ($hasAccess && $user->hasPermission('ai_api')) {
-            $actions[] = ['key' => 'api', 'label' => 'API UltrAI', 'href' => 'https://api.ultrai.id'];
+            $actions[] = ['key' => 'api', 'label' => 'API XSuper.ai', 'href' => 'https://api.xsuper.dev'];
         }
 
         $actions[] = ['key' => 'usage', 'label' => 'Pemakaian', 'href' => '/token-usage'];

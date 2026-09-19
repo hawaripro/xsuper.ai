@@ -24,7 +24,7 @@ const ACTION_DETAILS = {
     library: { icon: 'image', tone: 'fuchsia', description: 'Unggahan dan semua hasil studio Anda.' },
     usage: { icon: 'token', tone: 'cyan', description: 'Rincian pemakaian, token, dan saldo PAYG.' },
     extend: { icon: 'paket', tone: 'amber', description: 'Token, saldo PAYG, dan langganan.' },
-    api: { icon: 'api', tone: 'emerald', description: 'Buka layanan API UltrAI.' },
+    api: { icon: 'api', tone: 'emerald', description: 'Buka layanan API XSuper.ai.' },
 };
 
 function greeting(t) {
@@ -101,7 +101,7 @@ export default function Dashboard() {
         const detail = ACTION_DETAILS[action.key];
         const content = <><span className="dw-icon" data-tone={detail.tone} aria-hidden="true">{Icons[detail.icon]}</span><span><strong>{t(action.label)}</strong><small>{locked ? t('Perpanjang masa aktif untuk membuat karya baru.') : t(detail.description)}</small></span>{!locked && Icons.arrow}</>;
         if (locked) return <div key={action.key} className="dw-tool" aria-disabled="true">{content}</div>;
-        if (action.href === 'https://api.ultrai.id') return <a key={action.key} className="dw-tool" href={action.href} target="_blank" rel="noopener noreferrer">{content}</a>;
+        if (action.href === 'https://api.xsuper.dev') return <a key={action.key} className="dw-tool" href={action.href} target="_blank" rel="noopener noreferrer">{content}</a>;
         if (!action.href?.startsWith('/') || action.href.startsWith('//')) return null;
         return <Link key={action.key} className="dw-tool" to={localizedPath(action.href)}>{content}</Link>;
     }

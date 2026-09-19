@@ -29,7 +29,7 @@ class OperationalDataSeeder extends Seeder
     public function run(): void
     {
         $admin = User::firstOrCreate(
-            ['email' => 'ops.admin@ultrai.test'],
+            ['email' => 'ops.admin@xsuper.test'],
             [
                 'name' => 'Ops Admin',
                 'password' => Hash::make('Ops-Local-2026!'),
@@ -38,7 +38,7 @@ class OperationalDataSeeder extends Seeder
             ],
         );
         $member = User::firstOrCreate(
-            ['email' => 'ops.member@ultrai.test'],
+            ['email' => 'ops.member@xsuper.test'],
             [
                 'name' => 'Ops Member',
                 'password' => Hash::make('Ops-Local-2026!'),
@@ -49,7 +49,7 @@ class OperationalDataSeeder extends Seeder
             ],
         );
         $memberTwo = User::firstOrCreate(
-            ['email' => 'ops.creator@ultrai.test'],
+            ['email' => 'ops.creator@xsuper.test'],
             [
                 'name' => 'Ops Creator',
                 'password' => Hash::make('Ops-Local-2026!'),
@@ -78,7 +78,7 @@ class OperationalDataSeeder extends Seeder
         $provider = AiProviderProfile::updateOrCreate(
             ['slug' => 'ai-proxy'],
             [
-                'name' => 'UltrAI Model Network',
+                'name' => 'XSuper.ai Model Network',
                 'status' => 'healthy',
                 'is_enabled' => true,
                 'capabilities' => ['chat', 'image', 'video'],
@@ -88,14 +88,14 @@ class OperationalDataSeeder extends Seeder
         );
         $catalogModels = [
             [
-                'model_id' => 'ultr-chat-premium',
-                'display_name' => 'Ultr Chat Premium',
-                'provider_name' => 'UltrAI',
+                'model_id' => 'xsuper-chat-premium',
+                'display_name' => 'XSuper Chat Premium',
+                'provider_name' => 'XSuper.ai',
                 'category' => 'chat',
                 'tier' => 'Authentic',
                 'description_id' => 'Model percakapan andalan untuk kerja harian: menulis, analisis, dan coding dengan konteks panjang.',
                 'description_en' => 'Flagship chat model for daily work: writing, analysis, and coding with long context.',
-                'logo_url' => '/brands/ultrai/mark-96.webp',
+                'logo_url' => '/logo-xsuper.png',
                 'context_window' => 256000,
                 'max_output_tokens' => 8192,
                 'capabilities' => ['chat', 'vision', 'tools'],
@@ -106,14 +106,14 @@ class OperationalDataSeeder extends Seeder
                 'rates' => ['input_tokens' => 2.00, 'output_tokens' => 8.00, 'cache_read' => 0.20, 'cache_write' => 2.50],
             ],
             [
-                'model_id' => 'ultr-chat-fast',
-                'display_name' => 'Ultr Chat Fast',
-                'provider_name' => 'UltrAI',
+                'model_id' => 'xsuper-chat-fast',
+                'display_name' => 'XSuper Chat Fast',
+                'provider_name' => 'XSuper.ai',
                 'category' => 'chat',
                 'tier' => 'Canva',
                 'description_id' => 'Model ringan dan cepat untuk obrolan, ide, dan tugas sederhana dengan biaya rendah.',
                 'description_en' => 'Light, fast model for chat, ideas, and simple tasks at low cost.',
-                'logo_url' => '/brands/ultrai/mark-96.webp',
+                'logo_url' => '/logo-xsuper.png',
                 'context_window' => 128000,
                 'max_output_tokens' => 4096,
                 'capabilities' => ['chat'],
@@ -124,14 +124,14 @@ class OperationalDataSeeder extends Seeder
                 'rates' => ['input_tokens' => 0.15, 'output_tokens' => 0.60, 'cache_read' => 0.02, 'cache_write' => 0.19],
             ],
             [
-                'model_id' => 'ultr-reasoning-pro',
-                'display_name' => 'Ultr Reasoning Pro',
-                'provider_name' => 'UltrAI',
+                'model_id' => 'xsuper-reasoning-pro',
+                'display_name' => 'XSuper Reasoning Pro',
+                'provider_name' => 'XSuper.ai',
                 'category' => 'chat',
                 'tier' => 'Authentic',
                 'description_id' => 'Model penalaran untuk masalah kompleks: matematika, arsitektur sistem, dan debugging mendalam.',
                 'description_en' => 'Reasoning model for complex problems: math, system architecture, and deep debugging.',
-                'logo_url' => '/brands/ultrai/mark-96.webp',
+                'logo_url' => '/logo-xsuper.png',
                 'context_window' => 200000,
                 'max_output_tokens' => 32768,
                 'capabilities' => ['chat', 'reasoning', 'tools'],
@@ -142,14 +142,14 @@ class OperationalDataSeeder extends Seeder
                 'rates' => ['input_tokens' => 4.00, 'output_tokens' => 16.00, 'cache_read' => 0.40, 'cache_write' => 5.00],
             ],
             [
-                'model_id' => 'ultr-image-studio',
-                'display_name' => 'Ultr Image Studio',
-                'provider_name' => 'UltrAI',
+                'model_id' => 'xsuper-image-studio',
+                'display_name' => 'XSuper Image Studio',
+                'provider_name' => 'XSuper.ai',
                 'category' => 'image',
                 'tier' => 'Canva',
                 'description_id' => 'Generator gambar untuk visual produk, ilustrasi, dan materi pemasaran.',
                 'description_en' => 'Image generator for product visuals, illustrations, and marketing assets.',
-                'logo_url' => '/brands/ultrai/mark-96.webp',
+                'logo_url' => '/logo-xsuper.png',
                 'context_window' => null,
                 'max_output_tokens' => null,
                 'capabilities' => ['text-to-image'],
@@ -187,8 +187,8 @@ class OperationalDataSeeder extends Seeder
                 );
             }
         }
-        $chatModel = AiModelProfile::where('model_id', 'ultr-chat-premium')->firstOrFail();
-        $imageModel = AiModelProfile::where('model_id', 'ultr-image-studio')->firstOrFail();
+        $chatModel = AiModelProfile::where('model_id', 'xsuper-chat-premium')->firstOrFail();
+        $imageModel = AiModelProfile::where('model_id', 'xsuper-image-studio')->firstOrFail();
 
         Wallet::updateOrCreate(['user_id' => $member->id], ['balance_microusd' => 25_000_000]);
         Wallet::updateOrCreate(['user_id' => $memberTwo->id], ['balance_microusd' => 4_250_000]);
@@ -245,7 +245,7 @@ class OperationalDataSeeder extends Seeder
                 'size' => '1024x1024',
                 'quantity' => 1,
                 'status' => 'completed',
-                'result_urls' => ['/brands/ultrai/mark-256.webp'],
+                'result_urls' => ['/logo-xsuper.png'],
                 'billing_reserved_microusd' => 1_000_000,
                 'billing_reference_id' => 'image:seed-complete',
                 'billing_status' => 'settled',
@@ -256,7 +256,7 @@ class OperationalDataSeeder extends Seeder
             [
                 'user_id' => $member->id,
                 'mode' => 'prompt',
-                'prompt' => 'Short cinematic product reveal for UltrAI',
+                'prompt' => 'Short cinematic product reveal for XSuper.ai',
                 'model' => 'veo-3.1-fast',
                 'aspect_ratio' => '16:9',
                 'duration' => 8,
@@ -266,8 +266,8 @@ class OperationalDataSeeder extends Seeder
                 'billing_status' => 'settled',
                 'settings' => ['seed' => true],
                 'status' => 'completed',
-                'video_url' => '/brands/ultrai/mark-512.webp',
-                'thumbnail_url' => '/brands/ultrai/mark-96.webp',
+                'video_url' => '/logo-xsuper.png',
+                'thumbnail_url' => '/logo-xsuper.png',
             ],
         );
 

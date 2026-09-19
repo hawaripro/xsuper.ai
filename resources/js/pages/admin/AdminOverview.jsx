@@ -72,7 +72,7 @@ export default function AdminOverview() {
     const earningsPending = sources.revenue.loading && !earnings;
 
     return (
-        <DashboardWorkspace title={t('Operasional UltrAI')} description={t('Pantau keuangan, pemakaian, dan pekerjaan operasional dalam satu ruang.')} actions={<><button type="button" className="dw-button" onClick={loadAll} disabled={loadingAny}>{Icons.refresh}<span>{t('Refresh data')}</span></button><Link className="dw-button dw-button-primary" to={localizedPath('/admin/token-usage')}>{Icons.token}{t('Tinjau pemakaian')}</Link></>}>
+        <DashboardWorkspace title={t('Operasional XSuper.ai')} description={t('Pantau keuangan, pemakaian, dan pekerjaan operasional dalam satu ruang.')} actions={<><button type="button" className="dw-button" onClick={loadAll} disabled={loadingAny}>{Icons.refresh}<span>{t('Refresh data')}</span></button><Link className="dw-button dw-button-primary" to={localizedPath('/admin/token-usage')}>{Icons.token}{t('Tinjau pemakaian')}</Link></>}>
             {failedSources.map(([key, source]) => <InlineAlert key={key} tone="warning" action={<Button variant="ghost" onClick={() => retrySource(key)} disabled={source.loading}>{t('Retry source')}</Button>}><strong>{t(SOURCE_LABELS[key])}: </strong>{t(source.error)}{source.data && <> {t('Data terakhir tetap ditampilkan.')}</>}</InlineAlert>)}
 
             <section className="dw-finance" aria-labelledby="overview-metrics">

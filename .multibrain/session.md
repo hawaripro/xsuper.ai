@@ -1,4 +1,4 @@
-# Multi Brain Master Index — UltrAI Web
+# Multi Brain Master Index — XSuper.ai Web
 
 Use this file as the master index that points to sub-index files.
 

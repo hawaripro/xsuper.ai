@@ -18,8 +18,8 @@ final class PostgresDatabaseGuard
         'url' => '',
         'host' => '127.0.0.1',
         'port' => '2209',
-        'database' => 'ultrai_pg_test',
-        'username' => 'ultrai_pg_test',
+        'database' => 'xsuper_pg_test',
+        'username' => 'xsuper_pg_test',
         'charset' => 'utf8',
         'prefix' => '',
         'prefix_indexes' => true,
@@ -112,7 +112,7 @@ final class PostgresDatabaseGuard
                 $actual = (string) $actual;
             }
             if ($actual !== $value) {
-                throw new RuntimeException('PostgreSQL tests require pgsql on 127.0.0.1:2209, database and role ultrai_pg_test, public schema, and UTC.');
+                throw new RuntimeException('PostgreSQL tests require pgsql on 127.0.0.1:2209, database and role xsuper_pg_test, public schema, and UTC.');
             }
         }
     }
@@ -120,9 +120,9 @@ final class PostgresDatabaseGuard
     public static function assertIdentity(array $identity): void
     {
         $version = (string) ($identity['server_version_num'] ?? '');
-        if (($identity['database_name'] ?? null) !== 'ultrai_pg_test'
-            || ($identity['database_user'] ?? null) !== 'ultrai_pg_test'
-            || ($identity['session_user'] ?? null) !== 'ultrai_pg_test'
+        if (($identity['database_name'] ?? null) !== 'xsuper_pg_test'
+            || ($identity['database_user'] ?? null) !== 'xsuper_pg_test'
+            || ($identity['session_user'] ?? null) !== 'xsuper_pg_test'
             || ! ctype_digit($version) || (int) $version < 180000 || (int) $version >= 190000
             || ! in_array($identity['search_path'] ?? null, ['public', '"public"'], true)
             || ($identity['timezone'] ?? null) !== 'UTC') {

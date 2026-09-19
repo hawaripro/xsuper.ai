@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $page['title'] }}</title>
     <meta name="description" content="{{ $page['description'] }}">
-    <meta name="author" content="UltrAI">
+    <meta name="author" content="XSuper.ai">
     <meta name="robots" content="{{ $page['robots'] }}">
     <meta name="theme-color" content="#f8faff">
     <link rel="canonical" href="{{ $page['canonical'] }}">
@@ -16,20 +16,20 @@
     <meta property="og:description" content="{{ $page['description'] }}">
     <meta property="og:type" content="{{ $page['type'] === 'policy' ? 'article' : 'website' }}">
     <meta property="og:url" content="{{ $page['canonical'] }}">
-    <meta property="og:image" content="{{ $site['url'] }}/og-image.png">
+    <meta property="og:image" content="{{ $site['url'] }}/logo-xsuper.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:type" content="image/png">
-    <meta property="og:site_name" content="UltrAI">
+    <meta property="og:site_name" content="XSuper.ai">
     <meta property="og:locale" content="{{ $page['ogLocale'] }}">
     <meta property="og:locale:alternate" content="{{ $page['alternateLocale'] }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $page['title'] }}">
     <meta name="twitter:description" content="{{ $page['description'] }}">
-    <meta name="twitter:image" content="{{ $site['url'] }}/og-image.png">
-    <link rel="icon" type="image/png" href="/ultr-icons.png">
-    <link rel="apple-touch-icon" href="/ultr-icons.png">
-    <script>try{if(localStorage.getItem('ultrai-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+    <meta name="twitter:image" content="{{ $site['url'] }}/logo-xsuper.png">
+    <link rel="icon" type="image/png" href="/logo-xsuper.png">
+    <link rel="apple-touch-icon" href="/logo-xsuper.png">
+    <script>try{if(localStorage.getItem('xsuper-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
     @vite(['resources/css/landing.css', 'resources/js/landing.js'])
     @if(config('services.umami.id'))
         <script defer src="{{ config('services.umami.url', 'https://cloud.umami.is/script.js') }}" data-website-id="{{ config('services.umami.id') }}"></script>

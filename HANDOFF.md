@@ -1,25 +1,25 @@
-# HANDOFF CONTEXT — UltrAI Web Development
+# HANDOFF CONTEXT — XSuper.ai Web Development
 
 ## Project Info
-- **Repo**: hawaripro/ultrai-web (Private)
+- **Repo**: hawaripro/xsuper-web (Private)
 - **Stack**: Laravel 13 + React 19 + Tailwind 4 + PostgreSQL (local: 18 on port 2209) + Vite
-- **Local path**: `C:\Users\Hawari\ultrai-web`
-- **VPS**: 103.196.153.160, SSH port 1453, user superpro, path `/home/superpro/ultrai-web`
+- **Local path**: `C:\Users\Hawari\xsuper-web`
+- **VPS**: 103.196.153.160, SSH port 1453, user superpro, path `/home/superpro/xsuper-web`
 - **Local AI providers**: explicit database-backed connections in Admin → AI Catalog; OpenAI-compatible, Anthropic-compatible, and native fal.ai protocols. Saved keys are encrypted with `APP_KEY`. Never commit credentials or private upstream endpoints.
 - **Retired proxy binary**: unused; remove stale server routes during the credential-rotation maintenance window.
 - **DB**: credentials are runtime secrets. Rotate them after the confirmed Actions incident; never store values in this file or Git.
-- **Cloudflare**: semua domain di-proxy (ultrai.id, api.ultrai.id, app.ultrai.id, dash.ultrai.id, get.ultrai.id)
+- **Cloudflare**: semua domain di-proxy (xsuper.dev, api.xsuper.dev, app.xsuper.dev, dash.xsuper.dev, get.xsuper.dev)
 
 ## URLs
-- ultrai.id → Blade public landing/policies + React account dashboard/chat
-- api.ultrai.id → External API (/v1/models, /v1/chat/completions) dengan API key per user
-- app.ultrai.id → AI Dashboard Official (proxy ke binary 127.88.41.8:1436, auth gate)
-- dash.ultrai.id → UltrAI operational dashboard (auth gate + cookie `dash_token`)
-- chat.ultrai.id → Chat AI Pro (OpenWebUI)
+- xsuper.dev → Blade public landing/policies + React account dashboard/chat
+- api.xsuper.dev → External API (/v1/models, /v1/chat/completions) dengan API key per user
+- app.xsuper.dev → AI Dashboard Official (proxy ke binary 127.88.41.8:1436, auth gate)
+- dash.xsuper.dev → XSuper.ai operational dashboard (auth gate + cookie `dash_token`)
+- chat.xsuper.dev → Chat AI Pro (OpenWebUI)
 
 ## Deploy Method
 - Security incident confirmed: `Megalodon Collector` ran successfully on branch `mega-gvufrv8g` on 2026-04-30 (run `25171710332`, callback `216.126.225.129:8080`), then `SysDiag` ran successfully on `main` on 2026-05-18 (commit `f832bf9`, run `26037437129`, callback `216.126.225.129:8443`). Both used GitHub-hosted runners, not the VPS. Remote main removes `ci.yml` in cleanup commit `3c2db90`; malicious branch `mega-gvufrv8g` is deleted; no malicious workflow source or active run remains. A live DB credential existed in tracked source during both incidents and remains in Git history—rotate it immediately. Jobs suppressed curl failures, so successful runs prove execution but not receipt. Rotate old GitHub credentials and review authorized apps/security log.
-- After release is authorized: run `npm run build`, deploy application source plus `public/build`, `public/brands`, and retained `public/ultr-icons.png`/`og-image.png`, then `php artisan optimize:clear && php artisan optimize` on the server. New routes/config must not use old cached bootstrap files.
+- After release is authorized: run `npm run build`, deploy application source plus `public/build`, `public/brands`, and retained `public/logo-xsuper.png`/`og-image.png`, then `php artisan optimize:clear && php artisan optimize` on the server. New routes/config must not use old cached bootstrap files.
 - JANGAN edit file di VPS pakai nano/vim
 - Token GitHub sering expired — user generate baru tiap kali
 
@@ -31,7 +31,7 @@
 - Dark mode has no AI-logo tiles. Only Anthropic, GLM/Z.ai, and Kimi marks are white; ChatGPT, DeepSeek, and Gemini remain unchanged. Workspace tabs are readable; topbar Sign in is red with white text.
 - Payment SVG viewBoxes are cropped to artwork bounds and use one optical height. QRIS/GoPay turn white in dark mode; GoPay cutouts are transparent, not white circles.
 - API billing reserves an estimated maximum before upstream execution and settles from reported usage. New image/video generation charges tokens for every role, including admins. Historical free/legacy billing snapshots are preserved. Admin usage earnings separate settled PAYG USD from consumed generator tokens and exclude deposits.
-- Verification: `php artisan test --compact`; guarded PostgreSQL tests via `php vendor/phpunit/phpunit/phpunit --configuration phpunit.postgres.xml`; `npm run build`; real browser checks. Disposable visual-review captures were removed during cleanup; database consolidation receipts and retained historical evidence live outside the repository under `%USERPROFILE%/UltrAI-backups/consolidation-20260917T160408Z/`. See README for runtime, isolation, and cancellation boundaries.
+- Verification: `php artisan test --compact`; guarded PostgreSQL tests via `php vendor/phpunit/phpunit/phpunit --configuration phpunit.postgres.xml`; `npm run build`; real browser checks. Disposable visual-review captures were removed during cleanup; database consolidation receipts and retained historical evidence live outside the repository under `%USERPROFILE%/XSuper.ai-backups/consolidation-20260917T160408Z/`. See README for runtime, isolation, and cancellation boundaries.
 - After authorized release, inspect both language variants in Google Search Console and submit `/sitemap.xml`. Technical crawlability does not guarantee ranking or recrawl timing.
 
 ## Public identity boundary
@@ -65,17 +65,17 @@ Seven existing account logins were checked. Admin and member each generated one 
 
 Member Original/API permissions and QA-device approval statuses were restored exactly; subscription expiry and the two existing active devices were unchanged. Both temporary API keys were deleted and then rejected with HTTP 401. Temporary plaintext fal/API-key copies, the diagnostic server/router/log, and the elevated restart helper were removed. A later QRIS deposit added 4,500 admin tokens; that separate ledger activity was preserved.
 
-Evidence and the readable post-cutover `ultrai-after-fal-verified.dump` remain in the external consolidation archive. The owner-approved PostgreSQL restart preserved schema/data/sequence parity. Isolated PostgreSQL and SQLite verification each passed 319 tests / 2,554 assertions; the complete QA pipeline passed ESLint, production build, and 30 browser workflows, including the mobile catalog viewport regression. Targeted PHP formatting passed; the broader repository still has unrelated formatting findings, which were not mass-reformatted.
+Evidence and the readable post-cutover `xsuper-after-fal-verified.dump` remain in the external consolidation archive. The owner-approved PostgreSQL restart preserved schema/data/sequence parity. Isolated PostgreSQL and SQLite verification each passed 319 tests / 2,554 assertions; the complete QA pipeline passed ESLint, production build, and 30 browser workflows, including the mobile catalog viewport regression. Targeted PHP formatting passed; the broader repository still has unrelated formatting findings, which were not mass-reformatted.
 
 ## Permissions System (per user, admin toggle)
 chat, chat_history, chat_ai_pro, model_original, model_authentic, model_codex, model_wavespeed, model_yepapi, model_canva, video_generator, ai_api, ai_dashboard, ai_dashboard_official
 
 ## Fitur Yang Sudah Ada (lengkap)
-- Landing page (Studio Orbital, UltrAI red, animated model orbit/rail, FAQ, audiences, payments), subscription-only `/pricing`, and SSR `/models` catalog with active PAYG rates
+- Landing page (Studio Orbital, XSuper.ai red, animated model orbit/rail, FAQ, audiences, payments), subscription-only `/pricing`, and SSR `/models` catalog with active PAYG rates
 - Login (branded, Google OAuth, no register, admin+member role, Fortify views disabled)
 - Dashboard (hero, stats, quick actions: Chat AI + AI API + Chat AI Pro + Video Generator + Tambah Durasi, popular models, service status, account card with duration)
 - Chat AI Full Page (/chat) — model selector dropdown, all categories, file upload/drag&drop/paste, streaming SSE with buffer handling, copy button, permission check
-- Chat AI Pro → link ke chat.ultrai.id
+- Chat AI Pro → link ke chat.xsuper.dev
 - Video Generator (prompt manual + A/B testing, token system)
 - Admin: Kelola Users (CRUD, permissions, duration/expiry, API key management, device management with confirm modals)
 - Admin: Period Management (/periods) — pending orders, approve/reject/delete, add duration manual
@@ -116,7 +116,7 @@ chat, chat_history, chat_ai_pro, model_original, model_authentic, model_codex, m
 **User sidebar:**
 ```
 Dashboard
-Mulai Pakai UltrAI (sub-menu per mode)
+Mulai Pakai XSuper.ai (sub-menu per mode)
 Chat AI
 Chat AI Pro
 Template Prompt
@@ -160,7 +160,7 @@ Session Chat
 ### Fase 2: Onboarding Wizard + Template Prompt
 
 **Onboarding Wizard** (tampil sekali setelah login pertama):
-- "Kamu mau pakai UltrAI untuk apa?"
+- "Kamu mau pakai XSuper.ai untuk apa?"
 - 7 mode: Coding Assistant, Project Builder, Content Creator, UMKM Assistant, Marketplace Helper, Excel & Office Helper, Prompt Visual Generator
 - Disimpan di database: `users.onboarding_mode`
 - Dashboard disesuaikan per mode (quick actions/template berbeda)

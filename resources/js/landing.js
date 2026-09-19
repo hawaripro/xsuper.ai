@@ -25,7 +25,7 @@ function enhanceLanding() {
         : [];
     const removeListeners = [];
     const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
-    const themeStorageKey = "ultrai-theme";
+    const themeStorageKey = "xsuper-theme";
     let pagePresent = true;
     let motionState = "paused";
     let menuOpen = false;
@@ -77,7 +77,7 @@ function enhanceLanding() {
         }
     }
     try {
-        window.localStorage.removeItem("ultrai-motion-paused");
+        window.localStorage.removeItem("xsuper-motion-paused");
     } catch {
         // Ignore storage restrictions; motion no longer reads this preference.
     }

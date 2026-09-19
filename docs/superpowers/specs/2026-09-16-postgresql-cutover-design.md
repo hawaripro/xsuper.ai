@@ -4,7 +4,7 @@
 
 ## Goal
 
-Move the local UltrAI application database from the restored XAMPP MariaDB instance to PostgreSQL without losing application rows, relationships, encrypted provider data, billing state, media state, or migration history. PostgreSQL becomes the local primary only after parity and full QA pass. The source MySQL database and fresh SQL backup remain frozen as rollback evidence.
+Move the local XSuper.ai application database from the restored XAMPP MariaDB instance to PostgreSQL without losing application rows, relationships, encrypted provider data, billing state, media state, or migration history. PostgreSQL becomes the local primary only after parity and full QA pass. The source MySQL database and fresh SQL backup remain frozen as rollback evidence.
 
 ## Scope
 
@@ -29,7 +29,7 @@ Move the local UltrAI application database from the restored XAMPP MariaDB insta
 
 ## Architecture
 
-A guarded migration command/script reads only from the exact verified MySQL source (`127.0.0.1:2207`, database `ultrai_db`, XAMPP data directory) and writes only to a newly created, explicitly named local PostgreSQL database. Laravel migrations create the destination schema. Data copies in dependency order inside a destination transaction where possible; PostgreSQL constraints are deferred only when supported, otherwise tables are ordered by their foreign-key graph. The script never transforms application data beyond driver-required representation (for example normalized JSON encoding and booleans).
+A guarded migration command/script reads only from the exact verified MySQL source (`127.0.0.1:2207`, database `xsuper_db`, XAMPP data directory) and writes only to a newly created, explicitly named local PostgreSQL database. Laravel migrations create the destination schema. Data copies in dependency order inside a destination transaction where possible; PostgreSQL constraints are deferred only when supported, otherwise tables are ordered by their foreign-key graph. The script never transforms application data beyond driver-required representation (for example normalized JSON encoding and booleans).
 
 A separate verification pass reads both databases and emits a sanitized receipt. It compares canonical row payloads sorted by primary key rather than relying on engine-specific binary dumps. Sensitive ciphertext remains part of digests but never appears in output. Any mismatch aborts before connection cutover.
 

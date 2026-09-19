@@ -36,7 +36,7 @@ return [
     ],
 
     'ai_proxy' => [
-        'url' => env('AI_PROXY_URL', 'https://api.ultrai.id'),
+        'url' => env('AI_PROXY_URL', 'https://api.xsuper.dev'),
         'key' => env('AI_PROXY_KEY', ''),
     ],
 

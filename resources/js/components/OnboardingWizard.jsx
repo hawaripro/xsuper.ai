@@ -45,10 +45,10 @@ export default function OnboardingWizard({ onComplete }) {
             }`}>
                 <div className="text-center mb-8">
                     <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        Selamat datang di UltrAI! 👋
+                        Selamat datang di XSuper.ai! 👋
                     </h2>
                     <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Kamu mau pakai UltrAI untuk apa? Pilih mode yang paling sesuai.
+                        Kamu mau pakai XSuper.ai untuk apa? Pilih mode yang paling sesuai.
                     </p>
                 </div>
 
@@ -99,7 +99,7 @@ export default function OnboardingWizard({ onComplete }) {
                                 : 'bg-gray-400 cursor-not-allowed opacity-50'
                         }`}
                     >
-                        {loading ? 'Menyimpan...' : 'Mulai Pakai UltrAI'}
+                        {loading ? 'Menyimpan...' : 'Mulai Pakai XSuper.ai'}
                     </button>
                 </div>
             </div>

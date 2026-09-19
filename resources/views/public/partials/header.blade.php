@@ -1,9 +1,9 @@
 <a class="skip-link" href="#main-content">{{ __('Langsung ke konten') }}</a>
 <header class="site-header">
     <div class="container header-inner">
-        <a href="{{ $localeUrl('/') }}" class="brand" aria-label="{{ __('UltrAI, beranda') }}">
-            <img src="/brands/ultrai/mark-96.webp" width="42" height="42" alt="{{ __('Logo UltrAI') }}" fetchpriority="high">
-            <span>Ultr<span class="brand-ai">AI</span><span class="brand-period">.</span></span>
+        <a href="{{ $localeUrl('/') }}" class="brand" aria-label="{{ __('XSuper.ai, beranda') }}">
+            <img src="/logo-xsuper.png" width="42" height="42" alt="{{ __('Logo XSuper.ai') }}" fetchpriority="high">
+            <span>XSuper<span class="brand-ai">.ai</span></span>
         </a>
         <button id="site-menu-toggle" class="menu-toggle" type="button" aria-label="{{ __('Buka navigasi') }}" aria-expanded="false" aria-controls="site-nav" data-open-label="{{ __('Buka menu navigasi') }}" data-close-label="{{ __('Tutup menu navigasi') }}" hidden>@include('public.partials.icon', ['name' => 'menu'])</button>
         <nav id="site-nav" class="site-nav" aria-label="{{ __('Navigasi utama') }}">

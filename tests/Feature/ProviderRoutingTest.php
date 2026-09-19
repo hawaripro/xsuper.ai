@@ -163,7 +163,7 @@ class ProviderRoutingTest extends TestCase
         Http::fake(['https://openai.example.test/v1/chat/completions' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
         $events = iterator_to_array(app(AiProxyService::class)->streamChatCompletion([['role' => 'user', 'content' => 'Hello']], 'public-safe'));
         $content = implode('', array_map(fn (array $event): string => ((array) ($event['choices'][0]['delta'] ?? []))['content'] ?? '', $events));
-        $this->assertSame('Via UltrAI safely.', $content);
+        $this->assertSame('Via XSuper.ai safely.', $content);
         $tool = collect($events)->first(fn (array $event): bool => isset(((array) ($event['choices'][0]['delta'] ?? []))['tool_calls']));
         $this->assertSame('{"name":"eno'.'wx"}', $tool['choices'][0]['delta']['tool_calls'][0]['function']['arguments']);
     }

@@ -1,6 +1,6 @@
-# UltrAI Dashboard Control Center Implementation Plan
+# XSuper.ai Dashboard Control Center Implementation Plan
 
-> **For UltrAI:** REQUIRED SUB-SKILL: Use subagent-driven-development to execute this plan task-by-task.
+> **For XSuper.ai:** REQUIRED SUB-SKILL: Use subagent-driven-development to execute this plan task-by-task.
 
 **Goal:** Replace the broken member/admin dashboard with one compact, professional Control Center whose visible workflows use real Laravel APIs; retire Chat AI Pro/OpenWebUI; make former placeholder features operational.
 
@@ -142,7 +142,7 @@
 - Test: `tests/Feature/ChatProRemovalTest.php`.
 
 **Consumes:** permission-removal migration from Task 1.
-**Produces:** zero `openwebui`, `Chat AI Pro`, `chat_ai_pro`, or `chat.ultrai.id` product integration references; user CRUD has no external synchronization.
+**Produces:** zero `openwebui`, `Chat AI Pro`, `chat_ai_pro`, or `chat.xsuper.dev` product integration references; user CRUD has no external synchronization.
 
 - [ ] Write failing tests for absence of routes/permission and successful user create/delete independent of external HTTP.
 - [ ] Run targeted tests; expect failures.

@@ -244,9 +244,9 @@ class DepositTokenBillingTest extends TestCase
             ->assertOk()->assertJsonPath('orders.0.payment_reference', $checkout['payment_reference'])
             ->assertJsonPath('orders.0.status', 'checkout');
         $this->actingAs($owner)->getJson('/api/deposits/'.$checkout['id'])
-            ->assertOk()->assertJsonPath('order.qr_image_url', '/assets/payments/qris-ultrai.png');
+            ->assertOk()->assertJsonPath('order.qr_image_url', '/assets/payments/qris-xsuper.png');
         $this->actingAs($other)->getJson('/api/deposits/'.$checkout['id'])->assertNotFound();
-        $image = getimagesize(public_path('assets/payments/qris-ultrai.png'));
+        $image = getimagesize(public_path('assets/payments/qris-xsuper.png'));
         $this->assertIsArray($image);
         $this->assertSame('image/png', $image['mime']);
     }

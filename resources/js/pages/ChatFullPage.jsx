@@ -39,7 +39,7 @@ const Icon = {
     message: <svg {...stroke} viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H4l1.8-4A8 8 0 1 1 20 11.5Z" /></svg>,
 };
 
-// UltrAI sigil
+// XSuper.ai sigil
 const Sigil = ({ className = '' }) => (
     <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
         <path d="M5 6v13c0 5 4 8 9 8s9-3 9-8V6h-6v13c0 2-1 3-3 3s-3-1-3-3V6H5Z" fill="currentColor" />
@@ -72,11 +72,11 @@ function rebrandText(text) {
     if (!text) return text;
     var p = [101,110,111,119,120].map(c => String.fromCharCode(c)).join('');
     return text
-        .replace(new RegExp(p + 'ai', 'gi'), 'UltrAI')
-        .replace(new RegExp(p + '\\s*labs', 'gi'), 'UltrAI')
-        .replace(new RegExp(p, 'gi'), 'UltrAI')
-        .replace(/UltrAI\s*Labs/gi, 'UltrAI')
-        .replace(/\bKiro\b/gi, 'UltrAI');
+        .replace(new RegExp(p + 'ai', 'gi'), 'XSuper.ai')
+        .replace(new RegExp(p + '\\s*labs', 'gi'), 'XSuper.ai')
+        .replace(new RegExp(p, 'gi'), 'XSuper.ai')
+        .replace(/XSuper.ai\s*Labs/gi, 'XSuper.ai')
+        .replace(/\bKiro\b/gi, 'XSuper.ai');
 }
 
 // ============================================
@@ -153,7 +153,7 @@ function ChatMessage({ message, userName, isDark, categoryColor, t, onContinue, 
             </div>
             <div className="cw-msg-body">
                 <div className="cw-msg-meta">
-                    <span className="cw-msg-author">{isUser ? (userName || 'You') : 'UltrAI'}</span>
+                    <span className="cw-msg-author">{isUser ? (userName || 'You') : 'XSuper.ai'}</span>
                     {!isUser && displayText && (
                         <button onClick={handleCopy} className={`cw-copy-btn ${copied ? 'cw-copy-done' : ''}`} aria-label={t('Salin')} title={t('Salin')}>
                             {copied ? Icon.check : Icon.copy}
@@ -944,9 +944,9 @@ export default function ChatFullPage() {
                 {/* Rail header */}
                 <div className="cw-rail-head">
                     {!sidebarCollapsed && (
-                        <Link to={localizedPath('/dashboard')} className="cw-brand" aria-label="UltrAI">
+                        <Link to={localizedPath('/dashboard')} className="cw-brand" aria-label="XSuper.ai">
                             <Sigil className="cw-brand-sigil" />
-                            <span className="cw-brand-word">Ultr<span className="cw-brand-accent">AI</span></span>
+                            <span className="cw-brand-word">XSuper<span className="cw-brand-accent">.ai</span></span>
                         </Link>
                     )}
                     <button
@@ -1142,7 +1142,7 @@ export default function ChatFullPage() {
                             {isStreaming && (messages[messages.length - 1]?.role !== 'assistant' || !messages[messages.length - 1]?.content) && (
                                 <div className="cw-msg cw-msg-assistant">
                                     <div className="cw-avatar cw-avatar-ai" style={{ background: `linear-gradient(135deg, ${catCfg.accent}, var(--red-600))` }}><Sigil className="cw-sigil-icon" /></div>
-                                    <div className="cw-msg-body"><div className="cw-msg-meta"><span className="cw-msg-author">UltrAI</span></div><GenerationProgress kind="chat" stage="waiting" model={waitModel} startedAt={waitStartedAt} compact /></div>
+                                    <div className="cw-msg-body"><div className="cw-msg-meta"><span className="cw-msg-author">XSuper.ai</span></div><GenerationProgress kind="chat" stage="waiting" model={waitModel} startedAt={waitStartedAt} compact /></div>
                                 </div>
                             )}
                             <div ref={messagesEndRef} />
@@ -1229,7 +1229,7 @@ export default function ChatFullPage() {
                     <p className="cw-hint">
                         <kbd>Enter</kbd> {t('untuk kirim')}, <kbd>Shift+Enter</kbd> {t('untuk baris baru')}. {t('Anda juga bisa menempel atau menjatuhkan file.')}
                     </p>
-                    <p className="cw-disclaimer">{t('UltrAI dapat membuat kesalahan. Periksa informasi penting.')}</p>
+                    <p className="cw-disclaimer">{t('XSuper.ai dapat membuat kesalahan. Periksa informasi penting.')}</p>
                 </div>
 
                 {/* Drag overlay */}

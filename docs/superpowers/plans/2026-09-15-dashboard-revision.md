@@ -1,6 +1,6 @@
 # Dashboard Revision Implementation Plan
 
-**Goal:** Correct dashboard theming, payment, locale routing/copy, landing robot/search, catalog creation/sync, global announcement delivery, and rebuild the real Chat workspace from the approved Studio mockup without changing the UltrAI brand palette.
+**Goal:** Correct dashboard theming, payment, locale routing/copy, landing robot/search, catalog creation/sync, global announcement delivery, and rebuild the real Chat workspace from the approved Studio mockup without changing the XSuper.ai brand palette.
 
 **Architecture:** Keep Laravel Blade for public surfaces and React for authenticated surfaces. Standardize React theming around the root `.dark` class and existing design tokens. Keep Indonesian canonical paths and mirror every authenticated route under `/en/*`. Use existing `content_blocks` as the announcement source. Extend duration orders with immutable QRIS checkout metadata. Use `ai_model_profiles` as the editable catalog source and live sync only for provider availability. Preserve ChatController/AiProxyService/history APIs while replacing ChatFullPage presentation with the Studio workspace structure.
 
@@ -56,7 +56,7 @@
 
 - Preserve real models/history/conversation/delete/stream/upload APIs.
 - Implement Studio structure: searchable collapsible history rail, top breadcrumb/model trigger, four mode cards based on authorized models, empty sigil hero, suggestion cards, live message thread, structured composer, attachment list, drag-drop overlay, stop streaming, account/footer controls.
-- Keep UltrAI red/neutral palette in light/dark mode rather than Studio blue.
+- Keep XSuper.ai red/neutral palette in light/dark mode rather than Studio blue.
 - Make non-chat mode tabs route to real Image/Video tools when native chat streaming is unsupported; never fake media generation.
 - Translate all visible copy ID/EN.
 

@@ -12,9 +12,9 @@ class DatabaseSeeder extends Seeder
     {
         // Create admin user
         User::firstOrCreate(
-            ['email' => 'admin@ultrai.id'],
+            ['email' => 'admin@xsuper.dev'],
             [
-                'name' => 'Admin UltrAI',
+                'name' => 'Admin XSuper.ai',
                 'password' => Hash::make('password'),
                 'role' => 'admin',
                 'is_active' => true,
@@ -23,7 +23,7 @@ class DatabaseSeeder extends Seeder
 
         // Create demo member
         User::firstOrCreate(
-            ['email' => 'member@ultrai.id'],
+            ['email' => 'member@xsuper.dev'],
             [
                 'name' => 'Member Demo',
                 'password' => Hash::make('password'),

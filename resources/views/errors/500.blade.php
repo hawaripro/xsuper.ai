@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>500 — UltrAI</title>
+    <title>500 — XSuper.ai</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -131,7 +131,7 @@
     <div class="bg-glow bg-glow-2"></div>
     <div class="grid-bg"></div>
     <div class="container">
-        <div class="logo"><span>Ultr</span><span>AI</span></div>
+        <div class="logo"><span>XSuper</span><span>.ai</span></div>
         <div class="pulse-icon">
             <svg width="28" height="28" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         </div>

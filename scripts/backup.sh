@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================
-# UltrAI Auto Backup Script
-# Jalankan via cron: 0 2 * * * /home/superpro/ultrai-web/scripts/backup.sh
+# XSuper.ai Auto Backup Script
+# Jalankan via cron: 0 2 * * * /home/superpro/xsuper-web/scripts/backup.sh
 # Backup setiap hari jam 2 pagi
 # ============================================
 
@@ -11,9 +11,9 @@ umask 077
 
 # Config
 BACKUP_DIR="/home/superpro/backups"
-PROJECT_DIR="/home/superpro/ultrai-web"
-DB_NAME="ultrai_db"
-DB_USER="ultrai"
+PROJECT_DIR="/home/superpro/xsuper-web"
+DB_NAME="xsuper_db"
+DB_USER="xsuper"
 DATE=$(date +%Y%m%d_%H%M%S)
 KEEP_DAYS=7
 PGPASSFILE="${PGPASSFILE:-$HOME/.pgpass}"

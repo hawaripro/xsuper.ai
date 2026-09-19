@@ -60,7 +60,7 @@ final class PromptTemplateLibrary
                         throw new RuntimeException("Unresolved template variable in {$file}.");
                     }
                     $row = [
-                        'template_key' => 'ultrai.library.'.$file.'.'.$context['key'].'.'.$recipe['key'],
+                        'template_key' => 'xsuper.library.'.$file.'.'.$context['key'].'.'.$recipe['key'],
                         'category' => $category,
                         'title' => $recipe['title'].' — '.$context['title'],
                         'prompt_text' => $prompt,

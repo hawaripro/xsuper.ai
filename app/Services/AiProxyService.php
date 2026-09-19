@@ -518,7 +518,7 @@ class AiProxyService
 
     private function scrubText(string $text): string
     {
-        $text = str_ireplace(self::BLOCKED_MODEL_FRAGMENTS, 'UltrAI', $text);
+        $text = str_ireplace(self::BLOCKED_MODEL_FRAGMENTS, 'XSuper.ai', $text);
 
         return trim((string) preg_replace('/\s+/', ' ', $text));
     }

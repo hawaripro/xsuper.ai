@@ -31,7 +31,7 @@ class UserDevice extends Model
 
         // API key as unique signal for plugins
         $apiKey = $request->bearerToken();
-        if ($apiKey && str_starts_with($apiKey, 'ultrai-')) {
+        if ($apiKey && str_starts_with($apiKey, 'xsuper-')) {
             $signals[] = 'apikey:' . substr($apiKey, 0, 20);
         }
 
@@ -43,7 +43,7 @@ class UserDevice extends Model
         $hash = self::generateFingerprint($userId, $request);
         $ua = $request->userAgent() ?? 'Unknown';
         $ip = $request->ip();
-        $isApiKey = $request->bearerToken() && str_starts_with($request->bearerToken() ?? '', 'ultrai-');
+        $isApiKey = $request->bearerToken() && str_starts_with($request->bearerToken() ?? '', 'xsuper-');
 
         // Try find existing device
         $device = static::where('device_hash', $hash)->first();

@@ -28,7 +28,7 @@ class ReferralProgramTest extends TestCase
         config([
             'referrals.enabled' => true,
             'referrals.reward_days' => 3,
-            'referrals.cookie_name' => 'ultrai_referral',
+            'referrals.cookie_name' => 'xsuper_referral',
             'referrals.cookie_minutes' => 43200,
         ]);
     }

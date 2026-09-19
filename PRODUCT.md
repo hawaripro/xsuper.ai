@@ -8,19 +8,19 @@ web
 
 ## Users
 
-Confirmed with the product owner: UltrAI serves both people using AI directly and developers or product teams integrating AI into their applications. These audiences share one platform, with distinct workspace and developer-console entry points.
+Confirmed with the product owner: XSuper.ai serves both people using AI directly and developers or product teams integrating AI into their applications. These audiences share one platform, with distinct workspace and developer-console entry points.
 
 ## Product Purpose
 
-Give users a coherent UltrAI experience for working with AI and building with AI APIs. The public site is Studio Orbital with localized landing, subscription pricing, AI model catalog, payment methods, FAQ, audience sections, and policy pages. Repository application changes remain local until explicit release authorization.
+Give users a coherent XSuper.ai experience for working with AI and building with AI APIs. The public site is Studio Orbital with localized landing, subscription pricing, AI model catalog, payment methods, FAQ, audience sections, and policy pages. Repository application changes remain local until explicit release authorization.
 
 ## Positioning
 
-Confirmed with the product owner: UltrAI is the customer-facing platform and brand, not marketed primarily as a gateway or proxy. Own the product experience, navigation, account, workspace, and console. Identify third-party models and their makers accurately. Do not claim UltrAI trained, owns, or operates a proprietary foundation model without evidence.
+Confirmed with the product owner: XSuper.ai is the customer-facing platform and brand, not marketed primarily as a gateway or proxy. Own the product experience, navigation, account, workspace, and console. Identify third-party models and their makers accurately. Do not claim XSuper.ai trained, owns, or operates a proprietary foundation model without evidence.
 
 ## Operating Context
 
-The application uses Laravel with a React SPA for login, member, and administrator workflows. Public home and legal pages render HTML through Blade with a separate Vite CSS/JavaScript entry; useful text and links work without JavaScript. Canonical homepage remains https://ultrai.id. Mobile browser access remains part of the web product.
+The application uses Laravel with a React SPA for login, member, and administrator workflows. Public home and legal pages render HTML through Blade with a separate Vite CSS/JavaScript entry; useful text and links work without JavaScript. Canonical homepage remains https://xsuper.dev. Mobile browser access remains part of the web product.
 
 ## Capabilities and Constraints
 
@@ -36,21 +36,21 @@ Repository evidence, not new business commitments:
 
 ## Brand Commitments
 
-Use the existing UltrAI name and actual logo. Indonesian remains on unprefixed canonical paths; English uses `/en` subdirectories. `/models` mirrors Bazaarlink's production information architecture: 240px sticky filters for input modality, capability, billing, context and provider; category tabs; search; and a compact six-column comparison table. Retired router and internal-provider model identities are removed across list APIs, chat defaults/bypasses, proxy aliases/env fallbacks, response output, stored models, API-key allowlists, and project documentation. Dark mode has no AI-logo tiles; only Anthropic, GLM/Z.ai, and Kimi marks turn white. Workspace tabs are explicitly readable and topbar Sign in is red. Subscription pricing is an infinite 3/2/1-card arrow carousel. Payment SVGs are cropped to artwork bounds and rendered at one optical height; QRIS/GoPay turn white in dark mode and GoPay white cutouts are transparent.
+Use the existing XSuper.ai name and actual logo. Indonesian remains on unprefixed canonical paths; English uses `/en` subdirectories. `/models` mirrors Bazaarlink's production information architecture: 240px sticky filters for input modality, capability, billing, context and provider; category tabs; search; and a compact six-column comparison table. Retired router and internal-provider model identities are removed across list APIs, chat defaults/bypasses, proxy aliases/env fallbacks, response output, stored models, API-key allowlists, and project documentation. Dark mode has no AI-logo tiles; only Anthropic, GLM/Z.ai, and Kimi marks turn white. Workspace tabs are explicitly readable and topbar Sign in is red. Subscription pricing is an infinite 3/2/1-card arrow carousel. Payment SVGs are cropped to artwork bounds and rendered at one optical height; QRIS/GoPay turn white in dark mode and GoPay white cutouts are transparent.
 
 ## Evidence on Hand
 
 - `resources/js/app.jsx`: current surface and role inventory.
 - `routes/web.php`: session API and protected workflow boundaries.
 - `config/marketing.php`, `app/Models/DurationOrder.php`, and `resources/views/public/`: public copy, legal terms, authoritative package prices, and server-rendered content.
-- `resources/js/components/UltrLogo.jsx` and `public/ultr-icons.png`: incumbent brand mark.
+- `resources/js/components/UltrLogo.jsx` and `public/logo-xsuper.png`: incumbent brand mark.
 - `resources/js/pages/` and `resources/js/layouts/`: existing application behavior and navigation.
 
 No verified uptime SLA, benchmarks, customer totals, partner endorsements, proprietary-model claims, or new prices were provided. Do not fabricate them. Any sample usage, conversations, projects, request counts, or accounts in prototypes are explicitly illustrative.
 
 ## Product Principles
 
-- One UltrAI identity, two clear user journeys: use AI and build with AI.
+- One XSuper.ai identity, two clear user journeys: use AI and build with AI.
 - Demonstrate the product rather than relying on third-party logo walls or unsupported performance claims.
 - Keep model attribution and product capabilities truthful.
 - Make daily workflows and developer integration easy to find and understand.

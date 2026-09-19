@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move the completed local UltrAI dataset and application runtime from verified XAMPP MariaDB to local PostgreSQL 18 with complete, evidence-backed parity and an intact MySQL rollback.
+**Goal:** Move the completed local XSuper.ai dataset and application runtime from verified XAMPP MariaDB to local PostgreSQL 18 with complete, evidence-backed parity and an intact MySQL rollback.
 
 **Architecture:** Laravel migrations create an empty PostgreSQL schema. A guarded local migration utility copies every source row from the exact verified MySQL instance using parameterized database connections, preserves identities/migration history, resets sequences, and produces canonical cross-engine verification receipts. Connection cutover occurs only after schema/data/application QA passes; source MySQL and its fresh backup remain untouched.
 
@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - PostgreSQL becomes local primary only after all parity and QA checks pass.
-- Source must exactly match local XAMPP MariaDB `127.0.0.1:2207`, `ultrai_db`, data directory `C:/xampp/mysql/data`.
+- Source must exactly match local XAMPP MariaDB `127.0.0.1:2207`, `xsuper_db`, data directory `C:/xampp/mysql/data`.
 - Destination must be a newly provisioned local PostgreSQL 18 database/cluster; refuse non-local, non-empty, or mismatched targets.
 - Never expose `.env`, database passwords, encrypted provider values, saved upstream endpoints, raw provider errors, or private identifiers.
 - Never run destructive tests, `migrate:fresh`, or seed fixtures against working MySQL.
@@ -95,7 +95,7 @@
 - Modify: `.github/workflows/dashboard-qa.yml` only if a safe PostgreSQL service can be added without affecting current SQLite safety job.
 
 **Interfaces:**
-- Consumes: dedicated test PostgreSQL database/role named for UltrAI QA.
+- Consumes: dedicated test PostgreSQL database/role named for XSuper.ai QA.
 - Produces: isolated PostgreSQL workflow proof while existing `Tests\TestCase` still refuses non-SQLite.
 
 - [ ] Write a PostgreSQL-specific guard that requires `testing`, `pgsql`, loopback, and an allowlisted database suffix/name; refuse the working destination database.
@@ -129,7 +129,7 @@
 
 **Interfaces:**
 - Consumes: PostgreSQL 18.3 binaries at `C:/Program Files/PostgreSQL/18/bin`, approved source backup/baseline.
-- Produces: dedicated local PostgreSQL primary candidate containing all UltrAI rows.
+- Produces: dedicated local PostgreSQL primary candidate containing all XSuper.ai rows.
 
 - [ ] Initialize dedicated PostgreSQL cluster/role/database on an unused loopback port using a generated private password never printed or committed.
 - [ ] Apply all Laravel migrations to the empty destination.

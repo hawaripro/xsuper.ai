@@ -10,12 +10,12 @@
                 <div class="hero-actions" data-reveal-item><a href="{{ str_starts_with($site['hero']['primary_action']['url'], '/') ? $localeUrl($site['hero']['primary_action']['url']) : $site['hero']['primary_action']['url'] }}" class="button button-primary">{{ $site['hero']['primary_action']['label'] }} @include('public.partials.icon', ['name' => 'arrow'])</a><a href="/chat" class="text-link">{{ __('Buka workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div>
                 <div class="hero-footnote" data-reveal-item><span class="hero-rule" aria-hidden="true"></span><p>{{ __('AI premium. Harga tetap membumi.') }}<br>{{ __('Mulai') }} <strong>{{ $plans[0]['priceLabel'] }}</strong> {{ __('untuk satu hari.') }}</p></div>
             </div>
-            <div class="orbit-stage" data-orbit-stage aria-label="{{ __('Pilihan model AI dalam platform UltrAI') }}">
+            <div class="orbit-stage" data-orbit-stage aria-label="{{ __('Pilihan model AI dalam platform XSuper.ai') }}">
                 <div class="orbit-coordinate coordinate-top" aria-hidden="true"><span>{{ __('Pikiran berbeda.') }}</span><span>{{ __('Satu workspace.') }}</span></div>
                 <div class="orbit-system">
                     <div class="orbit-ring ring-outer" aria-hidden="true"></div><div class="orbit-ring ring-inner" aria-hidden="true"></div><div class="orbit-ring ring-cross" aria-hidden="true"></div>
                     <div class="orbit-axis axis-horizontal" aria-hidden="true"></div><div class="orbit-axis axis-vertical" aria-hidden="true"></div>
-                    <div class="orbit-core"><div class="core-ring" aria-hidden="true"></div><img src="/brands/ultrai/mark-256.webp" srcset="/brands/ultrai/mark-256.webp 256w, /brands/ultrai/mark-512.webp 512w" sizes="140px" width="140" height="140" alt="UltrAI" fetchpriority="high"><span>{{ __('Pusat kreativitasmu.') }}</span></div>
+                    <div class="orbit-core"><div class="core-ring" aria-hidden="true"></div><img src="/logo-xsuper.png" srcset="/logo-xsuper.png 256w, /logo-xsuper.png 512w" sizes="140px" width="140" height="140" alt="XSuper.ai" fetchpriority="high"><span>{{ __('Pusat kreativitasmu.') }}</span></div>
                     @foreach($site['models'] as $model)
                         <div class="orbit-arm arm-{{ $loop->index }}" style="--orbit-index: {{ $loop->index }}">
                             <button type="button" class="orbit-card {{ $loop->first ? 'is-selected' : '' }}" data-orbit-model="{{ $model['id'] }}" data-model-name="{{ $model['name'] }}" data-model-description="{{ $model['description'] }}" aria-pressed="{{ $loop->first ? 'true' : 'false' }}">
@@ -31,7 +31,7 @@
     </section>
 
     <section id="models" class="model-universe" aria-labelledby="models-title" data-motion-zone>
-        <div class="container section-heading section-heading-models" data-reveal="rise"><h2 id="models-title">{{ __('Banyak cara berpikir.') }}<br><span>{{ __('Satu tempat bertemu.') }}</span></h2>@include('public.partials.ai-robot')<p>{{ __('Pilih model yang cocok dengan pekerjaanmu. Identitas dan pembuatnya tetap jelas; pengalaman kerjanya tetap UltrAI.') }}</p></div>
+        <div class="container section-heading section-heading-models" data-reveal="rise"><h2 id="models-title">{{ __('Banyak cara berpikir.') }}<br><span>{{ __('Satu tempat bertemu.') }}</span></h2>@include('public.partials.ai-robot')<p>{{ __('Pilih model yang cocok dengan pekerjaanmu. Identitas dan pembuatnya tetap jelas; pengalaman kerjanya tetap XSuper.ai.') }}</p></div>
         <div class="brand-rail" aria-label="{{ __('Model dan pembuat AI') }}">
             <div class="brand-track">
                 @foreach($site['models'] as $model)
@@ -42,12 +42,12 @@
                 @endforeach
             </div>
         </div>
-        <p class="container model-disclaimer">{{ __('Pilihan model mengikuti ketersediaan layanan dan izin akun. Nama serta logo milik pemilik masing-masing, bukan klaim kemitraan atau model buatan UltrAI.') }}</p>
+        <p class="container model-disclaimer">{{ __('Pilihan model mengikuti ketersediaan layanan dan izin akun. Nama serta logo milik pemilik masing-masing, bukan klaim kemitraan atau model buatan XSuper.ai.') }}</p>
     </section>
 
-    <section class="possibility-section" id="why-ultrai" aria-labelledby="possibility-title" data-motion-zone>
+    <section class="possibility-section" id="why-xsuper" aria-labelledby="possibility-title" data-motion-zone>
         <div class="container possibility-grid">
-            <div class="possibility-copy" data-reveal="line"><h2 id="possibility-title">{{ __('Ide kecil.') }}<br><span class="large-word">{{ __('Efek besar.') }}</span></h2><p>{{ __('Kamu bawa rasa ingin tahu.') }}<br>{{ __('UltrAI menyediakan ruang untuk menjadikannya sesuatu yang nyata.') }}</p><a class="text-link" href="{{ $localeUrl('/#workspace') }}">{{ __('Lihat cara kerjanya') }} @include('public.partials.icon', ['name' => 'arrow'])</a></div>
+            <div class="possibility-copy" data-reveal="line"><h2 id="possibility-title">{{ __('Ide kecil.') }}<br><span class="large-word">{{ __('Efek besar.') }}</span></h2><p>{{ __('Kamu bawa rasa ingin tahu.') }}<br>{{ __('XSuper.ai menyediakan ruang untuk menjadikannya sesuatu yang nyata.') }}</p><a class="text-link" href="{{ $localeUrl('/#workspace') }}">{{ __('Lihat cara kerjanya') }} @include('public.partials.icon', ['name' => 'arrow'])</a></div>
             <div class="possibility-lines" data-reveal="stagger">
                 <article data-reveal-item><span class="possibility-icon">@include('public.partials.icon', ['name' => 'chat'])</span><div><h3>{{ __('Pikirkan lebih jauh.') }}</h3><p>{{ __('Urai pertanyaan, temukan sudut pandang, lalu susun langkah yang bisa dikerjakan.') }}</p></div><span class="line-end" aria-hidden="true">@include('public.partials.icon', ['name' => 'plus'])</span></article>
                 <article data-reveal-item><span class="possibility-icon">@include('public.partials.icon', ['name' => 'pen'])</span><div><h3>{{ __('Buat lebih bermakna.') }}</h3><p>{{ __('Dari draft pertama sampai ide visual. Satu workspace mengikuti arah kreativitasmu.') }}</p></div><span class="line-end" aria-hidden="true">@include('public.partials.icon', ['name' => 'plus'])</span></article>
@@ -60,11 +60,11 @@
         <div class="container">
             <div class="section-heading" data-reveal="rise"><h2 id="workspace-title">{{ __('Bukan halaman kosong.') }}<br><span>{{ __('Awal sesuatu yang besar.') }}</span></h2><p>{{ __('Pilih model. Bawa pertanyaan, potongan kode, atau dokumen. Kerjakan idemu dalam percakapan yang terus punya konteks.') }}</p></div>
             <div class="workspace-showcase" data-reveal="wipe">
-                <aside class="showcase-sidebar" aria-label="{{ __('Fitur workspace') }}"><a href="/chat" class="showcase-brand"><img src="/brands/ultrai/mark-96.webp" width="32" height="32" alt="UltrAI" loading="lazy"><strong>UltrAI<span>.</span></strong></a><a href="/chat" class="showcase-new">@include('public.partials.icon', ['name' => 'plus']) {{ __('Mulai percakapan') }}</a><p>{{ __('Ruang untuk ide') }}</p><span class="showcase-item selected">@include('public.partials.icon', ['name' => 'chat']) {{ __('Percakapan & riset') }}</span><span class="showcase-item">@include('public.partials.icon', ['name' => 'code']) {{ __('Teman berpikir kode') }}</span><span class="showcase-item">@include('public.partials.icon', ['name' => 'file']) {{ __('Bawa bahan referensi') }}</span><div class="showcase-bottom">{{ __('Model pilihanmu.') }}<br>{{ __('Cara kerja UltrAI.') }}</div></aside>
+                <aside class="showcase-sidebar" aria-label="{{ __('Fitur workspace') }}"><a href="/chat" class="showcase-brand"><img src="/logo-xsuper.png" width="32" height="32" alt="XSuper.ai" loading="lazy"><strong>XSuper.ai<span>.</span></strong></a><a href="/chat" class="showcase-new">@include('public.partials.icon', ['name' => 'plus']) {{ __('Mulai percakapan') }}</a><p>{{ __('Ruang untuk ide') }}</p><span class="showcase-item selected">@include('public.partials.icon', ['name' => 'chat']) {{ __('Percakapan & riset') }}</span><span class="showcase-item">@include('public.partials.icon', ['name' => 'code']) {{ __('Teman berpikir kode') }}</span><span class="showcase-item">@include('public.partials.icon', ['name' => 'file']) {{ __('Bawa bahan referensi') }}</span><div class="showcase-bottom">{{ __('Model pilihanmu.') }}<br>{{ __('Cara kerja XSuper.ai.') }}</div></aside>
                 <div class="showcase-main">
                     <div class="showcase-top"><span>{{ __('Di balik setiap karya, ada percakapan.') }}</span><span class="example-label">{{ __('Contoh penggunaan') }}</span></div>
                     <div class="demo-tabs" id="demo-tabs" aria-label="{{ __('Contoh pekerjaan') }}"><button type="button" id="demo-writing-tab" data-demo-tab="writing" aria-controls="demo-writing">@include('public.partials.icon', ['name' => 'pen']) {{ __('Menulis') }}</button><button type="button" id="demo-coding-tab" data-demo-tab="coding" aria-controls="demo-coding">@include('public.partials.icon', ['name' => 'code']) Coding</button><button type="button" id="demo-planning-tab" data-demo-tab="planning" aria-controls="demo-planning">@include('public.partials.icon', ['name' => 'book']) {{ __('Merencanakan') }}</button></div>
-                    <div id="demo-writing" class="demo-panel" data-demo-panel="writing" aria-labelledby="demo-writing-tab"><div class="demo-question"><span>K</span><p>{{ __('Bantu tulis pembuka untuk brand kopi lokal. Hangat, sederhana, tidak berlebihan.') }}</p></div><div class="demo-answer"><span class="answer-mark"><img src="/brands/ultrai/mark-96.webp" width="28" height="28" alt="" loading="lazy"></span><div><h3>{{ __('Selalu ada waktu') }}<br>{{ __('untuk mulai pelan.') }}</h3><p>{{ __('Secangkir kopi, percakapan kecil, dan jeda yang kamu butuhkan. Kami meracik kopi lokal untuk menemani hal sederhana yang layak dinikmati.') }}</p><span class="example-caption">{{ __('Contoh draft untuk brand fiktif, bukan respons AI langsung.') }}</span></div></div></div>
+                    <div id="demo-writing" class="demo-panel" data-demo-panel="writing" aria-labelledby="demo-writing-tab"><div class="demo-question"><span>K</span><p>{{ __('Bantu tulis pembuka untuk brand kopi lokal. Hangat, sederhana, tidak berlebihan.') }}</p></div><div class="demo-answer"><span class="answer-mark"><img src="/logo-xsuper.png" width="28" height="28" alt="" loading="lazy"></span><div><h3>{{ __('Selalu ada waktu') }}<br>{{ __('untuk mulai pelan.') }}</h3><p>{{ __('Secangkir kopi, percakapan kecil, dan jeda yang kamu butuhkan. Kami meracik kopi lokal untuk menemani hal sederhana yang layak dinikmati.') }}</p><span class="example-caption">{{ __('Contoh draft untuk brand fiktif, bukan respons AI langsung.') }}</span></div></div></div>
                     <div id="demo-coding" class="demo-panel" data-demo-panel="coding" aria-labelledby="demo-coding-tab"><div class="demo-question"><span>K</span><p>{{ __('Buat fungsi JavaScript untuk mengelompokkan catatan berdasarkan proyek.') }}</p></div><div class="demo-answer"><span class="answer-mark">@include('public.partials.icon', ['name' => 'code'])</span><div><h3>{{ __('Kode rapi.') }}<br>{{ __('Ide tetap bergerak.') }}</h3><pre><code>function groupByProject(notes) {
   return Object.groupBy(notes, note =&gt; note.project);
 }</code></pre><span class="example-caption">{{ __('Cuplikan kode ilustratif; tinjau sebelum digunakan.') }}</span></div></div></div>
@@ -72,21 +72,21 @@
                     <div class="showcase-composer"><span>@include('public.partials.icon', ['name' => 'plus']) {{ __('Pertanyaan berikutnya milikmu.') }}</span><a href="/chat" class="showcase-send" aria-label="{{ __('Buka Chat AI') }}">@include('public.partials.icon', ['name' => 'arrow'])</a></div>
                 </div>
             </div>
-            <div class="workspace-support"><span>@include('public.partials.icon', ['name' => 'chat']) {{ __('Riwayat percakapan') }}</span><span>@include('public.partials.icon', ['name' => 'file']) {{ __('Lampiran gambar & dokumen') }}</span><span><img class="feature-mark" src="/brands/ultrai/mark-96.webp" width="18" height="18" alt="" loading="lazy"> {{ __('Pilihan model dalam satu ruang') }}</span><a class="text-link" href="/chat">{{ __('Masuk ke workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div>
+            <div class="workspace-support"><span>@include('public.partials.icon', ['name' => 'chat']) {{ __('Riwayat percakapan') }}</span><span>@include('public.partials.icon', ['name' => 'file']) {{ __('Lampiran gambar & dokumen') }}</span><span><img class="feature-mark" src="/logo-xsuper.png" width="18" height="18" alt="" loading="lazy"> {{ __('Pilihan model dalam satu ruang') }}</span><a class="text-link" href="/chat">{{ __('Masuk ke workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div>
         </div>
     </section>
 
     <section id="developers" class="developer-section" aria-labelledby="developer-title" data-motion-zone>
         <div class="container developer-grid">
-            <div class="developer-copy" data-reveal="line"><h2 id="developer-title">{{ __('Ide yang sama.') }}<br>{{ __('Skala yang') }} <span>{{ __('berbeda.') }}</span></h2><p>{{ __('Workspace untuk pekerjaanmu.') }}<br>{{ __('API untuk produk yang kamu bangun.') }}</p><p class="developer-detail">{{ __('Gunakan endpoint UltrAI dengan format API yang familiar. Integrasikan ke aplikasi, VSCode, Cursor, atau alat developer yang mendukung endpoint kompatibel.') }}</p><a href="/dashboard" class="button button-light">{{ __('Buka developer dashboard') }} @include('public.partials.icon', ['name' => 'arrow'])</a><div class="developer-endpoint"><span>Base URL</span><code>https://api.ultrai.id/v1</code></div></div>
-            <div class="developer-terminal" data-reveal="wipe"><div class="terminal-title"><span>@include('public.partials.icon', ['name' => 'code']) {{ __('Ide → request → kemungkinan') }}</span><span>API UltrAI</span></div><div class="code-tabs" id="api-tabs" aria-label="{{ __('Bahasa contoh API') }}"><button type="button" id="api-curl-tab" data-code-tab="curl" aria-controls="api-curl">cURL</button><button type="button" id="api-python-tab" data-code-tab="python" aria-controls="api-python">Python</button></div><div id="api-curl" class="code-panel" data-code-panel="curl" aria-labelledby="api-curl-tab"><pre><code id="curl-code">curl https://api.ultrai.id/v1/chat/completions \
+            <div class="developer-copy" data-reveal="line"><h2 id="developer-title">{{ __('Ide yang sama.') }}<br>{{ __('Skala yang') }} <span>{{ __('berbeda.') }}</span></h2><p>{{ __('Workspace untuk pekerjaanmu.') }}<br>{{ __('API untuk produk yang kamu bangun.') }}</p><p class="developer-detail">{{ __('Gunakan endpoint XSuper.ai dengan format API yang familiar. Integrasikan ke aplikasi, VSCode, Cursor, atau alat developer yang mendukung endpoint kompatibel.') }}</p><a href="/dashboard" class="button button-light">{{ __('Buka developer dashboard') }} @include('public.partials.icon', ['name' => 'arrow'])</a><div class="developer-endpoint"><span>Base URL</span><code>https://api.xsuper.dev/v1</code></div></div>
+            <div class="developer-terminal" data-reveal="wipe"><div class="terminal-title"><span>@include('public.partials.icon', ['name' => 'code']) {{ __('Ide → request → kemungkinan') }}</span><span>API XSuper.ai</span></div><div class="code-tabs" id="api-tabs" aria-label="{{ __('Bahasa contoh API') }}"><button type="button" id="api-curl-tab" data-code-tab="curl" aria-controls="api-curl">cURL</button><button type="button" id="api-python-tab" data-code-tab="python" aria-controls="api-python">Python</button></div><div id="api-curl" class="code-panel" data-code-panel="curl" aria-labelledby="api-curl-tab"><pre><code id="curl-code">curl https://api.xsuper.dev/v1/chat/completions \
   -H "Authorization: Bearer $ULTRAI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "MODEL_ID",
     "messages": [{
       "role": "user",
-      "content": "Halo, UltrAI!"
+      "content": "Halo, XSuper.ai!"
     }]
   }'</code></pre><button type="button" class="copy-code" data-copy-target="curl-code" hidden>@include('public.partials.icon', ['name' => 'copy']) {{ __('Salin contoh') }}</button></div><div id="api-python" class="code-panel" data-code-panel="python" aria-labelledby="api-python-tab"><pre><code id="python-code">import json, os, urllib.request
 
@@ -95,7 +95,7 @@ payload = {
     "messages": [{"role": "user", "content": "Halo!"}]
 }
 request = urllib.request.Request(
-    "https://api.ultrai.id/v1/chat/completions",
+    "https://api.xsuper.dev/v1/chat/completions",
     data=json.dumps(payload).encode(),
     headers={
         "Authorization": "Bearer " + os.environ["ULTRAI_API_KEY"],
@@ -103,7 +103,7 @@ request = urllib.request.Request(
     }, method="POST"
 )
 with urllib.request.urlopen(request) as response:
-    print(json.load(response))</code></pre><button type="button" class="copy-code" data-copy-target="python-code" hidden>@include('public.partials.icon', ['name' => 'copy']) {{ __('Salin contoh') }}</button></div><p class="terminal-footnote">{{ __('Ganti MODEL_ID dengan model yang tersedia untuk akunmu. Simpan API key di server, bukan dalam kode browser.') }}</p><div class="request-flow" aria-hidden="true"><span>YOUR APP</span><i class="flow-track"><i class="flow-packet"></i></i><img src="/brands/ultrai/mark-96.webp" width="26" height="26" alt="" loading="lazy"><i class="flow-track"><i class="flow-packet packet-delayed"></i></i><span>YOUR NEXT IDEA</span></div></div>
+    print(json.load(response))</code></pre><button type="button" class="copy-code" data-copy-target="python-code" hidden>@include('public.partials.icon', ['name' => 'copy']) {{ __('Salin contoh') }}</button></div><p class="terminal-footnote">{{ __('Ganti MODEL_ID dengan model yang tersedia untuk akunmu. Simpan API key di server, bukan dalam kode browser.') }}</p><div class="request-flow" aria-hidden="true"><span>YOUR APP</span><i class="flow-track"><i class="flow-packet"></i></i><img src="/logo-xsuper.png" width="26" height="26" alt="" loading="lazy"><i class="flow-track"><i class="flow-packet packet-delayed"></i></i><span>YOUR NEXT IDEA</span></div></div>
         </div>
     </section>
 
@@ -121,7 +121,7 @@ with urllib.request.urlopen(request) as response:
     </section>
 
     <section class="closing-section" aria-labelledby="closing-title" data-motion-zone>
-        <div class="closing-orbit orbit-close-one" aria-hidden="true"></div><div class="closing-orbit orbit-close-two" aria-hidden="true"></div><div class="container closing-content" data-reveal="line"><img src="/brands/ultrai/mark-96.webp" width="58" height="58" alt="UltrAI" loading="lazy"><h2 id="closing-title">{{ __('Idemu terlalu bagus') }}<br>{{ __('untuk') }} <span>{{ __('berhenti di kepala.') }}</span></h2><p>{{ __('Buka ruang untuk kemungkinan berikutnya.') }}</p><div class="closing-actions"><a href="{{ $localeUrl('/pricing') }}" class="button button-light">{{ __('Lihat paket UltrAI') }} @include('public.partials.icon', ['name' => 'arrow'])</a><a href="/chat" class="text-link">{{ __('Sudah punya akun? Buka workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div></div>
+        <div class="closing-orbit orbit-close-one" aria-hidden="true"></div><div class="closing-orbit orbit-close-two" aria-hidden="true"></div><div class="container closing-content" data-reveal="line"><img src="/logo-xsuper.png" width="58" height="58" alt="XSuper.ai" loading="lazy"><h2 id="closing-title">{{ __('Idemu terlalu bagus') }}<br>{{ __('untuk') }} <span>{{ __('berhenti di kepala.') }}</span></h2><p>{{ __('Buka ruang untuk kemungkinan berikutnya.') }}</p><div class="closing-actions"><a href="{{ $localeUrl('/pricing') }}" class="button button-light">{{ __('Lihat paket XSuper.ai') }} @include('public.partials.icon', ['name' => 'arrow'])</a><a href="/chat" class="text-link">{{ __('Sudah punya akun? Buka workspace') }} @include('public.partials.icon', ['name' => 'external'])</a></div></div>
     </section>
 </main>
 @if($recentPurchases !== [])

@@ -42,7 +42,7 @@ class ApiKey extends Model
 
     public static function generate(int $userId, string $name = 'Default', array $options = []): self
     {
-        $plain = 'ultrai-'.Str::random(48);
+        $plain = 'xsuper-'.Str::random(48);
         $model = static::create([
             'user_id' => $userId,
             'key_hash' => self::hashKey($plain),
@@ -61,7 +61,7 @@ class ApiKey extends Model
     /** Rotate the key in place, returning the model carrying the new plaintext once. */
     public function regenerateKey(): self
     {
-        $plain = 'ultrai-'.Str::random(48);
+        $plain = 'xsuper-'.Str::random(48);
         $this->key_hash = self::hashKey($plain);
         $this->key_prefix = substr($plain, 0, 12);
         $this->save();
@@ -85,6 +85,6 @@ class ApiKey extends Model
 
     public function maskedKey(): string
     {
-        return ($this->key_prefix ?: 'ultrai-').'…';
+        return ($this->key_prefix ?: 'xsuper-').'…';
     }
 }

@@ -134,7 +134,7 @@ class ContentLifecycleTest extends TestCase
                 'message' => 'Maintenance at midnight',
                 'level' => 'warning',
                 'surfaces' => ['dashboard'],
-                'action' => ['label' => 'Status', 'url' => 'https://status.ultrai.id'],
+                'action' => ['label' => 'Status', 'url' => 'https://status.xsuper.dev'],
             ],
         ])->assertCreated()->json('data.id');
 

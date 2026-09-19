@@ -27,7 +27,7 @@ class PublicSiteController extends Controller
         $data['recentPurchases'] = $this->recentPurchases();
         $site = $data['site'];
         $data['page'] = $this->pageMetadata([
-            'title' => __('UltrAI — AI-Powered Platform for UMKM Indonesia'),
+            'title' => __('XSuper.ai — AI-Powered Platform for UMKM Indonesia'),
             'description' => $site['description'],
             'robots' => 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
             'indexable' => true,
@@ -48,7 +48,7 @@ class PublicSiteController extends Controller
                         '@type' => 'Organization',
                         'name' => $site['name'],
                         'url' => $site['url'],
-                        'logo' => $site['url'].'/ultr-icons.png',
+                        'logo' => $site['url'].'/logo-xsuper.png',
                         'contactPoint' => [
                             '@type' => 'ContactPoint',
                             'telephone' => '+'.$site['support']['phone'],
@@ -82,8 +82,8 @@ class PublicSiteController extends Controller
         $site = $data['site'];
         $startingPrice = $data['plans'][0]['priceLabel'];
         $data['page'] = $this->pageMetadata([
-            'title' => __('Harga UltrAI — Pilih Durasi Akses AI'),
-            'description' => __('Pilih paket UltrAI mulai :price: satu hari, satu minggu, satu bulan, hingga satu tahun. Harga dan durasi tampil transparan.', ['price' => $startingPrice]),
+            'title' => __('Harga XSuper.ai — Pilih Durasi Akses AI'),
+            'description' => __('Pilih paket XSuper.ai mulai :price: satu hari, satu minggu, satu bulan, hingga satu tahun. Harga dan durasi tampil transparan.', ['price' => $startingPrice]),
             'robots' => 'index, follow, max-image-preview:large, max-snippet:-1',
             'indexable' => true,
             'type' => 'pricing',
@@ -101,7 +101,7 @@ class PublicSiteController extends Controller
                 'offers' => array_map(fn (array $plan): array => [
                     '@type' => 'Offer',
                     'sku' => $plan['id'],
-                    'name' => 'UltrAI '.$plan['label'],
+                    'name' => 'XSuper.ai '.$plan['label'],
                     'price' => $plan['price'],
                     'priceCurrency' => $plan['priceCurrency'],
                     'url' => $data['page']['canonical'],
@@ -136,8 +136,8 @@ class PublicSiteController extends Controller
             ->all();
         sort($data['providers']);
         $data['page'] = $this->pageMetadata([
-            'title' => __('Katalog Model AI — UltrAI'),
-            'description' => __('Jelajahi model AI yang tersedia di UltrAI berdasarkan penyedia, kemampuan, context window, dan tarif penggunaan.'),
+            'title' => __('Katalog Model AI — XSuper.ai'),
+            'description' => __('Jelajahi model AI yang tersedia di XSuper.ai berdasarkan penyedia, kemampuan, context window, dan tarif penggunaan.'),
             'robots' => 'index, follow, max-image-preview:large, max-snippet:-1',
             'indexable' => true,
             'type' => 'models',
@@ -168,7 +168,7 @@ class PublicSiteController extends Controller
         abort_unless(isset($data['site']['policies'][$policy]), 404);
         $document = $data['site']['policies'][$policy];
         $data['page'] = $this->pageMetadata([
-            'title' => $document['title'].' — UltrAI',
+            'title' => $document['title'].' — XSuper.ai',
             'description' => $document['description'],
             'robots' => 'index, follow, max-image-preview:large',
             'indexable' => true,
@@ -223,7 +223,7 @@ class PublicSiteController extends Controller
             $priceLabel = $isUsd ? '$'.number_format($price, 2, '.', ',') : 'Rp '.number_format($price, 0, ',', '.');
             $perDay = $price / $package['days'];
             $perDayLabel = $isUsd ? '≈ $'.number_format($perDay, 2, '.', ',') : __('Sekitar Rp').' '.number_format((int) ceil($perDay), 0, ',', '.');
-            $message = __('Halo UltrAI, saya ingin bertanya dan membeli paket :label (:price).', ['label' => $label, 'price' => $priceLabel]);
+            $message = __('Halo XSuper.ai, saya ingin bertanya dan membeli paket :label (:price).', ['label' => $label, 'price' => $priceLabel]);
             $plans[] = [
                 'id' => $id,
                 ...$package,
@@ -442,7 +442,7 @@ class PublicSiteController extends Controller
                     'description' => app()->getLocale() === 'en'
                         ? ($model['description_en'] ?? $model['description_id'] ?? $fallback['description'] ?? __('Model AI untuk percakapan, analisis, dan pekerjaan kreatif.'))
                         : ($model['description_id'] ?? $model['description_en'] ?? $fallback['description'] ?? __('Model AI untuk percakapan, analisis, dan pekerjaan kreatif.')),
-                    'logo' => $model['logo_url'] ?? $fallback['logo'] ?? '/brands/ultrai/mark-96.webp',
+                    'logo' => $model['logo_url'] ?? $fallback['logo'] ?? '/logo-xsuper.png',
                     'context' => $model['context_length'] ?? $model['context_window'] ?? null,
                     'maxOutput' => $model['max_output_tokens'] ?? null,
                     'capabilities' => $capabilities,
@@ -476,7 +476,7 @@ class PublicSiteController extends Controller
             str_contains($id, 'deepseek') => 'DeepSeek',
             str_contains($id, 'glm') => 'Z.ai',
             str_contains($id, 'kimi') => 'Moonshot AI',
-            default => 'UltrAI Catalog',
+            default => 'XSuper.ai Catalog',
         };
     }
 

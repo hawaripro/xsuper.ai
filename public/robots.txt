@@ -1,4 +1,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://ultrai.id/sitemap.xml
+Sitemap: https://xsuper.dev/sitemap.xml

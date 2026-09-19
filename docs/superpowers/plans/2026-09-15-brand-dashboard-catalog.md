@@ -1,6 +1,6 @@
 # Brand Dashboard and Catalog Implementation Plan
 
-**Goal:** Deliver a unified UltrAI public/member experience with one premium robot accent, auth-aware public navigation, bilingual dashboard URLs, brand typography, colorful navigation, and a database-managed BazaarLink-style AI catalog.
+**Goal:** Deliver a unified XSuper.ai public/member experience with one premium robot accent, auth-aware public navigation, bilingual dashboard URLs, brand typography, colorful navigation, and a database-managed BazaarLink-style AI catalog.
 
 **Architecture:** Public pages remain Laravel Blade with modular CSS. Authenticated pages remain React but gain a locale context keyed by `/en/*`. AI model metadata lives in `ai_model_profiles`; usage prices remain in `usage_rates`. Admin edits update those records transactionally and public `/models` joins them into the live provider catalog.
 

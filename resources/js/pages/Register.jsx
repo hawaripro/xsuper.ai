@@ -64,8 +64,8 @@ export default function Register() {
 
     return (
         <AuthScaffold
-            title={t('Buat akun UltrAI')}
-            subtitle={t('Daftar untuk mulai memakai workspace UltrAI')}
+            title={t('Buat akun XSuper.ai')}
+            subtitle={t('Daftar untuk mulai memakai workspace XSuper.ai')}
             footer={<span className={isDark ? 'text-gray-500' : 'text-gray-500'}>{t('Sudah punya akun?')} <Link to={localizedPath('/login')} className="font-semibold text-red-500 hover:text-red-600">{t('Masuk')}</Link></span>}
         >
             <form onSubmit={handleSubmit} noValidate>

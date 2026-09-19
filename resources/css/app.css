@@ -4,7 +4,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================================
-   UltrAI — Bright Theme Design System
+   XSuper.ai — Bright Theme Design System
    Default: Light / Bright. Dark via .dark class.
    Landing page is untouched.
    ============================================================ */
@@ -87,7 +87,7 @@
     --ui-border-soft:  rgba(15, 23, 42, 0.05);
     --ui-border-strong:rgba(15, 23, 42, 0.12);
 
-    /* Brand — UltrAI red */
+    /* Brand — XSuper.ai red */
     --ui-brand:        #ef4444;
     --ui-brand-deep:   #dc2626;
     --ui-brand-soft:   #fee2e2;

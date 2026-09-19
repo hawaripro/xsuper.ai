@@ -1,9 +1,0 @@
-{
-  "scope": "Refined Studio prototype for owner review, not production frontend migration",
-  "visual": "Final desktop/mobile workspace and model picker confirmed valid, unobstructed and richer; duplicate site navigation removed, composer elevated; no additional material visual findings.",
-  "behavior": "Two source-review findings fixed and verified: preserve media brief focus/selection on streaming completion; clear conversation-local error/status on history switch. Reviewer confirmed both resolved.",
-  "motion": "Actual independent Chrome verified changing transform over time, pause stable, six-second completion, zero running animations afterward and reduced-motion disabled movement.",
-  "tested": ["1440px desktop", "390px mobile", "Light/dark workspace", "Model search/filter/empty/select/Escape", "Draft preservation", "File rejection/count/drop/paste/removal", "Stream completion/stop", "Safe user text", "Media brief edits/export", "History search/delete", "Console navigation/code tabs", "Gallery selected Studio", "Local server file allowlist"],
-  "evidence": ["verification.json", "extra-checks.json", "review-fixes.json", "detector-disposition.json"],
-  "productionApproved": false
-}

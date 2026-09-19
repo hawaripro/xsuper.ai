@@ -113,7 +113,7 @@ class AuthController extends Controller
         // can be revoked (logout/admin) — never derivable from APP_KEY.
         if ($user->isAdmin()) {
             $raw = \App\Models\DashToken::issueFor($user->id);
-            $response->withCookie(cookie('dash_token', $raw, 10080, '/', '.ultrai.id', true, true, false, 'Lax'));
+            $response->withCookie(cookie('dash_token', $raw, 10080, '/', '.xsuper.dev', true, true, false, 'Lax'));
         }
 
         return $response;
@@ -130,7 +130,7 @@ class AuthController extends Controller
 
         // Clear dash_token cookie
         return response()->json(['message' => 'Logged out'])
-            ->withCookie(cookie()->forget('dash_token', '/', '.ultrai.id'));
+            ->withCookie(cookie()->forget('dash_token', '/', '.xsuper.dev'));
     }
 
     public function user(Request $request)

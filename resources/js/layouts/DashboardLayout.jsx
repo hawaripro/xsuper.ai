@@ -146,16 +146,16 @@ export default function DashboardLayout({ children }) {
     }
 
     return (
-        <div ref={shell} className={`dashboard-shell ultrai-workspace-shell min-h-dvh flex flex-col ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'} relative`}>
+        <div ref={shell} className={`dashboard-shell xsuper-workspace-shell min-h-dvh flex flex-col ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'} relative`}>
             <a className="dw-skip-link" href="#dashboard-content">{t('Lewati ke konten')}</a>
             <div ref={ribbonWrap} className="sticky top-0 z-[80] w-full" inert={sidebarOpen && !isDesktop}><AnnouncementRibbon surface="dashboard" /></div>
             {sidebarOpen && !isDesktop && <button type="button" className="dw-nav-overlay" tabIndex={-1} onClick={() => setSidebarOpen(false)} aria-label={t('Tutup menu')} />}
             <div className="flex min-h-0 flex-1">
                 <aside ref={sidebar} id="dashboard-navigation" aria-label={t('Navigasi dashboard')} role={!isDesktop && sidebarOpen ? 'dialog' : undefined} aria-modal={!isDesktop && sidebarOpen ? true : undefined} inert={!isDesktop && !sidebarOpen} className={`dw-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
                     <div className={`h-16 shrink-0 flex items-center justify-between px-5 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
-                        <Link to={localizedPath('/dashboard')} onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 group" aria-label="UltrAI home">
+                        <Link to={localizedPath('/dashboard')} onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 group" aria-label="XSuper.ai home">
                             <UltrLogo className="w-9 h-9 motion-safe:group-hover:scale-105 transition-transform duration-200" />
-                            <span className="text-xl font-extrabold tracking-tight flex items-center gap-[2px]"><span className={isDark ? 'text-white' : 'text-slate-900'}>Ultr</span><span className="text-red-500">AI</span></span>
+                            <span className="text-xl font-extrabold tracking-tight flex items-center gap-[2px]"><span className={isDark ? 'text-white' : 'text-slate-900'}>XSuper</span><span className="text-red-500">.ai</span></span>
                         </Link>
                         <button type="button" onClick={() => setSidebarOpen(false)} className="dw-shell-control dw-mobile-control" aria-label={t('Tutup menu')}>{Icons.close}</button>
                     </div>
@@ -179,7 +179,7 @@ export default function DashboardLayout({ children }) {
                     <header className="dw-topbar sticky z-30 flex items-center justify-between px-4 lg:px-6" style={{ top: 'var(--dw-ribbon-h, 0px)' }}>
                         <div className="flex items-center gap-3 min-w-0">
                             <button ref={menuButton} type="button" onClick={() => setSidebarOpen(true)} className="dw-shell-control dw-mobile-control" aria-label={t('Buka menu')} aria-expanded={sidebarOpen} aria-controls="dashboard-navigation">{Icons.menu}</button>
-                            <nav className="hidden xl:flex items-center gap-2 text-xs min-w-0" aria-label={t('Breadcrumb')}><Link to={localizedPath('/dashboard')} className="text-slate-500 dark:text-slate-400">UltrAI</Link><span aria-hidden="true" className="text-slate-400 [&>svg]:w-3 [&>svg]:h-3">{Icons.chevron}</span><span className="font-semibold truncate" aria-current="page">{currentPage}</span></nav>
+                            <nav className="hidden xl:flex items-center gap-2 text-xs min-w-0" aria-label={t('Breadcrumb')}><Link to={localizedPath('/dashboard')} className="text-slate-500 dark:text-slate-400">XSuper.ai</Link><span aria-hidden="true" className="text-slate-400 [&>svg]:w-3 [&>svg]:h-3">{Icons.chevron}</span><span className="font-semibold truncate" aria-current="page">{currentPage}</span></nav>
                             <span className="hidden sm:block xl:hidden text-xs font-semibold truncate">{currentPage}</span>
                         </div>
                         <div className="dw-topbar-tools">

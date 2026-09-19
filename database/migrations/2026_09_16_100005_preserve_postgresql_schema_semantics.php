@@ -120,7 +120,7 @@ return new class extends Migration
         if ((int) DB::scalar("SELECT current_setting('server_version_num')") < 180000) {
             throw new RuntimeException('PostgreSQL 18 or newer is required for case-insensitive LIKE compatibility.');
         }
-        DB::statement("CREATE COLLATION IF NOT EXISTS public.ultrai_unicode_ci (provider = icu, locale = 'und-u-ks-level1', deterministic = false)");
+        DB::statement("CREATE COLLATION IF NOT EXISTS public.xsuper_unicode_ci (provider = icu, locale = 'und-u-ks-level1', deterministic = false)");
         $this->dropGeneratedIdentity();
         foreach (self::UNSIGNED as $table => $columns) {
             foreach ($columns as $column => [$type, $maximum]) {
@@ -131,8 +131,8 @@ return new class extends Migration
                 DB::statement("ALTER TABLE {$target} ADD CONSTRAINT {$name} CHECK ({$field} >= 0 AND {$field} <= {$maximum})");
             }
         }
-        $this->collate('public.ultrai_unicode_ci');
-        $this->addGeneratedIdentity('public.ultrai_unicode_ci');
+        $this->collate('public.xsuper_unicode_ci');
+        $this->addGeneratedIdentity('public.xsuper_unicode_ci');
         foreach (self::INDEX_PATHS as $table => $paths) {
             foreach ($paths as $columns) {
                 $name = $this->quote($this->indexName($table, $columns));
@@ -143,15 +143,15 @@ return new class extends Migration
         DB::statement('ALTER SEQUENCE migrations_id_seq AS bigint MAXVALUE 4294967295');
         $this->foreignUpdateAction('restrict');
         DB::unprepared(<<<'SQL'
-CREATE OR REPLACE FUNCTION public.ultrai_timestamp_update() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION public.xsuper_timestamp_update() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE marker text := TG_RELID::text || ':' || TG_ARGV[0];
 BEGIN
     IF TG_ARGV[1] = 'explicit' THEN
-        PERFORM set_config('ultrai.timestamp_explicit', marker, true);
+        PERFORM set_config('xsuper.timestamp_explicit', marker, true);
         RETURN NEW;
     END IF;
-    IF current_setting('ultrai.timestamp_explicit', true) IS NOT DISTINCT FROM marker THEN
-        PERFORM set_config('ultrai.timestamp_explicit', '', true);
+    IF current_setting('xsuper.timestamp_explicit', true) IS NOT DISTINCT FROM marker THEN
+        PERFORM set_config('xsuper.timestamp_explicit', '', true);
         RETURN NEW;
     END IF;
     IF to_jsonb(NEW) IS DISTINCT FROM to_jsonb(OLD) THEN
@@ -165,8 +165,8 @@ SQL);
             $target = $this->quote($table);
             $field = $this->quote($column);
             DB::statement("ALTER TABLE {$target} ALTER COLUMN {$field} SET DEFAULT CURRENT_TIMESTAMP(0)");
-            DB::statement("CREATE TRIGGER ultrai_timestamp_a_explicit BEFORE UPDATE OF {$field} ON {$target} FOR EACH ROW EXECUTE FUNCTION public.ultrai_timestamp_update('{$column}', 'explicit')");
-            DB::statement("CREATE TRIGGER ultrai_timestamp_z_implicit BEFORE UPDATE ON {$target} FOR EACH ROW EXECUTE FUNCTION public.ultrai_timestamp_update('{$column}', 'implicit')");
+            DB::statement("CREATE TRIGGER xsuper_timestamp_a_explicit BEFORE UPDATE OF {$field} ON {$target} FOR EACH ROW EXECUTE FUNCTION public.xsuper_timestamp_update('{$column}', 'explicit')");
+            DB::statement("CREATE TRIGGER xsuper_timestamp_z_implicit BEFORE UPDATE ON {$target} FOR EACH ROW EXECUTE FUNCTION public.xsuper_timestamp_update('{$column}', 'implicit')");
         }
     }
 
@@ -189,11 +189,11 @@ SQL);
         }
         foreach (self::AUTO_TIMESTAMPS as $table => $column) {
             $target = $this->quote($table);
-            DB::statement("DROP TRIGGER ultrai_timestamp_a_explicit ON {$target}");
-            DB::statement("DROP TRIGGER ultrai_timestamp_z_implicit ON {$target}");
+            DB::statement("DROP TRIGGER xsuper_timestamp_a_explicit ON {$target}");
+            DB::statement("DROP TRIGGER xsuper_timestamp_z_implicit ON {$target}");
             DB::statement('ALTER TABLE '.$target.' ALTER COLUMN '.$this->quote($column).' DROP DEFAULT');
         }
-        DB::statement('DROP FUNCTION public.ultrai_timestamp_update()');
+        DB::statement('DROP FUNCTION public.xsuper_timestamp_update()');
         $this->foreignUpdateAction('no action');
         $this->dropGeneratedIdentity();
         foreach (self::INDEX_PATHS as $table => $paths) {
@@ -212,7 +212,7 @@ SQL);
         $this->collate('"default"');
         $this->addGeneratedIdentity('"default"');
         DB::statement('ALTER SEQUENCE migrations_id_seq AS integer MAXVALUE 2147483647');
-        DB::statement('DROP COLLATION public.ultrai_unicode_ci');
+        DB::statement('DROP COLLATION public.xsuper_unicode_ci');
     }
 
     private function foreignUpdateAction(string $action): void
@@ -258,12 +258,12 @@ SQL);
 
     private function constraintName(string $table, string $column): string
     {
-        return 'ultrai_unsigned_'.substr(hash('sha256', $table.'.'.$column), 0, 16);
+        return 'xsuper_unsigned_'.substr(hash('sha256', $table.'.'.$column), 0, 16);
     }
 
     private function indexName(string $table, array $columns): string
     {
-        return 'ultrai_fk_path_'.substr(hash('sha256', $table.'.'.implode('.', $columns)), 0, 16);
+        return 'xsuper_fk_path_'.substr(hash('sha256', $table.'.'.implode('.', $columns)), 0, 16);
     }
 
     private function quote(string $name): string
