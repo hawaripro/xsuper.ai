@@ -24,13 +24,12 @@ class User extends Authenticatable
         'chat_history' => true,
         'model_original' => true,
         'model_authentic' => false,
+        'image_generator' => true,
         'video_generator' => false,
         'audio_generator' => true,
         'video_downloader' => true,
         'media_converter' => true,
         'ai_api' => false,
-        'ai_dashboard' => false,
-        'ai_dashboard_official' => false,
     ];
 
     protected $fillable = [
@@ -121,7 +120,13 @@ class User extends Authenticatable
     public function hasPermission(string $key): bool
     {
         if ($this->isAdmin()) return true;
-        $perms = $this->permissions ?? self::DEFAULT_PERMISSIONS;
+
+        // Stored permissions overlay the defaults instead of replacing them:
+        // a sparse map used to silently revoke every unlisted default-true
+        // permission, and any newly introduced key instantly 403'd existing
+        // accounts until a data migration backfilled it.
+        $perms = array_merge(self::DEFAULT_PERMISSIONS, (array) ($this->permissions ?? []));
+
         return (bool) ($perms[$key] ?? false);
     }
 

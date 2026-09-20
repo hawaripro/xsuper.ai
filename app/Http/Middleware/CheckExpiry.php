@@ -51,13 +51,25 @@ class CheckExpiry
                 }
             }
 
+            // Image generation: the page existed with no permission at all,
+            // so it could not be granted or revoked per user like every other page.
+            if (str_starts_with($path, 'api/images') && ! $user->hasPermission('image_generator')) {
+                return response()->json([
+                    'message' => 'Anda tidak memiliki akses ke fitur Generate Image.',
+                    'forbidden' => true,
+                ], 403);
+            }
+
             $permission = match ($path) {
                 'api/audio', 'api/audio/models' => 'audio_generator',
                 'api/media-tools/download' => 'video_downloader',
                 'api/media-tools/convert' => 'media_converter',
+                'api/media-tools/rembg' => 'media_converter',
                 default => null,
             };
-            if ($permission !== null && (! $user->is_active || ! $user->hasPermission($permission))) {
+            // `is_active === false` mirrors EnsureActive: a freshly created model that
+            // never loaded the column reports null, and `! null` blocked active users.
+            if ($permission !== null && ($user->is_active === false || ! $user->hasPermission($permission))) {
                 return response()->json([
                     'message' => 'Anda tidak memiliki akses ke fitur ini.',
                     'forbidden' => true,

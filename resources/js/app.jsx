@@ -119,7 +119,7 @@ function LocalizedAppRoutes() {
             <Route path={path('/templates')} element={<DL><TemplatePrompt /></DL>} />
             <Route path={path('/library')} element={<DL><Library /></DL>} />
             <Route path={path('/history')} element={<Navigate to={path('/chat')} replace />} />
-            <Route path={path('/generate-image')} element={<DL><GenerateImage /></DL>} />
+            <Route path={path('/generate-image')} element={<DL permission="image_generator"><GenerateImage /></DL>} />
             <Route path={path('/token-usage')} element={<DL><TokenPemakaian /></DL>} />
             <Route path={path('/deposit')} element={<DL><Deposit /></DL>} />
             <Route path={path('/paket')} element={<Navigate to={`${path('/deposit')}?tab=subscription`} replace />} />
