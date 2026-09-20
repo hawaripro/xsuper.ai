@@ -153,7 +153,7 @@ export default function AdminOverview() {
                     { key: 'checked', label: t('Last checked'), render: row => formatDateTime(row.last_checked_at) },
                 ]} />}
             </WorkspaceModule>
-            <p className="dw-note">{Icons.density}{t('Klik judul modul untuk merapikan ruang kerja. Ringkasan angka dan grafik tetap terlihat.')}</p>
+            <p className="dw-note dw-note-footer">{Icons.density}{t('Klik judul modul untuk merapikan ruang kerja. Ringkasan angka dan grafik tetap terlihat.')}</p>
         </DashboardWorkspace>
     );
 }

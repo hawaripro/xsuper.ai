@@ -154,7 +154,7 @@ export default function Dashboard() {
                     </WorkspaceModule>
                 </div>
             </div>
-            <p className="dw-note">{Icons.density}{t('Klik judul modul untuk merapikan ruang kerja. Ringkasan angka dan grafik tetap terlihat.')}</p>
+            <p className="dw-note dw-note-footer">{Icons.density}{t('Klik judul modul untuk merapikan ruang kerja. Ringkasan angka dan grafik tetap terlihat.')}</p>
         </DashboardWorkspace>
     );
 }

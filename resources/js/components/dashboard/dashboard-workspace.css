@@ -322,3 +322,12 @@
     .dashboard-workspace *::after,
     .dashboard-workspace .dw-module::details-content { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* Closing hint under the last module. It previously sat flush against the
+   module border with no breathing room, reading like part of that card. */
+.dashboard-workspace .dw-note-footer {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--dw-line);
+    align-items: center;
+}

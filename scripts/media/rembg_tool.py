@@ -109,29 +109,39 @@ def run(manifest):
     emit("result", format="png", mime_type="image/png", size_bytes=out_size, duration=None)
 
 
-def check():
+def apply_cache_dirs(model_dir):
+    """rembg pulls in numba/matplotlib, which both insist on a writable cache.
+    Under php-fpm HOME points at a directory www-data cannot write, so the bare
+    import raised and the tool reported itself unavailable."""
+    if isinstance(model_dir, str) and os.path.isabs(model_dir) and os.path.isdir(model_dir):
+        os.environ["U2NET_HOME"] = model_dir
+        os.environ["NUMBA_CACHE_DIR"] = model_dir
+        os.environ["MPLCONFIGDIR"] = model_dir
+
+
+def check(manifest):
+    apply_cache_dirs(manifest.get("model_dir"))
     try:
         import rembg  # noqa: F401
 
         print(json.dumps({"rembg": True}))
-    except Exception:
-        print(json.dumps({"rembg": False}))
+    except Exception as error:
+        print(json.dumps({"rembg": False, "reason": type(error).__name__}))
 
 
 def main():
     command = sys.argv[1] if len(sys.argv) > 1 else "run"
-    if command == "check":
-        check()
-        return 0
 
     try:
         manifest = json.loads(sys.stdin.buffer.read(65536) or b"{}")
     except Exception:
-        emit("error", code="failed")
-        return 1
+        manifest = {}
     if not isinstance(manifest, dict):
-        emit("error", code="failed")
-        return 1
+        manifest = {}
+
+    if command == "check":
+        check(manifest)
+        return 0
 
     try:
         run(manifest)

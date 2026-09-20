@@ -70,7 +70,13 @@ final class MediaToolService
                     $process->run();
                     $state = json_decode($process->getOutput(), true);
 
-                    $rembg = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/rembg_tool.py'), 'check'], base_path('scripts/media'), $this->environment(), '', 30);
+                    // The probe needs the model directory too: rembg's numba cache
+                    // cannot be written under php-fpm's HOME, so a bare check
+                    // failed for www-data while succeeding on the CLI.
+                    $rembgManifest = json_encode([
+                        'model_dir' => is_string(config('media_tools.rembg_model_dir')) ? config('media_tools.rembg_model_dir') : null,
+                    ], JSON_THROW_ON_ERROR);
+                    $rembg = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/rembg_tool.py'), 'check'], base_path('scripts/media'), $this->environment(), $rembgManifest, 30);
                     $rembg->run();
                     $rembgState = json_decode($rembg->getOutput(), true);
 
