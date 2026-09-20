@@ -163,6 +163,13 @@ class AiCatalogController extends Controller
                     ]);
                 }
                 $model->fill(['is_available' => true, 'last_seen_at' => now()]);
+                // Media models are billed per result via token_cost; without one they
+                // stay hidden from the workspace even when categorized + available.
+                // Seed a default so a synced media model is immediately usable.
+                $mediaDefaults = config('media_tools.default_generation_tokens', []);
+                if (in_array($model->category, ['image', 'video', 'audio'], true) && empty($model->token_cost) && ! empty($mediaDefaults[$model->category])) {
+                    $model->token_cost = (int) $mediaDefaults[$model->category];
+                }
                 $this->saveSyncedModel($model, $provider);
                 $seenIds[] = $model->id;
             }

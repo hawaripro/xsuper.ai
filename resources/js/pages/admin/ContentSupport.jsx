@@ -234,7 +234,7 @@ export default function ContentSupport() {
 
     // Valid starter drafts so "New block" never begins from an empty object.
     const DRAFT_TEMPLATES = {
-        'home.hero': { headline: '', description: '', primary_action: { label: '', url: '' } },
+        'home.hero': { headline: '', description: '' },
         'home.faq': { items: [{ question: '', answer: '' }] },
         'system.announcement': { message: '', level: 'info', surfaces: ['dashboard', 'landing'] },
         'help.articles': { items: [{ slug: '', title: '', summary: '', body: '' }] },
