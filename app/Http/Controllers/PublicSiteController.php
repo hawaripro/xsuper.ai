@@ -395,7 +395,6 @@ class PublicSiteController extends Controller
                     'owned_by' => $profile->provider_name ?: $profile->provider?->name,
                     'provider' => $profile->provider_name ?: $profile->provider?->name,
                     'category' => $profile->category,
-                    'tier' => $profile->tier,
                     'token_cost' => $profile->token_cost,
                     'description_id' => $profile->description_id,
                     'description_en' => $profile->description_en,

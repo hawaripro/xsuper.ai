@@ -143,7 +143,7 @@ class AudioGenerationContractTest extends TestCase
     private function fixture(string $id): array
     {
         $provider = AiProviderProfile::create(['name' => 'fal', 'slug' => 'fal', 'protocol' => 'fal', 'base_url' => 'https://fal.run', 'api_key' => 'fixture-only-key', 'is_enabled' => true]);
-        $model = AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => 'Audio fixture', 'category' => 'audio', 'tier' => 'Original', 'token_cost' => 50, 'is_enabled' => true, 'is_available' => true]);
+        $model = AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => 'Audio fixture', 'category' => 'audio', 'token_cost' => 50, 'is_enabled' => true, 'is_available' => true]);
         $user = User::factory()->create(['is_active' => true, 'expires_at' => now()->addDay(), 'permissions' => User::DEFAULT_PERMISSIONS]);
         UserToken::topup($user->id, 500);
 

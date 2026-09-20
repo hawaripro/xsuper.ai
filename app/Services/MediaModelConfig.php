@@ -76,9 +76,6 @@ final class MediaModelConfig
                 default => ['text'],
             };
         }
-        if (! isset($model['tier']) && in_array($model['id'] ?? '', ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'], true)) {
-            $model['tier'] = 'Authentic';
-        }
 
         return $model;
     }
@@ -95,13 +92,7 @@ final class MediaModelConfig
             && (FalProtocol::MEDIA_MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
             return false;
         }
-        $tier = match ($model->tier) {
-            'Original', null, '' => 'Standard',
-            'Authentic' => 'MAX',
-            default => $model->tier,
-        };
-
-        return in_array($tier, $user->getAllowedTiers(), true);
+        return true;
     }
 
     public static function publicModel(AiModelProfile $model): array
@@ -111,7 +102,7 @@ final class MediaModelConfig
         return [
             'id' => $model->model_id, 'name' => $model->display_name,
             'provider' => $model->provider_name ?: $model->provider?->name,
-            'tier' => $model->tier, 'category' => $model->category,
+            'category' => $model->category,
             'capabilities' => $model->capabilities ?? [],
             'token_cost' => $model->token_cost,
             'billing_mode' => 'tokens',

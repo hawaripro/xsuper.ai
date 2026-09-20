@@ -47,8 +47,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
     {
         $user = $request->attributes->get('api_user');
         $apiKey = $request->attributes->get('api_key');
-        $allowedTiers = $user->getAllowedTiers();
-        $models = $this->aiProxy->getModels($allowedTiers);
+        $models = $this->aiProxy->getModels();
 
         if ($apiKey->allowed_models) {
             $models = array_values(array_filter($models, fn ($m) => in_array($m['id'], $apiKey->allowed_models)));
@@ -95,7 +94,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         if ($apiKey->allowed_models && ! in_array($validated['model'], $apiKey->allowed_models, true)) {
             return response()->json(['error' => ['message' => 'Model not allowed', 'type' => 'permission_error']], 403);
         }
-        $allowedModels = $this->aiProxy->getModels($user->getAllowedTiers());
+        $allowedModels = $this->aiProxy->getModels();
         $requestedModel = $validated['model'];
         if (! in_array($requestedModel, array_column($allowedModels, 'id'), true)) {
             return response()->json(['error' => ['message' => 'Model not available', 'type' => 'permission_error']], 403);
@@ -257,7 +256,7 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
         if ($apiKey->allowed_models && ! in_array($requestedModel, $apiKey->allowed_models, true)) {
             return response()->json(['type' => 'error', 'error' => ['type' => 'permission_error', 'message' => 'Model not allowed']], 403);
         }
-        $allowedModels = $this->aiProxy->getModels($user->getAllowedTiers());
+        $allowedModels = $this->aiProxy->getModels();
         if (! in_array($requestedModel, array_column($allowedModels, 'id'), true)) {
             return response()->json(['type' => 'error', 'error' => ['type' => 'permission_error', 'message' => 'Model not available']], 403);
         }

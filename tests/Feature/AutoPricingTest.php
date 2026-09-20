@@ -22,7 +22,7 @@ class AutoPricingTest extends TestCase
         ]);
         $model = AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => 'auto-chat', 'upstream_model_id' => 'openai/gpt-4o-mini',
-            'display_name' => 'Auto Chat', 'category' => 'chat', 'tier' => 'Original',
+            'display_name' => 'Auto Chat', 'category' => 'chat',
             'is_enabled' => true, 'is_available' => true, 'token_cost' => 1,
         ]);
         $this->assertSame(0, UsageRate::where('model', 'auto-chat')->count());
@@ -30,7 +30,7 @@ class AutoPricingTest extends TestCase
         $response = $this->actingAs($admin)->postJson('/api/pricing/rates/auto', ['margin' => 2]);
         $response->assertOk()->assertJsonPath('updated_count', 2);
 
-        // Original tier base is 0.15 / 0.60 USD per 1M tokens, doubled by margin=2.
+        // Flat base rate is 0.15 / 0.60 USD per 1M tokens, doubled by margin=2.
         $this->assertEqualsWithDelta(0.30, (float) UsageRate::where(['model' => 'auto-chat', 'meter' => 'input_tokens'])->value('price_usd'), 0.0001);
         $this->assertEqualsWithDelta(1.20, (float) UsageRate::where(['model' => 'auto-chat', 'meter' => 'output_tokens'])->value('price_usd'), 0.0001);
         $this->assertTrue((bool) UsageRate::where(['model' => 'auto-chat', 'meter' => 'input_tokens'])->value('is_active'));
@@ -47,7 +47,7 @@ class AutoPricingTest extends TestCase
         ]);
         AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => 'auto-chat-2', 'upstream_model_id' => 'openai/gpt-4o-mini',
-            'display_name' => 'Auto Chat 2', 'category' => 'chat', 'tier' => 'Original',
+            'display_name' => 'Auto Chat 2', 'category' => 'chat',
             'is_enabled' => true, 'is_available' => true, 'token_cost' => 1,
         ]);
         foreach (['input_tokens', 'output_tokens'] as $meter) {

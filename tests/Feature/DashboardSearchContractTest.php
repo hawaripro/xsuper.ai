@@ -39,22 +39,22 @@ class DashboardSearchContractTest extends TestCase
         Http::preventStrayRequests();
         $member = User::factory()->create(['is_active' => true, 'permissions' => User::DEFAULT_PERMISSIONS]);
         $provider = AiProviderProfile::create(['name' => 'Search provider', 'slug' => 'search-provider', 'protocol' => 'openai', 'base_url' => 'https://media.example.test/v1', 'api_key' => 'fixture-only-key', 'is_enabled' => true]);
-        foreach ([['public-model', 'Original', true], ['private-model', 'Original', false], ['premium-model', 'Authentic', true]] as [$id, $tier, $enabled]) {
+        foreach ([['public-model', true], ['private-model', false], ['premium-model', true]] as [$id, $enabled]) {
             AiModelProfile::create([
                 'provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id,
-                'display_name' => 'Distinctneedle '.$id, 'category' => 'chat', 'tier' => $tier,
+                'display_name' => 'Distinctneedle '.$id, 'category' => 'chat',
                 'is_enabled' => $enabled, 'is_available' => true,
             ]);
         }
         $response = $this->actingAs($member)->getJson('/api/dashboard/search?q=Distinctneedle')->assertOk();
-        $this->assertSame(['Distinctneedle public-model'], array_column($this->results($response->json('groups'), 'model'), 'title'));
+        $this->assertEqualsCanonicalizing(['Distinctneedle public-model', 'Distinctneedle premium-model'], array_column($this->results($response->json('groups'), 'model'), 'title'));
         $destinations = $this->getJson('/api/dashboard/search')->assertOk()->json('groups');
         foreach ($destinations as $group) {
             foreach ($group['results'] as $result) {
                 $this->assertFalse(str_starts_with($result['url'], '/admin'));
             }
         }
-        $member->update(['permissions' => ['chat' => false, 'chat_history' => false, 'model_original' => true]]);
+        $member->update(['permissions' => ['chat' => false, 'chat_history' => false]]);
         $denied = $this->getJson('/api/dashboard/search?q=Distinctneedle')->assertOk();
         $this->assertSame([], $this->results($denied->json('groups'), 'model'));
         Http::assertNothingSent();

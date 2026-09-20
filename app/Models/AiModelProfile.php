@@ -9,7 +9,7 @@ class AiModelProfile extends Model
     protected $hidden = ['upstream_identity'];
 
     protected $fillable = [
-        'provider_id', 'model_id', 'upstream_model_id', 'display_name', 'provider_name', 'category', 'tier',
+        'provider_id', 'model_id', 'upstream_model_id', 'display_name', 'provider_name', 'category',
         'description_id', 'description_en', 'logo_url', 'context_window', 'max_output_tokens',
         'is_enabled', 'is_available', 'capabilities', 'input_modalities', 'output_modalities',
         'badges', 'sort_order', 'last_seen_at', 'token_cost', 'generation_config',

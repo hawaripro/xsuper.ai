@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\ProcessMediaToolJob;
 use App\Models\MediaToolJob;
+use App\Models\MediaToolSetting;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -408,9 +409,20 @@ final class MediaToolService
                 throw new RuntimeException('runtime');
             }
             @chmod($directory.'/lease', 0600);
+            // Authenticated YouTube downloads: hand yt-dlp a cookies file from the
+            // burner account so datacenter IPs clear the bot check. Written into the
+            // private work dir (0600) and torn down with the job.
+            $host = parse_url((string) $job->source_url, PHP_URL_HOST) ?: '';
+            $useCookies = $job->kind === 'download' && preg_match('/(^|\.)(youtube\.com|youtu\.be)$/i', $host)
+                && ($cookies = $this->youtubeCookies()) !== null;
+            if ($useCookies) {
+                file_put_contents($directory.'/work/cookies.txt', $cookies, LOCK_EX);
+                @chmod($directory.'/work/cookies.txt', 0600);
+            }
             $timeout = min(360, max(30, (int) config('media_tools.process_timeout', 360)));
             $manifest = [...$paths, 'kind' => $job->kind, 'format' => $job->format, 'url' => $job->source_url, 'options' => $job->options ?: new \stdClass,
                 'lease' => $job->lease_token, 'timeout' => $timeout - 5, 'input_limit' => $this->inputLimit(), 'output_limit' => $this->outputLimit(),
+                'cookies' => $useCookies ? 'cookies.txt' : null,
                 'duration_limit' => min(600, (int) config('media_tools.max_duration_seconds', 600)),
                 'dimension_limit' => min(4096, (int) config('media_tools.max_dimension', 4096)),
                 'pixel_limit' => min(16777216, (int) config('media_tools.max_pixels', 16777216)),
@@ -730,6 +742,13 @@ final class MediaToolService
         }
 
         return $url;
+    }
+
+    public function youtubeCookies(): ?string
+    {
+        $cookies = MediaToolSetting::current()->youtube_cookies;
+
+        return is_string($cookies) && trim($cookies) !== '' ? $cookies : null;
     }
 
     private function runtimePaths(): array

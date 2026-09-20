@@ -241,7 +241,7 @@ class ProviderRoutingTest extends TestCase
     {
         return AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => $publicId, 'upstream_model_id' => $upstreamId,
-            'display_name' => $publicId, 'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true,
+            'display_name' => $publicId, 'category' => 'chat', 'is_enabled' => true, 'is_available' => true,
         ]);
     }
 

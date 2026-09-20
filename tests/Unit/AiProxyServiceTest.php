@@ -23,7 +23,7 @@ class AiProxyServiceTest extends TestCase
             ['model_id' => 'other-id', 'display_name' => 'Visible', 'provider_name' => 'eno'.'wx internal'],
             ['model_id' => 'gpt-visible', 'display_name' => 'Visible'],
         ] as $metadata) {
-            AiModelProfile::create([...$metadata, 'provider_id' => $provider->id, 'category' => 'chat', 'tier' => 'Standard', 'is_enabled' => true, 'is_available' => true]);
+            AiModelProfile::create([...$metadata, 'provider_id' => $provider->id, 'category' => 'chat', 'is_enabled' => true, 'is_available' => true]);
         }
 
         $service = app(AiProxyService::class);

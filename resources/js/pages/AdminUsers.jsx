@@ -6,8 +6,6 @@ import { useLocale } from '../contexts/LocaleContext';
 const PERMISSION_LABELS = {
     chat: 'Chat AI',
     chat_history: 'Riwayat Chat',
-    model_original: 'Model Standard',
-    model_authentic: 'Model MAX',
     image_generator: 'Generate Image',
     video_generator: 'Generate Video',
     audio_generator: 'Audio',
@@ -17,8 +15,7 @@ const PERMISSION_LABELS = {
 };
 
 const DEFAULT_PERMS = {
-    chat: true, chat_history: true, model_original: true,
-    model_authentic: false, image_generator: true, video_generator: false,
+    chat: true, chat_history: true, image_generator: true, video_generator: false,
     audio_generator: true, video_downloader: true, media_converter: true,
     ai_api: false,
 };

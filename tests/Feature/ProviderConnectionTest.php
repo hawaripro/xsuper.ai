@@ -315,7 +315,7 @@ class ProviderConnectionTest extends TestCase
         $curated = $this->model($alpha, 'curated-public', 'shared-native');
         $curated->update([
             'display_name' => 'Curated name', 'provider_name' => 'Curated maker', 'category' => 'custom',
-            'tier' => 'Premium', 'description_en' => 'Keep this description', 'capabilities' => ['curated'],
+            'description_en' => 'Keep this description', 'capabilities' => ['curated'],
             'context_window' => 128000, 'badges' => ['Popular'], 'sort_order' => 9,
         ]);
         $missing = $this->model($alpha, 'missing-alpha', 'missing-native');
@@ -328,7 +328,7 @@ class ProviderConnectionTest extends TestCase
         }
         Http::fake([
             'https://alpha.example.test/v1/models' => Http::response(['data' => [[
-                'id' => 'shared-native', 'name' => 'Upstream name', 'category' => 'chat', 'tier' => 'Standard',
+                'id' => 'shared-native', 'name' => 'Upstream name', 'category' => 'chat',
                 'capabilities' => ['streaming'], 'context_length' => 999999,
             ]]]),
             'https://beta.example.test/v1/models*' => Http::response([
@@ -350,7 +350,6 @@ class ProviderConnectionTest extends TestCase
         $this->assertSame('Curated name', $curated->display_name);
         $this->assertSame('Curated maker', $curated->provider_name);
         $this->assertSame('custom', $curated->category);
-        $this->assertSame('Premium', $curated->tier);
         $this->assertSame('Keep this description', $curated->description_en);
         $this->assertSame(['curated'], $curated->capabilities);
         $this->assertSame(128000, $curated->context_window);
@@ -386,7 +385,6 @@ class ProviderConnectionTest extends TestCase
         $this->assertLessThanOrEqual(120, strlen($model->model_id));
         $this->assertStringStartsWith('long-models/', $model->model_id);
         $this->assertTrue($model->is_enabled);
-        $this->assertSame('Original', $model->tier);
         $this->assertSame(2, $provider->models()->where('is_enabled', true)->count());
         $publicId = $model->model_id;
         $this->postJson('/api/admin/ai/providers/'.$provider->id.'/sync')->assertOk();
@@ -619,7 +617,7 @@ class ProviderConnectionTest extends TestCase
     {
         return AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => $publicId, 'upstream_model_id' => $upstreamId,
-            'display_name' => $publicId, 'category' => 'chat', 'tier' => 'Original',
+            'display_name' => $publicId, 'category' => 'chat',
             'is_enabled' => true, 'is_available' => true,
         ]);
     }

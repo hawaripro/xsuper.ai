@@ -695,6 +695,12 @@ def download_media(manifest, supervisor):
         "writeautomaticsub": False, "allow_multiple_video_streams": False,
         "allow_multiple_audio_streams": False, "ffmpeg_location": str(supervisor.work / "disabled"),
     }
+    # Authenticated cookies for sites (e.g. YouTube) that block anonymous datacenter
+    # requests. The server writes a Netscape cookies.txt into the private work dir.
+    if manifest.get("cookies") == "cookies.txt":
+        cookies_path = supervisor.work / "cookies.txt"
+        if cookies_path.is_file() and not cookies_path.is_symlink():
+            options["cookiefile"] = str(cookies_path)
     supervisor.downloading = True
     supervisor.progress("downloading", force=True)
     try:

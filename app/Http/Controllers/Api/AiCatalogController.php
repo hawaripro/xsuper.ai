@@ -45,7 +45,6 @@ class AiCatalogController extends Controller
             $model->fill(array_merge($validated, [
                 'provider_id' => $provider->id,
                 'provider_name' => $validated['provider_name'] ?? $provider->name,
-                'tier' => $validated['tier'] ?? 'Original',
                 'is_enabled' => (bool) ($validated['is_enabled'] ?? false),
                 'sort_order' => $validated['sort_order'] ?? 0,
                 // A manual add is the admin asserting the model exists upstream; the
@@ -154,7 +153,6 @@ class AiCatalogController extends Controller
                         'provider_name' => $metadata['provider'] ?? $metadata['owned_by'] ?? $provider->name,
                         'is_enabled' => $publish,
                         'category' => $metadata['category'],
-                        'tier' => $metadata['tier'] ?? 'Original',
                         'capabilities' => $metadata['capabilities'],
                         'context_window' => $metadata['context_length'] ?? $metadata['context_window'] ?? null,
                         'max_output_tokens' => $metadata['max_output_tokens'] ?? null,
@@ -238,7 +236,7 @@ class AiCatalogController extends Controller
 
     public function bulkUpdateModels(Request $request, AuditService $audit): JsonResponse
     {
-        $allowed = ['display_name', 'category', 'tier', 'token_cost', 'generation_config', 'is_enabled', 'sort_order', 'rates'];
+        $allowed = ['display_name', 'category', 'token_cost', 'generation_config', 'is_enabled', 'sort_order', 'rates'];
         $rules = array_filter($this->modelRules(), fn (string $field): bool => in_array(explode('.', $field)[0], $allowed, true), ARRAY_FILTER_USE_KEY);
         $itemRules = ['id' => ['required', 'integer', 'min:1', 'distinct']];
         if ($request->has('items')) {
@@ -471,7 +469,6 @@ class AiCatalogController extends Controller
             'provider_slug' => [$required, 'required', 'string', 'max:64', 'exists:ai_provider_profiles,slug'],
             'upstream_model_id' => ['sometimes', $partial ? 'required' : 'nullable', 'string', 'max:160', 'regex:/^(?!.*:\/\/)[A-Za-z0-9._\/:\-]+$/D'],
             'category' => [$required, 'required', 'string', 'max:32'],
-            'tier' => ['sometimes', 'nullable', 'string', 'max:40'],
             'description_id' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'description_en' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'logo_url' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^(\/|https:\/\/)/'],
@@ -724,7 +721,6 @@ class AiCatalogController extends Controller
             'display_name' => $model->display_name,
             'provider_name' => $model->provider_name ?: $model->provider?->name,
             'category' => $model->category,
-            'tier' => $model->tier,
             'description_id' => $model->description_id,
             'description_en' => $model->description_en,
             'logo_url' => $model->logo_url,

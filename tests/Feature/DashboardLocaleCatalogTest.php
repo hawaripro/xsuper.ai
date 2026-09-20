@@ -50,7 +50,6 @@ class DashboardLocaleCatalogTest extends TestCase
             'logo_url' => '/xsuper-icon-v2.png',
             'context_window' => 128000,
             'category' => 'chat',
-            'tier' => 'Premium',
             'capabilities' => ['chat'],
             'input_modalities' => ['text'],
             'output_modalities' => ['text'],
@@ -85,7 +84,6 @@ class DashboardLocaleCatalogTest extends TestCase
         $this->assertSame(['Popular'], $model->badges);
         $this->assertSame(4, $model->sort_order);
         $this->assertTrue($model->is_available);
-        $this->assertSame('Premium', $model->tier);
         $this->get('/en/models')->assertOk()->assertSee('Curated Name')->assertDontSee('Upstream Name');
     }
 
@@ -138,7 +136,7 @@ class DashboardLocaleCatalogTest extends TestCase
         $provider = AiProviderProfile::create(['slug' => 'ai-proxy', 'name' => 'AI Proxy', 'is_enabled' => true]);
         Http::fake(['*' => Http::response(['data' => [[
             'id' => 'vision-context-model', 'name' => 'Vision Context Model', 'owned_by' => 'Model Maker',
-            'category' => 'chat', 'tier' => 'Standard', 'context_length' => 128000,
+            'category' => 'chat', 'context_length' => 128000,
             'max_output_tokens' => 8192, 'input_modalities' => ['text', 'image'], 'output_modalities' => ['text'],
         ]]])]);
         $this->actingAs(User::factory()->create(['role' => 'admin']))

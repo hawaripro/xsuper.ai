@@ -22,8 +22,6 @@ class User extends Authenticatable
     const DEFAULT_PERMISSIONS = [
         'chat' => true,
         'chat_history' => true,
-        'model_original' => true,
-        'model_authentic' => false,
         'image_generator' => true,
         'video_generator' => false,
         'audio_generator' => true,
@@ -140,18 +138,6 @@ class User extends Authenticatable
             array_merge(self::DEFAULT_PERMISSIONS, $this->permissions ?? []),
             self::DEFAULT_PERMISSIONS,
         );
-    }
-
-    public function getAllowedTiers(): array
-    {
-        // Only two tiers remain: Standard (upstream "Original") and MAX
-        // (upstream "Authentic"). Codex, Wavespeed, YepAPI and Canva were retired.
-        if ($this->isAdmin()) return ['Standard', 'MAX'];
-
-        $tiers = [];
-        if ($this->hasPermission('model_original')) $tiers[] = 'Standard';
-        if ($this->hasPermission('model_authentic')) $tiers[] = 'MAX';
-        return $tiers;
     }
 
     public function notifications(): HasMany

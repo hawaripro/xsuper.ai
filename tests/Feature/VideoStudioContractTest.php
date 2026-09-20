@@ -96,7 +96,7 @@ class VideoStudioContractTest extends TestCase
     private function fixture(): array
     {
         $provider = AiProviderProfile::create(['name' => 'fal', 'slug' => 'fal', 'protocol' => 'fal', 'base_url' => 'https://fal.run', 'api_key' => 'fixture-only-key', 'is_enabled' => true]);
-        $model = AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => FalProtocol::VIDEO, 'upstream_model_id' => FalProtocol::VIDEO, 'display_name' => 'LongCat', 'category' => 'video', 'tier' => 'Original', 'token_cost' => 200, 'is_enabled' => true, 'is_available' => true]);
+        $model = AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => FalProtocol::VIDEO, 'upstream_model_id' => FalProtocol::VIDEO, 'display_name' => 'LongCat', 'category' => 'video', 'token_cost' => 200, 'is_enabled' => true, 'is_available' => true]);
         $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         UserToken::topup($user->id, 1000);
 

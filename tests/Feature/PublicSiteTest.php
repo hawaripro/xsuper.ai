@@ -366,7 +366,7 @@ class PublicSiteTest extends TestCase
         $provider = AiProviderProfile::create(['slug' => 'published', 'name' => 'Published Provider', 'is_enabled' => true]);
         $profile = AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => 'published-model', 'display_name' => 'Published Model',
-            'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true,
+            'category' => 'chat', 'is_enabled' => true, 'is_available' => true,
         ]);
         $models = $this->html($this->get('/models')->assertOk()->getContent());
         $this->assertCanonicalAndIndexable($models, 'https://xsuper.dev/models');

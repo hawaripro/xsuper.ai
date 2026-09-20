@@ -251,7 +251,6 @@ export default function ProviderDetail() {
         generation_config_readonly: !!model.generation_config_readonly,
         upstream_model_id: model.upstream_model_id || (model.id ? model.model_id : ""),
         category: model.category || "chat",
-        tier: model.tier || "",
         description_id: model.description_id || "",
         description_en: model.description_en || "",
         logo_url: model.logo_url || "",
@@ -334,7 +333,6 @@ export default function ProviderDetail() {
             provider_slug: modelEditor.provider_slug,
             upstream_model_id: upstreamModelId || null,
             category: modelEditor.category || "chat",
-            tier: modelEditor.tier || null,
             description_id: modelEditor.description_id || null,
             description_en: modelEditor.description_en || null,
             logo_url: modelEditor.logo_url || null,
@@ -569,7 +567,7 @@ export default function ProviderDetail() {
                     <div className="ui-card-flat p-4">
                         <h2 className="ui-section-title">{t("Harga otomatis")}</h2>
                         <p className="mt-1 max-w-prose text-xs leading-5 text-slate-600 dark:text-slate-400">
-                            {t("Isi harga input dan output untuk semua model chat sekaligus, dihitung dari tabel tier ditambah margin. Tidak perlu mengetik satu per satu.")}
+                            {t("Isi harga input dan output untuk semua model chat sekaligus, dihitung dari tarif dasar ditambah margin. Tidak perlu mengetik satu per satu.")}
                         </p>
                         <div className="mt-3 grid max-w-md grid-cols-2 gap-3">
                             <label className="text-xs font-medium">{t("Margin (%)")}
@@ -783,21 +781,6 @@ export default function ProviderDetail() {
                                         }));
                                     }}
                                     maxLength={32}
-                                />
-                            </label>
-                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                <span className="mb-1 block">{t("Tier")}</span>
-                                <input
-                                    className="ui-input min-h-9"
-                                    value={modelEditor.tier}
-                                    onChange={(event) =>
-                                        setModelEditor((current) => ({
-                                            ...current,
-                                            tier: event.target.value,
-                                        }))
-                                    }
-                                    maxLength={40}
-                                    placeholder="Authentic"
                                 />
                             </label>
                             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">

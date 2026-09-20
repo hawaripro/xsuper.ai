@@ -90,7 +90,7 @@ class CatalogBulkTest extends TestCase
         $model = $this->model('selected-model');
         $this->actingAs(User::factory()->create(['role' => 'admin']));
         $this->patchJson('/api/admin/ai/models/bulk', ['items' => [
-            ['id' => $model->id, 'tier' => 'Premium'], ['id' => $model->id, 'tier' => 'Original'],
+            ['id' => $model->id, 'display_name' => 'First'], ['id' => $model->id, 'display_name' => 'Second'],
         ]])->assertUnprocessable();
         $this->deleteJson('/api/admin/ai/models/bulk', [
             'ids' => [$model->id], 'expected_count' => 2, 'delete_usage_rates' => true,
@@ -102,7 +102,7 @@ class CatalogBulkTest extends TestCase
             'all_matching' => true, 'expected_count' => 1, 'delete_usage_rates' => true,
         ])->assertUnprocessable();
         $this->assertModelExists($model);
-        $this->assertNull($model->fresh()->tier);
+        $this->assertSame('selected-model', $model->fresh()->display_name);
     }
 
     public function test_active_or_unreconciled_media_prevents_whole_model_delete(): void
@@ -168,7 +168,7 @@ class CatalogBulkTest extends TestCase
         $audit = \Mockery::mock(AuditService::class);
         $audit->shouldReceive('record')->andThrow(new \RuntimeException('Audit unavailable'));
         $request = Request::create('/api/admin/ai/models/bulk', 'PATCH', ['items' => [
-            ['id' => $first->id, 'tier' => 'Premium'], ['id' => $second->id, 'tier' => 'Premium'],
+            ['id' => $first->id, 'display_name' => 'Audited first'], ['id' => $second->id, 'display_name' => 'Audited second'],
         ]]);
         $request->setUserResolver(fn () => $admin);
         try {
@@ -177,8 +177,8 @@ class CatalogBulkTest extends TestCase
         } catch (\RuntimeException $exception) {
             $this->assertSame('Audit unavailable', $exception->getMessage());
         }
-        $this->assertNull($first->fresh()->tier);
-        $this->assertNull($second->fresh()->tier);
+        $this->assertSame('audited-first', $first->fresh()->display_name);
+        $this->assertSame('audited-second', $second->fresh()->display_name);
     }
 
     public function test_rate_bulk_uses_combined_prices_before_activating_api_pair(): void

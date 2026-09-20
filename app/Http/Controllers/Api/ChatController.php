@@ -46,8 +46,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
     public function models(Request $request)
     {
         $user = $request->user();
-        $allowedTiers = $user->getAllowedTiers();
-        $models = $this->aiProxy->getModels($allowedTiers);
+        $models = $this->aiProxy->getModels();
 
         UsageLog::record($user->id, 'models', [
             'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0, 'credit' => 0,
@@ -63,9 +62,8 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
     public function allModels(Request $request)
     {
         $user = $request->user();
-        $allowedTiers = $user->getAllowedTiers();
         $permissions = $user->getPermissions();
-        $models = $this->aiProxy->getAllModelsFiltered($allowedTiers);
+        $models = $this->aiProxy->getAllModelsFiltered();
 
         // Filter by category permissions
         $models = array_values(array_filter($models, function ($model) use ($permissions) {
@@ -80,7 +78,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
                 return false;
             }
 
-            // Image/audio follow the tier permission (already filtered above)
+            // Image and audio are not gated here — visibility follows model availability.
             return true;
         }));
 
@@ -107,8 +105,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
         $model = $request->string('model')->toString();
         $messages = $request->input('messages');
 
-        $allowedTiers = $user->getAllowedTiers();
-        $allowedModels = $this->aiProxy->getAllModelsFiltered($allowedTiers);
+        $allowedModels = $this->aiProxy->getAllModelsFiltered();
         $allowedModelIds = array_column($allowedModels, 'id');
         if (! in_array($model, $allowedModelIds, true)) {
             return response()->json([

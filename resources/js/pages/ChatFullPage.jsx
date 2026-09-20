@@ -61,11 +61,6 @@ const CATEGORY_CONFIG = {
     video: { label: 'Video', icon: Icon.video, accent: '#f97316' },
 };
 
-const TIER_CONFIG = {
-    Original: { label: 'Original' },
-    Authentic: { label: 'Authentic' },
-};
-
 // ============================================
 // Scrub branded text
 // ============================================
@@ -105,11 +100,11 @@ function MessageMarkdown({ text }) {
 
 // Typing pace: characters per second. The reveal follows the model's actual
 // stream rate (with a small lead so the caret never sits idle), clamped to a
-// range that still reads as typing; reasoning-tier models start slower.
+// range that still reads as typing; reasoning models start slower.
 const TYPING = { minCps: 28, maxCps: 480, lead: 1.15, drainSeconds: 1.1 };
 function baseTypingSpeed(model) {
     const id = String(model?.id || '').toLowerCase();
-    const reasoning = /(^|[^a-z])o[134](?:-|$)|gpt-5|reason|think|deepseek-r|opus/.test(id) || model?.tier === 'Authentic';
+    const reasoning = /(^|[^a-z])o[134](?:-|$)|gpt-5|reason|think|deepseek-r|opus/.test(id);
     return reasoning ? 55 : 90;
 }
 
@@ -241,15 +236,9 @@ function ModelSelector({ models, selectedModel, onSelect, disabled, loading, t }
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    const groupedModels = useMemo(() => {
+    const filteredModels = useMemo(() => {
         const term = search.trim().toLowerCase();
-        const groups = new Map();
-        models.filter(model => !term || [model.name, model.id, model.tier].some(value => String(value || '').toLowerCase().includes(term))).forEach(model => {
-            const tier = model.tier || 'Original';
-            if (!groups.has(tier)) groups.set(tier, []);
-            groups.get(tier).push(model);
-        });
-        return [...groups.entries()];
+        return models.filter(model => !term || [model.name, model.id].some(value => String(value || '').toLowerCase().includes(term)));
     }, [models, search]);
     const currentModel = models.find(model => model.id === selectedModel);
     const expanded = open && !disabled;
@@ -288,7 +277,6 @@ function ModelSelector({ models, selectedModel, onSelect, disabled, loading, t }
             >
                 <span className="cw-model-swatch" style={{ background: 'linear-gradient(135deg, var(--red-500), var(--red-600))' }}>{Icon.chat}</span>
                 <span className="cw-model-name">{rebrandText(currentModel?.name || currentModel?.id || t(loading ? 'Memuat model…' : 'Pilih model chat'))}</span>
-                {currentModel?.tier && <span className="cw-model-tier">{TIER_CONFIG[currentModel.tier]?.label || currentModel.tier}</span>}
                 <span className={`cw-chevron ${expanded ? 'cw-chevron-open' : ''}`}>{Icon.chevron}</span>
             </button>
             {expanded && (
@@ -300,17 +288,12 @@ function ModelSelector({ models, selectedModel, onSelect, disabled, loading, t }
                             <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('Cari model...')} aria-label={t('Cari model...')} autoFocus />
                         </div>
                         <div id="cw-chat-model-list" className="cw-dropdown-list scrollbar-thin" role="listbox" aria-label={t('Model chat')} onWheel={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()}>
-                            {groupedModels.length === 0 ? <div className="cw-dropdown-empty">{t('Tidak ada model ditemukan')}</div> : groupedModels.map(([tier, tierModels]) => (
-                                <div key={tier} className="cw-tier-group" role="group" aria-label={tier}>
-                                    <div className="cw-tier-label" aria-hidden="true">{TIER_CONFIG[tier]?.label || tier}<span className="cw-tier-count">{tierModels.length}</span></div>
-                                    {tierModels.map(model => (
-                                        <button key={model.id} type="button" role="option" aria-selected={model.id === selectedModel} onClick={() => { onSelect(model.id); setSearch(''); close(); }} className={`cw-model-option ${model.id === selectedModel ? 'cw-model-option-active' : ''}`}>
-                                            <span className="cw-model-swatch cw-model-swatch-sm" style={{ background: 'linear-gradient(135deg, var(--red-500), var(--red-600))' }}>{Icon.chat}</span>
-                                            <span className="cw-model-option-name">{rebrandText(model.name || model.id)}</span>
-                                            {model.id === selectedModel && <span className="cw-check">{Icon.check}</span>}
-                                        </button>
-                                    ))}
-                                </div>
+                            {filteredModels.length === 0 ? <div className="cw-dropdown-empty">{t('Tidak ada model ditemukan')}</div> : filteredModels.map(model => (
+                                <button key={model.id} type="button" role="option" aria-selected={model.id === selectedModel} onClick={() => { onSelect(model.id); setSearch(''); close(); }} className={`cw-model-option ${model.id === selectedModel ? 'cw-model-option-active' : ''}`}>
+                                    <span className="cw-model-swatch cw-model-swatch-sm" style={{ background: 'linear-gradient(135deg, var(--red-500), var(--red-600))' }}>{Icon.chat}</span>
+                                    <span className="cw-model-option-name">{rebrandText(model.name || model.id)}</span>
+                                    {model.id === selectedModel && <span className="cw-check">{Icon.check}</span>}
+                                </button>
                             ))}
                         </div>
                     </div>

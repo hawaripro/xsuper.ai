@@ -286,6 +286,8 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::delete('/admin/ai/models/bulk', [AiCatalogController::class, 'bulkDestroyModels']);
             Route::patch('/admin/ai/models/{model}', [AiCatalogController::class, 'updateModel']);
             Route::get('/admin/media/queue', [ImageController::class, 'adminQueue']);
+            Route::get('/admin/media/youtube-cookies', [MediaToolController::class, 'youtubeCookiesStatus']);
+            Route::post('/admin/media/youtube-cookies', [MediaToolController::class, 'saveYoutubeCookies']);
         });
 
         // Member: duration orders (authenticated, not admin-only)

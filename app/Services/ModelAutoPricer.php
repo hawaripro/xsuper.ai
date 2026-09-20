@@ -17,21 +17,10 @@ use App\Models\User;
  */
 class ModelAutoPricer
 {
-    /** Retail USD per 1M tokens by tier, before the margin multiplier. */
-    private const BASE = [
-        'Standard' => [0.15, 0.60],
-        'MAX' => [3.00, 15.00],
-    ];
+    /** Retail USD per 1M tokens (input, output), before the margin multiplier. */
+    private const BASE = [0.15, 0.60];
 
     public function __construct(private readonly AuditService $audit) {}
-
-    public static function tierFor(?string $tier): string
-    {
-        return match ($tier) {
-            'Authentic', 'MAX' => 'MAX',
-            default => 'Standard',
-        };
-    }
 
     /**
      * @param  iterable<AiModelProfile>  $models
@@ -50,7 +39,7 @@ class ModelAutoPricer
             if ($model->category !== 'chat') {
                 continue;
             }
-            [$inUsd, $outUsd] = self::BASE[self::tierFor($model->tier)];
+            [$inUsd, $outUsd] = self::BASE;
             foreach (['input_tokens' => $inUsd, 'output_tokens' => $outUsd] as $meter => $usd) {
                 $rate = UsageRate::query()
                     ->where(['service' => 'api', 'meter' => $meter, 'model' => $model->model_id])

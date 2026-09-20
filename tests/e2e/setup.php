@@ -81,7 +81,7 @@ $provider = AiProviderProfile::create(['slug' => 'qa-local', 'name' => 'QA isola
 foreach (['chat', 'image'] as $category) {
     AiModelProfile::create([
         'provider_id' => $provider->id, 'model_id' => 'qa-'.$category, 'display_name' => 'QA '.$category.' model',
-        'provider_name' => $provider->name, 'category' => $category, 'tier' => 'Original',
+        'provider_name' => $provider->name, 'category' => $category,
         'token_cost' => $category === 'image' ? 15 : null,
         'is_enabled' => true, 'is_available' => true, 'capabilities' => [$category],
         'input_modalities' => ['text'], 'output_modalities' => [$category === 'image' ? 'image' : 'text'],

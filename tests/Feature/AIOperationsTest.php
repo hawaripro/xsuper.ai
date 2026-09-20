@@ -56,7 +56,6 @@ class AIOperationsTest extends TestCase
                         'id' => 'image-alpha',
                         'name' => 'Image Alpha',
                         'category' => 'image',
-                        'tier' => 'Standard',
                         'capabilities' => ['image_generation', 'api_key' => 'upstream-model-secret'],
                         'api_key' => 'upstream-top-level-secret',
                         'base_url' => 'https://hidden-upstream.example.test',
@@ -65,7 +64,6 @@ class AIOperationsTest extends TestCase
                         'id' => 'chat-alpha',
                         'name' => 'Chat Alpha',
                         'category' => 'chat',
-                        'tier' => 'Standard',
                         'capabilities' => ['streaming'],
                     ],
                 ],
@@ -89,7 +87,6 @@ class AIOperationsTest extends TestCase
             'model_id' => 'image-alpha',
             'display_name' => 'Image Alpha',
             'category' => 'image',
-            'tier' => 'Standard',
         ]);
         $this->assertSame(['image_generation'], AiModelProfile::where('model_id', 'image-alpha')->firstOrFail()->capabilities);
         $this->assertNotNull(AiProviderProfile::where('slug', 'ai-proxy')->firstOrFail()->last_checked_at);
@@ -154,7 +151,6 @@ class AIOperationsTest extends TestCase
                     'id' => 'current-image',
                     'name' => 'Current Image',
                     'category' => 'image',
-                    'tier' => 'Standard',
                 ]],
             ]),
         ]);
@@ -650,7 +646,6 @@ class AIOperationsTest extends TestCase
             'model_id' => $modelId,
             'display_name' => 'Image Alpha',
             'category' => 'image',
-            'tier' => 'Original',
             'token_cost' => 15,
             'is_enabled' => $enabled,
             'is_available' => true,

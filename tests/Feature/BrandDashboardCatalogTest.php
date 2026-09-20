@@ -124,7 +124,6 @@ class BrandDashboardCatalogTest extends TestCase
             'context_window' => 128000,
             'max_output_tokens' => 8192,
             'category' => 'chat',
-            'tier' => 'Premium',
             'capabilities' => ['chat', 'vision'],
             'input_modalities' => ['text', 'image'],
             'output_modalities' => ['text'],

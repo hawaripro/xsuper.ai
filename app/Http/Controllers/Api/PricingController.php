@@ -172,7 +172,7 @@ class PricingController extends Controller
     /**
      * Automatically price every chat model in one action so the admin never has
      * to enter per-model input/output token rates by hand. Prices derive from a
-     * per-tier retail table scaled by a single margin multiplier; input and
+     * flat retail rate scaled by a single margin multiplier; input and
      * output rates are always written together to satisfy publication rules.
      */
     public function autoPriceRates(Request $request, AuditService $audit): JsonResponse

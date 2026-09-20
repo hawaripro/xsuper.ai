@@ -58,7 +58,7 @@ class MediaGenerationWorkflowTest extends TestCase
         $this->assertSame('image', $catalog['gemini-2.5-flash-image']['category']);
         $this->assertSame(['image'], $catalog['gpt-image-2']['output_modalities']);
         $this->assertSame('video', $catalog['seedance-2.5']['category']);
-        $this->assertSame('Authentic', $catalog['claude-opus-4.6']['tier']);
+        $this->assertSame('chat', $catalog['claude-opus-4.6']['category']);
     }
 
     public function test_image_batch_omits_unsupported_fields_and_charges_tokens_linearly(): void
@@ -250,12 +250,12 @@ class MediaGenerationWorkflowTest extends TestCase
         $this->assertSame('/api/v/'.$job->job_id.'/asset', $job->video_url);
         $this->assertTrue(Storage::disk('local')->exists(GeneratedVideoStore::path($job->job_id)));
         $this->withoutMiddleware(PreventRequestsDuringMaintenance::class);
-        $user->forceFill(['permissions' => ['model_original' => true, 'video_generator' => true]])->save();
+        $user->forceFill(['permissions' => ['video_generator' => true]])->save();
         $this->actingAs($user)->get($job->video_url)->assertOk()
             ->assertHeader('Content-Type', 'video/mp4')->assertHeader('X-Content-Type-Options', 'nosniff');
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get($job->video_url)->assertOk()->assertHeader('Content-Type', 'video/mp4');
-        $other = User::factory()->create(['permissions' => ['model_original' => true, 'video_generator' => true]]);
+        $other = User::factory()->create(['permissions' => ['video_generator' => true]]);
         $this->actingAs($other)->get($job->video_url)->assertNotFound();
         $this->assertSame('settled', $job->billing_status);
         $this->assertSame(300, UserToken::getBalance($user->id));
@@ -843,14 +843,14 @@ class MediaGenerationWorkflowTest extends TestCase
 
     private function model(AiProviderProfile $provider, string $id, string $category, ?int $cost): AiModelProfile
     {
-        return AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => $id, 'category' => $category, 'tier' => 'Original', 'token_cost' => $cost, 'is_enabled' => true, 'is_available' => true]);
+        return AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => $id, 'category' => $category, 'token_cost' => $cost, 'is_enabled' => true, 'is_available' => true]);
     }
 
     private function videoFixture(): array
     {
         $provider = $this->provider();
         $this->model($provider, 'seedance-2.5', 'video', 200);
-        $user = User::factory()->create(['is_active' => true, 'permissions' => ['model_original' => true, 'video_generator' => true]]);
+        $user = User::factory()->create(['is_active' => true, 'permissions' => ['video_generator' => true]]);
         UserToken::topup($user->id, 500);
 
         return [$user, $provider];

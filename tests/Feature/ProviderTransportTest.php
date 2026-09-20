@@ -22,14 +22,13 @@ class ProviderTransportTest extends TestCase
         $provider = $this->provider('openai', 'https://compatible.test/v1', 'openai-secret');
         Http::fake(['https://compatible.test/v1/models' => Http::response(['data' => [[
             'id' => 'vendor/model', 'name' => 'Vendor Model', 'owned_by' => 'vendor',
-            'category' => 'chat', 'tier' => 'MAX', 'context_length' => 128000,
+            'category' => 'chat', 'context_length' => 128000,
             'max_output_tokens' => 8192, 'capabilities' => ['tools', 'vision'],
         ]]])]);
 
         $models = $this->transport()->catalog($provider);
 
         $this->assertSame('vendor/model', $models[0]['id']);
-        $this->assertSame('MAX', $models[0]['tier']);
         $this->assertSame(128000, $models[0]['context_length']);
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://compatible.test/v1/models'
             && $request->hasHeader('Authorization', 'Bearer openai-secret'));

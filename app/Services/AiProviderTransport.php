@@ -314,7 +314,7 @@ final class AiProviderTransport
                 $models[] = [
                     'id' => $chat ? FalProtocol::CHAT_MODEL : $id,
                     'name' => $chat ? 'Gemini 2.5 Flash Lite' : (data_get($entry, 'metadata.display_name') ?: $id),
-                    'category' => $category, 'tier' => 'Original',
+                    'category' => $category,
                     'capabilities' => $chat ? ['chat', 'text-only', 'buffered-stream'] : array_values(array_filter([
                         $category, $category === 'audio' ? FalProtocol::mediaConfig($id)['audio_kind'] : null,
                     ])),

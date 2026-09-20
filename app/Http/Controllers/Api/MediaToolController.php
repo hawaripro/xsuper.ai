@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\MediaToolJob;
+use App\Models\MediaToolSetting;
+use App\Services\AuditService;
 use App\Services\MediaToolService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +18,39 @@ class MediaToolController extends Controller
     public function capabilities(MediaToolService $tools): JsonResponse
     {
         return response()->json($tools->capabilities());
+    }
+
+    /** Admin: whether authenticated YouTube cookies are configured (content never returned). */
+    public function youtubeCookiesStatus(): JsonResponse
+    {
+        $setting = MediaToolSetting::current();
+
+        return response()->json([
+            'has_cookies' => $setting->hasYoutubeCookies(),
+            'updated_at' => $setting->youtube_cookies_updated_at?->toISOString(),
+        ]);
+    }
+
+    /** Admin: store or clear the YouTube cookies.txt used to authenticate downloads. */
+    public function saveYoutubeCookies(Request $request, AuditService $audit): JsonResponse
+    {
+        $validated = $request->validate([
+            'cookies' => ['present', 'nullable', 'string', 'max:262144'],
+        ]);
+        $raw = trim((string) ($validated['cookies'] ?? ''));
+        // A Netscape cookies.txt starts with the well-known header or a tab-delimited row.
+        if ($raw !== '' && ! str_contains($raw, "\t") && ! str_starts_with($raw, '# Netscape')) {
+            return response()->json(['message' => 'Format cookies tidak dikenali. Tempel isi cookies.txt (format Netscape).'], 422);
+        }
+        $setting = MediaToolSetting::current();
+        $setting->update([
+            'youtube_cookies' => $raw === '' ? null : $raw,
+            'youtube_cookies_updated_at' => $raw === '' ? null : now(),
+            'updated_by' => $request->user()->id,
+        ]);
+        $audit->record($request->user(), $raw === '' ? 'media.youtube_cookies_cleared' : 'media.youtube_cookies_updated', $setting);
+
+        return response()->json(['has_cookies' => $setting->hasYoutubeCookies(), 'updated_at' => $setting->youtube_cookies_updated_at?->toISOString()]);
     }
 
     public function history(Request $request, MediaToolService $tools): JsonResponse

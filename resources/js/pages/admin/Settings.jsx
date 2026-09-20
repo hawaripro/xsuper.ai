@@ -373,10 +373,10 @@ export default function Settings() {
                 </span>
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                        <h2 id="auto-price-title" className={`text-sm font-bold ${head}`}>{t("Harga otomatis per tier")}</h2>
+                        <h2 id="auto-price-title" className={`text-sm font-bold ${head}`}>{t("Harga otomatis")}</h2>
                         <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-500">{t("Otomatis")}</span>
                     </div>
-                    <p className={`mt-0.5 text-xs leading-5 ${muted}`}>{t("Admin tidak perlu lagi mengisi harga input/output per model secara manual. Harga dibuat otomatis untuk semua model chat: harga = dasar per tier × margin.")}</p>
+                    <p className={`mt-0.5 text-xs leading-5 ${muted}`}>{t("Admin tidak perlu lagi mengisi harga input/output per model secara manual. Harga dibuat otomatis untuk semua model chat: harga = tarif dasar × margin.")}</p>
                 </div>
             </div>
             <div className="relative mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,150px)_minmax(0,180px)_1fr_auto] lg:items-end">
@@ -396,7 +396,7 @@ export default function Settings() {
             </div>
             <p className={`relative mt-3 flex items-start gap-2 text-[11px] leading-5 ${muted}`}>
                 <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><line x1="12" y1="11" x2="12" y2="16" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                {t("Tier standar: input 0.15 / output 0.60 USD per 1 juta token. Tier MAX: input 3.00 / output 15.00 USD per 1 juta token.")}
+                {t("Tarif dasar: input 0.15 / output 0.60 USD per 1 juta token, dikalikan margin.")}
             </p>
         </section>
         )}

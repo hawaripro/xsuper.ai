@@ -37,23 +37,23 @@ class FalCatalogSeeder extends Seeder
             ],
         );
 
-        // [model_id, upstream, display_name, vendor, category, tier, token_cost, in_usd, out_usd, badges, sort]
+        // [model_id, upstream, display_name, vendor, category, token_cost, in_usd, out_usd, badges, sort]
         $models = [
             // Image — share the flux image_size schema, priced per image (token_cost).
-            ['flux-dev', 'fal-ai/flux/dev', 'FLUX.1 Dev', 'fal.ai', 'image', 'Original', 12, null, null, ['Image', 'Hemat'], 110],
-            ['fast-sdxl', 'fal-ai/fast-sdxl', 'Fast SDXL', 'fal.ai', 'image', 'Original', 8, null, null, ['Image', 'Cepat'], 120],
-            ['sana', 'fal-ai/sana', 'SANA', 'fal.ai', 'image', 'Original', 6, null, null, ['Image', 'Termurah'], 130],
+            ['flux-dev', 'fal-ai/flux/dev', 'FLUX.1 Dev', 'fal.ai', 'image', 12, null, null, ['Image', 'Hemat'], 110],
+            ['fast-sdxl', 'fal-ai/fast-sdxl', 'Fast SDXL', 'fal.ai', 'image', 8, null, null, ['Image', 'Cepat'], 120],
+            ['sana', 'fal-ai/sana', 'SANA', 'fal.ai', 'image', 6, null, null, ['Image', 'Termurah'], 130],
             // LLM — routed via fal openrouter/router by upstream id, priced per 1M tokens.
-            ['gemini-flash-lite', 'google/gemini-2.0-flash-lite-001', 'Gemini Flash Lite', 'Google', 'chat', 'Original', 1, 0.10, 0.40, ['Chat', 'Hemat'], 210],
-            ['llama-3-2-3b', 'meta-llama/llama-3.2-3b-instruct', 'Llama 3.2 3B', 'Meta', 'chat', 'Original', 1, 0.05, 0.10, ['Chat', 'Termurah'], 220],
-            ['llama-3-1-8b', 'meta-llama/llama-3.1-8b-instruct', 'Llama 3.1 8B', 'Meta', 'chat', 'Original', 1, 0.08, 0.16, ['Chat'], 230],
-            ['mistral-7b', 'mistralai/mistral-7b-instruct', 'Mistral 7B', 'Mistral', 'chat', 'Original', 1, 0.10, 0.20, ['Chat'], 240],
-            ['gpt-4o-mini', 'openai/gpt-4o-mini', 'GPT-4o mini', 'OpenAI', 'chat', 'Original', 1, 0.20, 0.80, ['Chat', 'Populer'], 250],
-            ['claude-3-5-haiku', 'anthropic/claude-3.5-haiku', 'Claude 3.5 Haiku', 'Anthropic', 'chat', 'Original', 1, 1.00, 4.00, ['Chat'], 260],
-            ['deepseek-chat', 'deepseek/deepseek-chat', 'DeepSeek Chat', 'DeepSeek', 'chat', 'Original', 1, 0.15, 0.60, ['Chat', 'Reasoning'], 270],
+            ['gemini-flash-lite', 'google/gemini-2.0-flash-lite-001', 'Gemini Flash Lite', 'Google', 'chat', 1, 0.10, 0.40, ['Chat', 'Hemat'], 210],
+            ['llama-3-2-3b', 'meta-llama/llama-3.2-3b-instruct', 'Llama 3.2 3B', 'Meta', 'chat', 1, 0.05, 0.10, ['Chat', 'Termurah'], 220],
+            ['llama-3-1-8b', 'meta-llama/llama-3.1-8b-instruct', 'Llama 3.1 8B', 'Meta', 'chat', 1, 0.08, 0.16, ['Chat'], 230],
+            ['mistral-7b', 'mistralai/mistral-7b-instruct', 'Mistral 7B', 'Mistral', 'chat', 1, 0.10, 0.20, ['Chat'], 240],
+            ['gpt-4o-mini', 'openai/gpt-4o-mini', 'GPT-4o mini', 'OpenAI', 'chat', 1, 0.20, 0.80, ['Chat', 'Populer'], 250],
+            ['claude-3-5-haiku', 'anthropic/claude-3.5-haiku', 'Claude 3.5 Haiku', 'Anthropic', 'chat', 1, 1.00, 4.00, ['Chat'], 260],
+            ['deepseek-chat', 'deepseek/deepseek-chat', 'DeepSeek Chat', 'DeepSeek', 'chat', 1, 0.15, 0.60, ['Chat', 'Reasoning'], 270],
         ];
 
-        foreach ($models as [$modelId, $upstream, $name, $vendor, $category, $tier, $tokenCost, $inUsd, $outUsd, $badges, $sort]) {
+        foreach ($models as [$modelId, $upstream, $name, $vendor, $category, $tokenCost, $inUsd, $outUsd, $badges, $sort]) {
             $isChat = $category === 'chat';
             $profile = AiModelProfile::updateOrCreate(
                 ['model_id' => $modelId],
@@ -63,7 +63,6 @@ class FalCatalogSeeder extends Seeder
                     'display_name' => $name,
                     'provider_name' => $vendor,
                     'category' => $category,
-                    'tier' => $tier,
                     'token_cost' => $tokenCost,
                     'description_id' => $isChat
                         ? 'Model chat hemat biaya untuk tugas harian.'

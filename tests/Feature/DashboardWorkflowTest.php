@@ -50,102 +50,42 @@ class DashboardWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_member_with_no_model_tiers_sees_no_models_and_cannot_stream(): void
+    public function test_member_sees_all_enabled_models_and_cannot_stream_unknown_model(): void
     {
         $member = User::factory()->create([
-            'permissions' => [
-                ...User::DEFAULT_PERMISSIONS,
-                'model_original' => false,
-                'model_authentic' => false,
-            ],
-        ]);
-
-        Http::fake(['*' => Http::response(['data' => [
-            ['id' => 'chat-standard', 'name' => 'Chat Standard', 'category' => 'chat', 'tier' => 'Standard'],
-            ['id' => 'chat-max', 'name' => 'Chat Max', 'category' => 'chat', 'tier' => 'MAX'],
-        ]])]);
-
-        $provider = AiProviderProfile::create([
-            'slug' => 'ai-proxy',
-            'name' => 'AI Proxy',
-            'status' => 'healthy',
-            'is_enabled' => true,
-        ]);
-        AiModelProfile::create([
-            'provider_id' => $provider->id,
-            'model_id' => 'curated-standard',
-            'display_name' => 'Curated Standard',
-            'provider_name' => 'AI Proxy',
-            'category' => 'chat',
-            'tier' => 'Original',
-            'capabilities' => ['chat'],
-            'input_modalities' => ['text'],
-            'output_modalities' => ['text'],
-            'is_enabled' => true,
-            'is_available' => true,
-        ]);
-        AiModelProfile::create([
-            'provider_id' => $provider->id,
-            'model_id' => 'curated-authentic',
-            'display_name' => 'Curated Authentic',
-            'provider_name' => 'AI Proxy',
-            'category' => 'chat',
-            'tier' => 'Authentic',
-            'capabilities' => ['chat'],
-            'input_modalities' => ['text'],
-            'output_modalities' => ['text'],
-            'is_enabled' => true,
-            'is_available' => true,
-        ]);
-
-        $models = collect($this->actingAs($member)->getJson('/api/c/am')->assertOk()->json('models'));
-        $this->assertCount(0, $models);
-
-        $this->actingAs($member)->postJson('/api/c/s', [
-            'model' => 'chat-standard',
-            'messages' => [['role' => 'user', 'content' => 'hello']],
-        ])->assertForbidden();
-    }
-
-    public function test_curated_models_keep_tier_labels_and_tier_gates(): void
-    {
-        $standardOnly = User::factory()->create();
-        $provider = AiProviderProfile::create([
-            'slug' => 'ai-proxy',
-            'name' => 'AI Proxy',
-            'status' => 'healthy',
-            'is_enabled' => true,
-        ]);
-        AiModelProfile::create([
-            'provider_id' => $provider->id,
-            'model_id' => 'authentic-db-model',
-            'display_name' => 'Authentic DB Model',
-            'provider_name' => 'AI Proxy',
-            'category' => 'chat',
-            'tier' => 'Authentic',
-            'capabilities' => ['chat'],
-            'input_modalities' => ['text'],
-            'output_modalities' => ['text'],
-            'is_enabled' => true,
-            'is_available' => true,
+            'permissions' => [...User::DEFAULT_PERMISSIONS],
         ]);
 
         Http::fake(['*' => Http::response(['data' => []])]);
 
-        $standardModels = collect(
-            $this->actingAs($standardOnly)->getJson('/api/c/am')->assertOk()->json('models')
-        );
-        $this->assertFalse($standardModels->contains('id', 'authentic-db-model'));
-
-        $authentic = User::factory()->create([
-            'permissions' => [...User::DEFAULT_PERMISSIONS, 'model_authentic' => true],
+        $provider = AiProviderProfile::create([
+            'slug' => 'ai-proxy',
+            'name' => 'AI Proxy',
+            'status' => 'healthy',
+            'is_enabled' => true,
         ]);
-        $authenticModels = collect(
-            $this->actingAs($authentic)->getJson('/api/c/am')->assertOk()->json('models')
-        );
-        $model = $authenticModels->firstWhere('id', 'authentic-db-model');
-        $this->assertNotNull($model);
-        $this->assertSame('Authentic', $model['tier']);
+        foreach (['curated-standard' => 'Curated Standard', 'curated-authentic' => 'Curated Authentic'] as $modelId => $name) {
+            AiModelProfile::create([
+                'provider_id' => $provider->id,
+                'model_id' => $modelId,
+                'display_name' => $name,
+                'provider_name' => 'AI Proxy',
+                'category' => 'chat',
+                'capabilities' => ['chat'],
+                'input_modalities' => ['text'],
+                'output_modalities' => ['text'],
+                'is_enabled' => true,
+                'is_available' => true,
+            ]);
+        }
+
+        $models = collect($this->actingAs($member)->getJson('/api/c/am')->assertOk()->json('models'));
+        $this->assertEqualsCanonicalizing(['curated-standard', 'curated-authentic'], $models->pluck('id')->all());
+
+        $this->actingAs($member)->postJson('/api/c/s', [
+            'model' => 'nonexistent-model',
+            'messages' => [['role' => 'user', 'content' => 'hello']],
+        ])->assertForbidden();
     }
 
     public function test_chat_history_titles_stay_with_the_owner_for_shared_conversation_ids(): void
@@ -217,7 +157,7 @@ class DashboardWorkflowTest extends TestCase
     public function test_disabling_the_last_curated_model_does_not_republish_upstream_fallbacks(): void
     {
         Http::fake(['*' => Http::response(['data' => [
-            ['id' => 'withdrawn-model', 'name' => 'Withdrawn upstream model', 'category' => 'chat', 'tier' => 'Standard'],
+            ['id' => 'withdrawn-model', 'name' => 'Withdrawn upstream model', 'category' => 'chat'],
         ]])]);
         $provider = AiProviderProfile::create(['slug' => 'curated', 'name' => 'Curated Provider', 'is_enabled' => true]);
         $model = AiModelProfile::create([
@@ -241,7 +181,7 @@ class DashboardWorkflowTest extends TestCase
         $model = $this->postJson('/api/admin/ai/models', [
             'model_id' => 'draft-priced-model', 'display_name' => 'Draft priced model',
             'provider_slug' => $provider->slug,
-            'category' => 'chat', 'tier' => 'Original', 'is_enabled' => false,
+            'category' => 'chat', 'is_enabled' => false,
             'rates' => ['input_tokens' => 0.4, 'output_tokens' => 1.2],
         ])->assertCreated()->json('model');
         $this->patchJson('/api/admin/ai/models/'.$model['id'], ['is_enabled' => true])->assertOk();
@@ -255,12 +195,12 @@ class DashboardWorkflowTest extends TestCase
     public function test_curated_chat_publication_and_provider_gates_apply_to_list_and_send(): void
     {
         Http::fake(['*' => Http::response(['data' => [
-            ['id' => 'gated-chat', 'name' => 'Gated Chat', 'category' => 'chat', 'tier' => 'Standard'],
+            ['id' => 'gated-chat', 'name' => 'Gated Chat', 'category' => 'chat'],
         ]])]);
         $provider = AiProviderProfile::create(['slug' => 'gate', 'name' => 'Gate Provider', 'is_enabled' => true]);
         $profile = AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => 'gated-chat', 'display_name' => 'Gated Chat',
-            'category' => 'chat', 'tier' => 'Original', 'is_enabled' => false, 'is_available' => true,
+            'category' => 'chat', 'is_enabled' => false, 'is_available' => true,
         ]);
         $this->actingAs(User::factory()->create());
         $this->getJson('/api/c/am')->assertOk()->assertJsonCount(0, 'models');
@@ -283,7 +223,7 @@ class DashboardWorkflowTest extends TestCase
         $provider = AiProviderProfile::create(['slug' => 'last-known', 'name' => 'Last Known Provider', 'is_enabled' => true]);
         AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => 'last-known-chat', 'display_name' => 'Last Known Chat',
-            'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true,
+            'category' => 'chat', 'is_enabled' => true, 'is_available' => true,
         ]);
         $member = User::factory()->create();
         $this->actingAs($member)->getJson('/api/c/am')->assertOk()->assertJsonPath('models.0.id', 'last-known-chat');

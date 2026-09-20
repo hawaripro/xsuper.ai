@@ -32,6 +32,7 @@ export default function MediaQueue() {
     const [queue, setQueue] = useState({ data: null, loading: true, error: "" });
     const [queueType, setQueueType] = useState("images");
     const [queueStatus, setQueueStatus] = useState("");
+    const [cookies, setCookies] = useState({ has: false, updatedAt: null, text: "", busy: false, msg: "", error: false });
 
     const loadQueue = useCallback(
         async (signal) => {
@@ -55,6 +56,24 @@ export default function MediaQueue() {
         return () => controller.abort();
     }, [loadQueue]);
 
+    const loadCookies = useCallback(async () => {
+        try {
+            const data = await apiRequest("/api/admin/media/youtube-cookies");
+            setCookies((current) => ({ ...current, has: !!data.has_cookies, updatedAt: data.updated_at || null }));
+        } catch { /* non-fatal: card just shows "belum ada" */ }
+    }, []);
+    useEffect(() => { loadCookies(); }, [loadCookies]);
+
+    const saveCookies = async (clear = false) => {
+        setCookies((current) => ({ ...current, busy: true, msg: "", error: false }));
+        try {
+            const data = await apiRequest("/api/admin/media/youtube-cookies", { method: "POST", body: { cookies: clear ? "" : cookies.text } });
+            setCookies((current) => ({ ...current, busy: false, has: !!data.has_cookies, updatedAt: data.updated_at || null, text: "", msg: clear ? t("Cookies dihapus.") : t("Cookies disimpan."), error: false }));
+        } catch (error) {
+            setCookies((current) => ({ ...current, busy: false, msg: error.message || t("Cookies tidak dapat disimpan."), error: true }));
+        }
+    };
+
     const images = queue.data?.images || [];
     const videos = queue.data?.videos || [];
     const audio = queue.data?.audio || [];
@@ -72,6 +91,24 @@ export default function MediaQueue() {
                 <span aria-hidden="true">/</span>
                 <strong>{t("Antrean media global")}</strong>
             </nav>
+            <section className="ui-card" aria-labelledby="yt-cookies-title">
+                <div className="ui-card-header">
+                    <div className="min-w-0">
+                        <h2 id="yt-cookies-title" className="ui-section-title">{t("Cookies YouTube")}</h2>
+                        <p className="mt-0.5 max-w-prose text-[11px] text-slate-500 dark:text-slate-400">{t("Tempel isi cookies.txt (format Netscape) dari akun YouTube agar unduhan YouTube lolos verifikasi bot. Disimpan terenkripsi dan tidak pernah ditampilkan kembali.")}</p>
+                    </div>
+                    <span className="ui-status" data-tone={cookies.has ? "good" : "warn"}>{cookies.has ? t("Terpasang") : t("Belum ada")}</span>
+                </div>
+                <div className="ui-card-body space-y-3">
+                    {cookies.has && cookies.updatedAt && <p className="text-[11px] text-slate-500 dark:text-slate-400">{t("Diperbarui")}: {formatDateTime(cookies.updatedAt)}</p>}
+                    <textarea className="ui-input min-h-32 w-full resize-y font-mono text-xs" placeholder="# Netscape HTTP Cookie File" value={cookies.text} disabled={cookies.busy} onChange={(event) => setCookies((current) => ({ ...current, text: event.target.value }))} />
+                    {cookies.msg && <p className={`text-xs ${cookies.error ? "text-red-600 dark:text-red-300" : "text-emerald-600 dark:text-emerald-300"}`} role={cookies.error ? "alert" : "status"}>{cookies.msg}</p>}
+                    <div className="flex flex-wrap gap-2">
+                        <button type="button" className="ui-btn-primary" disabled={cookies.busy || !cookies.text.trim()} onClick={() => saveCookies(false)}>{cookies.busy ? t("Menyimpan…") : t("Simpan cookies")}</button>
+                        {cookies.has && <button type="button" className="ui-btn-secondary" disabled={cookies.busy} onClick={() => saveCookies(true)}>{t("Hapus cookies")}</button>}
+                    </div>
+                </div>
+            </section>
                 <section className="ui-card" aria-labelledby="queue-title">
                     <div className="ui-card-header">
                         <div className="flex items-center gap-3">

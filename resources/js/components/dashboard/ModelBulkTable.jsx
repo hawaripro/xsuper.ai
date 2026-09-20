@@ -50,7 +50,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             && (!categoryFilter || model.category === categoryFilter)
             && (!publicationFilter || String(model.is_enabled) === publicationFilter)
             && (!priceFilter || (priceFilter === "unpriced") === isUnpriced(model))
-            && (!needle || [model.id, model.model_id, model.upstream_model_id, model.display_name, model.provider_name, model.tier].some((value) => String(value ?? "").toLowerCase().includes(needle))));
+            && (!needle || [model.id, model.model_id, model.upstream_model_id, model.display_name, model.provider_name].some((value) => String(value ?? "").toLowerCase().includes(needle))));
     }, [scopedModels, selectedOnly, selection, activeProvider, categoryFilter, publicationFilter, priceFilter, search]);
     const lastPage = Math.max(1, Math.ceil(visible.length / pageSize));
     const currentPage = Math.min(page, lastPage);
@@ -122,8 +122,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                 } else if (key === "category") {
                     item[key] = String(value).trim();
                     if (!item[key] || item[key].length > 32) fields[key] = "Kategori wajib diisi, maksimal 32 karakter.";
-                } else if (key === "tier") item[key] = String(value).trim() || null;
-                else item[key] = value;
+                } else item[key] = value;
             }
             if (Object.keys(fields).length) errors[id] = fields;
             return item;
@@ -213,7 +212,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     return <div className="min-w-0 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" aria-busy={busy}>
         <div className="flex flex-wrap gap-3 border-b border-slate-200 p-4 dark:border-white/10">
             <label className="min-w-48 flex-1 text-xs font-medium">{t("Cari model")}
-                <input ref={searchInput} type="search" className="ui-input mt-1 min-h-10" placeholder={t("ID, nama, provider, atau tier")} value={search} onChange={(event) => setSearch(event.target.value)} />
+                <input ref={searchInput} type="search" className="ui-input mt-1 min-h-10" placeholder={t("ID, nama, atau provider")} value={search} onChange={(event) => setSearch(event.target.value)} />
             </label>
             {providerId === undefined && <label className="text-xs font-medium">{t("Penyedia")}
                 <select className="ui-input mt-1 min-h-10" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)}>
@@ -256,7 +255,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                 <caption className="sr-only">{t(mediaOnly ? "Harga token dan konfigurasi model media" : "Edit model secara massal")}</caption>
                 <thead className="bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr>
                     <th className="p-3"><input type="checkbox" aria-label={t("Pilih halaman ini")} checked={allPageSelected} disabled={locked || !pageRows.length} onChange={togglePage} /></th>
-                    <th className="p-3">{t("Model")}</th><th className="p-3">{t("Kategori")}</th><th className="p-3">{t("Tier")}</th><th className="p-3">{t("Token per hasil")}</th><th className="p-3">{t("Urutan")}</th><th className="p-3">{t("Publikasi / upstream")}</th><th className="p-3">{t("Tindakan")}</th>
+                    <th className="p-3">{t("Model")}</th><th className="p-3">{t("Kategori")}</th><th className="p-3">{t("Token per hasil")}</th><th className="p-3">{t("Urutan")}</th><th className="p-3">{t("Publikasi / upstream")}</th><th className="p-3">{t("Tindakan")}</th>
                 </tr></thead>
                 <tbody>{pageRows.map((model) => {
                     const draft = drafts[model.id] || {};
@@ -282,9 +281,6 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                                         : `USD / 1M: ${model.rates?.input_tokens?.price_usd ?? "—"} / ${model.rates?.output_tokens?.price_usd ?? "—"}`}</span>
                             </td>
                             <td className="p-3"><input className={tableInput} aria-label={`${t("Kategori")} ${model.model_id}`} value={row.category || ""} maxLength={32} disabled={locked} aria-invalid={!!errors.category} onChange={(event) => patch(model.id, "category", event.target.value)} />{fieldError(model.id, "category")}</td>
-                            <td className="p-3">{/* Derived from the upstream catalogue on sync — typing it by hand
-                                only ever produced tiers the workspace filter silently dropped. */}
-                                <span className="ui-status" data-tone="neutral" title={t("Otomatis dari upstream saat sinkronisasi")}>{row.tier || t("Standard")}</span></td>
                             <td className="p-3"><input className={numericInput} aria-label={`${t("Token per hasil")} ${model.model_id}`} type="number" min="1" max="2147483647" step="1" value={row.token_cost ?? ""} placeholder={t("Belum diatur")} disabled={locked || !isMedia} aria-invalid={!!errors.token_cost} onChange={(event) => patch(model.id, "token_cost", event.target.value)} />{fieldError(model.id, "token_cost")}</td>
                             <td className="p-3"><input className="ui-input min-h-9 w-16 px-2 text-right tabular-nums" aria-label={`${t("Urutan")} ${model.model_id}`} type="number" min="0" max="65535" step="1" value={row.sort_order ?? 0} disabled={locked} aria-invalid={!!errors.sort_order} onChange={(event) => patch(model.id, "sort_order", event.target.value)} />{fieldError(model.id, "sort_order")}</td>
                             <td className="min-w-36 p-3"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`${t("Publikasikan")} ${model.model_id}`} checked={!!row.is_enabled} disabled={locked} onChange={(event) => patch(model.id, "is_enabled", event.target.checked)} />{t(row.is_enabled ? "Dipublikasikan" : "Draf")}</label><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(model.is_available ? "Tersedia di upstream" : "Belum tersedia di upstream")}</span></td>
@@ -295,7 +291,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                                 <button type="button" className="ui-btn-mini ui-btn-mini-danger" disabled={locked} onClick={(event) => prepareDeletion([model.id], event)} aria-label={`${t("Hapus model")} ${model.display_name || model.model_id}`}>{t("Hapus")}</button>
                             </div></td>
                         </tr>
-                        {isMedia && isExpanded && <tr className="border-t border-slate-200 dark:border-white/10"><td colSpan={8} className="p-4"><div className="max-w-3xl">
+                        {isMedia && isExpanded && <tr className="border-t border-slate-200 dark:border-white/10"><td colSpan={7} className="p-4"><div className="max-w-3xl">
                             {generationReadOnly && <p className="mb-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Pengaturan generasi fal mengikuti skema model yang didukung dan tidak dapat diubah di sini. Harga, biaya token, dan publikasi tetap dapat diedit.")}</p>}
                             <GenerationConfigFields category={row.category} value={config} onChange={(value) => patch(model.id, "configDraft", value)} disabled={locked || generationReadOnly} errors={generationReadOnly ? undefined : Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith("generation_config.")).map(([key, value]) => [key.slice(18), value]))} />
                             {!generationReadOnly && fieldError(model.id, "generation_config")}

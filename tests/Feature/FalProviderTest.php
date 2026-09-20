@@ -185,7 +185,7 @@ class FalProviderTest extends TestCase
         $oldProvider = AiProviderProfile::create(['slug' => 'old-provider', 'name' => 'Old Provider', 'protocol' => 'openai', 'is_enabled' => true]);
         $model = AiModelProfile::create([
             'provider_id' => $oldProvider->id, 'model_id' => 'existing-video', 'upstream_model_id' => 'old-video',
-            'display_name' => 'Existing video', 'category' => 'video', 'tier' => 'Original',
+            'display_name' => 'Existing video', 'category' => 'video',
             'token_cost' => 200, 'is_enabled' => true, 'is_available' => true,
             'generation_config' => ['durations' => [5, 10]],
         ]);
@@ -203,6 +203,6 @@ class FalProviderTest extends TestCase
 
     private function model(AiProviderProfile $provider, string $category, string $id, int $cost): void
     {
-        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => $id, 'category' => $category, 'tier' => 'Original', 'token_cost' => $cost, 'is_enabled' => true, 'is_available' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => $id, 'category' => $category, 'token_cost' => $cost, 'is_enabled' => true, 'is_available' => true]);
     }
 }

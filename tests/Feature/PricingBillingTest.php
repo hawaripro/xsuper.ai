@@ -164,7 +164,7 @@ class PricingBillingTest extends TestCase
         }
         config(['services.ai_proxy.url' => 'https://proxy.test', 'services.ai_proxy.key' => 'test']);
         $provider = AiProviderProfile::create(['slug' => 'paid-provider', 'name' => 'Paid Provider', 'is_enabled' => true]);
-        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'model-a', 'display_name' => 'Paid Model', 'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'model-a', 'display_name' => 'Paid Model', 'category' => 'chat', 'is_enabled' => true, 'is_available' => true]);
         Http::fake([
             'https://proxy.test/v1/chat/completions' => Http::response([
                 'id' => 'chatcmpl-test',
@@ -266,7 +266,7 @@ class PricingBillingTest extends TestCase
         Wallet::credit($admin->id, 10_000_000, 'opening balance');
         config(['services.ai_proxy.url' => 'https://proxy.test', 'services.ai_proxy.key' => 'test']);
         $provider = AiProviderProfile::create(['slug' => 'unpriced-provider', 'name' => 'Unpriced Provider', 'is_enabled' => true]);
-        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'unpriced-model', 'display_name' => 'Unpriced Model', 'category' => 'chat', 'tier' => 'Original', 'is_enabled' => true, 'is_available' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'unpriced-model', 'display_name' => 'Unpriced Model', 'category' => 'chat', 'is_enabled' => true, 'is_available' => true]);
         Http::preventStrayRequests();
         Http::fake([
             'https://proxy.test/v1/chat/completions' => Http::response([

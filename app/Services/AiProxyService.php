@@ -25,17 +25,16 @@ class AiProxyService
     /**
      * Get available AI models (filtered to chat category)
      */
-    public function getModels(array $allowedTiers = ['Standard', 'MAX']): array
+    public function getModels(): array
     {
-        // The Canva tier (which widened this picker to image models) was retired.
         $categories = ['chat'];
 
-        return collect($this->getAllModelsFiltered($allowedTiers))
+        return collect($this->getAllModelsFiltered())
             ->filter(fn (array $model): bool => in_array($model['category'], $categories, true))
             ->map(fn (array $model): array => [
                 'id' => $model['id'],
                 'name' => $model['name'],
-                'category' => $model['tier'],
+                'category' => $model['category'],
             ])
             ->values()
             ->all();
@@ -56,7 +55,6 @@ class AiProxyService
                     'name' => $profile->display_name ?: $profile->model_id,
                     'provider' => $profile->provider_name,
                     'category' => $profile->category,
-                    'tier' => $profile->tier,
                     'context_length' => $profile->context_window,
                     'max_output_tokens' => $profile->max_output_tokens,
                     'capabilities' => $profile->capabilities ?? [],
@@ -266,45 +264,28 @@ class AiProxyService
     }
 
     /**
-     * Get all models across ALL categories (chat, image, video, audio) with tier filtering
+     * Get all models across ALL categories (chat, image, video, audio), sanitized.
      * Used by the full-page chat UI
      */
-    public function getAllModelsFiltered(array $allowedTiers = ['Standard', 'MAX']): array
+    public function getAllModelsFiltered(): array
     {
-        return $allowedTiers === [] ? [] : $this->filterModelsForTiers($this->getAllModels(), $allowedTiers);
+        return $this->filterModelsForTiers($this->getAllModels());
     }
 
-    public function filterModelsForTiers(array $models, array $allowedTiers): array
+    public function filterModelsForTiers(array $models): array
     {
-        if ($allowedTiers === []) {
-            return [];
-        }
+        $models = collect($models)->keyBy('id')->values()->all();
 
-        $models = collect($models)->keyBy('id');
-
-        $rawTiers = ['Original' => 'Standard', 'Authentic' => 'MAX'];
-        $tierLabels = [
-            'Standard' => 'Original', 'MAX' => 'Authentic',
-            'Original' => 'Original', 'Authentic' => 'Authentic',
-        ];
-        $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];
-
-        return collect($this->sanitizeModels($models->values()->all()))
-            ->filter(function (array $model) use ($allowedTiers, $rawTiers, $authenticOnly): bool {
-                $tier = $rawTiers[$model['tier'] ?? ''] ?? ($model['tier'] ?? '');
-
-                return in_array($tier, $allowedTiers, true)
-                    && ! str_contains(strtolower($model['id']), 'default')
-                    && ! (in_array($model['id'], $authenticOnly, true) && $tier === 'Standard');
-            })
-            ->map(fn (array $model): array => $this->scrubModelFull($model, $tierLabels))
+        return collect($this->sanitizeModels($models))
+            ->filter(fn (array $model): bool => ! str_contains(strtolower($model['id']), 'default'))
+            ->map(fn (array $model): array => $this->scrubModelFull($model))
             ->values()
             ->all();
     }
 
-    public function firstAvailableModel(array $allowedTiers = []): ?string
+    public function firstAvailableModel(): ?string
     {
-        return $this->getAllModelsFiltered($allowedTiers)[0]['id'] ?? null;
+        return $this->getAllModelsFiltered()[0]['id'] ?? null;
     }
 
     private function routeModel(string $model): array
@@ -392,7 +373,6 @@ class AiProxyService
             'video', 'audio', 'embedding', 'embeddings' => rtrim($category, 's'),
             default => 'chat',
         };
-        $tier = is_string($model['tier'] ?? null) ? $this->safeText($model['tier'], 40, $sensitive) : null;
         $provider = $model['provider'] ?? $model['owned_by'] ?? null;
         $name = is_string($model['name'] ?? null) ? $model['name'] : $id;
         $context = filter_var($model['context_length'] ?? $model['context_window'] ?? null, FILTER_VALIDATE_INT);
@@ -402,7 +382,6 @@ class AiProxyService
             'id' => $id,
             'name' => $this->safeText($name, 160, $sensitive),
             'category' => $category,
-            'tier' => $tier !== '' ? $tier : null,
             'capabilities' => $this->safeCapabilities($model['capabilities'] ?? [], $sensitive),
             'provider' => is_string($provider) ? $this->safeText($provider, 120, $sensitive) : null,
             'context_length' => $context !== false && $context > 0 && $context <= 10000000 ? $context : null,
@@ -504,14 +483,11 @@ class AiProxyService
     /**
      * Scrub model data with full info (includes media_type for full chat page)
      */
-    private function scrubModelFull(array $model, array $tierMap = []): array
+    private function scrubModelFull(array $model): array
     {
-        $tier = $model['tier'] ?? 'Standard';
-
         return [
             'id' => $model['id'] ?? 'unknown',
             'name' => $this->scrubText($model['name'] ?? $model['id'] ?? 'unknown'),
-            'tier' => $tierMap[$tier] ?? 'Original',
             'category' => $model['category'] ?? 'chat',
         ];
     }

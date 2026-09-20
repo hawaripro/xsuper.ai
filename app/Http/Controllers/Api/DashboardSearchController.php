@@ -140,41 +140,26 @@ class DashboardSearchController extends Controller
     private function models(User $user, array $access, string $pattern, string $needle, AiProxyService $catalog): array
     {
         $categories = array_values(array_filter(['chat', 'image', 'video', 'audio'], fn (string $kind): bool => $access[$kind]));
-        $tiers = $user->getAllowedTiers();
-        if (! $access['active'] || $categories === [] || $tiers === []) {
+        if (! $access['active'] || $categories === []) {
             return [];
-        }
-        $storedTiers = $tiers;
-        if (in_array('Standard', $tiers, true)) {
-            $storedTiers = [...$storedTiers, 'Original', ''];
-        }
-        if (in_array('MAX', $tiers, true)) {
-            $storedTiers[] = 'Authentic';
         }
         $models = AiModelProfile::query()
             ->with('provider:id,protocol,is_enabled')
             ->where('is_enabled', true)->where('is_available', true)
             ->whereHas('provider', fn (EloquentBuilder $provider) => $provider->where('is_enabled', true))
-            ->whereIn('category', $categories)
-            ->where(function (EloquentBuilder $query) use ($storedTiers, $tiers): void {
-                $query->whereIn('tier', $storedTiers);
-                if (in_array('Standard', $tiers, true)) {
-                    $query->orWhereNull('tier');
-                }
-            });
+            ->whereIn('category', $categories);
         $this->match($models, ['model_id', 'display_name', 'description_id', 'description_en'], $pattern);
         // Eligibility can reject unsupported provider profiles, so scan a bounded candidate window.
         $candidates = $models
             ->orderByRaw('CASE WHEN LOWER(model_id) = ? THEN 0 WHEN LOWER(display_name) = ? THEN 1 ELSE 2 END', [$needle, $needle])
             ->orderBy('sort_order')->orderBy('id')->limit(60)
-            ->get(['id', 'provider_id', 'model_id', 'upstream_model_id', 'display_name', 'provider_name', 'category', 'tier', 'token_cost', 'is_enabled', 'is_available']);
+            ->get(['id', 'provider_id', 'model_id', 'upstream_model_id', 'display_name', 'provider_name', 'category', 'token_cost', 'is_enabled', 'is_available']);
         $publicModels = collect($catalog->filterModelsForTiers($candidates->map(fn (AiModelProfile $model): array => [
             'id' => $model->model_id,
             'name' => $model->display_name ?: $model->model_id,
             'provider' => $model->provider_name,
             'category' => $model->category,
-            'tier' => $model->category === 'chat' ? $model->tier : ($model->tier ?: 'Standard'),
-        ])->all(), $tiers))->keyBy('id');
+        ])->all()))->keyBy('id');
         $paths = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio'];
         $results = [];
         foreach ($candidates as $model) {
@@ -184,7 +169,7 @@ class DashboardSearchController extends Controller
             }
             if ($model->category === 'chat') {
                 // Native Chat deliberately retains its own model selector.
-                $results[] = $this->result('model', $model->model_id, $public['name'], 'Chat AI · '.$public['tier'], '/chat');
+                $results[] = $this->result('model', $model->model_id, $public['name'], 'Chat AI', '/chat');
             } else {
                 $protocols = $model->category === 'audio' ? ['fal'] : ['openai', 'fal'];
                 if ($model->token_cost <= 0 || ! in_array($model->provider?->protocol, $protocols, true)
@@ -192,7 +177,7 @@ class DashboardSearchController extends Controller
                     continue;
                 }
                 $results[] = $this->result('model', $model->model_id, $public['name'],
-                    ucfirst($model->category).' · '.$public['tier'],
+                    ucfirst($model->category),
                     $paths[$model->category].'?'.http_build_query(['model' => $model->model_id], '', '&', PHP_QUERY_RFC3986));
             }
             if (count($results) === self::GROUP_LIMIT) {

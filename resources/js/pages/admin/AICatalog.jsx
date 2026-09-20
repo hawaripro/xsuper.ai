@@ -206,7 +206,7 @@ export default function AICatalog() {
                         <div className="ui-card-flat p-6">
                             <EmptyState
                                 title={t("Belum ada penyedia terhubung")}
-                                description={t("Hubungkan penyedia pertama Anda; model, tier, dan harga ditarik otomatis saat koneksi diperiksa.")}
+                                description={t("Hubungkan penyedia pertama Anda; model dan harga ditarik otomatis saat koneksi diperiksa.")}
                                 action={
                                     <button type="button" className="ui-btn-primary" onClick={() => setShowConnect(true)}>
                                         {t("Tambah penyedia")}
