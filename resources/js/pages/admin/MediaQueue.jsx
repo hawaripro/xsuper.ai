@@ -154,8 +154,8 @@ export default function MediaQueue() {
                             {queueStatuses.map((status) => (
                                 <option key={status || "all"} value={status}>
                                     {status
-                                        ? status.replaceAll("_", " ")
-                                        : "All statuses"}
+                                        ? t(status.replaceAll("_", " "))
+                                        : t("All statuses")}
                                 </option>
                             ))}
                         </select>
@@ -175,16 +175,12 @@ export default function MediaQueue() {
                         <DataTable
                             rows={queueRows}
                             rowKey="job_id"
-                            emptyTitle={`No ${queueType} jobs`}
-                            emptyDescription={
-                                queueStatus
-                                    ? `No ${queueStatus} jobs match the current queue filter.`
-                                    : `No global ${queueType} jobs have been recorded.`
-                            }
+                            emptyTitle={t("No jobs")}
+                            emptyDescription={t("Change the status filter to inspect another moderation queue.")}
                             columns={[
                                 {
                                     key: "job",
-                                    label: "Job",
+                                    label: t("Job"),
                                     render: (row) => (
                                         <div>
                                             <strong className="block font-mono text-[11px] text-slate-900 dark:text-white">
@@ -198,11 +194,11 @@ export default function MediaQueue() {
                                 },
                                 {
                                     key: "user",
-                                    label: "Member",
+                                    label: t("Member"),
                                     render: (row) => (
                                         <div>
                                             <span className="block">
-                                                {row.user?.name || "Unknown"}
+                                                {row.user?.name || t("Unknown")}
                                             </span>
                                             <span className="text-[11px] text-slate-500">
                                                 {row.user?.email}
@@ -212,7 +208,7 @@ export default function MediaQueue() {
                                 },
                                 {
                                     key: "prompt",
-                                    label: "Prompt",
+                                    label: t("Prompt"),
                                     render: (row) => (
                                         <span
                                             className="block max-w-sm whitespace-normal"
@@ -224,19 +220,19 @@ export default function MediaQueue() {
                                 },
                                 {
                                     key: "spec",
-                                    label: "Spec",
+                                    label: t("Spec"),
                                     render: (row) => queueType === "images"
                                         ? `${row.size || "—"} · ${row.n || 1} ${t("Gambar")}`
                                         : queueType === "audio"
                                             ? (row.mode === "speech" ? `${row.voice || "—"} · ${row.speed ?? "—"}×` : `${t("Musik / efek suara")} · ${row.duration ?? "—"} s`)
                                             : <div>
-                                                <span>{row.aspect_ratio || "—"} · {row.duration ?? "—"} s · {row.pro_mode ? "Pro" : "Standard"}</span>
+                                                <span>{row.aspect_ratio || "—"} · {row.duration ?? "—"} s · {row.pro_mode ? t("Pro") : t("Standard")}</span>
                                                 {row.has_reference && row.reference_url && <a className="mt-1 block underline underline-offset-2" href={row.reference_url} target="_blank" rel="noopener noreferrer">{t("Gambar referensi")}</a>}
                                             </div>,
                                 },
                                 {
                                     key: "status",
-                                    label: "Status",
+                                    label: t("Status"),
                                     render: (row) => (
                                         <div>
                                             <StatusBadge status={row.stage === "cancelled" ? "cancelled" : row.status} />
@@ -250,7 +246,7 @@ export default function MediaQueue() {
                                 },
                                 {
                                     key: "billing",
-                                    label: "Billing",
+                                    label: t("Billing"),
                                     render: (row) => (
                                         <div>
                                             <span className="block">
@@ -267,7 +263,7 @@ export default function MediaQueue() {
                                 },
                                 {
                                     key: "created",
-                                    label: "Created",
+                                    label: t("Created"),
                                     render: (row) =>
                                         formatDateTime(row.created_at),
                                 },

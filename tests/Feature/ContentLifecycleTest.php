@@ -182,6 +182,29 @@ class ContentLifecycleTest extends TestCase
         $this->assertTrue($block->fresh()->is_published);
     }
 
+    public function test_destroy_removes_block_for_admin_and_is_forbidden_for_others(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $member = User::factory()->create();
+        $block = ContentBlock::create([
+            'key' => 'home.hero',
+            'locale' => 'id',
+            'draft' => $this->heroDraft('Headline'),
+            'published' => $this->heroDraft('Headline'),
+            'is_published' => true,
+            'published_at' => now(),
+            'updated_by' => $admin->id,
+        ]);
+
+        $this->deleteJson("/api/admin/content/{$block->id}")->assertUnauthorized();
+        $this->actingAs($member)->deleteJson("/api/admin/content/{$block->id}")->assertForbidden();
+        $this->assertDatabaseHas('content_blocks', ['id' => $block->id]);
+
+        $this->actingAs($admin)->deleteJson("/api/admin/content/{$block->id}")->assertOk();
+        $this->assertDatabaseMissing('content_blocks', ['id' => $block->id]);
+        $this->assertSame(1, AuditEvent::where('action', 'content.deleted')->count());
+    }
+
     public function test_invalid_draft_is_rejected_and_existing_content_unchanged(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

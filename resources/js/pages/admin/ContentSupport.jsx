@@ -4,6 +4,7 @@ import ContentPreview from '../../components/dashboard/ContentPreview';
 import { EmptyState, ErrorState, LoadingState } from '../../components/dashboard/AsyncState';
 import StatusBadge from '../../components/dashboard/StatusBadge';
 import DataTable from '../../components/dashboard/DataTable';
+import ContentBlockForm from '../../components/dashboard/ContentBlockForm';
 import { apiRequest, formatDateTime } from '../../lib/api';
 import { useLocale } from '../../contexts/LocaleContext';
 
@@ -16,12 +17,12 @@ const tabs = [
 const feedbackStatuses = ['new', 'reviewed', 'resolved', 'rejected'];
 const ticketStatuses = ['open', 'in_progress', 'waiting_on_member', 'resolved', 'closed'];
 const contentKeys = ['home.hero', 'home.faq', 'system.announcement', 'help.articles'];
-const announcementSurfaces = [
-    ['dashboard', 'Dashboard pengguna'],
-    ['landing', 'Landing'],
-    ['pricing', 'Halaman harga'],
-    ['models', 'Halaman model'],
-];
+const contentLabels = {
+    'home.hero': 'Homepage hero',
+    'home.faq': 'Homepage FAQ',
+    'system.announcement': 'System announcement',
+    'help.articles': 'Help articles',
+};
 const blankResource = { data: null, loading: true, error: '' };
 
 function Field({ label, error, children }) {
@@ -42,7 +43,7 @@ function ConfirmDialog({ title, description, confirmLabel, onCancel, onConfirm, 
             <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="content-confirm-title">
                 <h2 id="content-confirm-title" className="text-base font-bold text-slate-900 dark:text-white">{title}</h2>
                 <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{description}</p>
-                <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" autoFocus className="ui-btn-secondary" onClick={onCancel} disabled={busy}>{t("Cancel")}</button><button type="button" className="ui-btn-primary min-h-10 px-4 text-xs" onClick={onConfirm} disabled={busy}>{busy ? 'Working…' : confirmLabel}</button></div>
+                <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" autoFocus className="ui-btn-secondary" onClick={onCancel} disabled={busy}>{t("Cancel")}</button><button type="button" className="ui-btn-primary min-h-10 px-4 text-xs" onClick={onConfirm} disabled={busy}>{busy ? t('Working…') : confirmLabel}</button></div>
             </div>
         </div>
     );
@@ -158,15 +159,15 @@ export default function ContentSupport() {
 
     const validateBroadcast = () => {
         const fields = {};
-        if (!broadcast.title.trim()) fields.title = 'Title is required.';
-        else if (broadcast.title.length > 160) fields.title = 'Use at most 160 characters.';
-        if (broadcast.body.trim().length < 2) fields.body = 'Message is required.';
-        else if (broadcast.body.length > 10000) fields.body = 'Use at most 10,000 characters.';
+        if (!broadcast.title.trim()) fields.title = t('Title is required.');
+        else if (broadcast.title.length > 160) fields.title = t('Use at most 160 characters.');
+        if (broadcast.body.trim().length < 2) fields.body = t('Message is required.');
+        else if (broadcast.body.length > 10000) fields.body = t('Use at most 10,000 characters.');
         if (broadcast.action_url.trim()) {
             const value = broadcast.action_url.trim();
             // The server accepts local application paths only; external URLs 422.
             if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/en//') || /[\s\\]/.test(value) || /(?:^|\/)\.{1,2}(?:\/|$)/.test(value)) {
-                fields.action_url = 'Use a local application path beginning with / (e.g. /paket).';
+                fields.action_url = t('Use a local application path beginning with / (e.g. /paket).');
             }
         }
         setFormState(current => ({ ...current, fields, error: '', success: '' }));
@@ -178,10 +179,10 @@ export default function ContentSupport() {
         setFormState({ busy: true, error: '', success: '', fields: {} });
         try {
             const data = await apiRequest('/api/admin/engagement/broadcasts', { method: 'POST', body: { ...broadcast, action_url: broadcast.action_url || null } });
-            setFormState({ busy: false, error: '', fields: {}, success: `Broadcast delivered to ${data.data.recipient_count} recipients. Reference: ${data.data.id}` });
+            setFormState({ busy: false, error: '', fields: {}, success: `${t('Broadcast delivered to')} ${data.data.recipient_count} ${t('recipients.')}` });
             setBroadcast({ segment: broadcast.segment, title: '', body: '', action_url: '' });
         } catch (error) {
-            setFormState({ busy: false, error: error.message || 'Broadcast could not be delivered.', success: '', fields: error.details?.errors || {} });
+            setFormState({ busy: false, error: error.message || t('Broadcast could not be delivered.'), success: '', fields: error.details?.errors || {} });
         }
     };
 
@@ -192,10 +193,10 @@ export default function ContentSupport() {
         try {
             await apiRequest(`/api/admin/feedback/${editor.id}`, { method: 'PATCH', body: { status: editor.status, is_testimonial: editor.is_testimonial, admin_note: editor.admin_note || null } });
             setFeedbackEditor(null);
-            setFormState({ busy: false, error: '', fields: {}, success: 'Feedback moderation saved.' });
+            setFormState({ busy: false, error: '', fields: {}, success: t('Feedback moderation saved.') });
             await loadFeedback();
         } catch (error) {
-            setFormState({ busy: false, error: error.message || 'Feedback could not be updated.', success: '', fields: error.details?.errors || {} });
+            setFormState({ busy: false, error: error.message || t('Feedback could not be updated.'), success: '', fields: error.details?.errors || {} });
         }
     };
 
@@ -206,17 +207,17 @@ export default function ContentSupport() {
             const body = { status: ticketDraft.status, assigned_to: ticketDraft.assigned_to ? Number(ticketDraft.assigned_to) : null };
             const data = await apiRequest(`/api/admin/support/tickets/${ticketThread.data.id}`, { method: 'PATCH', body });
             setTicketThread(current => ({ ...current, data: { ...current.data, ...data.data } }));
-            setFormState({ busy: false, error: '', fields: {}, success: 'Ticket assignment and status updated.' });
+            setFormState({ busy: false, error: '', fields: {}, success: t('Ticket assignment and status updated.') });
             await loadTickets();
         } catch (error) {
-            setFormState({ busy: false, error: error.message || 'Ticket could not be updated.', success: '', fields: error.details?.errors || {} });
+            setFormState({ busy: false, error: error.message || t('Ticket could not be updated.'), success: '', fields: error.details?.errors || {} });
         }
     };
 
     const sendReply = async event => {
         event.preventDefault();
         if (ticketDraft.reply.trim().length < 2) {
-            setFormState(current => ({ ...current, fields: { reply: 'Reply must contain at least two characters.' }, error: '', success: '' }));
+            setFormState(current => ({ ...current, fields: { reply: t('Reply must contain at least two characters.') }, error: '', success: '' }));
             return;
         }
         setFormState({ busy: true, error: '', success: '', fields: {} });
@@ -225,10 +226,10 @@ export default function ContentSupport() {
             const refreshed = await apiRequest(`/api/admin/support/tickets/${ticketThread.data.id}`);
             setTicketThread({ data: refreshed.data, loading: false, error: '' });
             setTicketDraft(current => ({ ...current, reply: '' }));
-            setFormState({ busy: false, error: '', fields: {}, success: 'Reply sent and recorded in the ticket.' });
+            setFormState({ busy: false, error: '', fields: {}, success: t('Reply sent and recorded in the ticket.') });
             await loadTickets();
         } catch (error) {
-            setFormState({ busy: false, error: error.message || 'Reply could not be sent.', success: '', fields: error.details?.errors || {} });
+            setFormState({ busy: false, error: error.message || t('Reply could not be sent.'), success: '', fields: error.details?.errors || {} });
         }
     };
 
@@ -240,10 +241,12 @@ export default function ContentSupport() {
         'help.articles': { items: [{ slug: '', title: '', summary: '', body: '' }] },
     };
 
-    const templateFor = key => JSON.stringify(DRAFT_TEMPLATES[key] ?? {}, null, 2);
+    const templateFor = key => JSON.parse(JSON.stringify(DRAFT_TEMPLATES[key] ?? {}));
 
     // Each key+locale is a singleton: creating over an existing block continues as an edit of its draft.
     const existingBlockFor = (key, locale) => (content.data?.data || []).find(block => block.key === key && block.locale === locale) || null;
+
+    const cloneDraft = block => (block?.draft && typeof block.draft === 'object' ? JSON.parse(JSON.stringify(block.draft)) : templateFor(block.key));
 
     const startContentEditor = block => {
         if (!block) {
@@ -251,7 +254,7 @@ export default function ContentSupport() {
             return;
         }
         resetFormState();
-        setContentEditor({ ...block, draftText: JSON.stringify(block.draft ?? {}, null, 2) });
+        setContentEditor({ ...block, draft: cloneDraft(block) });
     };
 
     // Selecting a key or locale in create mode re-targets the editor: existing block loads
@@ -260,59 +263,28 @@ export default function ContentSupport() {
         const existing = existingBlockFor(key, locale);
         resetFormState();
         if (existing) {
-            setContentEditor({ ...existing, draftText: JSON.stringify(existing.draft ?? {}, null, 2), resolvedFromCreate: true });
+            setContentEditor({ ...existing, draft: cloneDraft(existing), resolvedFromCreate: true });
         } else {
-            setContentEditor(current => ({ id: null, key, locale, draftText: templateFor(key), resolvedFromCreate: false }));
+            setContentEditor({ id: null, key, locale, draft: templateFor(key), resolvedFromCreate: false });
         }
     };
 
-    const setAnnouncementSurfaces = surfaces => {
-        if (!contentEditor || contentEditor.key !== 'system.announcement') return;
-        try {
-            const draft = JSON.parse(contentEditor.draftText || '{}');
-            setContentEditor(current => ({ ...current, draftText: JSON.stringify({ ...draft, surfaces }, null, 2) }));
-            setFormState(current => ({ ...current, error: '', fields: { ...current.fields, 'draft.surfaces': undefined } }));
-        } catch {
-            setFormState(current => ({ ...current, error: t('Perbaiki JSON sebelum mengubah target announcement.') }));
-        }
+    const setEditorDraft = draft => {
+        setContentEditor(current => (current ? { ...current, draft } : current));
+        setFormState(current => ({ ...current, error: '', success: '', fields: {} }));
     };
-
-    const announcementTargets = (() => {
-        if (contentEditor?.key !== 'system.announcement') return [];
-        try {
-            const draft = JSON.parse(contentEditor.draftText || '{}');
-            return Array.isArray(draft.surfaces) ? draft.surfaces : ['landing'];
-        } catch {
-            return [];
-        }
-    })();
 
     const previewEditorDraft = () => {
-        const parsed = parsedDraft();
-        if (!parsed) return;
-        setContentPreview({ id: contentEditor.id, key: contentEditor.key, locale: contentEditor.locale, draft: parsed.draft });
-    };
-
-    const parsedDraft = () => {
-        try {
-            const draft = JSON.parse(contentEditor.draftText);
-            if (draft === null || typeof draft !== 'object') throw new Error('Draft must be a JSON object or array.');
-            return { draft };
-        } catch (error) {
-            setFormState(current => ({ ...current, fields: { draft: error.message }, error: '', success: '' }));
-            return null;
-        }
+        setContentPreview({ id: contentEditor.id, key: contentEditor.key, locale: contentEditor.locale, draft: contentEditor.draft });
     };
 
     const saveContent = async event => {
         event.preventDefault();
-        const parsed = parsedDraft();
-        if (!parsed) return;
         setFormState({ busy: true, error: '', success: '', fields: {} });
         try {
             const creating = !contentEditor.id;
             const path = creating ? '/api/admin/content' : `/api/admin/content/${contentEditor.id}`;
-            const body = creating ? { key: contentEditor.key, locale: contentEditor.locale, draft: parsed.draft } : { draft: parsed.draft };
+            const body = creating ? { key: contentEditor.key, locale: contentEditor.locale, draft: contentEditor.draft } : { draft: contentEditor.draft };
             const response = await apiRequest(path, { method: creating ? 'POST' : 'PUT', body });
             setContentEditor(null);
             if (creating) {
@@ -320,9 +292,24 @@ export default function ContentSupport() {
             } else {
                 applyContentRow(response.data);
             }
-            setFormState({ busy: false, error: '', fields: {}, success: creating ? 'Draft created.' : 'Draft saved.' });
+            setFormState({ busy: false, error: '', fields: {}, success: creating ? t('Draft created.') : t('Draft saved.') });
         } catch (error) {
-            setFormState({ busy: false, error: error.message || 'Draft could not be saved.', success: '', fields: error.details?.errors || {} });
+            setFormState({ busy: false, error: error.message || t('Draft could not be saved.'), success: '', fields: error.details?.errors || {} });
+        }
+    };
+
+    const deleteContent = async () => {
+        const block = confirmation.block;
+        setFormState({ busy: true, error: '', success: '', fields: {} });
+        try {
+            await apiRequest(`/api/admin/content/${block.id}`, { method: 'DELETE' });
+            setConfirmation(null);
+            if (block.is_published) notifyContentChanged({ ...block, is_published: false });
+            setContent(current => current.data ? { ...current, data: { ...current.data, data: current.data.data.filter(row => row.id !== block.id) } } : current);
+            setFormState({ busy: false, error: '', fields: {}, success: t('Content block deleted.') });
+        } catch (error) {
+            setConfirmation(null);
+            setFormState({ busy: false, error: error.message || t('Content block could not be deleted.'), success: '', fields: error.details?.errors || {} });
         }
     };
 
@@ -344,10 +331,10 @@ export default function ContentSupport() {
             setConfirmation(null);
             applyContentRow(response.data);
             notifyContentChanged(response.data);
-            setFormState({ busy: false, error: '', fields: {}, success: `${block.key} (${block.locale}) published.` });
+            setFormState({ busy: false, error: '', fields: {}, success: `${t(contentLabels[block.key] || block.key)} (${block.locale.toUpperCase()}) ${t('published.')}` });
         } catch (error) {
             setConfirmation(null);
-            setFormState({ busy: false, error: error.message || 'Content could not be published.', success: '', fields: error.details?.errors || {} });
+            setFormState({ busy: false, error: error.message || t('Content could not be published.'), success: '', fields: error.details?.errors || {} });
         }
     };
 
@@ -359,10 +346,10 @@ export default function ContentSupport() {
             setConfirmation(null);
             applyContentRow(response.data);
             notifyContentChanged(response.data);
-            setFormState({ busy: false, error: '', fields: {}, success: `${block.key} (${block.locale}) unpublished.` });
+            setFormState({ busy: false, error: '', fields: {}, success: `${t(contentLabels[block.key] || block.key)} (${block.locale.toUpperCase()}) ${t('unpublished.')}` });
         } catch (error) {
             setConfirmation(null);
-            setFormState({ busy: false, error: error.message || 'Content could not be unpublished.', success: '', fields: error.details?.errors || {} });
+            setFormState({ busy: false, error: error.message || t('Content could not be unpublished.'), success: '', fields: error.details?.errors || {} });
         }
     };
 
@@ -378,7 +365,7 @@ export default function ContentSupport() {
             <PageHeader eyebrow={t("Customer operations")} title={t("Content & support")} description={t("Durable broadcasts, moderated feedback, operational ticket queues, and published CMS content.")} />
 
             <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("Content and support sections")}>
-                {tabs.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => { setTab(key); resetFormState(); }} className={tab === key ? 'ui-btn-primary min-h-10 px-4 text-xs' : 'ui-btn-secondary'}>{label}</button>)}
+                {tabs.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => { setTab(key); resetFormState(); }} className={tab === key ? 'ui-btn-primary min-h-10 px-4 text-xs' : 'ui-btn-secondary'}>{t(label)}</button>)}
             </div>
 
             {(formState.error || formState.success) && <div className={`rounded-xl border p-3 text-xs ${formState.error ? 'border-red-500/25 bg-red-500/5 text-red-700 dark:text-red-300' : 'border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'}`} role={formState.error ? 'alert' : 'status'}>{formState.error || formState.success}</div>}
@@ -398,30 +385,30 @@ export default function ContentSupport() {
 
             {tab === 'feedback' && (
                 <section className="ui-card" aria-labelledby="feedback-title">
-                    <div className="ui-card-header"><div><h2 id="feedback-title" className="ui-section-title">{t("Feedback moderation")}</h2><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Review member submissions and explicitly approve testimonial use.")}</p></div><select className="ui-input min-h-10 w-auto" value={feedbackFilter} onChange={event => { setFeedbackFilter(event.target.value); setFeedbackPage(1); }}>{feedbackStatuses.map(status => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select></div>
+                    <div className="ui-card-header"><div><h2 id="feedback-title" className="ui-section-title">{t("Feedback moderation")}</h2><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Review member submissions and explicitly approve testimonial use.")}</p></div><select className="ui-input min-h-10 w-auto" value={feedbackFilter} onChange={event => { setFeedbackFilter(event.target.value); setFeedbackPage(1); }}>{feedbackStatuses.map(status => <option key={status} value={status}>{t(status.replaceAll('_', ' '))}</option>)}</select></div>
                     {feedback.loading && !feedback.data ? <div className="p-4"><LoadingState label={t("Loading feedback…")} /></div> : feedback.error && !feedback.data ? <div className="p-4"><ErrorState message={feedback.error} onRetry={() => loadFeedback()} /></div> : <>
-                        <DataTable rows={feedbackRows} emptyTitle={`No ${feedbackFilter} feedback`} emptyDescription="Change the status filter to inspect another moderation queue." columns={[
-                            { key: 'member', label: 'Member', render: row => <div><strong className="block text-slate-900 dark:text-white">{row.user?.name || 'Unknown member'}</strong><span className="text-[11px] text-slate-500">{row.user?.email}</span></div> },
-                            { key: 'rating', label: 'Rating', render: row => `${row.rating}/5` },
-                            { key: 'message', label: 'Feedback', render: row => <span className="block max-w-xl whitespace-normal">{row.message}</span> },
-                            { key: 'status', label: 'Status', render: row => <StatusBadge status={row.status} /> },
-                            { key: 'action', label: 'Action', render: row => <button type="button" className="ui-btn-secondary" onClick={() => { resetFormState(); setFeedbackEditor({ ...row, admin_note: row.admin_note || '' }); }}>{t("Moderate")}</button> },
+                        <DataTable rows={feedbackRows} emptyTitle={t('No feedback')} emptyDescription={t("Change the status filter to inspect another moderation queue.")} columns={[
+                            { key: 'member', label: t('Member'), render: row => <div><strong className="block text-slate-900 dark:text-white">{row.user?.name || t('Unknown member')}</strong><span className="text-[11px] text-slate-500">{row.user?.email}</span></div> },
+                            { key: 'rating', label: t('Rating'), render: row => `${row.rating}/5` },
+                            { key: 'message', label: t('Feedback'), render: row => <span className="block max-w-xl whitespace-normal">{row.message}</span> },
+                            { key: 'status', label: t('Status'), render: row => <StatusBadge status={row.status} /> },
+                            { key: 'action', label: t('Action'), render: row => <button type="button" className="ui-btn-secondary" onClick={() => { resetFormState(); setFeedbackEditor({ ...row, admin_note: row.admin_note || '' }); }}>{t("Moderate")}</button> },
                         ]} />
-                        {hasAnyFeedbackPage && <div className="flex items-center justify-end gap-2 border-t border-slate-200 p-3 dark:border-white/10"><button className="ui-btn-secondary" disabled={feedbackPage <= 1 || feedback.loading} onClick={() => setFeedbackPage(page => page - 1)}>{t("Previous")}</button><span className="text-[11px] text-slate-500">Page {feedback.data.current_page} of {feedback.data.last_page}</span><button className="ui-btn-secondary" disabled={feedbackPage >= feedback.data.last_page || feedback.loading} onClick={() => setFeedbackPage(page => page + 1)}>{t("Next")}</button></div>}
+                        {hasAnyFeedbackPage && <div className="flex items-center justify-end gap-2 border-t border-slate-200 p-3 dark:border-white/10"><button className="ui-btn-secondary" disabled={feedbackPage <= 1 || feedback.loading} onClick={() => setFeedbackPage(page => page - 1)}>{t("Previous")}</button><span className="text-[11px] text-slate-500">{t('Page')} {feedback.data.current_page} {t('of')} {feedback.data.last_page}</span><button className="ui-btn-secondary" disabled={feedbackPage >= feedback.data.last_page || feedback.loading} onClick={() => setFeedbackPage(page => page + 1)}>{t("Next")}</button></div>}
                     </>}
                 </section>
             )}
 
             {tab === 'tickets' && (
                 <div className="grid gap-5 xl:grid-cols-[minmax(0,.9fr)_minmax(420px,1.1fr)]">
-                    <section className="ui-card" aria-labelledby="tickets-title"><div className="ui-card-header"><div><h2 id="tickets-title" className="ui-section-title">{t("Ticket queue")}</h2><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Newest updated tickets first.")}</p></div><select className="ui-input min-h-10 w-auto" value={ticketFilter} onChange={event => { setTicketFilter(event.target.value); setTicketPage(1); }}>{ticketStatuses.map(status => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select></div>
+                    <section className="ui-card" aria-labelledby="tickets-title"><div className="ui-card-header"><div><h2 id="tickets-title" className="ui-section-title">{t("Ticket queue")}</h2><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Newest updated tickets first.")}</p></div><select className="ui-input min-h-10 w-auto" value={ticketFilter} onChange={event => { setTicketFilter(event.target.value); setTicketPage(1); }}>{ticketStatuses.map(status => <option key={status} value={status}>{t(status.replaceAll('_', ' '))}</option>)}</select></div>
                         {tickets.loading && !tickets.data ? <div className="p-4"><LoadingState label={t("Loading tickets…")} /></div> : tickets.error && !tickets.data ? <div className="p-4"><ErrorState message={tickets.error} onRetry={() => loadTickets()} /></div> : ticketRows.length ? <div className="divide-y divide-slate-100 dark:divide-white/5">{ticketRows.map(ticket => <button key={ticket.id} type="button" className="block w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-white/[.03]" onClick={() => openTicket(ticket)}><div className="flex items-start justify-between gap-3"><div><strong className="block text-xs text-slate-900 dark:text-white">{ticket.subject}</strong><span className="text-[11px] text-slate-500">{ticket.user?.name} · {ticket.category}</span></div><StatusBadge status={ticket.priority} /></div><div className="mt-2 flex items-center justify-between text-[11px] text-slate-500"><StatusBadge status={ticket.status} /><span>{ticket.messages_count} messages · {formatDateTime(ticket.updated_at)}</span></div></button>)}</div> : <div className="p-4"><EmptyState title={`No ${ticketFilter.replaceAll('_', ' ')} tickets`} description={t("Select another queue to continue support review.")} /></div>}
-                        {Number(tickets.data?.last_page || 1) > 1 && <div className="flex items-center justify-end gap-2 border-t border-slate-200 p-3 dark:border-white/10"><button className="ui-btn-secondary" disabled={ticketPage <= 1 || tickets.loading} onClick={() => setTicketPage(page => page - 1)}>{t("Previous")}</button><span className="text-[11px] text-slate-500">Page {tickets.data.current_page} of {tickets.data.last_page}</span><button className="ui-btn-secondary" disabled={ticketPage >= tickets.data.last_page || tickets.loading} onClick={() => setTicketPage(page => page + 1)}>{t("Next")}</button></div>}
+                        {Number(tickets.data?.last_page || 1) > 1 && <div className="flex items-center justify-end gap-2 border-t border-slate-200 p-3 dark:border-white/10"><button className="ui-btn-secondary" disabled={ticketPage <= 1 || tickets.loading} onClick={() => setTicketPage(page => page - 1)}>{t("Previous")}</button><span className="text-[11px] text-slate-500">{t('Page')} {tickets.data.current_page} {t('of')} {tickets.data.last_page}</span><button className="ui-btn-secondary" disabled={ticketPage >= tickets.data.last_page || tickets.loading} onClick={() => setTicketPage(page => page + 1)}>{t("Next")}</button></div>}
                     </section>
                     <section className="ui-card" aria-labelledby="thread-title"><div className="ui-card-header"><div><h2 id="thread-title" className="ui-section-title">{t("Ticket workspace")}</h2><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Assignment, status, and member-visible replies.")}</p></div></div>
                         {ticketThread.loading ? <div className="p-4"><LoadingState label={t("Loading ticket thread…")} /></div> : ticketThread.error ? <div className="p-4"><ErrorState message={ticketThread.error} onRetry={() => openTicket(ticketThread.data)} /></div> : !ticketThread.data ? <div className="p-4"><EmptyState title={t("Select a ticket")} description={t("Choose a queue item to inspect its complete authorized thread.")} /></div> : <div className="ui-card-body space-y-4">
                             <div><h3 className="text-sm font-bold text-slate-900 dark:text-white">{ticketThread.data.subject}</h3><p className="mt-1 text-[11px] text-slate-500">{ticketThread.data.user?.name} · {ticketThread.data.user?.email}</p></div>
-                            <div className="grid gap-3 sm:grid-cols-2"><Field label={t("Status")} error={formState.fields.status}><select className="ui-input min-h-10" value={ticketDraft.status} onChange={event => setTicketDraft(current => ({ ...current, status: event.target.value }))}>{ticketStatuses.map(status => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select></Field><Field label={t("Assigned admin")} error={formState.fields.assigned_to}><select className="ui-input min-h-10" value={ticketDraft.assigned_to} onChange={event => setTicketDraft(current => ({ ...current, assigned_to: event.target.value }))} disabled={admins.loading || Boolean(admins.error)}><option value="">{t("Unassigned")}</option>{availableAdmins.map(admin => <option key={admin.id} value={admin.id}>{admin.name}</option>)}</select>{admins.error && <button type="button" className="mt-1 text-[11px] text-red-600 underline" onClick={() => { setAdmins(current => ({ ...current, error: '' })); loadAdmins(); }}>Admin list failed — retry</button>}</Field></div>
+                            <div className="grid gap-3 sm:grid-cols-2"><Field label={t("Status")} error={formState.fields.status}><select className="ui-input min-h-10" value={ticketDraft.status} onChange={event => setTicketDraft(current => ({ ...current, status: event.target.value }))}>{ticketStatuses.map(status => <option key={status} value={status}>{t(status.replaceAll('_', ' '))}</option>)}</select></Field><Field label={t("Assigned admin")} error={formState.fields.assigned_to}><select className="ui-input min-h-10" value={ticketDraft.assigned_to} onChange={event => setTicketDraft(current => ({ ...current, assigned_to: event.target.value }))} disabled={admins.loading || Boolean(admins.error)}><option value="">{t("Unassigned")}</option>{availableAdmins.map(admin => <option key={admin.id} value={admin.id}>{admin.name}</option>)}</select>{admins.error && <button type="button" className="mt-1 text-[11px] text-red-600 underline" onClick={() => { setAdmins(current => ({ ...current, error: '' })); loadAdmins(); }}>Admin list failed — retry</button>}</Field></div>
                             <div className="flex justify-end"><button type="button" className="ui-btn-secondary" disabled={formState.busy} onClick={() => setConfirmation({ type: 'ticket' })}>{t("Review status update")}</button></div>
                             <div className="max-h-80 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3 dark:bg-white/[.03]">{ticketMessages.length ? ticketMessages.map(message => <article key={message.id} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900"><div className="flex justify-between gap-3"><strong className="text-[11px] text-slate-900 dark:text-white">{message.user?.name} · {message.user?.role}</strong><span className="text-[10px] text-slate-400">{formatDateTime(message.created_at)}</span></div><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600 dark:text-slate-300">{message.body}</p></article>) : <EmptyState title={t("No ticket messages")} description={t("This ticket has no visible thread messages.")} />}</div>
                             <form className="space-y-2" onSubmit={sendReply}><Field label={t("Reply to member")} error={formState.fields.reply}><textarea className="ui-input min-h-24 resize-y" maxLength={10000} value={ticketDraft.reply} onChange={event => setTicketDraft(current => ({ ...current, reply: event.target.value }))} /></Field><div className="flex justify-end"><button className="ui-btn-primary min-h-10 px-4 text-xs" disabled={formState.busy || ['closed'].includes(ticketThread.data.status)}>{t("Send reply")}</button></div></form>
@@ -432,27 +419,33 @@ export default function ContentSupport() {
 
             {tab === 'cms' && (
                 <section className="ui-card" aria-labelledby="cms-title"><div className="ui-card-header"><div><h2 id="cms-title" className="ui-section-title">{t("Versioned content blocks")}</h2><p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Draft changes remain private until explicitly published.")}</p></div><button type="button" className="ui-btn-primary min-h-10 px-4 text-xs" onClick={() => startContentEditor(null)}>{t("New block")}</button></div>
-                    <div className="flex flex-wrap gap-2 border-b border-slate-200 p-3 dark:border-white/10"><select className="ui-input min-h-10 w-auto" value={contentFilter.key} onChange={event => setContentFilter(current => ({ ...current, key: event.target.value }))}><option value="">{t("All keys")}</option>{contentKeys.map(key => <option key={key} value={key}>{key}</option>)}</select><select className="ui-input min-h-10 w-auto" value={contentFilter.locale} onChange={event => setContentFilter(current => ({ ...current, locale: event.target.value }))}><option value="">{t("All locales")}</option><option value="id">{t("Indonesian")}</option><option value="en">{t("English")}</option></select></div>
-                    {content.loading && !content.data ? <div className="p-4"><LoadingState label={t("Loading content blocks…")} /></div> : content.error && !content.data ? <div className="p-4"><ErrorState message={content.error} onRetry={() => loadContent()} /></div> : <DataTable rows={contentRows} emptyTitle="No matching content blocks" emptyDescription="Create a draft for an approved key and locale." columns={[
-                        { key: 'key', label: 'Content', render: row => <div><strong className="block text-slate-900 dark:text-white">{row.key}</strong><span className="text-[11px] text-slate-500">{row.locale.toUpperCase()}</span></div> },
-                        { key: 'status', label: 'Publication', render: row => <StatusBadge status={row.is_published ? 'published' : 'draft'} /> },
-                        { key: 'editor', label: 'Last editor', render: row => row.editor?.name || '—' },
-                        { key: 'updated', label: 'Updated', render: row => formatDateTime(row.updated_at) },
-                        { key: 'actions', label: 'Actions', render: row => <div className="flex flex-wrap gap-2"><button type="button" className="ui-btn-secondary" onClick={() => setContentPreview(row)}>{t("Preview")}</button><button type="button" className="ui-btn-secondary" onClick={() => startContentEditor(row)}>{t("Edit draft")}</button><button type="button" className="ui-btn-secondary" onClick={() => setConfirmation({ type: 'publish', block: row })}>{t("Publish")}</button>{row.is_published && <button type="button" className="ui-btn-secondary text-red-600 dark:text-red-400" onClick={() => setConfirmation({ type: 'unpublish', block: row })}>{t("Unpublish")}</button>}</div> },
+                    <div className="flex flex-wrap gap-2 border-b border-slate-200 p-3 dark:border-white/10"><select className="ui-input min-h-10 w-auto" value={contentFilter.key} onChange={event => setContentFilter(current => ({ ...current, key: event.target.value }))}><option value="">{t("All keys")}</option>{contentKeys.map(key => <option key={key} value={key}>{t(contentLabels[key] || key)}</option>)}</select><select className="ui-input min-h-10 w-auto" value={contentFilter.locale} onChange={event => setContentFilter(current => ({ ...current, locale: event.target.value }))}><option value="">{t("All locales")}</option><option value="id">{t("Indonesian")}</option><option value="en">{t("English")}</option></select></div>
+                    {content.loading && !content.data ? <div className="p-4"><LoadingState label={t("Loading content blocks…")} /></div> : content.error && !content.data ? <div className="p-4"><ErrorState message={content.error} onRetry={() => loadContent()} /></div> : <DataTable rows={contentRows} emptyTitle={t("No matching content blocks")} emptyDescription={t("Create a draft for an approved key and locale.")} columns={[
+                        { key: 'key', label: t('Content'), render: row => <div><strong className="block text-slate-900 dark:text-white">{t(contentLabels[row.key] || row.key)}</strong><span className="text-[11px] text-slate-500"><span>{row.key}</span> · <span>{row.locale.toUpperCase()}</span></span></div> },
+                        { key: 'status', label: t('Publication'), render: row => <StatusBadge status={row.is_published ? 'published' : 'draft'} /> },
+                        { key: 'editor', label: t('Last editor'), render: row => row.editor?.name || '—' },
+                        { key: 'updated', label: t('Updated'), render: row => formatDateTime(row.updated_at) },
+                        { key: 'actions', label: t('Actions'), render: row => <div className="flex flex-wrap gap-2"><button type="button" className="ui-btn-secondary" onClick={() => setContentPreview(row)}>{t("Preview")}</button><button type="button" className="ui-btn-secondary" onClick={() => startContentEditor(row)}>{t("Edit draft")}</button><button type="button" className="ui-btn-secondary" onClick={() => setConfirmation({ type: 'publish', block: row })}>{t("Publish")}</button>{row.is_published && <button type="button" className="ui-btn-secondary text-red-600 dark:text-red-400" onClick={() => setConfirmation({ type: 'unpublish', block: row })}>{t("Unpublish")}</button>}<button type="button" className="ui-btn-secondary text-red-600 dark:text-red-400" onClick={() => setConfirmation({ type: 'delete', block: row })}>{t("Delete")}</button></div> },
                     ]} />}
                 </section>
             )}
 
             {feedbackEditor && <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/55 p-4"><form className="w-full max-w-xl space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900" onSubmit={event => { event.preventDefault(); setConfirmation({ type: 'feedback' }); }}><div><h2 className="text-base font-bold text-slate-900 dark:text-white">{t("Moderate feedback")}</h2><p className="mt-1 text-xs text-slate-500">{feedbackEditor.user?.name} · {feedbackEditor.rating}/5</p></div><blockquote className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600 dark:bg-white/[.04] dark:text-slate-300">{feedbackEditor.message}</blockquote><Field label={t("Status")} error={formState.fields.status}><select className="ui-input min-h-10" value={feedbackEditor.status} onChange={event => setFeedbackEditor(current => ({ ...current, status: event.target.value }))}>{feedbackStatuses.map(status => <option key={status} value={status}>{status}</option>)}</select></Field><label className="flex min-h-10 items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" checked={feedbackEditor.is_testimonial} onChange={event => setFeedbackEditor(current => ({ ...current, is_testimonial: event.target.checked }))} />{t("Approved testimonial")}</label><Field label={t("Admin note")} error={formState.fields.admin_note}><textarea className="ui-input min-h-24" maxLength={5000} value={feedbackEditor.admin_note} onChange={event => setFeedbackEditor(current => ({ ...current, admin_note: event.target.value }))} /></Field><div className="flex justify-end gap-2"><button type="button" className="ui-btn-secondary" onClick={() => setFeedbackEditor(null)}>{t("Cancel")}</button><button className="ui-btn-primary min-h-10 px-4 text-xs">{t("Review change")}</button></div></form></div>}
 
-            {contentEditor && <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/55 p-4"><form className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900" onSubmit={saveContent}><div><h2 className="text-base font-bold text-slate-900 dark:text-white">{contentEditor.id ? 'Edit content draft' : 'Create content block'}</h2><p className="mt-1 text-xs text-slate-500">{t("JSON is validated locally, then validated again against the server contract.")}</p>{contentEditor.resolvedFromCreate && <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-300">{t("Blok untuk key & locale ini sudah ada - Anda melanjutkan edit draft yang tersimpan.")}</p>}</div><div className="grid gap-3 sm:grid-cols-2"><Field label={t("Key")} error={formState.fields.key}><select className="ui-input min-h-10" disabled={Boolean(contentEditor.id) && !contentEditor.resolvedFromCreate} value={contentEditor.key} onChange={event => retargetEditor(event.target.value, contentEditor.locale)}>{contentKeys.map(key => <option key={key} value={key}>{key}</option>)}</select></Field><Field label={t("Locale")} error={formState.fields.locale}><select className="ui-input min-h-10" disabled={Boolean(contentEditor.id) && !contentEditor.resolvedFromCreate} value={contentEditor.locale} onChange={event => retargetEditor(contentEditor.key, event.target.value)}><option value="id">{t("Indonesian")}</option><option value="en">{t("English")}</option></select></Field></div>{contentEditor.key === 'system.announcement' && <fieldset className="rounded-xl border border-slate-200 p-3 dark:border-white/10"><legend className="px-1 text-xs font-semibold text-slate-900 dark:text-white">{t('Tampilkan announcement di')}</legend><p className="mb-2 text-[11px] text-slate-500 dark:text-slate-400">{t('Pilih satu atau beberapa halaman. Target dashboard berlaku untuk seluruh halaman member dan admin.')}</p><div className="grid gap-2 sm:grid-cols-2">{announcementSurfaces.map(([value, label]) => <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 hover:border-red-400 dark:border-white/10 dark:text-slate-200"><input type="checkbox" checked={announcementTargets.includes(value)} onChange={event => setAnnouncementSurfaces(event.target.checked ? [...new Set([...announcementTargets, value])] : announcementTargets.filter(surface => surface !== value))} /><span>{t(label)}</span></label>)}</div>{formState.fields['draft.surfaces'] && <p className="mt-2 text-xs text-red-500">{formState.fields['draft.surfaces']}</p>}</fieldset>}
-<Field label={t("Draft JSON")} error={formState.fields.draft}><textarea className="ui-input min-h-72 resize-y font-mono text-xs" spellCheck="false" value={contentEditor.draftText} onChange={event => setContentEditor(current => ({ ...current, draftText: event.target.value }))} /></Field><div className="flex flex-wrap justify-end gap-2"><button type="button" className="ui-btn-secondary" onClick={previewEditorDraft} disabled={formState.busy}>{t("Preview draft")}</button><button type="button" className="ui-btn-secondary" onClick={() => setContentEditor(null)} disabled={formState.busy}>{t("Cancel")}</button><button className="ui-btn-primary min-h-10 px-4 text-xs" disabled={formState.busy}>{formState.busy ? 'Saving…' : 'Save draft'}</button></div></form></div>}
+            {contentEditor && <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/55 p-4"><form className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900" onSubmit={saveContent}>
+                <div><h2 className="text-base font-bold text-slate-900 dark:text-white">{contentEditor.id ? t('Edit content draft') : t('Create content block')}</h2><p className="mt-1 text-xs text-slate-500">{t("Fill in the fields below. Changes stay in the draft until you publish.")}</p>{contentEditor.resolvedFromCreate && <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-300">{t("A block for this key & locale already exists — you are continuing to edit its saved draft.")}</p>}</div>
+                <div className="grid gap-3 sm:grid-cols-2"><Field label={t("Content")} error={formState.fields.key}><select className="ui-input min-h-10" disabled={Boolean(contentEditor.id) && !contentEditor.resolvedFromCreate} value={contentEditor.key} onChange={event => retargetEditor(event.target.value, contentEditor.locale)}>{contentKeys.map(key => <option key={key} value={key}>{t(contentLabels[key] || key)}</option>)}</select></Field><Field label={t("Locale")} error={formState.fields.locale}><select className="ui-input min-h-10" disabled={Boolean(contentEditor.id) && !contentEditor.resolvedFromCreate} value={contentEditor.locale} onChange={event => retargetEditor(contentEditor.key, event.target.value)}><option value="id">{t("Indonesian")}</option><option value="en">{t("English")}</option></select></Field></div>
+                <ContentBlockForm contentKey={contentEditor.key} draft={contentEditor.draft} onChange={setEditorDraft} fieldErrors={formState.fields} />
+                {formState.fields.draft && <p className="text-xs text-red-600 dark:text-red-400">{formState.fields.draft}</p>}
+                <div className="flex flex-wrap justify-end gap-2"><button type="button" className="ui-btn-secondary" onClick={previewEditorDraft} disabled={formState.busy}>{t("Preview draft")}</button><button type="button" className="ui-btn-secondary" onClick={() => setContentEditor(null)} disabled={formState.busy}>{t("Cancel")}</button><button className="ui-btn-primary min-h-10 px-4 text-xs" disabled={formState.busy}>{formState.busy ? t('Saving…') : t('Save draft')}</button></div>
+            </form></div>}
 
-            {confirmation?.type === 'broadcast' && <ConfirmDialog title={t("Send broadcast?")} description={`This creates a durable notification for every member in the “${broadcast.segment}” segment. Recipient count is determined by the server at send time.`} confirmLabel="Send broadcast" onCancel={() => setConfirmation(null)} onConfirm={sendBroadcast} busy={formState.busy} />}
-            {confirmation?.type === 'feedback' && <ConfirmDialog title={t("Save moderation decision?")} description={`Feedback will move to “${feedbackEditor.status}”${feedbackEditor.is_testimonial ? ' and become approved for testimonial use' : ''}.`} confirmLabel="Save decision" onCancel={() => setConfirmation(null)} onConfirm={saveFeedback} busy={formState.busy} />}
-            {confirmation?.type === 'ticket' && <ConfirmDialog title={t("Update ticket workflow?")} description={`Ticket status will become “${ticketDraft.status.replaceAll('_', ' ')}”${ticketDraft.assigned_to ? ' with the selected assignee' : ' and remain unassigned'}.`} confirmLabel="Update ticket" onCancel={() => setConfirmation(null)} onConfirm={updateTicket} busy={formState.busy} />}
-            {confirmation?.type === 'publish' && <ConfirmDialog title={t("Publish this draft?")} description={`${confirmation.block.key} (${confirmation.block.locale}) will replace the currently published content used by the public surface.`} confirmLabel="Publish draft" onCancel={() => setConfirmation(null)} onConfirm={publishContent} busy={formState.busy} />}
-            {confirmation?.type === 'unpublish' && <ConfirmDialog title={t("Unpublish this block?")} description={`${confirmation.block.key} (${confirmation.block.locale}) will stop being served publicly. The draft and last published snapshot are kept for recovery.`} confirmLabel={t("Unpublish")} onCancel={() => setConfirmation(null)} onConfirm={unpublishContent} busy={formState.busy} />}
+            {confirmation?.type === 'broadcast' && <ConfirmDialog title={t("Send broadcast?")} description={`${t("This creates a durable notification for every member in the selected segment. Recipient count is determined by the server at send time.")}`} confirmLabel={t("Send broadcast")} onCancel={() => setConfirmation(null)} onConfirm={sendBroadcast} busy={formState.busy} />}
+            {confirmation?.type === 'feedback' && <ConfirmDialog title={t("Save moderation decision?")} description={`${t("Feedback status will change to")} "${t(feedbackEditor.status)}"${feedbackEditor.is_testimonial ? ' — ' + t("and be approved for testimonial use") : ''}.`} confirmLabel={t("Save decision")} onCancel={() => setConfirmation(null)} onConfirm={saveFeedback} busy={formState.busy} />}
+            {confirmation?.type === 'ticket' && <ConfirmDialog title={t("Update ticket workflow?")} description={`${t("Ticket status will become")} "${t(ticketDraft.status.replaceAll('_', ' '))}"${ticketDraft.assigned_to ? ' — ' + t("with the selected assignee") : ' — ' + t("and remain unassigned")}.`} confirmLabel={t("Update ticket")} onCancel={() => setConfirmation(null)} onConfirm={updateTicket} busy={formState.busy} />}
+            {confirmation?.type === 'publish' && <ConfirmDialog title={t("Publish this draft?")} description={`${t(contentLabels[confirmation.block.key] || confirmation.block.key)} (${confirmation.block.locale.toUpperCase()}) ${t("will replace the currently published content used by the public page.")}`} confirmLabel={t("Publish draft")} onCancel={() => setConfirmation(null)} onConfirm={publishContent} busy={formState.busy} />}
+            {confirmation?.type === 'unpublish' && <ConfirmDialog title={t("Unpublish this block?")} description={`${t(contentLabels[confirmation.block.key] || confirmation.block.key)} (${confirmation.block.locale.toUpperCase()}) ${t("will stop being served publicly. The draft and last published snapshot are kept for recovery.")}`} confirmLabel={t("Unpublish")} onCancel={() => setConfirmation(null)} onConfirm={unpublishContent} busy={formState.busy} />}
+            {confirmation?.type === 'delete' && <ConfirmDialog title={t("Delete this content block?")} description={`${t(contentLabels[confirmation.block.key] || confirmation.block.key)} (${confirmation.block.locale.toUpperCase()}) ${confirmation.block.is_published ? t("is published now; deleting reverts the public page to its built-in default. This cannot be undone.") : t("will be permanently removed. This cannot be undone.")}`} confirmLabel={t("Delete")} onCancel={() => setConfirmation(null)} onConfirm={deleteContent} busy={formState.busy} />}
             {contentPreview && <ContentPreview block={contentPreview} onClose={() => setContentPreview(null)} />}
         </div>
     );

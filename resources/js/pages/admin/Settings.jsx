@@ -341,7 +341,7 @@ export default function Settings() {
                     <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
                 </span>
                 <div className="min-w-0">
-                    <h1 className={`text-2xl font-bold tracking-tight ${head}`}>Pricing &amp; Billing</h1>
+                    <h1 className={`text-2xl font-bold tracking-tight ${head}`}>{t("Pricing & Billing")}</h1>
                     <p className={`text-sm ${muted}`}>{t("Ubah harga paket, tarif PAYG, dan publikasi tanpa rebuild frontend.")}</p>
                 </div>
             </div>

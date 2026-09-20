@@ -193,6 +193,23 @@ class ContentController extends Controller
         return response()->json(['data' => $contentBlock->fresh()->load('editor:id,name,email')]);
     }
 
+    /**
+     * Permanently remove a content block (draft and any published snapshot).
+     * The public surface falls back to its built-in defaults for this key.
+     */
+    public function destroy(Request $request, ContentBlock $contentBlock, AuditService $audit): JsonResponse
+    {
+        $audit->record($request->user(), 'content.deleted', $contentBlock, [
+            'key' => $contentBlock->key,
+            'locale' => $contentBlock->locale,
+            'was_published' => (bool) $contentBlock->is_published,
+        ]);
+
+        $contentBlock->delete();
+
+        return response()->json(['data' => true]);
+    }
+
     public static function payloadIsValid(string $key, mixed $payload): bool
     {
         if (! is_array($payload) || ! in_array($key, self::KEYS, true)) {

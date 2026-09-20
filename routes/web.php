@@ -271,6 +271,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::put('/admin/content/{contentBlock}', [ContentController::class, 'update']);
             Route::post('/admin/content/{contentBlock}/publish', [ContentController::class, 'publish']);
             Route::post('/admin/content/{contentBlock}/unpublish', [ContentController::class, 'unpublish']);
+            Route::delete('/admin/content/{contentBlock}', [ContentController::class, 'destroy']);
             Route::get('/admin/analytics/funnel', [AnalyticsController::class, 'funnel']);
             Route::get('/admin/audit', [AuditController::class, 'index']);
 

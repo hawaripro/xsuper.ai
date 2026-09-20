@@ -10,8 +10,8 @@ test('mobile CMS announcement editor scrolls to a reachable save action', async 
     await page.getByRole('tab', { name: 'CMS', exact: true }).click();
     const row = page.getByRole('row').filter({ hasText: 'system.announcement' }).filter({ has: page.getByText('EN', { exact: true }) });
     await row.getByRole('button', { name: 'Edit draft', exact: true }).click();
-    const editor = page.locator('form').filter({ has: page.getByRole('textbox', { name: 'Draft JSON', exact: true }) });
-    await editor.getByRole('textbox', { name: 'Draft JSON', exact: true }).fill(JSON.stringify({ message: 'Mobile draft persists without publication.', surfaces: ['dashboard', 'landing', 'pricing', 'models'] }));
+    const editor = page.locator('form').filter({ has: page.getByRole('button', { name: 'Save draft', exact: true }) });
+    await editor.getByRole('textbox', { name: 'Message' }).fill('Mobile draft persists without publication.');
     const saved = page.waitForResponse(response => /\/api\/admin\/content\/\d+$/.test(response.url()) && response.request().method() === 'PUT');
     await editor.getByRole('button', { name: 'Save draft', exact: true }).click();
     expect((await saved).status()).toBe(200);
