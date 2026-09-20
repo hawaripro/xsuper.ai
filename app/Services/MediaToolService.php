@@ -65,7 +65,7 @@ final class MediaToolService
         }
         if ($diagnosis === []) {
             try {
-                [$available, $probe] = Cache::remember('media-tools:runtime:'.hash('sha256', json_encode($paths)), 60, function () use ($paths): array {
+                [$available, $probe] = Cache::remember('media-tools:runtime:v2:'.hash('sha256', json_encode($paths)), 60, function () use ($paths): array {
                     $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'check'], base_path('scripts/media'), $this->environment(), json_encode($paths, JSON_THROW_ON_ERROR), 20);
                     $process->run();
                     $state = json_decode($process->getOutput(), true);
@@ -90,7 +90,13 @@ final class MediaToolService
                         'rembg_exit' => $rembg->getExitCode(),
                     ]];
                 });
-                if (in_array(false, $available, true)) {
+                if (! is_array($available) || ! array_key_exists('convert', $available)) {
+                    // A cached entry written by an older shape would otherwise
+                    // destructure into nulls and silently disable every tool.
+                    Cache::forget('media-tools:runtime:v2:'.hash('sha256', json_encode($paths)));
+                    $available = ['download' => false, 'convert' => false, 'rembg' => false];
+                    $diagnosis[] = 'cache-shape';
+                } elseif (in_array(false, $available, true)) {
                     $diagnosis[] = 'probe: '.json_encode($probe);
                 }
             } catch (Throwable $error) {
