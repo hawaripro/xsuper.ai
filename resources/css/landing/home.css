@@ -26,10 +26,8 @@
     flex-shrink: 0;
 }
 .brand img {
-    border-radius: 11px;
     flex-shrink: 0;
     object-fit: contain;
-    background: #071525;
 }
 .brand-ai,
 .brand-period {
