@@ -27,12 +27,16 @@ export default function Security() {
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState({ error: '', success: '' });
+    // On IPv6 the server suggests the /64 prefix: mobile carriers rotate the
+    // interface identifier, so a bare /128 would lock the admin out within hours.
+    const [suggested, setSuggested] = useState('');
 
     const load = useCallback(async () => {
         setStatus({ error: '', success: '' });
         try {
             const data = await apiRequest('/api/security/settings');
             setCurrentIp(data.current_ip || '');
+            setSuggested(data.suggested_entry || data.current_ip || '');
             setEntries(data.settings.admin_ip_allowlist || []);
             setEnforceIp(!!data.settings.enforce_admin_ip);
             setRequire2fa(!!data.settings.require_admin_2fa);
@@ -112,7 +116,7 @@ export default function Security() {
                         <div className={`mt-4 flex flex-wrap items-center gap-2 rounded-xl p-3 text-xs ${dark ? 'bg-white/[0.03]' : 'bg-slate-50'}`}>
                             <span className={muted}>{t('IP Anda saat ini')}:</span>
                             <code className={`font-mono font-bold ${head}`}>{currentIp}</code>
-                            <button type="button" onClick={() => addEntry(currentIp)} className="ml-auto rounded-md bg-blue-500/10 px-2 py-1 text-[11px] font-bold text-blue-500 hover:bg-blue-500/20">+ {t('Tambahkan IP saya')}</button>
+                            <button type="button" onClick={() => addEntry(suggested || currentIp)} className="ml-auto rounded-md bg-blue-500/10 px-2 py-1 text-[11px] font-bold text-blue-500 hover:bg-blue-500/20">+ {t('Tambahkan IP saya')}</button>
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">

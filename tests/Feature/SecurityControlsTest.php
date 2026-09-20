@@ -77,4 +77,50 @@ class SecurityControlsTest extends TestCase
 
         $this->actingAs($member)->getJson('/api/security/settings')->assertForbidden();
     }
+
+    public function test_admin_cannot_authenticate_from_a_disallowed_ip(): void
+    {
+        User::factory()->create([
+            'role' => 'admin', 'email' => 'boss@example.com',
+            'password' => bcrypt('Secret123!'), 'email_verified_at' => now(),
+        ]);
+        SecuritySetting::current()->update([
+            'enforce_admin_ip' => true,
+            'admin_ip_allowlist' => ['10.0.0.0/8'],
+        ]);
+
+        $this->postJson('/api/login', ['email' => 'boss@example.com', 'password' => 'Secret123!'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'ip_not_allowed');
+
+        $this->assertGuest();
+    }
+
+    public function test_member_login_is_unaffected_by_the_admin_allowlist(): void
+    {
+        User::factory()->create([
+            'role' => 'member', 'email' => 'user@example.com',
+            'password' => bcrypt('Secret123!'), 'email_verified_at' => now(),
+            'is_active' => true, 'expires_at' => now()->addDays(30),
+        ]);
+        SecuritySetting::current()->update([
+            'enforce_admin_ip' => true,
+            'admin_ip_allowlist' => ['10.0.0.0/8'],
+        ]);
+
+        $this->postJson('/api/login', ['email' => 'user@example.com', 'password' => 'Secret123!'])
+            ->assertOk();
+    }
+
+    public function test_allowlist_suggests_an_ipv6_prefix_instead_of_a_rotating_address(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($admin)
+            ->withServerVariables(['REMOTE_ADDR' => '2a0a:4cc0:c0:d22e:a446:15ff:fe60:7ca5'])
+            ->getJson('/api/security/settings')
+            ->assertOk();
+
+        $this->assertSame('2a0a:4cc0:c0:d22e::/64', $response->json('suggested_entry'));
+    }
 }

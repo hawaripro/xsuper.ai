@@ -66,6 +66,7 @@ class SecurityController extends Controller
     private function payload(Request $request): array
     {
         $settings = SecuritySetting::current();
+        $ip = (string) $request->ip();
 
         return [
             'settings' => [
@@ -73,8 +74,30 @@ class SecurityController extends Controller
                 'require_admin_2fa' => $settings->require_admin_2fa,
                 'admin_ip_allowlist' => array_values((array) $settings->admin_ip_allowlist),
             ],
-            'current_ip' => $request->ip(),
+            'current_ip' => $ip,
+            'suggested_entry' => $this->suggestEntry($ip),
         ];
+    }
+
+    /**
+     * Mobile networks hand out IPv6 addresses whose interface identifier rotates
+     * (privacy extensions), so pinning a /128 locks the admin out within hours.
+     * Suggest the /64 prefix instead; IPv4 is stable enough to use as-is.
+     */
+    private function suggestEntry(string $ip): string
+    {
+        if ($ip === '' || ! str_contains($ip, ':')) {
+            return $ip;
+        }
+
+        $packed = @inet_pton($ip);
+        if ($packed === false) {
+            return $ip;
+        }
+
+        $prefix = inet_ntop(substr($packed, 0, 8).str_repeat("\0", 8));
+
+        return $prefix === false ? $ip : $prefix.'/64';
     }
 
     private function isValidCidrOrIp(string $value): bool

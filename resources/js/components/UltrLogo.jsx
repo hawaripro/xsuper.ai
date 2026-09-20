@@ -14,22 +14,22 @@ export function UltrLockup({ height = 32, className = '', alt = 'XSuper.ai' }) {
     return (
         <span className={`inline-flex items-center ${className}`}>
             <img
-                src="/xsuper-logo-horizontal-v2.png"
+                src="/xsuper-logo-horizontal-v3.png"
                 alt={alt}
                 className="block dark:hidden object-contain"
                 style={style}
-                width={Math.round((height * 698) / 148)}
+                width={Math.round((height * 698) / 151)}
                 height={height}
                 loading="eager"
                 decoding="async"
             />
             <img
-                src="/xsuper-logo-horizontal-white-v2.png"
+                src="/xsuper-logo-horizontal-white-v3.png"
                 alt=""
                 aria-hidden="true"
                 className="hidden dark:block object-contain"
                 style={style}
-                width={Math.round((height * 698) / 148)}
+                width={Math.round((height * 698) / 151)}
                 height={height}
                 loading="eager"
                 decoding="async"

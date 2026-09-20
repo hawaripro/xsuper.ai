@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SecuritySetting;
 use App\Models\User;
 use App\Services\ReferralService;
 use Illuminate\Http\Request;
@@ -40,6 +41,10 @@ class AuthController extends Controller
             ], 403);
         }
 
+        if ($denied = $this->adminIpDenial($request, $user)) {
+            return $denied;
+        }
+
         if ($user->hasEnabledTwoFactorAuthentication()) {
             // Credentials are correct but the session stays unauthenticated until a valid TOTP code arrives.
             $request->session()->put([
@@ -75,6 +80,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Sesi login sudah berakhir. Masuk kembali.'], 419);
         }
 
+        // Re-checked here, not just in login(): the challenge is a separate request
+        // and the session could otherwise be finished from a different network.
+        if ($denied = $this->adminIpDenial($request, $user)) {
+            $request->session()->forget(['login.id', 'login.remember']);
+
+            return $denied;
+        }
+
         $code = trim((string) $request->input('code', ''));
         $recovery = trim((string) $request->input('recovery_code', ''));
 
@@ -93,6 +106,24 @@ class AuthController extends Controller
         Auth::login($user, $remember);
 
         return $this->authenticated($request, $user);
+    }
+
+    /**
+     * Admins may only authenticate from an allowlisted address while enforcement
+     * is on. Without this the allowlist only covered admin API routes, so a
+     * correct password plus a correct TOTP code still granted a session from
+     * any network.
+     */
+    private function adminIpDenial(Request $request, User $user): ?\Illuminate\Http\JsonResponse
+    {
+        if ($user->role !== 'admin' || SecuritySetting::current()->ipAllowed($request->ip())) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Alamat IP Anda tidak diizinkan untuk akses admin.',
+            'code' => 'ip_not_allowed',
+        ], 403);
     }
 
     private function authenticated(Request $request, User $user)
