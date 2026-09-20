@@ -122,7 +122,13 @@ class AiCatalogController extends Controller
             ], $status);
         }
 
-        $provider = DB::transaction(function () use ($audit, $models, $provider, $connection, $request): AiProviderProfile {
+        // Discovered models used to land as unpublished drafts for every
+        // admin-added provider (base_url is required there), so a provider could
+        // read "Terhubung" while the workspace picker stayed empty. Publish by
+        // default and let the caller opt out explicitly.
+        $publish = $request->boolean('publish', true);
+
+        $provider = DB::transaction(function () use ($audit, $models, $provider, $connection, $request, $publish): AiProviderProfile {
             $provider = $this->lockConnection($provider, $connection);
             $provider->update([
                 'status' => 'healthy',
@@ -146,7 +152,7 @@ class AiCatalogController extends Controller
                         'upstream_model_id' => $metadata['id'],
                         'display_name' => $metadata['name'],
                         'provider_name' => $metadata['provider'] ?? $metadata['owned_by'] ?? $provider->name,
-                        'is_enabled' => $provider->base_url === null,
+                        'is_enabled' => $publish,
                         'category' => $metadata['category'],
                         'tier' => $metadata['tier'] ?? 'Original',
                         'capabilities' => $metadata['capabilities'],

@@ -189,7 +189,10 @@ function TwoFactorSection({ isDark, card, head, muted }) {
 
             {pending && (
                 <form onSubmit={confirm} className="mt-4 grid gap-4 md:grid-cols-[176px_minmax(0,1fr)]">
-                    <div className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10" aria-label={t("Kode QR authenticator")} dangerouslySetInnerHTML={{ __html: security.qr_svg }} />
+                    {/* Fortify renders the QR with hard width/height="192". Tailwind's
+                        preflight only constrains img/video, never svg, so it overflowed
+                        this 176px track and painted over the column beside it. */}
+                    <div className="qr-frame rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10" aria-label={t("Kode QR authenticator")} dangerouslySetInnerHTML={{ __html: security.qr_svg }} />
                     <div className="space-y-3">
                         <p className={`text-xs leading-5 ${muted}`}>{t("Pindai kode QR dengan aplikasi authenticator, atau masukkan kunci ini secara manual, lalu ketik kode 6 digit yang muncul.")}</p>
                         <code className={`block break-all rounded-lg px-3 py-2 font-mono text-xs ${isDark ? 'bg-white/5 text-gray-200' : 'bg-gray-100 text-slate-700'}`}>{security.secret}</code>

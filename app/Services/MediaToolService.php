@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -53,9 +54,18 @@ final class MediaToolService
     {
         $paths = $this->runtimePaths();
         $available = ['download' => false, 'convert' => false, 'rembg' => false];
-        if (config('media_tools.enabled') && $paths['python'] && $paths['ffmpeg'] && $paths['ffprobe']) {
+        $diagnosis = [];
+        if (! config('media_tools.enabled')) {
+            $diagnosis[] = 'media_tools.enabled=false';
+        }
+        foreach (['python', 'ffmpeg', 'ffprobe'] as $binary) {
+            if (! $paths[$binary]) {
+                $diagnosis[] = 'missing MEDIA_'.strtoupper($binary).'_PATH';
+            }
+        }
+        if ($diagnosis === []) {
             try {
-                $available = Cache::remember('media-tools:runtime:'.hash('sha256', json_encode($paths)), 60, function () use ($paths): array {
+                [$available, $probe] = Cache::remember('media-tools:runtime:'.hash('sha256', json_encode($paths)), 60, function () use ($paths): array {
                     $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'check'], base_path('scripts/media'), $this->environment(), json_encode($paths, JSON_THROW_ON_ERROR), 20);
                     $process->run();
                     $state = json_decode($process->getOutput(), true);
@@ -64,15 +74,30 @@ final class MediaToolService
                     $rembg->run();
                     $rembgState = json_decode($rembg->getOutput(), true);
 
-                    return [
+                    return [[
                         'download' => $process->isSuccessful() && ($state['download'] ?? false) === true,
                         'convert' => $process->isSuccessful() && ($state['convert'] ?? false) === true,
                         'rembg' => $rembg->isSuccessful() && ($rembgState['rembg'] ?? false) === true,
-                    ];
+                    ], [
+                        'reasons' => $state['reasons'] ?? null,
+                        'probe_exit' => $process->getExitCode(),
+                        'rembg_exit' => $rembg->getExitCode(),
+                    ]];
                 });
-            } catch (Throwable) {
-                // Never surface process command lines, URL tokens, or raw diagnostics.
+                if (in_array(false, $available, true)) {
+                    $diagnosis[] = 'probe: '.json_encode($probe);
+                }
+            } catch (Throwable $error) {
+                // Diagnostics go to the log only — never to the HTTP response,
+                // which must not leak command lines or URL tokens.
+                $diagnosis[] = 'exception';
+                Log::warning('Media tool capability probe failed', ['error' => $error->getMessage()]);
             }
+        }
+        if ($diagnosis !== []) {
+            // Previously an empty catch swallowed this, so an unavailable tool
+            // was indistinguishable from a misconfigured one.
+            Log::info('Media tools unavailable', ['reasons' => $diagnosis]);
         }
 
         return [

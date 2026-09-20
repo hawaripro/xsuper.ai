@@ -477,6 +477,14 @@ a.cw-crumb:hover { color: var(--cw-accent-text); }
     transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
     overflow: hidden;
 }
+/* Below the 640px grid switch the cards stack full width inside a centred
+   hero, so left-aligned content read as misaligned against the heading. */
+@media (max-width: 639px) {
+    .cw-mode-card {
+        align-items: center;
+        text-align: center;
+    }
+}
 .cw-mode-card:hover { border-color: var(--mode-accent, var(--red-500)); transform: translateY(-2px); box-shadow: var(--cw-shadow); }
 .cw-mode-card:focus-visible { outline: 2px solid rgba(239, 68, 68, 0.5); outline-offset: 2px; }
 .cw-mode-icon {

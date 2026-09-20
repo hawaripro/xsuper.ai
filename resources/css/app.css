@@ -777,3 +777,19 @@ body { background: var(--ui-bg); color: var(--ui-text); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1023px) { .ui-page { padding: 16px; } .ui-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 639px) { .ui-page { padding: 14px; } .ui-page-header { flex-direction: column; } .ui-stat-grid { grid-template-columns: 1fr 1fr; } .ui-stat-value { font-size: 19px; } .ui-table thead { display: none; } .ui-table, .ui-table tbody, .ui-table tr, .ui-table td { display: block; width: 100%; } .ui-table tr { padding: 9px 0; border-bottom: 1px solid var(--ui-border); } .ui-table td { display: flex; justify-content: space-between; gap: 16px; padding: 5px 12px; border: 0; } .ui-table td::before { content: attr(data-label); color: var(--ui-text-faint); font-size: 10px; font-weight: 700; text-transform: uppercase; } }
+
+/* Authenticator QR. Fortify emits width="192" height="192" on the root <svg>;
+   Tailwind preflight constrains img/video only, so the mark overflowed its
+   grid track and collided with the instructions column beside it. */
+.qr-frame {
+    display: grid;
+    place-items: center;
+    max-width: 100%;
+    overflow: hidden;
+}
+.qr-frame > svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 176px;
+}

@@ -14,6 +14,12 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class EnsureEmailVerified
 {
+    /**
+     * Paths an unverified member must still reach. The notification bell,
+     * realtime handshake and broadcast auth are part of the application shell
+     * that renders on the activation screen itself — blocking them returned a
+     * 403 the SPA read as a dead session, so the inbox stayed broken.
+     */
     private const ALLOWED = [
         'api/u/me',
         'api/u/p',
@@ -23,6 +29,14 @@ class EnsureEmailVerified
         'api/user',
         'api/logout',
         'api/health',
+        'api/notifications',
+        'api/notifications/read-all',
+        'api/realtime/config',
+        'api/broadcasting/auth',
+    ];
+
+    private const ALLOWED_PREFIXES = [
+        'api/notifications/',
     ];
 
     public function handle(Request $request, Closure $next): Response
@@ -31,7 +45,11 @@ class EnsureEmailVerified
 
         if ($user && ! $user->isAdmin() && $user->email_verified_at === null) {
             $path = strtolower(trim($request->path(), '/'));
-            if (! in_array($path, self::ALLOWED, true)) {
+            $allowed = in_array($path, self::ALLOWED, true);
+            foreach (self::ALLOWED_PREFIXES as $prefix) {
+                $allowed = $allowed || str_starts_with($path, $prefix);
+            }
+            if (! $allowed) {
                 return response()->json([
                     'message' => 'Aktifkan email Anda terlebih dahulu untuk mengakses fitur ini.',
                     'email_unverified' => true,

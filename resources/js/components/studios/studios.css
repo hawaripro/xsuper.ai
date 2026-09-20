@@ -184,8 +184,16 @@
 .media-studio .studio-monitor-heading { padding: 16px 19px; }
 .media-studio .studio-monitor-heading h2 { font-size: 13px; }
 .media-studio .studio-monitor-heading .studio-help { margin: 0; }
-.media-studio .studio-video-screen { display: grid; place-items: center; min-width: 0; min-height: 330px; aspect-ratio: 16 / 9; padding: 0; background: #0c1420; color: #e4eaf2; }
+/* `aspect-ratio` makes the height definite, so below ~409px of container width
+   the ratio height drops under the min-height floor and the taller children
+   (.studio-progress is 260px on its own) overflowed a box the parent clips.
+   Letting the row grow past the ratio keeps the frame intact on phones. */
+.media-studio .studio-video-screen { display: grid; place-items: center; min-width: 0; min-height: 330px; aspect-ratio: 16 / 9; height: auto; padding: 0; background: #0c1420; color: #e4eaf2; }
 .media-studio .studio-video-screen video { width: 100%; height: 100%; max-height: 510px; min-width: 0; object-fit: contain; }
+@media (max-width: 560px) {
+    .media-studio .studio-video-screen { aspect-ratio: auto; min-height: 210px; }
+    .media-studio .studio-video-screen video { max-height: 58vw; }
+}
 .media-studio .studio-video-screen :is(.studio-empty h3, .studio-progress strong) { color: #e4eaf2; }
 .media-studio .studio-video-screen :is(.studio-empty p, .studio-empty > .studio-icon, .studio-progress p, .studio-progress small) { color: #a4b1c2; }
 .media-studio .studio-player-links { padding: 12px 20px; }

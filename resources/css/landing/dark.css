@@ -30,12 +30,17 @@ html.dark .model-row-logo {
     padding: 0;
     box-shadow: none;
 }
+/* Monochrome marks: the SVG root carries fill="currentColor", and inside an
+   <img> that resolves against the image document, not this page — so the glyph
+   rendered unpredictably. Forcing a pure white silhouette paints the strokes
+   themselves white instead of leaving a pale shape around them. */
 html.dark img[src$="anthropic.svg"],
 html.dark img[src$="zai.svg"],
-html.dark img[src$="kimi.svg"] {
+html.dark img[src$="kimi.svg"],
+html.dark img[src$="chatgpt.svg"] {
     filter: brightness(0) invert(1);
 }
-html.dark img[src$="chatgpt.svg"],
+/* Multi-colour marks keep their own palette. */
 html.dark img[src$="deepseek.svg"],
 html.dark img[src$="gemini.svg"] {
     filter: none;

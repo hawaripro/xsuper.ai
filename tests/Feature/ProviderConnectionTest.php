@@ -363,7 +363,7 @@ class ProviderConnectionTest extends TestCase
         $betaModel = AiModelProfile::where('provider_id', $beta->id)->where('upstream_model_id', 'shared-native')->firstOrFail();
         $this->assertNotSame('shared-native', $betaModel->model_id);
         $this->assertStringStartsWith('beta/', $betaModel->model_id);
-        $this->assertFalse($betaModel->is_enabled);
+        $this->assertTrue($betaModel->is_enabled);
         $this->assertTrue($betaModel->is_available);
         $this->assertFalse($other->fresh()->is_available);
         $publicId = $betaModel->model_id;
@@ -372,7 +372,7 @@ class ProviderConnectionTest extends TestCase
         $this->assertSame(1, AiModelProfile::where('provider_id', $beta->id)->where('upstream_model_id', 'shared-native')->count());
     }
 
-    public function test_new_saved_models_are_unpublished_and_long_native_ids_have_stable_public_aliases(): void
+    public function test_synced_models_are_published_so_they_reach_the_workspace_and_long_native_ids_have_stable_public_aliases(): void
     {
         $provider = $this->provider('long-models');
         $nativeId = str_repeat('m', 160);
@@ -385,13 +385,28 @@ class ProviderConnectionTest extends TestCase
         $model = AiModelProfile::where('provider_id', $provider->id)->where('upstream_model_id', $nativeId)->firstOrFail();
         $this->assertLessThanOrEqual(120, strlen($model->model_id));
         $this->assertStringStartsWith('long-models/', $model->model_id);
-        $this->assertFalse($model->is_enabled);
+        $this->assertTrue($model->is_enabled);
         $this->assertSame('Original', $model->tier);
-        $this->assertSame(0, $provider->models()->where('is_enabled', true)->count());
+        $this->assertSame(2, $provider->models()->where('is_enabled', true)->count());
         $publicId = $model->model_id;
         $this->postJson('/api/admin/ai/providers/'.$provider->id.'/sync')->assertOk();
         $this->assertSame($publicId, $model->fresh()->model_id);
         $this->assertDatabaseCount('ai_model_profiles', 2);
+    }
+
+    public function test_sync_can_stage_models_as_drafts_when_publishing_is_declined(): void
+    {
+        $provider = $this->provider('staged-models');
+        Http::fake(['https://staged-models.example.test/v1/models' => Http::response(['data' => [
+            ['id' => 'staged-one', 'name' => 'Staged one'],
+        ]])]);
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+
+        $this->postJson('/api/admin/ai/providers/'.$provider->id.'/sync', ['publish' => false])->assertOk();
+
+        $model = AiModelProfile::where('provider_id', $provider->id)->firstOrFail();
+        $this->assertFalse($model->is_enabled);
+        $this->assertTrue($model->is_available);
     }
 
     public function test_model_reassignment_requires_explicit_mapping_and_duplicate_identity_rolls_back(): void

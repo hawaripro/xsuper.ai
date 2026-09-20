@@ -218,28 +218,57 @@ def node_version(node, supervisor=None):
         if child.wait() != 0:
             raise MediaError("runtime")
     match = re.fullmatch(rb"v(\d+)\.(\d+)\.(\d+)\s*", raw)
-    if match is None or tuple(map(int, match.groups())) < (25, 9, 0):
+    if match is None or tuple(map(int, match.groups())) < (18, 0, 0):
         raise MediaError("runtime")
     return tuple(map(int, match.groups()))
 
 
+def _version_tuple(raw):
+    match = re.search(rb"version\s+n?(\d+)\.(\d+)", raw)
+    return tuple(map(int, match.groups())) if match else None
+
+
 def runtime_check(manifest):
-    ready = sys.version_info[:2] == (3, 14)
+    # Capability-based, not version-pinned. Pinning exact builds (Python 3.14,
+    # FFmpeg 9.0.1) made every host that was not the dev machine report the
+    # tools as unavailable, even when every required encoder was present.
+    reasons = []
+    if sys.version_info[:2] < (3, 11):
+        reasons.append("python<3.11")
     ffmpeg = executable(manifest.get("ffmpeg"))
     ffprobe = executable(manifest.get("ffprobe"))
-    for binary in (ffmpeg, ffprobe):
+    for label, binary in (("ffmpeg", ffmpeg), ("ffprobe", ffprobe)):
         version = subprocess.run([binary, "-version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=4, check=True).stdout[:1024]
-        ready = ready and re.search(rb"version 9\.0\.1(?:[-\s]|$)", version) is not None
+        parsed = _version_tuple(version)
+        if parsed is None or parsed < (6, 0):
+            reasons.append(f"{label}<6.0")
     encoders = subprocess.run([ffmpeg, "-hide_banner", "-encoders"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=4, check=True).stdout
     names = {match.group(1).decode("ascii") for match in re.finditer(rb"^ [VAS][A-Z.]{5}\s+(\S+)", encoders, re.MULTILINE)}
-    ready = ready and {"libx264", "libvpx-vp9", "aac", "libopus", "libmp3lame", "pcm_s16le", "flac", "png", "mjpeg", "libwebp"}.issubset(names)
+    required = {"libx264", "libvpx-vp9", "aac", "libopus", "libmp3lame", "pcm_s16le", "flac", "png", "mjpeg", "libwebp"}
+    missing = sorted(required - names)
+    if missing:
+        reasons.append("encoders:" + ",".join(missing))
+    ready = not reasons
     downloader = False
+    download_reasons = []
     try:
         node_version(manifest.get("node"))
-        downloader = importlib.metadata.version("yt-dlp") == "2026.8.19" and importlib.metadata.version("yt-dlp-ejs") == "0.8.0"
-    except (importlib.metadata.PackageNotFoundError, MediaError, OSError, subprocess.SubprocessError):
-        pass
-    print(json.dumps({"convert": ready, "download": ready and downloader}), flush=True)
+    except (MediaError, OSError, subprocess.SubprocessError):
+        download_reasons.append("node")
+    try:
+        importlib.metadata.version("yt-dlp")
+    except importlib.metadata.PackageNotFoundError:
+        download_reasons.append("yt-dlp")
+    try:
+        importlib.metadata.version("yt-dlp-ejs")
+    except importlib.metadata.PackageNotFoundError:
+        download_reasons.append("yt-dlp-ejs")
+    downloader = not download_reasons
+    print(json.dumps({
+        "convert": ready,
+        "download": ready and downloader,
+        "reasons": reasons + download_reasons,
+    }), flush=True)
 
 
 def checked_url(value):
@@ -396,8 +425,13 @@ class GuardRedirect(urllib.request.HTTPRedirectHandler):
 
 def download_media(manifest, supervisor):
     os.environ["YTDLP_NO_PLUGINS"] = "1"
-    if importlib.metadata.version("yt-dlp") != "2026.8.19" or importlib.metadata.version("yt-dlp-ejs") != "0.8.0":
-        raise MediaError("runtime")
+    # Presence, not an exact build: pinning the patch release turned a working
+    # host into a hard failure every time upstream published a new yt-dlp.
+    try:
+        importlib.metadata.version("yt-dlp")
+        importlib.metadata.version("yt-dlp-ejs")
+    except importlib.metadata.PackageNotFoundError as error:
+        raise MediaError("runtime") from error
     import yt_dlp
     import yt_dlp.globals
     from yt_dlp.networking._urllib import UrllibRH, UrllibResponseAdapter
@@ -912,7 +946,7 @@ def convert_media(manifest, supervisor):
 
 def main():
     manifest = json.loads(sys.stdin.buffer.read(16385))
-    if not isinstance(manifest, dict) or sys.version_info[:2] != (3, 14):
+    if not isinstance(manifest, dict) or sys.version_info[:2] < (3, 11):
         raise MediaError("runtime")
     environment = {key: value for key, value in os.environ.items() if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP"}}
     os.environ.clear()

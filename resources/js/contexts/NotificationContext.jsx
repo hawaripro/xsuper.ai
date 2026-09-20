@@ -43,7 +43,10 @@ function NotificationSession({ userId, children }) {
     const disconnect = useRef(() => {});
 
     const handleAuthFailure = useCallback((error) => {
-        if (error.status !== 401 && error.status !== 403 && error.status !== 419) return false;
+        // 401/419 mean the session is gone. 403 does not: it is an authorisation
+        // refusal (unverified email, device policy) on a still-valid session, and
+        // latching it here permanently bricked the inbox for the rest of the visit.
+        if (error.status !== 401 && error.status !== 419) return false;
         sessionInvalid.current = true;
         requestVersion.current += 1;
         inboxRequest.current?.abort();
