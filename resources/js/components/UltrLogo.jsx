@@ -1,7 +1,7 @@
 import React from 'react';
 
 /* ============================================================
-   XSuper.ai mark — icon-only (owl+X), safe on dark & light
+   XSuper.ai app icon — red plate + white X, legible on dark & light
    Usage: <UltrLogo size={36} />  or  <UltrLogo className="w-9 h-9" />
    ============================================================ */
 
@@ -11,9 +11,9 @@ export default function UltrLogo({ size, className, alt = 'XSuper.ai' }) {
     return (
         <span className={`relative inline-flex items-center justify-center ${cls}`} style={style} aria-label={alt}>
             <img
-                src="/xsuper-mark.png"
+                src="/xsuper-icon.png"
                 alt={alt}
-                className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(239,68,68,0.35)]"
+                className="w-full h-full object-contain"
                 loading="eager"
                 decoding="async"
                 width={size || 36}
@@ -28,7 +28,7 @@ export default function UltrLogo({ size, className, alt = 'XSuper.ai' }) {
 export function UltrLogoPlain({ size = 32, className = '', alt = 'XSuper.ai' }) {
     return (
         <img
-            src="/xsuper-mark.png"
+            src="/xsuper-icon.png"
             alt={alt}
             className={`inline-block object-contain ${className}`}
             style={{ width: size, height: size }}

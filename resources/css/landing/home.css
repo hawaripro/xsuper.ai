@@ -29,6 +29,25 @@
     flex-shrink: 0;
     object-fit: contain;
 }
+/* Lockup horizontal: wordmark gelap untuk latar terang, putih untuk latar gelap.
+   Keduanya dimuat lalu salah satu disembunyikan agar pergantian tema tidak berkedip. */
+.brand-logo {
+    display: block;
+    width: auto;
+    height: 32px;
+}
+.footer-brand-block .brand-logo {
+    height: 36px;
+}
+.brand-logo-dark {
+    display: none;
+}
+.dark .brand-logo-light {
+    display: none;
+}
+.dark .brand-logo-dark {
+    display: block;
+}
 .brand-ai,
 .brand-period {
     color: var(--blue);
