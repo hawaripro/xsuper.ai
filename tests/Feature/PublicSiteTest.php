@@ -208,8 +208,8 @@ class PublicSiteTest extends TestCase
 
         $this->assertSame('XSuper.ai — AI-Powered Platform for UMKM Indonesia', $html->evaluate('string(//title)'));
         $this->assertCanonicalAndIndexable($html, 'https://xsuper.dev');
-        $this->assertSame('https://xsuper.dev/xsuper-og.png', $html->evaluate('string(//meta[@property="og:image"]/@content)'));
-        $this->assertSame('/xsuper-icon.png', $html->evaluate('string(//link[@rel="icon"]/@href)'));
+        $this->assertSame('https://xsuper.dev/xsuper-og-v2.png', $html->evaluate('string(//meta[@property="og:image"]/@content)'));
+        $this->assertSame('/xsuper-icon-v2.png', $html->evaluate('string(//link[@rel="icon"]/@href)'));
 
         $graph = $this->structuredData($html)['@graph'];
         $byType = array_column($graph, null, '@type');

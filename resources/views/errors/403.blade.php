@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>403 — Akses Ditolak | XSuper.ai</title>
-    <link rel="icon" type="image/png" sizes="512x512" href="/xsuper-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/xsuper-icon-v2.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32-v2.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}

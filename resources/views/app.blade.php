@@ -11,7 +11,7 @@
     <meta property="og:description" content="Workspace dan akun pribadi XSuper.ai.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ rtrim(config('marketing.url'), '/') . '/' . request()->path() }}">
-    <meta property="og:image" content="https://xsuper.dev/xsuper-og.png">
+    <meta property="og:image" content="https://xsuper.dev/xsuper-og-v2.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:type" content="image/png">
@@ -20,13 +20,13 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="XSuper.ai — Workspace AI">
     <meta name="twitter:description" content="Workspace dan akun pribadi XSuper.ai.">
-    <meta name="twitter:image" content="https://xsuper.dev/xsuper-og.png">
+    <meta name="twitter:image" content="https://xsuper.dev/xsuper-og-v2.png">
     <link rel="canonical" href="{{ rtrim(config('marketing.url'), '/') . '/' . request()->path() }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" sizes="512x512" href="/xsuper-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="shortcut icon" type="image/png" href="/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/xsuper-icon-v2.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32-v2.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.png">
+    <link rel="shortcut icon" type="image/png" href="/favicon-32-v2.png">
     @viteReactRefresh
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
 

@@ -14,7 +14,7 @@ export function UltrLockup({ height = 32, className = '', alt = 'XSuper.ai' }) {
     return (
         <span className={`inline-flex items-center ${className}`}>
             <img
-                src="/xsuper-logo-horizontal.png"
+                src="/xsuper-logo-horizontal-v2.png"
                 alt={alt}
                 className="block dark:hidden object-contain"
                 style={style}
@@ -24,7 +24,7 @@ export function UltrLockup({ height = 32, className = '', alt = 'XSuper.ai' }) {
                 decoding="async"
             />
             <img
-                src="/xsuper-logo-horizontal-white.png"
+                src="/xsuper-logo-horizontal-white-v2.png"
                 alt=""
                 aria-hidden="true"
                 className="hidden dark:block object-contain"
@@ -49,7 +49,7 @@ export default function UltrLogo({ size, className, alt = 'XSuper.ai' }) {
     return (
         <span className={`relative inline-flex items-center justify-center ${cls}`} style={style} aria-label={alt}>
             <img
-                src="/xsuper-icon.png"
+                src="/xsuper-icon-v2.png"
                 alt={alt}
                 className="w-full h-full object-contain"
                 loading="eager"
@@ -66,7 +66,7 @@ export default function UltrLogo({ size, className, alt = 'XSuper.ai' }) {
 export function UltrLogoPlain({ size = 32, className = '', alt = 'XSuper.ai' }) {
     return (
         <img
-            src="/xsuper-icon.png"
+            src="/xsuper-icon-v2.png"
             alt={alt}
             className={`inline-block object-contain ${className}`}
             style={{ width: size, height: size }}

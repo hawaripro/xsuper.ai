@@ -45,11 +45,11 @@ const Icon = {
 // a white X glyph for the small avatars, which keep their category-coloured
 // gradient (a red plate inside a red gradient would read as mud).
 const Sigil = ({ className = '' }) => (
-    <img src="/xsuper-icon.png" alt="" aria-hidden="true" className={className} decoding="async" />
+    <img src="/xsuper-icon-v2.png" alt="" aria-hidden="true" className={className} decoding="async" />
 );
 
 const XGlyph = ({ className = '' }) => (
-    <img src="/xsuper-x-white.png" alt="" aria-hidden="true" className={className} decoding="async" />
+    <img src="/xsuper-x-white-v2.png" alt="" aria-hidden="true" className={className} decoding="async" />
 );
 
 // ============================================

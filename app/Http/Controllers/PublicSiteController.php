@@ -48,7 +48,7 @@ class PublicSiteController extends Controller
                         '@type' => 'Organization',
                         'name' => $site['name'],
                         'url' => $site['url'],
-                        'logo' => $site['url'].'/xsuper-icon.png',
+                        'logo' => $site['url'].'/xsuper-icon-v2.png',
                         'contactPoint' => [
                             '@type' => 'ContactPoint',
                             'telephone' => '+'.$site['support']['phone'],
@@ -442,7 +442,7 @@ class PublicSiteController extends Controller
                     'description' => app()->getLocale() === 'en'
                         ? ($model['description_en'] ?? $model['description_id'] ?? $fallback['description'] ?? __('Model AI untuk percakapan, analisis, dan pekerjaan kreatif.'))
                         : ($model['description_id'] ?? $model['description_en'] ?? $fallback['description'] ?? __('Model AI untuk percakapan, analisis, dan pekerjaan kreatif.')),
-                    'logo' => $model['logo_url'] ?? $fallback['logo'] ?? '/xsuper-icon.png',
+                    'logo' => $model['logo_url'] ?? $fallback['logo'] ?? '/xsuper-icon-v2.png',
                     'context' => $model['context_length'] ?? $model['context_window'] ?? null,
                     'maxOutput' => $model['max_output_tokens'] ?? null,
                     'capabilities' => $capabilities,
