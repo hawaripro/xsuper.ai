@@ -453,7 +453,16 @@ def download_media(manifest, supervisor):
     yt_dlp.globals.plugin_dirs.value = []
     node = executable(manifest.get("node"))
     version = node_version(node, supervisor)
-    node_argv = [node, "--permission", "--max-old-space-size=256", "-"]
+    # Node renamed --experimental-permission to --permission (v22.13/v23.5); older builds reject --permission,
+    # which silently breaks YouTube signature/n-challenge solving. Probe the actual build and use what it accepts.
+    permission_flag = "--experimental-permission"
+    try:
+        probe = subprocess.run([node, "--permission", "-e", "0"], capture_output=True, timeout=5)
+        if probe.returncode == 0 and b"bad option" not in probe.stderr:
+            permission_flag = "--permission"
+    except Exception:
+        pass
+    node_argv = [node, permission_flag, "--max-old-space-size=256", "-"]
     # Avoid yt-dlp's unbounded version probe: reuse the already supervised result.
     NodeJsRuntime._info = lambda self: JsRuntimeInfo(
         name="node", path=node, version=".".join(map(str, version)), version_tuple=version,
@@ -524,7 +533,7 @@ def download_media(manifest, supervisor):
         def _create_instance(self, proxies, cookiejar, legacy_ssl_support=None):
             opener = urllib.request.OpenerDirector()
             context = ssl.create_default_context(cafile=certifi.where())
-            for handler in (GuardRequest(budget), urllib.request.ProxyHandler({}), GuardHTTPHandler(), GuardHTTPSHandler(context=context), GuardRedirect(), urllib.request.HTTPDefaultErrorHandler(), urllib.request.HTTPErrorProcessor(), urllib.request.UnknownHandler()):
+            for handler in (GuardRequest(budget), urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(cookiejar), GuardHTTPHandler(), GuardHTTPSHandler(context=context), GuardRedirect(), urllib.request.HTTPDefaultErrorHandler(), urllib.request.HTTPErrorProcessor(), urllib.request.UnknownHandler()):
                 opener.add_handler(handler)
             opener.addheaders = []
             return opener
@@ -534,7 +543,7 @@ def download_media(manifest, supervisor):
 
         def _prepare_headers(self, request, headers):
             headers["Accept-Encoding"] = "identity"
-            headers["User-Agent"] = USER_AGENT
+            headers.setdefault("User-Agent", USER_AGENT)
 
         def _send(self, request):
             checked_url(request.url)

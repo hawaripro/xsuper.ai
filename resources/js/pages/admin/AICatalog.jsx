@@ -225,6 +225,7 @@ export default function AICatalog() {
                                 hasData={!!catalog.data}
                                 onRefresh={loadCatalog}
                                 autoOpenNew
+                                onClose={() => setShowConnect(false)}
                             />
                         </div>
                     )}

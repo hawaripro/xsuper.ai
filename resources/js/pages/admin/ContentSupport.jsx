@@ -243,7 +243,7 @@ export default function ContentSupport() {
     const templateFor = key => JSON.stringify(DRAFT_TEMPLATES[key] ?? {}, null, 2);
 
     // Each key+locale is a singleton: creating over an existing block continues as an edit of its draft.
-    const existingBlockFor = (key, locale) => (content.data || []).find(block => block.key === key && block.locale === locale) || null;
+    const existingBlockFor = (key, locale) => (content.data?.data || []).find(block => block.key === key && block.locale === locale) || null;
 
     const startContentEditor = block => {
         if (!block) {

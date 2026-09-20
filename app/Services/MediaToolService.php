@@ -171,8 +171,14 @@ final class MediaToolService
             abort(503, self::ERRORS['runtime']);
         }
         $paths = $this->runtimePaths();
+        // YouTube blocks anonymous datacenter probes; hand the inspector the same burner cookies
+        // the download path uses so title/format inspection clears the bot check too.
+        $host = parse_url($url, PHP_URL_HOST) ?: '';
+        $useCookies = preg_match('/(^|\.)(youtube\.com|youtu\.be)$/i', $host)
+            && ($cookies = $this->youtubeCookies()) !== null;
         $manifest = [...$paths, 'kind' => 'inspect', 'url' => $url, 'timeout' => 40,
             'input_limit' => $this->inputLimit(), 'output_limit' => $this->outputLimit(),
+            'cookies' => $useCookies ? 'cookies.txt' : null,
             'duration_limit' => min(600, (int) config('media_tools.max_duration_seconds', 600)),
             'dimension_limit' => min(4096, (int) config('media_tools.max_dimension', 4096)),
             'pixel_limit' => min(16777216, (int) config('media_tools.max_pixels', 16777216)),
@@ -181,6 +187,10 @@ final class MediaToolService
         $scratch = $this->directory((string) Str::uuid());
         if (! mkdir($scratch.'/work', 0700, true)) {
             abort(503, self::ERRORS['runtime']);
+        }
+        if ($useCookies) {
+            file_put_contents($scratch.'/work/cookies.txt', $cookies, LOCK_EX);
+            @chmod($scratch.'/work/cookies.txt', 0600);
         }
         $process = null;
         try {

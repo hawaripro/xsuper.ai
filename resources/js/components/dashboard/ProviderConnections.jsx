@@ -21,7 +21,7 @@ const healthStates = {
 };
 const idleForm = { busy: false, error: "", fields: {} };
 
-export default function ProviderConnections({ providers, focusId = null, loading, error, hasData, onRefresh, autoOpenNew = false }) {
+export default function ProviderConnections({ providers, focusId = null, loading, error, hasData, onRefresh, autoOpenNew = false, onClose }) {
     const { t, locale } = useLocale();
     const [draft, setDraft] = useState(null);
     const [formState, setFormState] = useState(idleForm);
@@ -82,6 +82,7 @@ export default function ProviderConnections({ providers, focusId = null, loading
     const closeEditor = () => {
         setDraft(null);
         setFormState(idleForm);
+        onClose?.();
     };
 
     const changeField = (field, value) => {
@@ -244,7 +245,7 @@ export default function ProviderConnections({ providers, focusId = null, loading
 
     return (
         <section className="ui-card" aria-labelledby="provider-title" data-provider-connections>
-            <div className="ui-card-header flex-wrap">
+            {!autoOpenNew && (<div className="ui-card-header flex-wrap">
                 <div className="min-w-0 flex-1 basis-64">
                     <h2 ref={providerHeading} id="provider-title" tabIndex={-1} className="ui-section-title">{t("Koneksi provider AI")}</h2>
                     <p className="mt-1 max-w-prose text-xs leading-5 text-slate-600 dark:text-slate-400">
@@ -259,10 +260,10 @@ export default function ProviderConnections({ providers, focusId = null, loading
                         {t("Provider baru")}
                     </button>
                 </div>
-            </div>
+            </div>)}
 
-            {notice && <p role="status" className="border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs text-emerald-800 dark:text-emerald-300">{notice}</p>}
-            {error && <p role="alert" className="px-4 py-3 text-xs text-red-700 dark:text-red-300">{t(error)} {t("Muat ulang untuk mencoba mengambil katalog lagi.")}</p>}
+            {!autoOpenNew && notice && <p role="status" className="border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs text-emerald-800 dark:text-emerald-300">{notice}</p>}
+            {!autoOpenNew && error && <p role="alert" className="px-4 py-3 text-xs text-red-700 dark:text-red-300">{t(error)} {t("Muat ulang untuk mencoba mengambil katalog lagi.")}</p>}
 
             {draft && (
                 <form key={draft.id ?? "new"} data-provider-editor aria-labelledby="provider-editor-title" onSubmit={saveProvider} className="space-y-4 border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02]">
@@ -326,7 +327,7 @@ export default function ProviderConnections({ providers, focusId = null, loading
                 </form>
             )}
 
-            {loading && !hasData ? (
+            {!autoOpenNew && (loading && !hasData ? (
                 <div className="p-4"><LoadingState label={t("Memuat kesehatan penyedia…")} /></div>
             ) : !providers.length && !error ? (
                 <div className="px-4 py-8 text-center">
@@ -377,8 +378,8 @@ export default function ProviderConnections({ providers, focusId = null, loading
                         );
                     })}
                 </ul>
-            )}
-            {deletion && <MediaActionDialog
+            ))}
+            {!autoOpenNew && deletion && <MediaActionDialog
                 title={t("Hapus provider?")}
                 description={t("Provider ini, seluruh modelnya, dan tarif PAYG terkait akan dihapus. Riwayat penggunaan, tagihan, dan hasil generasi tetap disimpan. Tindakan ini tidak dapat dibatalkan.")}
                 closeLabel={t("Batal")}
