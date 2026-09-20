@@ -71,6 +71,18 @@ class VideoController extends Controller
         return response()->json(['deleted_count' => 1]);
     }
 
+    /** Delete only the uploaded reference image, keeping the video job itself. */
+    public function destroyReference(Request $request, string $jobId, VideoReferenceStore $references): JsonResponse
+    {
+        $job = VideoJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->firstOrFail();
+        $reference = $references->existingPath($job);
+        if ($reference !== null) {
+            $references->delete($reference);
+        }
+
+        return response()->json(['deleted_count' => $reference !== null ? 1 : 0]);
+    }
+
     /** Clear every finished video job; queued and running work stays untouched. */
     public function destroyAll(Request $request, VideoReferenceStore $references): JsonResponse
     {

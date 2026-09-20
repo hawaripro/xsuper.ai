@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale } from '../contexts/LocaleContext';
+import { useTheme } from '../contexts/ThemeContext';
 import DashboardWorkspace from '../components/dashboard/DashboardWorkspace';
 import MediaActionDialog from '../components/MediaActionDialog';
 import { Button, InlineAlert, errorMessage, formatCount, formatLocalDate } from '../components/member/MemberUI';
@@ -62,6 +63,54 @@ function Lightbox({ item, onClose, t, locale }) {
     );
 }
 
+function daysLeft(value) {
+    if (!value) return null;
+    const ms = new Date(value).getTime() - Date.now();
+    if (Number.isNaN(ms)) return null;
+    return Math.max(0, Math.ceil(ms / 86400000));
+}
+
+function StorageMeter({ storage, t, locale }) {
+    const { theme } = useTheme();
+    const shell = { display: 'grid', gap: 10, padding: '14px 16px', border: '1px solid var(--dw-line)', borderRadius: 14, background: 'var(--dw-surface)', color: 'var(--dw-ink)' };
+    const note = <p className="dw-note">{Icons.info}<span>{t('Media dihapus otomatis setelah')} {formatCount(storage.retention_days)} {t('hari — pembersihan berjalan setiap minggu.')}</span></p>;
+    if (storage.unlimited) {
+        return (
+            <section className="lib-storage" style={shell}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{t('Penyimpanan')}</span>
+                    <span style={{ padding: '2px 10px', borderRadius: 999, background: 'var(--dw-accent-soft)', color: 'var(--dw-accent)', fontSize: 11, fontWeight: 700 }}>{t('Tak terbatas')}</span>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--dw-muted)' }}>{t('Terpakai')} {bytes(storage.used_bytes, locale)}</span>
+                {note}
+            </section>
+        );
+    }
+    const used = storage.used_bytes || 0;
+    const quota = storage.quota_bytes || 0;
+    const pct = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : (storage.exceeded ? 100 : 0);
+    const dark = theme === 'dark';
+    const fill = storage.exceeded ? (dark ? '#f87171' : '#dc2626') : pct > 80 ? (dark ? '#fbbf24' : '#d97706') : (dark ? '#34d399' : '#059669');
+    const dl = daysLeft(storage.upgrade_expires_at);
+    const bonusExpiry = dl == null ? '' : dl === 0 ? ` · ${t('berakhir hari ini')}` : ` · ${formatCount(dl)} ${t('hari lagi')}`;
+    return (
+        <section className="lib-storage" style={shell}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{t('Penyimpanan')}</span>
+                <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--dw-muted)' }}><strong style={{ color: 'var(--dw-ink)' }}>{bytes(used, locale)}</strong> / {bytes(quota, locale)}</span>
+            </div>
+            <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={t('Penggunaan penyimpanan')} style={{ height: 10, borderRadius: 999, background: 'var(--dw-surface-alt)', overflow: 'hidden' }}>
+                <div className="transition-all duration-500 ease-out motion-reduce:transition-none" style={{ width: `${pct}%`, height: '100%', backgroundColor: fill, borderRadius: 999 }} />
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--dw-muted)' }}>
+                <span>{storage.exceeded ? t('Kuota penyimpanan terlampaui') : `${t('Tersisa')} ${bytes(storage.remaining_bytes, locale)}`}</span>
+                {storage.upgrade_bytes > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 999, background: 'var(--dw-accent-soft)', color: 'var(--dw-accent)', fontWeight: 650 }}>{t('Bonus')} +{bytes(storage.upgrade_bytes, locale)}{bonusExpiry}</span>}
+            </div>
+            {note}
+        </section>
+    );
+}
+
 export default function Library() {
     const { user } = useAuth();
     const { t, locale, localizedPath } = useLocale();
@@ -114,9 +163,16 @@ export default function Library() {
     const items = state.data?.items || [];
     const counts = state.data?.counts || {};
     const pagination = state.data?.pagination;
+    const storage = state.data?.storage || null;
 
     return (
         <DashboardWorkspace title={t('Library')} description={t('Semua file milik Anda: unggahan referensi, hasil gambar, video, audio, unduhan, dan konversi.')} actions={<button type="button" className="dw-button" onClick={load} disabled={state.loading}>{Icons.refresh}<span>{t('Muat ulang')}</span></button>}>
+            {storage?.exceeded && (
+                <InlineAlert tone="error" action={<Link className="dw-button dw-button-primary" to={localizedPath('/deposit?tab=storage')}>{Icons.arrow}<span>{t('Tingkatkan penyimpanan')}</span></Link>}>
+                    <strong>{t('Penyimpanan penuh.')}</strong> {t('Unduh lalu hapus item lama, atau tingkatkan penyimpanan Anda.')}
+                </InlineAlert>
+            )}
+            {storage && <StorageMeter storage={storage} t={t} locale={locale} />}
             <div className="lib-filters" role="tablist" aria-label={t('Jenis file')}>
                 {TYPES.map(entry => <button key={entry.key} type="button" role="tab" aria-selected={type === entry.key} className={`lib-filter lib-tone-${entry.tone}`} onClick={() => select(entry.key)}>{Icons[entry.icon]}<span>{t(entry.label)}</span>{counts[entry.key] != null && <small>{formatCount(counts[entry.key])}</small>}</button>)}
             </div>

@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\PricingController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\RealtimeController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\StorageUpgradeController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UsageController;
@@ -129,9 +130,10 @@ Route::prefix('api')->middleware('web')->group(function () {
         // Video and image generation
         Route::post('/v/{jobId}/cancel', [VideoController::class, 'cancel']);
         Route::get('/v/{jobId}/reference', [VideoController::class, 'reference']);
+        Route::delete('/v/{jobId}/reference', [VideoController::class, 'destroyReference']);
         Route::middleware('check.expiry')->group(function () {
             Route::get('/v/models', [VideoController::class, 'models']);
-            Route::post('/v/gen', [VideoController::class, 'generate']);
+            Route::post('/v/gen', [VideoController::class, 'generate'])->middleware('storage.available');
             Route::get('/v/history', [VideoController::class, 'history']);
             Route::delete('/v/history', [VideoController::class, 'destroyAll']);
             Route::delete('/v/{jobId}', [VideoController::class, 'destroy']);
@@ -139,7 +141,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/v/{jobId}/asset', [VideoController::class, 'asset']);
 
             Route::get('/images/models', [ImageController::class, 'models']);
-            Route::post('/images', [ImageController::class, 'generate']);
+            Route::post('/images', [ImageController::class, 'generate'])->middleware('storage.available');
             Route::get('/images', [ImageController::class, 'history']);
             Route::delete('/images', [ImageController::class, 'destroyAll']);
             Route::delete('/images/{jobId}', [ImageController::class, 'destroy']);
@@ -149,19 +151,20 @@ Route::prefix('api')->middleware('web')->group(function () {
 
         // Existing outputs and cancellation remain recoverable after subscription expiry.
         Route::get('/audio/models', [AudioController::class, 'models'])->middleware('check.expiry');
-        Route::post('/audio', [AudioController::class, 'generate'])->middleware(['check.expiry', 'throttle:10,1']);
+        Route::post('/audio', [AudioController::class, 'generate'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
         Route::get('/audio', [AudioController::class, 'history']);
         Route::get('/audio/{jobId}', [AudioController::class, 'show']);
         Route::post('/audio/{jobId}/cancel', [AudioController::class, 'cancel']);
         Route::get('/audio/{jobId}/asset', [AudioController::class, 'asset']);
+        Route::delete('/audio/{jobId}', [AudioController::class, 'destroy']);
 
         Route::get('/media-tools/capabilities', [MediaToolController::class, 'capabilities']);
         Route::get('/media-tools', [MediaToolController::class, 'history']);
         Route::delete('/media-tools', [MediaToolController::class, 'destroyAll']);
         Route::post('/media-tools/inspect', [MediaToolController::class, 'inspect'])->middleware(['check.expiry', 'throttle:20,1']);
-        Route::post('/media-tools/download', [MediaToolController::class, 'download'])->middleware(['check.expiry', 'throttle:10,1']);
-        Route::post('/media-tools/convert', [MediaToolController::class, 'convert'])->middleware(['check.expiry', 'throttle:10,1']);
-        Route::post('/media-tools/rembg', [MediaToolController::class, 'removeBackground'])->middleware(['check.expiry', 'throttle:10,1']);
+        Route::post('/media-tools/download', [MediaToolController::class, 'download'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
+        Route::post('/media-tools/convert', [MediaToolController::class, 'convert'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
+        Route::post('/media-tools/rembg', [MediaToolController::class, 'removeBackground'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
         Route::get('/media-tools/{jobId}', [MediaToolController::class, 'show']);
         Route::delete('/media-tools/{jobId}', [MediaToolController::class, 'destroy']);
         Route::post('/media-tools/{jobId}/cancel', [MediaToolController::class, 'cancel']);
@@ -199,6 +202,9 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::put('/pricing/rates/{usageRate}', [PricingController::class, 'saveUsageRate']);
             Route::delete('/pricing/rates/{usageRate}', [PricingController::class, 'destroyUsageRate']);
             Route::post('/pricing/rates/auto', [PricingController::class, 'autoPriceRates']);
+            Route::post('/pricing/storage-plans', [PricingController::class, 'saveStoragePlan']);
+            Route::put('/pricing/storage-plans/{plan}', [PricingController::class, 'saveStoragePlan']);
+            Route::delete('/pricing/storage-plans/{plan}', [PricingController::class, 'destroyStoragePlan']);
             Route::get('/admin/deposits', [DepositController::class, 'adminIndex']);
             Route::post('/admin/deposits/{depositOrder}/approve', [DepositController::class, 'approve']);
             Route::post('/admin/deposits/{depositOrder}/reject', [DepositController::class, 'reject']);
@@ -237,6 +243,10 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/a/period/reject/{order}', [PeriodController::class, 'reject']);
             Route::delete('/a/period/{order}', [PeriodController::class, 'destroy']);
             Route::post('/a/period/add-duration', [PeriodController::class, 'addDuration']);
+            // Storage upgrade orders (admin)
+            Route::get('/a/storage/orders', [StorageUpgradeController::class, 'index']);
+            Route::post('/a/storage/orders/{order}/approve', [StorageUpgradeController::class, 'approve']);
+            Route::post('/a/storage/orders/{order}/reject', [StorageUpgradeController::class, 'reject']);
 
             // Admin Stats
             Route::get('/a/stats/revenue', [AdminStatsController::class, 'revenue']);
@@ -284,6 +294,14 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/period/order', [PeriodController::class, 'store']);
         Route::post('/period/order/{order}/cancel', [PeriodController::class, 'cancel'])->middleware('throttle:20,1');
         Route::get('/period/my-orders', [PeriodController::class, 'myOrders']);
+
+        // Member: storage upgrade orders
+        Route::get('/storage/plans', [StorageUpgradeController::class, 'plans']);
+        Route::get('/storage/usage', [StorageUpgradeController::class, 'usage']);
+        Route::post('/storage/checkout', [StorageUpgradeController::class, 'checkout']);
+        Route::post('/storage/order', [StorageUpgradeController::class, 'store']);
+        Route::post('/storage/order/{order}/cancel', [StorageUpgradeController::class, 'cancel'])->middleware('throttle:20,1');
+        Route::get('/storage/my-orders', [StorageUpgradeController::class, 'myOrders']);
 
         // Onboarding & Templates
         Route::get('/onboarding/status', [OnboardingController::class, 'status']);

@@ -34,6 +34,8 @@ Artisan::command('media-tools:reconcile', function (MediaToolService $tools) {
 
 Schedule::command('media-tools:reconcile')->everyMinute()->withoutOverlapping();
 
+Schedule::command('library:purge')->weekly()->withoutOverlapping();
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');

@@ -13,6 +13,7 @@ import { useLocale } from '../../contexts/LocaleContext';
 const endpoints = {
     users: '/api/a/u',
     orders: '/api/a/period?status=pending',
+    storage: '/api/a/storage/orders',
     expiry: '/api/a/stats/expiring?days=7',
     billing: '/api/pricing/settings',
 };
@@ -20,6 +21,7 @@ const endpoints = {
 const navItems = [
     { label: 'Users', to: '/admin/users' },
     { label: 'Orders', tab: 'orders' },
+    { label: 'Penyimpanan', tab: 'storage' },
     { label: 'Deposit', tab: 'deposits' },
     { label: 'Referrals', tab: 'referrals' },
     { label: 'Expiry', tab: 'expiry' },
@@ -32,6 +34,12 @@ function resourceState() {
 
 function count(value) {
     return new Intl.NumberFormat('id-ID').format(Number(value || 0));
+}
+
+function formatSize(bytes) {
+    const value = Number(bytes || 0);
+    if (value >= 1024 ** 3) return `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(value / 1024 ** 3)} GB`;
+    return `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value / 1024 ** 2)} MB`;
 }
 
 export default function Operations() {
@@ -69,6 +77,7 @@ export default function Operations() {
     }, [depositRefresh]);
 
     const pendingOrders = resources.orders.data?.orders || [];
+    const storageOrders = resources.storage.data?.orders || [];
     const expiring = resources.expiry.data?.expiring || [];
     const expired = resources.expiry.data?.expired || [];
     const users = resources.users.data?.users || [];
@@ -82,9 +91,12 @@ export default function Operations() {
         setConfirmation(null);
         setMutation({ id: current.order.id, error: '', success: '' });
         try {
-            const result = await apiRequest(`/api/a/period/${current.action}/${current.order.id}`, { method: 'POST' });
+            const path = current.type === 'storage'
+                ? `/api/a/storage/orders/${current.order.id}/${current.action}`
+                : `/api/a/period/${current.action}/${current.order.id}`;
+            const result = await apiRequest(path, { method: 'POST' });
             setMutation({ id: null, error: '', success: result?.message || `Order ${current.action === 'approve' ? 'approved' : 'rejected'}.` });
-            await load('orders');
+            await load(current.type === 'storage' ? 'storage' : 'orders');
         } catch (error) {
             setMutation({ id: null, error: error.message || 'Order action failed.', success: '' });
         }
@@ -114,6 +126,7 @@ export default function Operations() {
                 <div className="ui-stat-grid">
                     <StatCard label={t("Accounts")} value={resources.users.loading && !resources.users.data ? '…' : resources.users.error && !resources.users.data ? 'Unavailable' : count(users.length)} detail="Open People & Access for account actions" />
                     <StatCard label={t("Pending orders")} value={resources.orders.loading && !resources.orders.data ? '…' : resources.orders.error && !resources.orders.data ? 'Unavailable' : count(resources.orders.data?.pending_count)} detail="Approve or reject below" tone={resources.orders.data?.pending_count ? 'warn' : 'neutral'} />
+                    <StatCard label={t("Pesanan penyimpanan tertunda")} value={resources.storage.loading && !resources.storage.data ? '…' : resources.storage.error && !resources.storage.data ? t('Unavailable') : count(resources.storage.data?.pending_count)} detail={t("Setujui atau tolak di tab Penyimpanan")} tone={resources.storage.data?.pending_count ? 'warn' : 'neutral'} />
                     <StatCard label={t("Expiring in 7 days")} value={resources.expiry.loading && !resources.expiry.data ? '…' : resources.expiry.error && !resources.expiry.data ? 'Unavailable' : count(resources.expiry.data?.expiring_count)} detail={`${count(resources.expiry.data?.expired_count)} already expired`} tone={resources.expiry.data?.expiring_count ? 'warn' : 'neutral'} />
                     <StatCard label={t("Pending deposits")} value={depositPendingCount === null ? t('Unavailable') : count(depositPendingCount)} detail={t("Approve or reject in Deposit")} tone={depositPendingCount ? 'warn' : 'neutral'} />
                     <StatCard label={t("Active billing rules")} value={resources.billing.loading && !billing ? '…' : resources.billing.error && !billing ? 'Unavailable' : count(activePackages + activeRates)} detail={`${activePackages} packages · ${activeRates} usage rates`} />
@@ -130,8 +143,8 @@ export default function Operations() {
             <section className="ui-card" aria-live="polite">
                 <div className="ui-card-header">
                     <div>
-                        <h2 className="ui-section-title">{tab === 'orders' ? 'Pending order review' : tab === 'expiry' ? 'Membership expiry' : 'Billing configuration'}</h2>
-                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{tab === 'orders' ? 'Actions change the live order and membership state.' : tab === 'expiry' ? 'Accounts approaching or past their expiry timestamp.' : 'Read-only operational summary; edit through Pricing Settings.'}</p>
+                        <h2 className="ui-section-title">{tab === 'orders' ? 'Pending order review' : tab === 'storage' ? t('Pesanan upgrade penyimpanan') : tab === 'expiry' ? 'Membership expiry' : 'Billing configuration'}</h2>
+                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{tab === 'orders' ? 'Actions change the live order and membership state.' : tab === 'storage' ? t('Aksi memengaruhi status pesanan penyimpanan secara langsung.') : tab === 'expiry' ? 'Accounts approaching or past their expiry timestamp.' : 'Read-only operational summary; edit through Pricing Settings.'}</p>
                     </div>
                     {tab === 'orders' && <Link to={localizedPath("/admin/overview")} className="ui-btn-secondary">{t("Full period queue")}</Link>}
                     {tab === 'billing' && <Link to={localizedPath("/admin/settings")} className="ui-btn-secondary">{t("Edit pricing")}</Link>}
@@ -149,6 +162,21 @@ export default function Operations() {
                             { key: 'created', label: 'Submitted', render: row => formatDateTime(row.created_at) },
                             { key: 'status', label: 'Status', render: row => <StatusBadge status={row.status} /> },
                             { key: 'actions', label: 'Actions', render: row => <div className="flex flex-wrap gap-2"><button type="button" className="ui-btn-secondary" disabled={mutation.id === row.id} onClick={() => setConfirmation({ action: 'approve', order: row })}>{t("Approve")}</button><button type="button" className="ui-btn-secondary text-red-600 dark:text-red-400" disabled={mutation.id === row.id} onClick={() => setConfirmation({ action: 'reject', order: row })}>{t("Reject")}</button></div> },
+                        ]}
+                    />
+                ) : tab === 'storage' ? (
+                    <DataTable
+                        rows={storageOrders}
+                        emptyTitle={t("Belum ada pesanan penyimpanan")}
+                        emptyDescription={t("Belum ada pesanan upgrade penyimpanan untuk ditinjau.")}
+                        columns={[
+                            { key: 'member', label: t('Anggota'), render: row => <div><strong className="block text-slate-900 dark:text-white">{row.user_name}</strong><span className="text-[11px] text-slate-500">{row.user_email}</span></div> },
+                            { key: 'plan', label: t('Paket'), render: row => <div><span className="block">{row.label}</span><span className="text-[11px] text-slate-500">+{formatSize(row.extra_bytes)}</span></div> },
+                            { key: 'days', label: t('Masa berlaku'), render: row => `${row.days} ${t('hari')}` },
+                            { key: 'price', label: t('Harga'), render: row => formatCurrency(row.price, 'IDR') },
+                            { key: 'created', label: t('Dibuat'), render: row => formatDateTime(row.created_at) },
+                            { key: 'status', label: t('Status'), render: row => <StatusBadge status={row.status} /> },
+                            { key: 'actions', label: t('Aksi'), render: row => row.status === 'pending' ? <div className="flex flex-wrap gap-2"><button type="button" className="ui-btn-secondary" disabled={mutation.id === row.id} onClick={() => setConfirmation({ type: 'storage', action: 'approve', order: row })}>{t("Setujui")}</button><button type="button" className="ui-btn-secondary text-red-600 dark:text-red-400" disabled={mutation.id === row.id} onClick={() => setConfirmation({ type: 'storage', action: 'reject', order: row })}>{t("Tolak")}</button></div> : <span className="text-[11px] text-slate-500">—</span> },
                         ]}
                     />
                 ) : tab === 'expiry' ? (
@@ -180,8 +208,8 @@ export default function Operations() {
             {confirmation && (
                 <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/55 p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setConfirmation(null); }}>
                     <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="order-confirm-title">
-                        <h2 id="order-confirm-title" className="text-base font-bold text-slate-900 dark:text-white">{confirmation.action === 'approve' ? 'Approve order?' : 'Reject order?'}</h2>
-                        <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{confirmation.action === 'approve' ? `This adds ${confirmation.order.days} days to ${confirmation.order.user_name}'s membership.` : `This rejects ${confirmation.order.user_name}'s pending ${confirmation.order.package} order.`}</p>
+                        <h2 id="order-confirm-title" className="text-base font-bold text-slate-900 dark:text-white">{confirmation.type === 'storage' ? (confirmation.action === 'approve' ? t('Setujui pesanan penyimpanan?') : t('Tolak pesanan penyimpanan?')) : (confirmation.action === 'approve' ? 'Approve order?' : 'Reject order?')}</h2>
+                        <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{confirmation.type === 'storage' ? (confirmation.action === 'approve' ? `${t('Ini mengaktifkan upgrade penyimpanan untuk')} ${confirmation.order.user_name}: +${formatSize(confirmation.order.extra_bytes)}, ${confirmation.order.days} ${t('hari')}.` : `${t('Ini menolak pesanan upgrade penyimpanan milik')} ${confirmation.order.user_name}.`) : (confirmation.action === 'approve' ? `This adds ${confirmation.order.days} days to ${confirmation.order.user_name}'s membership.` : `This rejects ${confirmation.order.user_name}'s pending ${confirmation.order.package} order.`)}</p>
                         <div className="mt-5 flex justify-end gap-2"><button type="button" className="ui-btn-secondary" onClick={() => setConfirmation(null)}>{t("Cancel")}</button><button type="button" className="ui-btn-primary min-h-10 px-4 text-xs" onClick={runOrderAction}>Confirm {confirmation.action}</button></div>
                     </div>
                 </div>

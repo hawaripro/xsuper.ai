@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verify.apikey' => \App\Http\Middleware\VerifyApiKey::class,
             'track.device' => \App\Http\Middleware\TrackDevice::class,
             'ensure.active' => \App\Http\Middleware\EnsureActive::class,
+            'storage.available' => \App\Http\Middleware\EnsureStorageAvailable::class,
         ]);
 
         // Make auth middleware return JSON 401 for AJAX/API requests

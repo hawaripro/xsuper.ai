@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale } from '../contexts/LocaleContext';
-import { apiRequest } from '../lib/api';
-import { Button } from '../components/member/MemberUI';
+import { apiRequest, formatCurrency } from '../lib/api';
+import { Button, InlineAlert, Spinner, errorMessage, formatCount, formatLocalDate } from '../components/member/MemberUI';
 import DataTable from '../components/dashboard/DataTable';
 import QrisCheckout from '../components/QrisCheckout';
 import DepositCheckout from '../components/deposit/DepositCheckout';
@@ -14,11 +14,339 @@ const tabs = [
     { key: 'tokens', label: 'Tokens' },
     { key: 'wallet', label: 'Saldo PAYG' },
     { key: 'subscription', label: 'Langganan' },
+    { key: 'storage', label: 'Penyimpanan' },
 ];
 const historyStatuses = [
     ['checkout', 'Belum dikonfirmasi'], ['pending', 'Menunggu persetujuan'], ['cancelled', 'Dibatalkan'],
     ['approved', 'Disetujui'], ['rejected', 'Ditolak'], ['expired', 'Kedaluwarsa'],
 ];
+
+const STORAGE_TERMINAL = ['approved', 'rejected'];
+const STORAGE_GIB = 1024 ** 3;
+const STORAGE_MIB = 1024 ** 2;
+
+function formatBytes(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes < 0) return '—';
+    if (bytes >= STORAGE_GIB) { const gb = bytes / STORAGE_GIB; return `${gb.toFixed(Number.isInteger(gb) ? 0 : 1)} GB`; }
+    if (bytes >= STORAGE_MIB) return `${Math.round(bytes / STORAGE_MIB)} MB`;
+    if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${Math.round(bytes)} B`;
+}
+
+function formatCountdown(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function StorageUsageBar({ storage }) {
+    const { t, locale } = useLocale();
+    const dateLocale = locale === 'en' ? 'en-US' : 'id-ID';
+    const used = Number(storage?.used_bytes) || 0;
+    const quota = Number(storage?.quota_bytes) || 0;
+    const unlimited = Boolean(storage?.unlimited);
+    const exceeded = Boolean(storage?.exceeded);
+    const pct = unlimited || quota <= 0 ? 0 : Math.min(100, Math.round((used / quota) * 100));
+    return (
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/[0.07] dark:bg-white/[0.025]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-[12px] font-semibold text-slate-900 dark:text-white">{t('Penyimpanan terpakai')}</span>
+                <span className="text-[12px] font-semibold tabular-nums text-slate-700 dark:text-slate-200">{formatBytes(used)}{unlimited ? '' : ` / ${formatBytes(quota)}`}</span>
+            </div>
+            {!unlimited && (
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                    <div className={`h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none ${exceeded ? 'bg-red-600 dark:bg-red-500' : 'bg-red-500 dark:bg-red-400'}`} style={{ width: `${exceeded ? 100 : pct}%` }} />
+                </div>
+            )}
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                <span>{unlimited ? t('Penyimpanan tanpa batas') : exceeded ? t('Kuota penyimpanan terlampaui') : `${t('Sisa')} ${formatBytes(storage?.remaining_bytes)}`}</span>
+                {!unlimited && storage?.upgrade_expires_at && <span>{t('Upgrade berlaku sampai')} {formatLocalDate(storage.upgrade_expires_at, { locale: dateLocale })}</span>}
+            </div>
+            {Number(storage?.upgrade_bytes) > 0 && <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t('Dasar')} {formatBytes(storage?.base_bytes)} + {t('upgrade')} {formatBytes(storage?.upgrade_bytes)}</p>}
+        </div>
+    );
+}
+
+function StorageUpgrade({ active }) {
+    const { t, locale } = useLocale();
+    const dateLocale = locale === 'en' ? 'en-US' : 'id-ID';
+    const [usage, setUsage] = useState({ data: null, loading: true, error: null });
+    const [plans, setPlans] = useState({ data: null, loading: true, error: null });
+    const [orders, setOrders] = useState({ data: null, loading: true, error: null });
+    const [revision, setRevision] = useState(0);
+    const [step, setStep] = useState('select');
+    const [selected, setSelected] = useState(null);
+    const [checkout, setCheckout] = useState(null);
+    const [order, setOrder] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(null);
+    const [existingOrder, setExistingOrder] = useState(false);
+    const [remainingMs, setRemainingMs] = useState(null);
+    const [cancelPromptId, setCancelPromptId] = useState(null);
+    const [cancellingId, setCancellingId] = useState(null);
+    const countdownRef = useRef(null);
+    const pollRef = useRef(null);
+    const mountedRef = useRef(true);
+
+    const stopCountdown = useCallback(() => { if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; } }, []);
+    const stopPolling = useCallback(() => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } }, []);
+    const refresh = useCallback(() => setRevision(value => value + 1), []);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => { mountedRef.current = false; stopCountdown(); stopPolling(); };
+    }, [stopCountdown, stopPolling]);
+
+    useEffect(() => {
+        if (!active) return undefined;
+        const controller = new AbortController();
+        setUsage(current => ({ ...current, loading: true, error: null }));
+        setPlans(current => ({ ...current, loading: true, error: null }));
+        setOrders(current => ({ ...current, loading: true, error: null }));
+        apiRequest('/api/storage/usage', { signal: controller.signal })
+            .then(data => { if (!controller.signal.aborted) setUsage({ data: data?.storage || null, loading: false, error: null }); })
+            .catch(requestError => { if (!controller.signal.aborted) setUsage(current => ({ ...current, loading: false, error: requestError })); });
+        apiRequest('/api/storage/plans', { signal: controller.signal })
+            .then(data => { if (!controller.signal.aborted) setPlans({ data: Array.isArray(data?.plans) ? data.plans : [], loading: false, error: null }); })
+            .catch(requestError => { if (!controller.signal.aborted) setPlans(current => ({ ...current, loading: false, error: requestError })); });
+        apiRequest('/api/storage/my-orders', { signal: controller.signal })
+            .then(data => { if (!controller.signal.aborted) setOrders({ data: Array.isArray(data?.orders) ? data.orders : [], loading: false, error: null }); })
+            .catch(requestError => { if (!controller.signal.aborted) setOrders(current => ({ ...current, loading: false, error: requestError })); });
+        return () => controller.abort();
+    }, [active, revision]);
+
+    const resetFlow = useCallback(() => {
+        stopCountdown(); stopPolling();
+        setStep('select'); setSelected(null); setCheckout(null); setOrder(null);
+        setBusy(false); setError(null); setExistingOrder(false); setRemainingMs(null);
+    }, [stopCountdown, stopPolling]);
+
+    const startCheckout = useCallback(async (plan) => {
+        setBusy(true); setError(null); setExistingOrder(false); stopPolling();
+        try {
+            const response = await apiRequest('/api/storage/checkout', { method: 'POST', body: { plan: plan.key } });
+            const created = response?.checkout;
+            if (!created?.payment_reference) throw new Error(t('Checkout tidak mengembalikan referensi pembayaran.'));
+            if (!mountedRef.current) return;
+            setSelected(plan); setCheckout(created); setOrder(null); setStep('pay');
+            const expiry = new Date(created.expires_at).getTime();
+            const tick = () => {
+                const left = expiry - Date.now();
+                if (!mountedRef.current) return;
+                setRemainingMs(left);
+                if (left <= 0) { stopCountdown(); setStep('select'); setCheckout(null); setError(new Error(t('Waktu pembayaran habis. Buat checkout baru untuk melanjutkan.'))); }
+            };
+            stopCountdown(); tick(); countdownRef.current = setInterval(tick, 1000);
+        } catch (requestError) {
+            if (!mountedRef.current) return;
+            setError(requestError);
+        } finally {
+            if (mountedRef.current) setBusy(false);
+        }
+    }, [stopCountdown, stopPolling, t]);
+
+    const confirmPaid = useCallback(async () => {
+        if (!checkout?.payment_reference || !selected) return;
+        setBusy(true); setError(null);
+        try {
+            const response = await apiRequest('/api/storage/order', { method: 'POST', body: { plan: selected.key, payment_reference: checkout.payment_reference } });
+            if (!mountedRef.current) return;
+            stopCountdown();
+            setOrder(response?.order || null);
+            setStep('wait');
+            setRevision(value => value + 1);
+        } catch (requestError) {
+            if (!mountedRef.current) return;
+            if (requestError?.details?.existing) setExistingOrder(true);
+            setError(requestError);
+        } finally {
+            if (mountedRef.current) setBusy(false);
+        }
+    }, [checkout, selected, stopCountdown]);
+
+    const cancelOrder = useCallback(async (id) => {
+        if (!id || cancellingId) return;
+        setCancellingId(id); setError(null);
+        try {
+            await apiRequest(`/api/storage/order/${id}/cancel`, { method: 'POST' });
+            if (!mountedRef.current) return;
+            setCancelPromptId(null);
+            if (order?.id === id) resetFlow();
+            setRevision(value => value + 1);
+        } catch (requestError) {
+            if (mountedRef.current) setError(requestError);
+        } finally {
+            if (mountedRef.current) setCancellingId(null);
+        }
+    }, [cancellingId, order?.id, resetFlow]);
+
+    useEffect(() => {
+        if (step !== 'wait') { stopPolling(); return undefined; }
+        const check = async () => {
+            try {
+                const response = await apiRequest('/api/storage/my-orders');
+                const list = Array.isArray(response?.orders) ? response.orders : [];
+                if (mountedRef.current) setOrders({ data: list, loading: false, error: null });
+                const current = list.find(item => item.payment_reference === checkout?.payment_reference)
+                    || (order?.id ? list.find(item => item.id === order.id) : null)
+                    || list.find(item => String(item.status).toLowerCase() === 'pending');
+                if (!current || !mountedRef.current) return;
+                setOrder(current);
+                if (STORAGE_TERMINAL.includes(String(current.status).toLowerCase())) {
+                    stopPolling();
+                    const approved = String(current.status).toLowerCase() === 'approved';
+                    setStep(approved ? 'approved' : 'rejected');
+                    if (approved) setRevision(value => value + 1);
+                }
+            } catch { /* transient poll failure: keep polling */ }
+        };
+        check();
+        pollRef.current = setInterval(check, 3000);
+        return () => stopPolling();
+    }, [step, checkout, order?.id, stopPolling]);
+
+    const planList = Array.isArray(plans.data) ? plans.data : [];
+    const orderList = Array.isArray(orders.data) ? orders.data : [];
+
+    return (
+        <div className="space-y-5">
+            {usage.loading && !usage.data ? (
+                <div className="flex min-h-[72px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50/70 dark:border-white/[0.07] dark:bg-white/[0.025]"><Spinner label={t('Memuat penggunaan penyimpanan')} /></div>
+            ) : usage.error ? (
+                <InlineAlert tone="error" action={<Button variant="secondary" onClick={refresh}>{t('Coba lagi')}</Button>}>{errorMessage(usage.error, t('Penggunaan penyimpanan tidak dapat dimuat.'))}</InlineAlert>
+            ) : usage.data ? <StorageUsageBar storage={usage.data} /> : null}
+
+            <div className="space-y-4">
+                {step === 'select' && (
+                    <>
+                        {error && <InlineAlert tone="error">{errorMessage(error, t('Checkout QRIS gagal dibuat.'))}</InlineAlert>}
+                        {plans.loading && !plans.data ? (
+                            <div className="flex min-h-44 items-center justify-center"><Spinner label={t('Memuat paket penyimpanan')} /></div>
+                        ) : plans.error ? (
+                            <div className="space-y-3">
+                                <InlineAlert tone="error">{errorMessage(plans.error, t('Paket penyimpanan tidak dapat dimuat.'))}</InlineAlert>
+                                <Button variant="secondary" onClick={refresh}>{t('Coba lagi')}</Button>
+                            </div>
+                        ) : planList.length === 0 ? (
+                            <InlineAlert tone="info">{t('Pengelola belum menyediakan paket penyimpanan yang dapat dibeli.')}</InlineAlert>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                {planList.map(plan => (
+                                    <button key={plan.key} type="button" disabled={busy} onClick={() => startCheckout(plan)} className={`rounded-lg border p-3 text-left transition disabled:opacity-60 ${selected?.key === plan.key && busy ? 'border-red-500 bg-red-50 ring-2 ring-red-500/10 dark:bg-red-500/10' : 'border-slate-200 hover:border-slate-300 dark:border-white/[0.08] dark:hover:border-white/20'}`}>
+                                        <span className="block text-[12px] font-semibold text-slate-900 dark:text-white">{plan.label}</span>
+                                        <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">+{formatBytes(plan.extra_bytes)} · {formatCount(plan.days)} {t('hari')}</span>
+                                        <span className="mt-2 block text-[12px] font-bold text-red-600 dark:text-red-400">{formatCurrency(plan.price_idr)}</span>
+                                        {busy && selected?.key === plan.key && <span className="mt-2 block"><Spinner label={t('Membuat checkout')} /></span>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {step === 'pay' && checkout && (
+                    <div className="space-y-4 text-center">
+                        <div>
+                            <h3 className="text-base font-bold text-slate-950 dark:text-white">{t('Pindai QRIS untuk membayar')}</h3>
+                            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">{selected?.label} — <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(checkout.amount_idr)}</span></p>
+                        </div>
+                        <div className="inline-block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10">
+                            <img src={checkout.qr_image_url} alt={t('Kode QRIS pembayaran')} className="h-[240px] w-[240px] object-contain" />
+                        </div>
+                        <p className={`text-[12px] font-semibold tabular-nums ${remainingMs !== null && remainingMs < 60000 ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>{t('Kode kedaluwarsa dalam')} {remainingMs === null ? '—' : formatCountdown(remainingMs)}</p>
+                        {error && (
+                            <div className="text-left">
+                                <InlineAlert tone="error">{errorMessage(error, t('Konfirmasi pembayaran gagal.'))}</InlineAlert>
+                                {existingOrder && <div className="mt-2"><Button variant="secondary" onClick={() => { setError(null); setExistingOrder(false); stopCountdown(); setStep('wait'); }}>{t('Lacak order yang menunggu persetujuan')}</Button></div>}
+                            </div>
+                        )}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                            <Button onClick={confirmPaid} disabled={busy}>{busy ? t('Mengonfirmasi…') : t('Saya sudah membayar')}</Button>
+                            <Button variant="secondary" onClick={resetFlow} disabled={busy}>{t('Pilih paket lain')}</Button>
+                        </div>
+                    </div>
+                )}
+
+                {step === 'wait' && (
+                    <div className="space-y-3 text-center">
+                        <div className="flex justify-center"><Spinner label={t('Menunggu persetujuan admin')} /></div>
+                        <p className="text-[12px] text-slate-500 dark:text-slate-400">{t('Order Anda sudah tercatat dan menunggu persetujuan admin. Halaman ini diperbarui otomatis.')}</p>
+                        {order?.id && <p className="text-[11px] text-slate-400 dark:text-slate-500">ULTR-{String(order.id).padStart(4, '0')}</p>}
+                        {error && <InlineAlert tone="error">{errorMessage(error, t('Order tidak dapat dibatalkan.'))}</InlineAlert>}
+                        {order?.id && (cancelPromptId === order.id ? (
+                            <div className="space-y-2">
+                                <p className="text-[12px] font-semibold text-red-600 dark:text-red-300">{t('Batalkan order penyimpanan ini? Jika Anda sudah transfer, jangan batalkan - tunggu peninjauan admin.')}</p>
+                                <div className="flex justify-center gap-2">
+                                    <Button variant="secondary" onClick={() => cancelOrder(order.id)} disabled={cancellingId === order.id}>{cancellingId === order.id ? t('Membatalkan…') : t('Ya, batalkan order')}</Button>
+                                    <Button variant="ghost" onClick={() => setCancelPromptId(null)} disabled={cancellingId === order.id}>{t('Kembali')}</Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <Button variant="ghost" onClick={() => setCancelPromptId(order.id)} disabled={cancellingId !== null}>{t('Batalkan order')}</Button>
+                        ))}
+                    </div>
+                )}
+
+                {step === 'approved' && (
+                    <div className="space-y-3">
+                        <InlineAlert tone="success">{t('Pembayaran disetujui. Kuota penyimpanan Anda sudah bertambah.')}</InlineAlert>
+                        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={resetFlow}>{t('Beli lagi')}</Button></div>
+                    </div>
+                )}
+
+                {step === 'rejected' && (
+                    <div className="space-y-3">
+                        <InlineAlert tone="error">{t('Order ditolak oleh admin. Silakan buat checkout baru atau hubungi pengelola.')}</InlineAlert>
+                        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={resetFlow}>{t('Coba lagi')}</Button></div>
+                    </div>
+                )}
+            </div>
+
+            <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-white/[0.08]">
+                <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-[13px] font-bold text-slate-900 dark:text-white">{t('Pesanan penyimpanan')}</h3>
+                    <Button variant="secondary" disabled={orders.loading} onClick={refresh}>{orders.loading ? t('Memuat…') : t('Perbarui')}</Button>
+                </div>
+                {orders.loading && !orders.data ? (
+                    <div className="py-2"><Spinner label={t('Memuat pesanan penyimpanan')} /></div>
+                ) : orders.error ? (
+                    <InlineAlert tone="error" action={<Button variant="secondary" onClick={refresh}>{t('Coba lagi')}</Button>}>{errorMessage(orders.error, t('Pesanan penyimpanan tidak dapat dimuat.'))}</InlineAlert>
+                ) : orderList.length === 0 ? (
+                    <InlineAlert tone="info">{t('Belum ada pesanan penyimpanan.')}</InlineAlert>
+                ) : (
+                    <ul className="space-y-2">
+                        {orderList.map(item => {
+                            const status = String(item.status || '').toLowerCase();
+                            const pending = status === 'pending';
+                            return (
+                                <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/[0.08]">
+                                    <div className="min-w-0">
+                                        <p className="text-[12px] font-semibold text-slate-900 dark:text-white">{item.label || item.plan_key}</p>
+                                        <p className="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{item.extra_bytes ? `+${formatBytes(item.extra_bytes)} · ` : ''}{item.days ? `${formatCount(item.days)} ${t('hari')} · ` : ''}{formatCurrency(item.price ?? item.price_idr)}</p>
+                                        <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">{formatLocalDate(item.created_at, { locale: dateLocale })}{item.payment_reference ? ` · ${item.payment_reference}` : ''}</p>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                        <DepositStatus status={status} />
+                                        {pending && (cancelPromptId === item.id ? (
+                                            <span className="flex items-center gap-1">
+                                                <Button variant="secondary" onClick={() => cancelOrder(item.id)} disabled={cancellingId === item.id}>{cancellingId === item.id ? t('Membatalkan…') : t('Ya')}</Button>
+                                                <Button variant="ghost" onClick={() => setCancelPromptId(null)} disabled={cancellingId === item.id}>{t('Batal')}</Button>
+                                            </span>
+                                        ) : (
+                                            <Button variant="ghost" onClick={() => setCancelPromptId(item.id)} disabled={cancellingId !== null}>{t('Batalkan')}</Button>
+                                        ))}
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
+}
 
 export default function Deposit() {
     const { t, localizedPath } = useLocale();
@@ -48,7 +376,7 @@ export default function Deposit() {
     const page = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
     const orderValue = Number(searchParams.get('order'));
     const activeOrderId = Number.isSafeInteger(orderValue) && orderValue > 0 ? orderValue : null;
-    const displayedTab = activeOrderId && activeTab === 'subscription' ? 'tokens' : activeTab;
+    const displayedTab = activeOrderId && (activeTab === 'subscription' || activeTab === 'storage') ? 'tokens' : activeTab;
     const query = new URLSearchParams({ page: String(page), per_page: '20', ...(historyStatus ? { status: historyStatus } : {}), ...(historyKind ? { kind: historyKind } : {}) }).toString();
 
     useEffect(() => {
@@ -87,8 +415,9 @@ export default function Deposit() {
 
     const selectTab = key => {
         if (paymentBusy) return;
-        if (key === 'subscription') setCheckoutSnapshot(null);
-        updateQuery({ tab: key === 'tokens' ? null : key, ...(key === 'subscription' ? { order: null } : {}) });
+        const selfContained = key === 'subscription' || key === 'storage';
+        if (selfContained) setCheckoutSnapshot(null);
+        updateQuery({ tab: key === 'tokens' ? null : key, ...(selfContained ? { order: null } : {}) });
     };
     const tabKeyDown = (event, index) => {
         let next;
@@ -226,6 +555,10 @@ export default function Deposit() {
 
                     <section id="deposit-panel-subscription" className="deposit-tab-panel" role="tabpanel" aria-labelledby="deposit-tab-subscription" hidden={displayedTab !== 'subscription'} tabIndex={0}>
                         <div className={`deposit-subscription deposit-surface${activeOrderId ? ' deposit-disabled-surface' : ''}`} aria-disabled={activeOrderId ? 'true' : undefined}>{activeOrderId ? <DepositNotice>{t('Tutup detail deposit sebelum memulai pembayaran langganan.')}</DepositNotice> : <QrisCheckout packages={durationPackages} loading={catalog.loading && !catalog.data} error={catalog.error} onReloadPackages={() => setCatalogRevision(value => value + 1)} onApproved={subscriptionApproved} />}</div>
+                    </section>
+                    <section id="deposit-panel-storage" className="deposit-tab-panel" role="tabpanel" aria-labelledby="deposit-tab-storage" hidden={displayedTab !== 'storage'} tabIndex={0}>
+                        <div className="deposit-section-heading"><div><h2>{t('Tingkatkan penyimpanan')}</h2><p>{t('Perluas kuota Library Anda untuk jangka waktu tertentu. Bayar dengan QRIS lalu tunggu persetujuan admin.')}</p></div></div>
+                        <div className={`deposit-subscription deposit-surface${activeOrderId ? ' deposit-disabled-surface' : ''}`} aria-disabled={activeOrderId ? 'true' : undefined}>{activeOrderId ? <DepositNotice>{t('Tutup detail deposit sebelum membeli penyimpanan.')}</DepositNotice> : <StorageUpgrade active={displayedTab === 'storage'} />}</div>
                     </section>
                 </div>
                 {activeOrderId && <DepositCheckout key={activeOrderId} id={activeOrderId} initialOrder={checkoutSnapshot?.id === activeOrderId ? checkoutSnapshot : historyRows.find(item => item.id === activeOrderId)} onClose={closeOrder} onBalances={updateBalances} onChanged={orderChanged} onBusyChange={updatePaymentBusy} />}

@@ -11,6 +11,7 @@ use App\Models\VideoJob;
 use App\Services\GeneratedAudioStore;
 use App\Services\GeneratedVideoStore;
 use App\Services\VideoReferenceStore;
+use App\Services\StorageQuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +28,7 @@ class LibraryController extends Controller
 
     private const SOURCE_LIMIT = 300;
 
-    public function index(Request $request, VideoReferenceStore $references): JsonResponse
+    public function index(Request $request, VideoReferenceStore $references, StorageQuotaService $storage): JsonResponse
     {
         $input = $request->validate([
             'type' => ['nullable', Rule::in(['all', ...self::TYPES])],
@@ -57,6 +58,7 @@ class LibraryController extends Controller
 
         return response()->json([
             'items' => $filtered->slice(($page - 1) * $perPage, $perPage)->values(),
+            'storage' => $storage->summary($user),
             'counts' => $counts,
             'pagination' => ['current_page' => $page, 'last_page' => $lastPage, 'per_page' => $perPage, 'total' => $total],
         ])->header('Cache-Control', 'private, no-store');
@@ -79,6 +81,8 @@ class LibraryController extends Controller
                         'preview_url' => '/api/images/'.$job->job_id.'/assets/'.$index,
                         'download_url' => '/api/images/'.$job->job_id.'/assets/'.$index,
                         'page_url' => '/generate-image?job='.$job->job_id,
+                        'deletable' => true,
+                        'delete_url' => '/api/images/'.$job->job_id,
                         'model' => $job->model,
                         'created_at' => $job->created_at,
                     ]);
@@ -106,6 +110,8 @@ class LibraryController extends Controller
                         'download_url' => '/api/v/'.$job->job_id.'/asset',
                         'poster_url' => is_string($job->thumbnail_url) && str_starts_with($job->thumbnail_url, '/api/') ? $job->thumbnail_url : null,
                         'page_url' => '/video?job='.$job->job_id,
+                        'deletable' => true,
+                        'delete_url' => '/api/v/'.$job->job_id,
                         'model' => $job->model,
                         'created_at' => $job->completed_at ?? $job->created_at,
                     ]);
@@ -117,6 +123,8 @@ class LibraryController extends Controller
                         'preview_url' => '/api/v/'.$job->job_id.'/reference',
                         'download_url' => '/api/v/'.$job->job_id.'/reference',
                         'page_url' => '/video?job='.$job->job_id,
+                        'deletable' => true,
+                        'delete_url' => '/api/v/'.$job->job_id.'/reference',
                         'model' => $job->model,
                         'created_at' => $job->created_at,
                     ]);
@@ -144,6 +152,8 @@ class LibraryController extends Controller
                     'preview_url' => '/api/audio/'.$job->job_id.'/asset',
                     'download_url' => '/api/audio/'.$job->job_id.'/asset',
                     'page_url' => '/audio?job='.$job->job_id,
+                    'deletable' => true,
+                    'delete_url' => '/api/audio/'.$job->job_id,
                     'model' => $job->model,
                     'kind' => $job->mode,
                     'created_at' => $job->completed_at ?? $job->created_at,

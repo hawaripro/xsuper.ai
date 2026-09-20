@@ -12,6 +12,9 @@ const emptyRate = { service: "api", meter: "input_tokens", model: "", label: "",
 const apiMeters = ["input_tokens", "output_tokens", "cache_read", "cache_write"];
 const nullableNumber = (value) => value === "" || value == null ? null : Number(value);
 const priceInRange = (value, min, max) => value !== "" && Number.isFinite(Number(value)) && Number(value) >= min && Number(value) <= max;
+const GIB = 1024 ** 3;
+const emptyPlan = { key: "", label: "", extra_gb: "", days: "", price_idr: "", price_usd: "", is_active: true, sort_order: 0 };
+const validStorageKey = (value) => /^[a-z0-9_]+$/.test(value);
 
 const TONES = {
     red: "from-red-500 to-rose-600",
@@ -30,6 +33,92 @@ function SectionHead({ dark, tone, icon, id, title, subtitle }) {
             {subtitle && <p className={`mt-0.5 text-xs leading-5 ${dark ? "text-gray-400" : "text-gray-500"}`}>{subtitle}</p>}
         </div>
     </div>;
+}
+
+function StoragePlansTab({ dark, t, plans, busy, setBusy, setStatus, onReload, loading, error }) {
+    const [drafts, setDrafts] = useState({});
+    const [creating, setCreating] = useState(emptyPlan);
+    const [createError, setCreateError] = useState("");
+    const card = dark ? "bg-white/[0.02] border-white/[0.08]" : "bg-white border-gray-200/80";
+    const input = "ui-input min-h-10";
+    const patch = (id, key, value) => setDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
+    const bodyFor = (row) => ({ key: row.key, label: row.label, extra_gb: Number(row.extra_gb), days: Number(row.days), price_idr: Number(row.price_idr), price_usd: Number(row.price_usd), is_active: !!row.is_active, sort_order: Number(row.sort_order) || 0 });
+    const savePlan = async (original) => {
+        const row = { ...original, extra_gb: original.extra_bytes / GIB, ...drafts[original.id] };
+        if (!validStorageKey(row.key)) { setStatus({ error: t("Key hanya boleh huruf kecil, angka, dan garis bawah."), success: "" }); return; }
+        if (!String(row.label).trim()) { setStatus({ error: t("Label paket wajib diisi."), success: "" }); return; }
+        setBusy(true);
+        setStatus({ error: "", success: "" });
+        try {
+            await apiRequest(`/api/pricing/storage-plans/${original.id}`, { method: "PUT", body: bodyFor(row) });
+            setDrafts((current) => { const next = { ...current }; delete next[original.id]; return next; });
+            setStatus({ error: "", success: t("Paket penyimpanan tersimpan.") });
+            await onReload();
+        } catch (err) { setStatus({ error: err.message, success: "" }); }
+        finally { setBusy(false); }
+    };
+    const deletePlan = async (id) => {
+        setBusy(true);
+        setStatus({ error: "", success: "" });
+        try {
+            await apiRequest(`/api/pricing/storage-plans/${id}`, { method: "DELETE" });
+            setDrafts((current) => { const next = { ...current }; delete next[id]; return next; });
+            setStatus({ error: "", success: t("Paket penyimpanan dihapus.") });
+            await onReload();
+        } catch (err) { setStatus({ error: err.message, success: "" }); }
+        finally { setBusy(false); }
+    };
+    const createPlan = async (event) => {
+        event.preventDefault();
+        if (!validStorageKey(creating.key)) { setCreateError(t("Key hanya boleh huruf kecil, angka, dan garis bawah.")); return; }
+        if (!creating.label.trim()) { setCreateError(t("Label paket wajib diisi.")); return; }
+        setBusy(true);
+        setCreateError("");
+        setStatus({ error: "", success: "" });
+        try {
+            await apiRequest("/api/pricing/storage-plans", { method: "POST", body: bodyFor(creating) });
+            setCreating(emptyPlan);
+            setStatus({ error: "", success: t("Paket penyimpanan ditambahkan.") });
+            await onReload();
+        } catch (err) { setCreateError(err.message); setStatus({ error: err.message, success: "" }); }
+        finally { setBusy(false); }
+    };
+    return <section className={`min-w-0 rounded-2xl border ${card} animate-fade-in-up motion-reduce:animate-none`} aria-labelledby="storage-plans-title">
+        <SectionHead dark={dark} tone="cyan" id="storage-plans-title" title={t("Paket penyimpanan")} subtitle={t("Upgrade kuota Library berbasis durasi. Kuota dasar 500 MB per pengguna; paket menambah kapasitas selama masa berlaku.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" /></svg>} />
+        {error && <div className="p-4"><ErrorState message={error} onRetry={onReload} /></div>}
+        {loading && !plans.length ? <div className="p-4"><LoadingState label={t("Memuat paket…")} /></div> : <>
+            <div className="max-w-full overflow-x-auto"><table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr><th className="p-3">{t("Label")}</th><th className="p-3">Key</th><th className="p-3">{t("Ukuran (GB)")}</th><th className="p-3">{t("Masa berlaku (hari)")}</th><th className="p-3">IDR</th><th className="p-3">USD</th><th className="p-3">{t("Urutan")}</th><th className="p-3">{t("Aktif")}</th><th className="p-3">{t("Aksi")}</th></tr></thead>
+                <tbody>{plans.map((original) => {
+                    const row = { ...original, extra_gb: original.extra_bytes / GIB, ...drafts[original.id] };
+                    const dirty = !!drafts[original.id];
+                    return <tr key={original.id} className="border-t border-slate-200 align-top dark:border-white/10">
+                        <td className="min-w-40 p-3"><input className={`${input} min-w-40`} value={row.label} disabled={busy} onChange={(event) => patch(original.id, "label", event.target.value)} aria-label={`${t("Label")} #${original.id}`} />{dirty && <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">{t("Belum disimpan")}</span>}</td>
+                        <td className="p-3"><input className={`${input} min-w-32 font-mono`} value={row.key} disabled={busy} onChange={(event) => patch(original.id, "key", event.target.value)} aria-label={`Key #${original.id}`} /></td>
+                        <td className="p-3"><input className={`${input} w-28`} type="number" min="0" step="0.001" value={row.extra_gb} disabled={busy} onChange={(event) => patch(original.id, "extra_gb", event.target.value)} aria-label={`${t("Ukuran (GB)")} #${original.id}`} /></td>
+                        <td className="p-3"><input className={`${input} w-24`} type="number" min="0" step="1" value={row.days} disabled={busy} onChange={(event) => patch(original.id, "days", event.target.value)} aria-label={`${t("Masa berlaku (hari)")} #${original.id}`} /></td>
+                        <td className="p-3"><input className={`${input} min-w-28`} type="number" min="0" step="1" value={row.price_idr} disabled={busy} onChange={(event) => patch(original.id, "price_idr", event.target.value)} aria-label={`IDR #${original.id}`} /></td>
+                        <td className="p-3"><input className={`${input} min-w-24`} type="number" min="0" step="0.01" value={row.price_usd} disabled={busy} onChange={(event) => patch(original.id, "price_usd", event.target.value)} aria-label={`USD #${original.id}`} /></td>
+                        <td className="p-3"><input className={`${input} w-20`} type="number" min="0" step="1" value={row.sort_order ?? 0} disabled={busy} onChange={(event) => patch(original.id, "sort_order", event.target.value)} aria-label={`${t("Urutan")} #${original.id}`} /></td>
+                        <td className="p-3"><label className="flex min-h-10 items-center gap-2"><input type="checkbox" disabled={busy} checked={!!row.is_active} onChange={(event) => patch(original.id, "is_active", event.target.checked)} aria-label={`${t("Aktif")} #${original.id}`} />{t(row.is_active ? "Aktif" : "Nonaktif")}</label></td>
+                        <td className="p-3"><div className="flex gap-2"><button type="button" className="ui-btn-primary" disabled={busy || !dirty} onClick={() => savePlan(original)}>{t("Simpan")}</button><button type="button" className="ui-btn-secondary" disabled={busy} onClick={() => deletePlan(original.id)}>{t("Hapus")}</button></div></td>
+                    </tr>;
+                })}</tbody>
+            </table>{!plans.length && <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{t("Belum ada paket penyimpanan. Tambahkan di bawah.")}</p>}</div>
+            <form className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-white/10" onSubmit={createPlan}>
+                <label className="text-xs font-medium">{t("Label")}<input className={`${input} mt-1`} required disabled={busy} value={creating.label} onChange={(event) => setCreating((current) => ({ ...current, label: event.target.value }))} /></label>
+                <label className="text-xs font-medium">Key<input className={`${input} mt-1 font-mono`} required disabled={busy} placeholder="contoh_10gb" value={creating.key} onChange={(event) => setCreating((current) => ({ ...current, key: event.target.value }))} /></label>
+                <label className="text-xs font-medium">{t("Ukuran (GB)")}<input className={`${input} mt-1`} type="number" min="0" step="0.001" required disabled={busy} value={creating.extra_gb} onChange={(event) => setCreating((current) => ({ ...current, extra_gb: event.target.value }))} /></label>
+                <label className="text-xs font-medium">{t("Masa berlaku (hari)")}<input className={`${input} mt-1`} type="number" min="0" step="1" required disabled={busy} value={creating.days} onChange={(event) => setCreating((current) => ({ ...current, days: event.target.value }))} /></label>
+                <label className="text-xs font-medium">IDR<input className={`${input} mt-1`} type="number" min="0" step="1" required disabled={busy} value={creating.price_idr} onChange={(event) => setCreating((current) => ({ ...current, price_idr: event.target.value }))} /></label>
+                <label className="text-xs font-medium">USD<input className={`${input} mt-1`} type="number" min="0" step="0.01" required disabled={busy} value={creating.price_usd} onChange={(event) => setCreating((current) => ({ ...current, price_usd: event.target.value }))} /></label>
+                <label className="text-xs font-medium">{t("Urutan")}<input className={`${input} mt-1`} type="number" min="0" step="1" disabled={busy} value={creating.sort_order} onChange={(event) => setCreating((current) => ({ ...current, sort_order: event.target.value }))} /></label>
+                <label className="flex items-center gap-2 self-end text-xs font-medium"><input type="checkbox" className="h-4 w-4" disabled={busy} checked={creating.is_active} onChange={(event) => setCreating((current) => ({ ...current, is_active: event.target.checked }))} />{t("Aktif")}</label>
+                <button type="submit" className="ui-btn-primary self-end" disabled={busy}>{t("Tambah paket")}</button>
+                {createError && <p role="alert" className="text-xs text-red-600 dark:text-red-300 sm:col-span-2 lg:col-span-4">{createError}</p>}
+            </form>
+        </>}
+    </section>;
 }
 
 export default function Settings() {
@@ -59,6 +148,7 @@ export default function Settings() {
     const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState({ error: "", success: "" });
     const [autoForm, setAutoForm] = useState({ margin: 1, idr_per_usd: 16000, overwrite: false });
+    const [tab, setTab] = useState("auto");
     const requests = useRef({ pricing: 0, models: 0 });
 
     const loadPricing = useCallback(async (signal) => {
@@ -233,6 +323,14 @@ export default function Settings() {
         finally { setBusy(false); }
     };
     const fieldError = (type, id, field) => rowErrors[type]?.[id]?.[field] && <span className="mt-1 block max-w-52 whitespace-normal text-xs text-red-600 dark:text-red-300">{t([rowErrors[type][id][field]].flat()[0])}</span>;
+    const tabs = [
+        ["auto", "Auto-harga"],
+        ["durations", "Paket durasi"],
+        ["payg", "Tarif PAYG"],
+        ["tokens", "Paket token"],
+        ["media", "Media & token"],
+        ["storage", "Penyimpanan"],
+    ];
 
     return <div className="mx-auto min-w-0 max-w-7xl space-y-6 p-4 lg:p-6 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" style={{ fontSize: "90%" }}>
         <header className={`relative overflow-hidden rounded-2xl border p-5 lg:p-6 ${dark ? "border-white/[0.08] bg-gradient-to-br from-red-500/[0.08] via-transparent to-violet-500/[0.06]" : "border-gray-200/80 bg-gradient-to-br from-red-50 via-white to-violet-50"} animate-fade-in-up`}>
@@ -262,6 +360,10 @@ export default function Settings() {
             </div>)}
         </div>
         {(status.error || status.success) && <p role={status.error ? "alert" : "status"} className={`rounded-xl border p-3 text-sm ${status.error ? "border-red-500/20 text-red-700 dark:text-red-300" : "border-emerald-500/20 text-emerald-700 dark:text-emerald-300"}`}>{status.error || status.success}</p>}
+        <div className="pw-tabs" role="tablist" aria-label={t("Bagian harga")}>
+            {tabs.map(([id, tabLabel]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className="pw-tab" onClick={() => setTab(id)}>{t(tabLabel)}</button>)}
+        </div>
+        {tab === "auto" && (
         <section className={`relative overflow-hidden rounded-2xl border p-5 ${dark ? "border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-teal-500/[0.05]" : "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50"} animate-fade-in-up`} aria-labelledby="auto-price-title">
             <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 opacity-10 blur-3xl" aria-hidden="true" />
             <div className="pointer-events-none absolute -bottom-12 left-1/4 h-32 w-32 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-500 opacity-[0.07] blur-3xl" aria-hidden="true" />
@@ -297,8 +399,10 @@ export default function Settings() {
                 {t("Tier standar: input 0.15 / output 0.60 USD per 1 juta token. Tier MAX: input 3.00 / output 15.00 USD per 1 juta token.")}
             </p>
         </section>
+        )}
+        {tab === "durations" && (<>
         {loadErrors.pricing && <ErrorState message={loadErrors.pricing} onRetry={() => loadPricing()} />}
-        {loading.pricing && !catalog ? <LoadingState label={t("Memuat pricing…")} /> : catalog && <>
+        {loading.pricing && !catalog ? <LoadingState label={t("Memuat pricing…")} /> : catalog && (
             <section className={panel} aria-labelledby="duration-prices-title">
                 <SectionHead dark={dark} tone="blue" id="duration-prices-title" title={t("Paket durasi")} subtitle={t("Minimal satu paket tetap aktif. Kredit token Deposit dikelola terpisah.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} />
                 <div className="max-w-full overflow-x-auto"><table className="w-full text-left text-sm">
@@ -317,6 +421,11 @@ export default function Settings() {
                 </table></div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4 dark:border-white/10"><span className="text-xs">{durationSelection.length} {t("dipilih")} · {dirtyPackages.length} {t("draf berubah")}</span><div className="flex flex-wrap gap-2"><button className="ui-btn-secondary" disabled={busy || !dirtyPackages.length} onClick={() => { setDurationDrafts({}); setRowErrors((current) => ({ ...current, durations: {} })); }}>{t("Buang draf")}</button><button className="ui-btn-secondary" disabled={busy || !selectedDirtyPackages.length} onClick={() => prepareSave("durations", selectedDirtyPackages)}>{t("Simpan pilihan")} ({selectedDirtyPackages.length})</button><button className="ui-btn-primary" disabled={busy || !dirtyPackages.length} onClick={() => prepareSave("durations", dirtyPackages)}>{t("Simpan paket")} ({dirtyPackages.length})</button></div></div>
             </section>
+        )}
+        </>)}
+        {tab === "payg" && (<>
+        {loadErrors.pricing && <ErrorState message={loadErrors.pricing} onRetry={() => loadPricing()} />}
+        {loading.pricing && !catalog ? <LoadingState label={t("Memuat pricing…")} /> : catalog && (
             <section className={panel} aria-labelledby="usage-prices-title">
                 <SectionHead dark={dark} tone="violet" id="usage-prices-title" title={t("Tarif pay as you go")} subtitle={t("API: input, output, cache read/write per 1 juta token. Image/video: per hasil. Kosong bukan harga nol; pasangan API dipublikasikan bersama.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>} />
                 <RatePairSummary rates={rates} onFocusModel={(model) => { setSearch(model); setPage(1); }} />
@@ -358,13 +467,17 @@ export default function Settings() {
                     {rowErrors.create && Object.keys(rowErrors.create).length > 0 && <p role="alert" className="text-xs text-red-600 dark:text-red-300 sm:col-span-2 lg:col-span-4">{t(Object.values(rowErrors.create).flat()[0])}</p>}
                 </form></details>
             </section>
-        </>}
-        <TokenPackageTable />
+        )}
+        </>)}
+        {tab === "tokens" && <TokenPackageTable />}
+        {tab === "media" && (
         <section className={panel} aria-labelledby="media-token-prices-title">
             <SectionHead dark={dark} tone="cyan" id="media-token-prices-title" title={t("Harga token & konfigurasi media")} subtitle={t("Per model, lintas provider. Semua akun, termasuk admin, membayar token per hasil × jumlah. Ini terpisah dari wallet PAYG dan paket Deposit.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>} />
             {loadErrors.models && <div className="p-4"><ErrorState message={loadErrors.models} onRetry={() => loadModels()} /></div>}
             {loading.models && !modelCatalog ? <div className="p-4"><LoadingState label={t("Memuat model…")} /></div> : modelCatalog && <ModelBulkTable models={modelCatalog.models} providers={modelCatalog.providers} mediaOnly disabled={busy} onRefresh={async () => { await Promise.all([loadModels(), loadPricing()]); }} />}
         </section>
+        )}
+        {tab === "storage" && <StoragePlansTab dark={dark} t={t} plans={catalog?.storage_plans || []} busy={busy} setBusy={setBusy} setStatus={setStatus} onReload={loadPricing} loading={loading.pricing} error={loadErrors.pricing} />}
         {confirmation && <BulkConfirmDialog title={t(confirmation.type === "deleteRates" ? "Hapus tarif terpilih?" : confirmation.type === "durations" ? "Simpan paket durasi?" : "Simpan tarif terpilih?")} count={confirmation.ids.length} rows={confirmation.ids.map((id) => ({ id, label: confirmation.type === "durations" ? catalog.duration_packages[id]?.label : `${rateById.get(id)?.model} · ${rateById.get(id)?.meter}` }))} description={t(confirmation.type === "deleteRates" ? "Hanya tarif dengan ID ini yang dihapus. Jika pasangan API tidak lengkap, tarif saudara dinonaktifkan. Riwayat dan saldo tidak dihapus." : confirmation.type === "durations" ? "Simpan seluruh perubahan paket dalam satu transaksi. Minimal satu paket harus tetap aktif." : "Simpan seluruh baris dalam satu transaksi. Publikasi input/output API mengikuti pasangan; seluruh harga aktif wajib lengkap.")} destructive={confirmation.type === "deleteRates"} busy={busy} onCancel={() => setConfirmation(null)} onConfirm={mutate} />}
     </div>;
 }

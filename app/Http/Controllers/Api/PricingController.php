@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AiModelProfile;
 use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
+use App\Models\StorageUpgradePlan;
 use App\Models\UsageRate;
 use App\Models\Wallet;
 use App\Services\AuditService;
@@ -25,6 +26,7 @@ class PricingController extends Controller
         return response()->json([
             'duration_packages' => DurationPackagePrice::catalog(),
             'usage_rates' => UsageRate::query()->orderBy('sort_order')->orderBy('label')->get(),
+            'storage_plans' => StorageUpgradePlan::query()->orderBy('sort_order')->orderBy('price_idr')->get(),
         ]);
     }
 
@@ -52,6 +54,49 @@ class PricingController extends Controller
         $prices = $this->persistDurations($request, [['package' => $package, ...$validated]], $audit);
 
         return response()->json(['duration_package' => $prices->firstWhere('package', $package)]);
+    }
+
+    public function saveStoragePlan(Request $request, AuditService $audit, ?StorageUpgradePlan $plan = null): JsonResponse
+    {
+        $validated = $request->validate([
+            'key' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9_]+$/', Rule::unique('storage_upgrade_plans', 'key')->ignore($plan?->id)],
+            'label' => ['required', 'string', 'max:120'],
+            'extra_gb' => ['required', 'numeric', 'min:0.1', 'max:1024'],
+            'days' => ['required', 'integer', 'min:1', 'max:3650'],
+            'price_idr' => ['required', 'integer', 'min:1', 'max:4294967295'],
+            'price_usd' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'is_active' => ['required', 'boolean'],
+            'sort_order' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:65535'],
+        ]);
+        $attributes = [
+            'key' => $validated['key'], 'label' => $validated['label'],
+            'extra_bytes' => (int) round($validated['extra_gb'] * (1024 ** 3)),
+            'days' => (int) $validated['days'], 'price_idr' => (int) $validated['price_idr'],
+            'price_usd' => $validated['price_usd'], 'is_active' => $validated['is_active'],
+            'sort_order' => $validated['sort_order'] ?? 0,
+        ];
+        $model = DB::transaction(function () use ($plan, $attributes, $request, $audit): StorageUpgradePlan {
+            if ($plan?->exists) {
+                $plan->update($attributes);
+                $audit->record($request->user(), 'storage_plan.updated', $plan);
+
+                return $plan->fresh();
+            }
+            $created = StorageUpgradePlan::create($attributes);
+            $audit->record($request->user(), 'storage_plan.created', $created);
+
+            return $created;
+        });
+
+        return response()->json(['storage_plan' => $model], $plan?->exists ? 200 : 201);
+    }
+
+    public function destroyStoragePlan(Request $request, StorageUpgradePlan $plan, AuditService $audit): JsonResponse
+    {
+        $audit->record($request->user(), 'storage_plan.deleted', $plan);
+        $plan->delete();
+
+        return response()->json(['deleted' => true]);
     }
 
     public function saveUsageRate(Request $request, AuditService $audit, ?UsageRate $usageRate = null): JsonResponse

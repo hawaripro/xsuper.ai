@@ -82,6 +82,25 @@ class AudioController extends Controller
         ], $cancelled ? 200 : 409);
     }
 
+    /** Delete one finished audio job and its private asset. Active work is protected. */
+    public function destroy(Request $request, string $jobId): JsonResponse
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $jobId): void {
+            $job = AudioJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
+            if (in_array($job->status, ['pending', 'processing'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
+            }
+            $path = GeneratedAudioStore::path($job->job_id);
+            $disk = Storage::disk('local');
+            if ($disk->exists($path)) {
+                $disk->deleteDirectory(dirname($path));
+            }
+            $job->delete();
+        });
+
+        return response()->json(['deleted_count' => 1]);
+    }
+
     public function asset(Request $request, string $jobId): BinaryFileResponse
     {
         $job = AudioJob::query()->where('job_id', $jobId)->firstOrFail();
