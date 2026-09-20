@@ -900,7 +900,7 @@ def convert_media(manifest, supervisor):
     if format_ in ("mp4", "webm"):
         width, height = RESOLUTIONS.get(options_.get("resolution"), (1920, 1080))
         crf, maxrate, vp9_rate = ENCODINGS.get(options_.get("encoding"), ENCODINGS["balanced"])
-        command += ["-map", "0:v:0", "-map", "1:a:0" if audio_info else "0:a:0?", "-vf", f"scale=w='min({width},iw)':h='min({height},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1", "-r", "30", "-pix_fmt", "yuv420p", "-ac", "2", "-ar", "48000"]
+        command += ["-map", "0:v:0", "-map", "1:a:0" if audio_info else "0:a:0?", "-vf", f"scale=w='min({width},iw)':h='min({height},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1", "-r", "30", "-pix_fmt", "yuv420p", "-ac", "2", "-ar", "48000"]
         if format_ == "mp4":
             command += ["-c:v", "libx264", "-preset", "veryfast", "-crf", crf, "-maxrate", maxrate, "-bufsize", "5000k", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-f", "mp4"]
         else:
