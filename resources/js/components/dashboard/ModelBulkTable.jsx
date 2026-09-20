@@ -7,6 +7,9 @@ import GenerationConfigFields, { generationConfigDraft, parseGenerationConfig } 
 
 const pageSizeOptions = [25, 50, 100];
 const mediaCategories = ["image", "video", "audio"];
+const isUnpriced = (model) => mediaCategories.includes(model.category)
+    ? !Number(model.token_cost)
+    : !Number(model.rates?.input_tokens?.price_usd) && !Number(model.rates?.output_tokens?.price_usd);
 const integer = (value, min, max) => value !== "" && Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max;
 
 export default function ModelBulkTable({ models, providers = [], onRefresh, onEdit, onToggle, mediaOnly = false, disabled = false, providerId }) {
@@ -15,6 +18,8 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const [providerFilter, setProviderFilter] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
     const [publicationFilter, setPublicationFilter] = useState("");
+    const [priceFilter, setPriceFilter] = useState("");
+    const [copiedId, setCopiedId] = useState(null);
     const [selectedOnly, setSelectedOnly] = useState(false);
     const [selected, setSelected] = useState([]);
     const [explicitIds, setExplicitIds] = useState("");
@@ -44,8 +49,9 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             && (!activeProvider || String(model.provider_id ?? model.provider?.id ?? "") === activeProvider)
             && (!categoryFilter || model.category === categoryFilter)
             && (!publicationFilter || String(model.is_enabled) === publicationFilter)
+            && (!priceFilter || (priceFilter === "unpriced") === isUnpriced(model))
             && (!needle || [model.id, model.model_id, model.upstream_model_id, model.display_name, model.provider_name, model.tier].some((value) => String(value ?? "").toLowerCase().includes(needle))));
-    }, [scopedModels, selectedOnly, selection, activeProvider, categoryFilter, publicationFilter, search]);
+    }, [scopedModels, selectedOnly, selection, activeProvider, categoryFilter, publicationFilter, priceFilter, search]);
     const lastPage = Math.max(1, Math.ceil(visible.length / pageSize));
     const currentPage = Math.min(page, lastPage);
     const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -54,7 +60,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const selectedDirty = dirtyIds.filter((id) => selection.has(id));
     const selectedOffPage = selected.filter((id) => !pageRows.some((model) => model.id === id)).length;
 
-    useEffect(() => { setPage(1); }, [search, activeProvider, categoryFilter, publicationFilter, selectedOnly, pageSize]);
+    useEffect(() => { setPage(1); }, [search, activeProvider, categoryFilter, publicationFilter, priceFilter, selectedOnly, pageSize]);
     useEffect(() => { setSelected((current) => current.every((id) => byId.has(id)) ? current : current.filter((id) => byId.has(id))); }, [byId]);
     useEffect(() => {
         if (!confirmation && deletionCompleted.current) {
@@ -202,6 +208,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     };
     const fieldError = (id, key) => rowErrors[id]?.[key] && <span className="mt-1 block max-w-56 whitespace-normal text-xs text-red-600 dark:text-red-300">{t([rowErrors[id][key]].flat()[0])}</span>;
     const tableInput = "ui-input min-h-9 w-24 px-2";
+    const numericInput = "ui-input min-h-9 w-24 px-2 text-right tabular-nums";
 
     return <div className="min-w-0 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" aria-busy={busy}>
         <div className="flex flex-wrap gap-3 border-b border-slate-200 p-4 dark:border-white/10">
@@ -219,6 +226,9 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             </label>
             <label className="text-xs font-medium">{t("Publikasi")}
                 <select className="ui-input mt-1 min-h-10" value={publicationFilter} onChange={(event) => setPublicationFilter(event.target.value)}><option value="">{t("Semua status")}</option><option value="true">{t("Dipublikasikan")}</option><option value="false">{t("Draf")}</option></select>
+            </label>
+            <label className="text-xs font-medium">{t("Harga")}
+                <select className="ui-input mt-1 min-h-10" value={priceFilter} onChange={(event) => setPriceFilter(event.target.value)}><option value="">{t("Semua harga")}</option><option value="priced">{t("Sudah berharga")}</option><option value="unpriced">{t("Belum berharga")}</option></select>
             </label>
         </div>
         <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4 dark:border-white/10">
@@ -259,15 +269,24 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                     return <Fragment key={model.id}>
                         <tr className={`border-t border-slate-200 align-top dark:border-white/10 ${selection.has(model.id) ? "bg-red-50/60 dark:bg-red-500/5" : ""}`}>
                             <td className="p-3"><input type="checkbox" aria-label={`${t("Pilih model")} ${model.model_id}`} checked={selection.has(model.id)} disabled={locked} onChange={() => setSelection(selection.has(model.id) ? selected.filter((id) => id !== model.id) : [...selected, model.id])} /></td>
-                            <td className="min-w-48 max-w-64 p-3"><strong className="block whitespace-normal text-slate-900 dark:text-white">{model.display_name || model.model_id}</strong><span className="mt-1 block break-all font-mono text-xs">#{model.id} · {model.model_id}</span><span className="mt-1 block text-slate-500 dark:text-slate-400">{model.provider_name || model.provider?.name || "—"}</span>{drafts[model.id] && <span className="mt-2 block font-semibold text-amber-700 dark:text-amber-300">{t("Belum disimpan")}</span>}{errors.row && fieldError(model.id, "row")}{errors.rates && fieldError(model.id, "rates")}
-                                <span className="mt-2 block tabular-nums text-slate-500 dark:text-slate-400">{isMedia ? `${t("Tarif unit USD (terpisah)")}: ${model.rates?.unit?.price_usd == null ? "—" : `$${model.rates.unit.price_usd}`}` : `USD / 1M: ${model.rates?.input_tokens?.price_usd ?? "—"} / ${model.rates?.output_tokens?.price_usd ?? "—"}`}</span>
+                            <td className="min-w-48 max-w-64 p-3"><strong className="block whitespace-normal text-slate-900 dark:text-white">{model.display_name || model.model_id}</strong><span className="mt-1 flex items-center gap-1.5 break-all font-mono text-xs">#{model.id} · {model.model_id}
+                                <button type="button" className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors motion-reduce:transition-none ${copiedId === model.id ? "border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-slate-200 text-slate-500 hover:bg-slate-100 dark:border-white/10 dark:hover:bg-white/10"}`} aria-label={`${t(copiedId === model.id ? "Tersalin" : "Salin ID model")} ${model.model_id}`} title={t(copiedId === model.id ? "Tersalin" : "Salin ID model")} onClick={() => { navigator.clipboard?.writeText(model.model_id); setCopiedId(model.id); setTimeout(() => setCopiedId((current) => current === model.id ? null : current), 1600); }}>
+                                    {copiedId === model.id
+                                        ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6 9 17l-5-5" /></svg>
+                                        : <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="h-3 w-3"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>}
+                                </button></span><span className="mt-1 block text-slate-500 dark:text-slate-400">{model.provider_name || model.provider?.name || "—"}</span>{drafts[model.id] && <span className="mt-2 block font-semibold text-amber-700 dark:text-amber-300">{t("Belum disimpan")}</span>}{errors.row && fieldError(model.id, "row")}{errors.rates && fieldError(model.id, "rates")}
+                                <span className="mt-2 block tabular-nums text-slate-500 dark:text-slate-400">{isMedia
+                                    ? `${t("Tarif unit USD (terpisah)")}: ${model.rates?.unit?.price_usd == null ? t("Belum tersedia") : `$${model.rates.unit.price_usd}`}`
+                                    : model.rates?.input_tokens?.price_usd == null && model.rates?.output_tokens?.price_usd == null
+                                        ? `USD / 1M: ${t("Belum tersedia")}`
+                                        : `USD / 1M: ${model.rates?.input_tokens?.price_usd ?? "—"} / ${model.rates?.output_tokens?.price_usd ?? "—"}`}</span>
                             </td>
                             <td className="p-3"><input className={tableInput} aria-label={`${t("Kategori")} ${model.model_id}`} value={row.category || ""} maxLength={32} disabled={locked} aria-invalid={!!errors.category} onChange={(event) => patch(model.id, "category", event.target.value)} />{fieldError(model.id, "category")}</td>
                             <td className="p-3">{/* Derived from the upstream catalogue on sync — typing it by hand
                                 only ever produced tiers the workspace filter silently dropped. */}
                                 <span className="ui-status" data-tone="neutral" title={t("Otomatis dari upstream saat sinkronisasi")}>{row.tier || t("Standard")}</span></td>
-                            <td className="p-3"><input className={tableInput} aria-label={`${t("Token per hasil")} ${model.model_id}`} type="number" min="1" max="2147483647" step="1" value={row.token_cost ?? ""} placeholder={t("Belum diatur")} disabled={locked || !isMedia} aria-invalid={!!errors.token_cost} onChange={(event) => patch(model.id, "token_cost", event.target.value)} />{fieldError(model.id, "token_cost")}</td>
-                            <td className="p-3"><input className="ui-input min-h-9 w-16 px-2" aria-label={`${t("Urutan")} ${model.model_id}`} type="number" min="0" max="65535" step="1" value={row.sort_order ?? 0} disabled={locked} aria-invalid={!!errors.sort_order} onChange={(event) => patch(model.id, "sort_order", event.target.value)} />{fieldError(model.id, "sort_order")}</td>
+                            <td className="p-3"><input className={numericInput} aria-label={`${t("Token per hasil")} ${model.model_id}`} type="number" min="1" max="2147483647" step="1" value={row.token_cost ?? ""} placeholder={t("Belum diatur")} disabled={locked || !isMedia} aria-invalid={!!errors.token_cost} onChange={(event) => patch(model.id, "token_cost", event.target.value)} />{fieldError(model.id, "token_cost")}</td>
+                            <td className="p-3"><input className="ui-input min-h-9 w-16 px-2 text-right tabular-nums" aria-label={`${t("Urutan")} ${model.model_id}`} type="number" min="0" max="65535" step="1" value={row.sort_order ?? 0} disabled={locked} aria-invalid={!!errors.sort_order} onChange={(event) => patch(model.id, "sort_order", event.target.value)} />{fieldError(model.id, "sort_order")}</td>
                             <td className="min-w-36 p-3"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`${t("Publikasikan")} ${model.model_id}`} checked={!!row.is_enabled} disabled={locked} onChange={(event) => patch(model.id, "is_enabled", event.target.checked)} />{t(row.is_enabled ? "Dipublikasikan" : "Draf")}</label><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(model.is_available ? "Tersedia di upstream" : "Belum tersedia di upstream")}</span></td>
                             <td className="min-w-36 max-w-44 p-3"><div className="flex flex-wrap gap-1">
                                 {isMedia && <button type="button" className="ui-btn-mini" aria-expanded={isExpanded} disabled={locked} onClick={() => setExpanded((current) => isExpanded ? current.filter((id) => id !== model.id) : [...current, model.id])}>{t("Konfigurasi")}</button>}

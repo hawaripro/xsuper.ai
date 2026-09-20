@@ -21,7 +21,7 @@ const healthStates = {
 };
 const idleForm = { busy: false, error: "", fields: {} };
 
-export default function ProviderConnections({ providers, focusId = null, loading, error, hasData, onRefresh }) {
+export default function ProviderConnections({ providers, focusId = null, loading, error, hasData, onRefresh, autoOpenNew = false }) {
     const { t, locale } = useLocale();
     const [draft, setDraft] = useState(null);
     const [formState, setFormState] = useState(idleForm);
@@ -53,8 +53,14 @@ export default function ProviderConnections({ providers, focusId = null, loading
         }
     }, [deletion]);
 
+    // The list page's "Tambah penyedia" lands here with the new-provider form
+    // already open — one click, not two.
+    useEffect(() => {
+        if (autoOpenNew) openEditor(null);
+    }, [autoOpenNew]);
+
     const openEditor = (provider, event) => {
-        editorTrigger.current = event.currentTarget;
+        editorTrigger.current = event?.currentTarget ?? null;
         setFormState(idleForm);
         setNotice("");
         if (provider) setOperations((current) => ({ ...current, [provider.id]: {} }));
