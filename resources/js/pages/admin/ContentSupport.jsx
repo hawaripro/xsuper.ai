@@ -162,10 +162,12 @@ export default function ContentSupport() {
         else if (broadcast.title.length > 160) fields.title = 'Use at most 160 characters.';
         if (broadcast.body.trim().length < 2) fields.body = 'Message is required.';
         else if (broadcast.body.length > 10000) fields.body = 'Use at most 10,000 characters.';
-        if (broadcast.action_url) {
-            try {
-                if (!broadcast.action_url.startsWith('/')) new URL(broadcast.action_url);
-            } catch { fields.action_url = 'Use a full URL or an internal path beginning with /.'; }
+        if (broadcast.action_url.trim()) {
+            const value = broadcast.action_url.trim();
+            // The server accepts local application paths only; external URLs 422.
+            if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/en//') || /[\s\\]/.test(value) || /(?:^|\/)\.{1,2}(?:\/|$)/.test(value)) {
+                fields.action_url = 'Use a local application path beginning with / (e.g. /paket).';
+            }
         }
         setFormState(current => ({ ...current, fields, error: '', success: '' }));
         return Object.keys(fields).length === 0;
@@ -388,7 +390,7 @@ export default function ContentSupport() {
                         <Field label={t("Audience")} error={formState.fields.segment}><select className="ui-input min-h-10" value={broadcast.segment} onChange={event => setBroadcast(current => ({ ...current, segment: event.target.value }))}><option value="all">{t("All members")}</option><option value="active">{t("Active members")}</option><option value="expired">{t("Expired members")}</option></select></Field>
                         <Field label={t("Title")} error={formState.fields.title}><input className="ui-input min-h-10" maxLength={160} value={broadcast.title} onChange={event => setBroadcast(current => ({ ...current, title: event.target.value }))} aria-invalid={Boolean(formState.fields.title)} /></Field>
                         <Field label={t("Message")} error={formState.fields.body}><textarea className="ui-input min-h-32 resize-y" maxLength={10000} value={broadcast.body} onChange={event => setBroadcast(current => ({ ...current, body: event.target.value }))} aria-invalid={Boolean(formState.fields.body)} /></Field>
-                        <Field label={t("Action URL (optional)")} error={formState.fields.action_url}><input className="ui-input min-h-10" placeholder={t("/paket or https://…")} value={broadcast.action_url} onChange={event => setBroadcast(current => ({ ...current, action_url: event.target.value }))} aria-invalid={Boolean(formState.fields.action_url)} /></Field>
+                        <Field label={t("Action URL (optional)")} error={formState.fields.action_url}><input className="ui-input min-h-10" placeholder={t("/paket")} value={broadcast.action_url} onChange={event => setBroadcast(current => ({ ...current, action_url: event.target.value }))} aria-invalid={Boolean(formState.fields.action_url)} /></Field>
                         <div className="flex justify-end"><button className="ui-btn-primary min-h-10 px-4 text-xs" disabled={formState.busy}>{t("Review broadcast")}</button></div>
                     </form>
                 </section>

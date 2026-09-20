@@ -39,6 +39,10 @@ IMAGE_FORMATS = {"png", "jpg", "webp"}
 IMAGE_DEMUXERS = {"png_pipe", "jpeg_pipe", "webp_pipe"}
 CODECS = "h264,hevc,av1,libdav1d,libaom-av1,vp8,vp9,mpeg4,mpeg2video,aac,mp3,mp3float,opus,libopus,vorbis,libvorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,pcm_u8,png,mjpeg,webp,gif"
 SAFE_PROTOCOLS = {"http", "https", "m3u8_native", "m3u8", "http_dash_segments"}
+# Many public hosts and CDNs reject requests without a browser User-Agent with
+# HTTP 403. The private opener clears urllib's default header, so set an explicit
+# modern desktop UA on every request; without it, every download fails as "source".
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 QUALITY_HEIGHTS = {"1080": 1080, "720": 720, "480": 480, "360": 360}
 RESOLUTIONS = {"1080": (1920, 1080), "720": (1280, 720), "480": (854, 480), "360": (640, 360)}
 ENCODINGS = {"high": ("18", "5000k", "3200k"), "balanced": ("23", "2500k", "1800k"), "small": ("28", "1200k", "900k")}
@@ -530,6 +534,7 @@ def download_media(manifest, supervisor):
 
         def _prepare_headers(self, request, headers):
             headers["Accept-Encoding"] = "identity"
+            headers["User-Agent"] = USER_AGENT
 
         def _send(self, request):
             checked_url(request.url)

@@ -430,7 +430,7 @@ export default function ProviderDetail() {
     ];
 
     return (
-        <div className="pd-page">
+        <div className="ui-page space-y-5">
             <nav className="pd-crumbs animate-fade-in-up motion-reduce:animate-none" aria-label={t("Navigasi")}>
                 <button type="button" onClick={() => navigate(localizedPath("/admin/ai"))}>{t("Penyedia AI")}</button>
                 <span aria-hidden="true">/</span>

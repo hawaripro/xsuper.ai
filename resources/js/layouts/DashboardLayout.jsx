@@ -119,8 +119,14 @@ export default function DashboardLayout({ children }) {
         { name: 'API Keys', href: '/admin/api-keys', icon: Icons.key, tone: 'red' },
         { name: 'Keamanan', href: '/admin/security', icon: Icons.audit, tone: 'emerald' },
     ];
-    const isActive = href => location.pathname === localizedPath(href);
-    const currentPage = t([...userNav, ...(isAdmin ? adminNav : [])].find(item => isActive(item.href))?.name || 'Dashboard');
+    // Match the deepest nav entry so child routes (e.g. /admin/ai/:id, /admin/ai/queue)
+    // keep their parent highlighted and titled instead of falling back to "Dashboard".
+    const navItems = [...userNav, ...(isAdmin ? adminNav : [])];
+    const activeNav = navItems
+        .filter(item => { const target = localizedPath(item.href); return location.pathname === target || location.pathname.startsWith(`${target}/`); })
+        .sort((a, b) => localizedPath(b.href).length - localizedPath(a.href).length)[0] || null;
+    const isActive = href => activeNav?.href === href;
+    const currentPage = t(activeNav?.name || 'Dashboard');
 
     async function handleLogout() {
         setLoggingOut(true);
