@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocale } from '../../contexts/LocaleContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { apiRequest } from '../../lib/api';
+import { apiRequest, formatDateTime } from '../../lib/api';
 
 /* Colored toggle switch used for the two policy flags. */
 function Toggle({ checked, onChange, disabled, tone = 'red' }) {
@@ -30,11 +30,17 @@ export default function Security() {
     // On IPv6 the server suggests the /64 prefix: mobile carriers rotate the
     // interface identifier, so a bare /128 would lock the admin out within hours.
     const [suggested, setSuggested] = useState('');
+    const [tab, setTab] = useState('overview');
+    const [overview, setOverview] = useState(null);
+    const [overviewError, setOverviewError] = useState('');
 
     const load = useCallback(async () => {
         setStatus({ error: '', success: '' });
         try {
             const data = await apiRequest('/api/security/settings');
+            apiRequest('/api/security/overview')
+                .then(setOverview)
+                .catch((requestError) => setOverviewError(requestError.message));
             setCurrentIp(data.current_ip || '');
             setSuggested(data.suggested_entry || data.current_ip || '');
             setEntries(data.settings.admin_ip_allowlist || []);
@@ -86,7 +92,7 @@ export default function Security() {
                     </span>
                     <div>
                         <h1 className={`text-xl font-bold ${head}`}>{t('Keamanan')}</h1>
-                        <p className={`text-sm ${muted}`}>{t('Kontrol akses admin: IP whitelist dan kebijakan 2FA.')}</p>
+                        <p className={`text-sm ${muted}`}>{t('Ringkasan postur keamanan, sesi & perangkat, indikasi ancaman, dan kontrol akses IP dalam satu tempat.')}</p>
                     </div>
                 </div>
             </header>
@@ -98,6 +104,19 @@ export default function Security() {
                 <div className={`rounded-2xl border p-8 text-center text-sm ${card} ${muted}`}>{t('Memuat…')}</div>
             ) : (
                 <>
+                    <div className="sec-tabs" role="tablist" aria-label={t('Bagian keamanan')}>
+                        {[['overview', 'Ringkasan keamanan'], ['sessions', 'Sesi & perangkat'], ['threats', 'Ancaman'], ['ip', 'Akses IP']].map(([id, label]) => (
+                            <button key={id} type="button" role="tab" aria-selected={tab === id} className="sec-tab" onClick={() => setTab(id)}>{t(label)}</button>
+                        ))}
+                    </div>
+
+                    {overviewError && <p className="ui-alert" data-tone="bad">{overviewError}</p>}
+
+                    {tab === 'overview' && <SecurityOverview data={overview} t={t} />}
+                    {tab === 'sessions' && <SecuritySessions data={overview} t={t} onRefresh={load} />}
+                    {tab === 'threats' && <SecurityThreats data={overview} t={t} />}
+
+                    <div hidden={tab !== 'ip'}>
                     {/* IP allowlist */}
                     <section className={`rounded-2xl border p-5 ${card} animate-fade-in-up`}>
                         <div className="flex items-start justify-between gap-4">
@@ -156,8 +175,130 @@ export default function Security() {
                     <div className="flex justify-end">
                         <button type="button" onClick={save} disabled={busy} className="ui-btn-primary min-h-11 px-6">{busy ? t('Menyimpan…') : t('Simpan pengaturan')}</button>
                     </div>
+                    </div>
                 </>
             )}
         </div>
+    );
+}
+
+function Tile({ label, value, tone }) {
+    return (
+        <div className="sec-tile" data-tone={tone}>
+            <b>{value}</b>
+            <span>{label}</span>
+        </div>
+    );
+}
+
+function SecurityOverview({ data, t }) {
+    if (!data) return <p className="sec-empty">{t('Memuat…')}</p>;
+    const s = data.summary;
+    const coverage = s.users ? Math.round((s.two_factor_enabled / s.users) * 100) : 0;
+    return (
+        <section className="sec-panel">
+            <div className="sec-tiles">
+                <Tile label={t('Pengguna')} value={s.users} />
+                <Tile label={t('Admin')} value={s.admins} />
+                <Tile label={t('2FA aktif')} value={`${s.two_factor_enabled} (${coverage}%)`} tone={coverage < 100 ? 'warn' : 'good'} />
+                <Tile label={t('Perangkat terdaftar')} value={s.devices_total} />
+                <Tile label={t('Perangkat diblokir')} value={s.devices_blocked} tone={s.devices_blocked ? 'bad' : undefined} />
+                <Tile label={t('Menunggu persetujuan')} value={s.devices_pending} tone={s.devices_pending ? 'warn' : undefined} />
+                <Tile label={t('Aktif 24 jam')} value={s.active_last_24h} />
+                <Tile label={t('Entri IP diizinkan')} value={s.allowlist_size} />
+            </div>
+            <ul className="sec-policy">
+                <li data-on={s.require_admin_2fa ? '' : undefined}>
+                    <strong>{t('Wajib 2FA admin')}</strong>
+                    <span>{s.require_admin_2fa ? t('Aktif') : t('Nonaktif')}</span>
+                </li>
+                <li data-on={s.enforce_admin_ip ? '' : undefined}>
+                    <strong>{t('Wajib IP whitelist admin')}</strong>
+                    <span>{s.enforce_admin_ip ? t('Aktif') : t('Nonaktif')}</span>
+                </li>
+            </ul>
+        </section>
+    );
+}
+
+function SecuritySessions({ data, t }) {
+    if (!data) return <p className="sec-empty">{t('Memuat…')}</p>;
+    if (!data.devices.length) return <p className="sec-empty">{t('Belum ada perangkat tercatat.')}</p>;
+    return (
+        <section className="sec-panel">
+            <div className="max-w-full overflow-x-auto">
+                <table className="sec-table">
+                    <thead>
+                        <tr>
+                            <th>{t('Pengguna')}</th><th>{t('Perangkat')}</th><th>{t('Alamat IP')}</th>
+                            <th>{t('Status')}</th><th>{t('Aktivitas terakhir')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.devices.map((device) => (
+                            <tr key={device.id} data-flag={device.status === 'blocked' ? 'bad' : device.status === 'pending' ? 'warn' : undefined}>
+                                <td>
+                                    <strong>{device.user?.name || '—'}</strong>
+                                    <span className="sec-dim">{device.user?.email}</span>
+                                </td>
+                                <td>
+                                    {device.device_name || t('Tidak dikenal')}
+                                    <span className="sec-dim">{device.device_type}</span>
+                                </td>
+                                <td className="font-mono text-[11px]">{device.ip_address || '—'}</td>
+                                <td><span className="ui-status" data-tone={device.status === 'blocked' ? 'bad' : device.status === 'pending' ? 'warn' : 'good'}>{t(device.status)}</span></td>
+                                <td>{device.last_active_at ? formatDateTime(device.last_active_at) : '—'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    );
+}
+
+function SecurityThreats({ data, t }) {
+    if (!data) return <p className="sec-empty">{t('Memuat…')}</p>;
+    const blocked = data.devices.filter((device) => device.status === 'blocked');
+    const pending = data.devices.filter((device) => device.status === 'pending');
+    if (!data.threats.length && !blocked.length && !pending.length) {
+        return <p className="sec-empty">{t('Tidak ada indikasi ancaman. Perangkat diblokir, perangkat menunggu, dan perubahan kebijakan akan muncul di sini.')}</p>;
+    }
+    return (
+        <section className="sec-panel">
+            {(blocked.length > 0 || pending.length > 0) && (
+                <ul className="sec-alerts">
+                    {blocked.map((device) => (
+                        <li key={`b-${device.id}`} data-tone="bad">
+                            <strong>{t('Perangkat diblokir')}</strong>
+                            <span>{device.user?.email} · {device.ip_address || '—'} · {device.device_name || t('Tidak dikenal')}</span>
+                        </li>
+                    ))}
+                    {pending.map((device) => (
+                        <li key={`p-${device.id}`} data-tone="warn">
+                            <strong>{t('Perangkat menunggu persetujuan')}</strong>
+                            <span>{device.user?.email} · {device.ip_address || '—'}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {data.threats.length > 0 && (
+                <div className="max-w-full overflow-x-auto">
+                    <table className="sec-table">
+                        <thead><tr><th>{t('Kejadian')}</th><th>{t('Pelaku')}</th><th>{t('Alamat IP')}</th><th>{t('Waktu')}</th></tr></thead>
+                        <tbody>
+                            {data.threats.map((event) => (
+                                <tr key={event.id}>
+                                    <td className="font-mono text-[11px]">{event.action}</td>
+                                    <td>{event.actor?.email || '—'}</td>
+                                    <td className="font-mono text-[11px]">{event.ip_address || '—'}</td>
+                                    <td>{formatDateTime(event.created_at)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </section>
     );
 }

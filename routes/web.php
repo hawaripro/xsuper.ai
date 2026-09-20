@@ -187,6 +187,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             // Admin: topup tokens
             Route::post('/t/topup', [TokenController::class, 'topup']);
             // Admin: security controls (IP allowlist, admin 2FA policy)
+            Route::get('/security/overview', [\App\Http\Controllers\Api\SecurityController::class, 'overview']);
             Route::get('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'index']);
             Route::put('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'update']);
             Route::get('/pricing/settings', [PricingController::class, 'index']);

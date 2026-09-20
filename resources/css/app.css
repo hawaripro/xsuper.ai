@@ -890,3 +890,46 @@ body { background: var(--ui-bg); color: var(--ui-text); }
 .dark .pd-stats span { color: #a5b1c4; }
 .pd-stats > div[data-warn] b { color: #c2410c; }
 .dark .pd-stats > div[data-warn] b { color: #fdba74; }
+
+/* Security console tabs. Sessions/devices moved here from the users page and
+   the IP allowlist became one tab among four, so the whole posture is on one
+   screen instead of spread across three. */
+.sec-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.sec-tab { padding: 8px 14px; border-radius: 10px; font-size: 12px; font-weight: 600; color: #637084; background: #f1f3f6; }
+.sec-tab[aria-selected="true"] { background: #b82d47; color: #fff; }
+.dark .sec-tab { background: rgb(255 255 255 / 6%); color: #a5b1c4; }
+.dark .sec-tab[aria-selected="true"] { background: #b82d47; color: #fff; }
+.sec-panel { display: grid; gap: 14px; padding: 18px; border: 1px solid #dfe4ec; border-radius: 16px; background: #fff; }
+.dark .sec-panel { border-color: rgb(255 255 255 / 8%); background: rgb(255 255 255 / 2%); }
+.sec-empty { padding: 24px; font-size: 13px; color: #637084; text-align: center; border: 1px solid #dfe4ec; border-radius: 16px; }
+.dark .sec-empty { color: #a5b1c4; border-color: rgb(255 255 255 / 8%); }
+.sec-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.sec-tile { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid #dfe4ec; border-radius: 12px; }
+.dark .sec-tile { border-color: rgb(255 255 255 / 8%); }
+.sec-tile b { font-size: 19px; font-weight: 800; }
+.sec-tile span { font-size: 11px; color: #637084; }
+.dark .sec-tile span { color: #a5b1c4; }
+.sec-tile[data-tone="warn"] b { color: #c2410c; }
+.sec-tile[data-tone="bad"] b { color: #b91c1c; }
+.sec-tile[data-tone="good"] b { color: #047857; }
+.sec-policy { display: grid; gap: 8px; }
+.sec-policy li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: 10px; background: #f8fafc; font-size: 12px; }
+.dark .sec-policy li { background: rgb(255 255 255 / 4%); }
+.sec-policy li span { font-weight: 700; color: #b91c1c; }
+.sec-policy li[data-on] span { color: #047857; }
+.dark .sec-policy li span { color: #fca5a5; }
+.dark .sec-policy li[data-on] span { color: #6ee7b7; }
+.sec-table { width: 100%; text-align: left; font-size: 12px; }
+.sec-table th { padding: 10px 12px; font-weight: 600; background: #f8fafc; color: #475569; }
+.dark .sec-table th { background: rgb(255 255 255 / 5%); color: #a5b1c4; }
+.sec-table td { padding: 10px 12px; border-top: 1px solid #e2e8f0; vertical-align: top; }
+.dark .sec-table td { border-top-color: rgb(255 255 255 / 8%); }
+.sec-table tr[data-flag="bad"] td { background: rgb(185 28 28 / 7%); }
+.sec-table tr[data-flag="warn"] td { background: rgb(249 115 22 / 7%); }
+.sec-dim { display: block; font-size: 11px; color: #637084; }
+.dark .sec-dim { color: #a5b1c4; }
+.sec-alerts { display: grid; gap: 8px; }
+.sec-alerts li { display: grid; gap: 2px; padding: 10px 14px; border-left: 3px solid #b91c1c; border-radius: 8px; background: rgb(185 28 28 / 6%); font-size: 12px; }
+.sec-alerts li[data-tone="warn"] { border-left-color: #c2410c; background: rgb(249 115 22 / 6%); }
+.sec-alerts li span { font-size: 11px; color: #637084; }
+.dark .sec-alerts li span { color: #a5b1c4; }

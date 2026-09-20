@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditEvent;
 use App\Models\SecuritySetting;
+use App\Models\User;
 use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,6 +14,58 @@ use Symfony\Component\HttpFoundation\IpUtils;
 
 class SecurityController extends Controller
 {
+    /**
+     * Everything the security console needs in one call: adoption figures,
+     * live sessions/devices and recent security-relevant audit events. These
+     * used to be scattered across the users page and the audit log, which made
+     * it impossible to answer "is this account safe right now?".
+     */
+    public function overview(Request $request): JsonResponse
+    {
+        $settings = SecuritySetting::current();
+        $devices = \App\Models\UserDevice::query()
+            ->with('user:id,name,email,role')
+            ->latest('last_active_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($device): array => [
+                'id' => $device->id,
+                'user' => $device->user?->only(['id', 'name', 'email', 'role']),
+                'device_name' => $device->device_name,
+                'device_type' => $device->device_type,
+                'ip_address' => $device->ip_address,
+                'status' => $device->status,
+                'last_active_at' => $device->last_active_at,
+            ]);
+
+        $threatActions = [
+            'security.settings.updated', 'auth.login.blocked_ip', 'device.blocked',
+            'device.deleted', 'user.suspended', 'apikey.revoked',
+        ];
+
+        return response()->json([
+            'summary' => [
+                'users' => User::query()->count(),
+                'admins' => User::query()->where('role', 'admin')->count(),
+                'two_factor_enabled' => User::query()->whereNotNull('two_factor_confirmed_at')->count(),
+                'devices_total' => \App\Models\UserDevice::query()->count(),
+                'devices_blocked' => \App\Models\UserDevice::query()->where('status', 'blocked')->count(),
+                'devices_pending' => \App\Models\UserDevice::query()->where('status', 'pending')->count(),
+                'active_last_24h' => \App\Models\UserDevice::query()->where('last_active_at', '>=', now()->subDay())->count(),
+                'enforce_admin_ip' => $settings->enforce_admin_ip,
+                'require_admin_2fa' => $settings->require_admin_2fa,
+                'allowlist_size' => count((array) $settings->admin_ip_allowlist),
+            ],
+            'devices' => $devices,
+            'threats' => AuditEvent::query()
+                ->with('actor:id,name,email')
+                ->whereIn('action', $threatActions)
+                ->latest('id')
+                ->limit(50)
+                ->get(['id', 'actor_id', 'action', 'ip_address', 'created_at']),
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         return response()->json($this->payload($request));
