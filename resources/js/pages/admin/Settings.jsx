@@ -6,6 +6,7 @@ import BulkConfirmDialog from "../../components/dashboard/BulkConfirmDialog";
 import ModelBulkTable from "../../components/dashboard/ModelBulkTable";
 import { apiRequest } from "../../lib/api";
 import TokenPackageTable from "../../components/dashboard/TokenPackageTable";
+import RatePairSummary from "../../components/dashboard/RatePairSummary";
 
 const emptyRate = { service: "api", meter: "input_tokens", model: "", label: "", unit: "1M tokens", price_idr: "", price_usd: "", is_active: false, sort_order: 0 };
 const apiMeters = ["input_tokens", "output_tokens", "cache_read", "cache_write"];
@@ -318,6 +319,7 @@ export default function Settings() {
             </section>
             <section className={panel} aria-labelledby="usage-prices-title">
                 <SectionHead dark={dark} tone="violet" id="usage-prices-title" title={t("Tarif pay as you go")} subtitle={t("API: input, output, cache read/write per 1 juta token. Image/video: per hasil. Kosong bukan harga nol; pasangan API dipublikasikan bersama.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>} />
+                <RatePairSummary rates={rates} onFocusModel={(model) => { setSearch(model); setPage(1); }} />
                 <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4 dark:border-white/10">
                     <label className="min-w-48 flex-1 text-xs font-medium">{t("Cari tarif")}<input type="search" className={`${input} mt-1`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("ID, model, nama, atau meter")} /></label>
                     <label className="text-xs font-medium">{t("Layanan")}<select className={`${input} mt-1`} value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="">{t("Semua layanan")}</option>{["api", "image", "video", "audio"].map((service) => <option key={service}>{service}</option>)}</select></label>

@@ -850,3 +850,22 @@ body { background: var(--ui-bg); color: var(--ui-text); }
 .dark .pw-tab { color: #a5b1c4; }
 .dark .pw-tab[aria-selected="true"] { background: #322131; color: #ff9cae; }
 .dark .pw-auto-grid label, .dark .pw-auto-check { color: #a5b1c4; }
+
+/* Paired input/output rate summary. Billing needs both meters active; the
+   per-meter editor below cannot show that relationship. */
+.rp-wrap { border-bottom: 1px solid var(--dw-line, #dfe4ec); }
+.dark .rp-wrap { border-bottom-color: rgb(255 255 255 / 10%); }
+.rp-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px; }
+.rp-search { min-width: 12rem; flex: 1; font-size: 11px; font-weight: 600; }
+.rp-check { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 11px; }
+.rp-count { font-size: 11px; color: #637084; }
+.rp-count[data-warn] { color: #c2410c; font-weight: 700; }
+.dark .rp-count { color: #a5b1c4; }
+.dark .rp-count[data-warn] { color: #fdba74; }
+.rp-table th { padding: 10px 12px; font-weight: 600; background: #f8fafc; color: #475569; }
+.dark .rp-table th { background: rgb(255 255 255 / 5%); color: #a5b1c4; }
+.rp-table th small { font-weight: 400; opacity: .75; }
+.rp-table td { padding: 8px 12px; border-top: 1px solid #e2e8f0; }
+.dark .rp-table td { border-top-color: rgb(255 255 255 / 8%); }
+.rp-table tr[data-broken] td { background: rgb(249 115 22 / 7%); }
+.rp-model { font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
