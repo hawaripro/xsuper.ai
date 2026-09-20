@@ -152,7 +152,15 @@ export default function ProviderConnections({ providers, focusId = null, loading
             });
             let success;
             if (action === "check") {
-                success = `${t("Pemeriksaan selesai.")} ${Number(result.model_count).toLocaleString(locale)} ${t("model ditemukan.")}`;
+                // Checking only wrote the provider status and discarded the
+                // catalogue it had just fetched, so a provider could read
+                // "Terhubung" while the workspace had no models at all.
+                // Import them in the same click.
+                const imported = await apiRequest(`/api/admin/ai/providers/${provider.id}/sync`, { method: "POST" })
+                    .catch(() => null);
+                success = imported
+                    ? `${t("Koneksi berhasil.")} ${Number(imported.synced_models).toLocaleString(locale)} ${t("model diimpor dan dipublikasikan.")}`
+                    : `${t("Pemeriksaan selesai.")} ${Number(result.model_count).toLocaleString(locale)} ${t("model ditemukan.")} ${t("Impor model gagal — coba Sinkronkan model.")}`;
             } else if (action === "sync") {
                 success = `${t("Model provider disinkronkan.")} ${Number(result.synced_models).toLocaleString(locale)} ${t("model dilaporkan.")}`;
             } else {

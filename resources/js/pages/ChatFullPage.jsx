@@ -64,10 +64,6 @@ const CATEGORY_CONFIG = {
 const TIER_CONFIG = {
     Original: { label: 'Original' },
     Authentic: { label: 'Authentic' },
-    Codex: { label: 'Codex' },
-    Wavespeed: { label: 'Wavespeed' },
-    YepAPI: { label: 'YepAPI' },
-    Canva: { label: 'Canva' },
 };
 
 // ============================================

@@ -27,7 +27,8 @@ class AiProxyService
      */
     public function getModels(array $allowedTiers = ['Standard', 'MAX']): array
     {
-        $categories = in_array('Canva', $allowedTiers, true) ? ['chat', 'image', 'canva'] : ['chat'];
+        // The Canva tier (which widened this picker to image models) was retired.
+        $categories = ['chat'];
 
         return collect($this->getAllModelsFiltered($allowedTiers))
             ->filter(fn (array $model): bool => in_array($model['category'], $categories, true))
@@ -284,7 +285,6 @@ class AiProxyService
         $rawTiers = ['Original' => 'Standard', 'Authentic' => 'MAX'];
         $tierLabels = [
             'Standard' => 'Original', 'MAX' => 'Authentic',
-            'Codex' => 'Codex', 'Wavespeed' => 'Wavespeed', 'YepAPI' => 'YepAPI', 'Canva' => 'Canva',
             'Original' => 'Original', 'Authentic' => 'Authentic',
         ];
         $authenticOnly = ['claude-opus-4.6', 'claude-opus-4.7', 'gpt-5.5'];

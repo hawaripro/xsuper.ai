@@ -24,10 +24,6 @@ class User extends Authenticatable
         'chat_history' => true,
         'model_original' => true,
         'model_authentic' => false,
-        'model_codex' => false,
-        'model_wavespeed' => false,
-        'model_yepapi' => false,
-        'model_canva' => false,
         'video_generator' => false,
         'audio_generator' => true,
         'video_downloader' => true,
@@ -143,15 +139,13 @@ class User extends Authenticatable
 
     public function getAllowedTiers(): array
     {
-        if ($this->isAdmin()) return ['Standard', 'MAX', 'Codex', 'Wavespeed', 'YepAPI', 'Canva'];
+        // Only two tiers remain: Standard (upstream "Original") and MAX
+        // (upstream "Authentic"). Codex, Wavespeed, YepAPI and Canva were retired.
+        if ($this->isAdmin()) return ['Standard', 'MAX'];
 
         $tiers = [];
         if ($this->hasPermission('model_original')) $tiers[] = 'Standard';
         if ($this->hasPermission('model_authentic')) $tiers[] = 'MAX';
-        if ($this->hasPermission('model_codex')) $tiers[] = 'Codex';
-        if ($this->hasPermission('model_wavespeed')) $tiers[] = 'Wavespeed';
-        if ($this->hasPermission('model_yepapi')) $tiers[] = 'YepAPI';
-        if ($this->hasPermission('model_canva')) $tiers[] = 'Canva';
         return $tiers;
     }
 

@@ -8,10 +8,6 @@ const PERMISSION_LABELS = {
     chat_history: 'Chat History',
     model_original: 'Model Original',
     model_authentic: 'Model Authentic',
-    model_codex: 'Model Codex',
-    model_wavespeed: 'Model Wavespeed',
-    model_yepapi: 'Model YepAPI',
-    model_canva: 'Model Canva',
     video_generator: 'Video Generator',
     audio_generator: 'Audio Studio',
     video_downloader: 'Video Downloader',
@@ -23,8 +19,7 @@ const PERMISSION_LABELS = {
 
 const DEFAULT_PERMS = {
     chat: true, chat_history: true, model_original: true,
-    model_authentic: false, model_codex: false, model_wavespeed: false,
-    model_yepapi: false, model_canva: false, video_generator: false,
+    model_authentic: false, video_generator: false,
     audio_generator: true, video_downloader: true, media_converter: true,
     ai_api: false, ai_dashboard: false, ai_dashboard_official: false,
 };
