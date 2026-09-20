@@ -368,7 +368,9 @@ a.cw-crumb:hover { color: var(--cw-accent-text); }
 @media (min-width: 640px) { .cw-avatar { width: 2.1rem; height: 2.1rem; } }
 .cw-avatar-user { background: var(--cw-surface-3); color: var(--cw-text-2); border: 1px solid var(--cw-border); }
 .cw-avatar-ai { color: #fff; box-shadow: 0 8px 18px -6px rgba(239, 68, 68, 0.4); }
-.cw-sigil-icon { width: 0.95rem; height: 0.95rem; }
+/* Now an <img>, not a currentColor <svg>: keep the aspect ratio instead of
+   forcing a square, or the X gets squashed inside the avatar. */
+.cw-sigil-icon { width: 1.05rem; height: auto; object-fit: contain; }
 .cw-msg-body { flex: 1; min-width: 0; }
 .cw-msg-meta { display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.3rem; }
 .cw-msg-author { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--cw-text-3); }
@@ -448,7 +450,8 @@ a.cw-crumb:hover { color: var(--cw-accent-text); }
     filter: blur(10px); animation: cw-pulse 3.2s ease-in-out infinite;
 }
 @keyframes cw-pulse { 0%, 100% { opacity: 0.7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
-.cw-hero-sigil { position: relative; width: 3.4rem; height: 3.4rem; color: var(--cw-accent); filter: drop-shadow(0 10px 24px rgba(239, 68, 68, 0.4)); }
+/* App icon <img>: `contain` so its rounded-square silhouette stays whole. */
+.cw-hero-sigil { position: relative; width: 3.4rem; height: 3.4rem; object-fit: contain; filter: drop-shadow(0 10px 24px rgba(239, 68, 68, 0.4)); }
 @media (min-width: 640px) { .cw-hero-sigil { width: 4rem; height: 4rem; } }
 .cw-hero-title {
     font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.2;

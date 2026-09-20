@@ -18,7 +18,7 @@ export function UltrLockup({ height = 32, className = '', alt = 'XSuper.ai' }) {
                 alt={alt}
                 className="block dark:hidden object-contain"
                 style={style}
-                width={Math.round((height * 669) / 113)}
+                width={Math.round((height * 698) / 148)}
                 height={height}
                 loading="eager"
                 decoding="async"
@@ -29,7 +29,7 @@ export function UltrLockup({ height = 32, className = '', alt = 'XSuper.ai' }) {
                 aria-hidden="true"
                 className="hidden dark:block object-contain"
                 style={style}
-                width={Math.round((height * 669) / 113)}
+                width={Math.round((height * 698) / 148)}
                 height={height}
                 loading="eager"
                 decoding="async"

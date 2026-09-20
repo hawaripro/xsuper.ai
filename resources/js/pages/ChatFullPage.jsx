@@ -40,12 +40,16 @@ const Icon = {
     message: <svg {...stroke} viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H4l1.8-4A8 8 0 1 1 20 11.5Z" /></svg>,
 };
 
-// XSuper.ai sigil
+// The previous inline <svg> drew a letter "U" — a leftover from the old UltrAI
+// identity. Two marks replace it: the full app icon for the standalone hero, and
+// a white X glyph for the small avatars, which keep their category-coloured
+// gradient (a red plate inside a red gradient would read as mud).
 const Sigil = ({ className = '' }) => (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-        <path d="M5 6v13c0 5 4 8 9 8s9-3 9-8V6h-6v13c0 2-1 3-3 3s-3-1-3-3V6H5Z" fill="currentColor" />
-        <path d="M27 5h-4v6h6V7a2 2 0 0 0-2-2Z" fill="currentColor" />
-    </svg>
+    <img src="/xsuper-icon.png" alt="" aria-hidden="true" className={className} decoding="async" />
+);
+
+const XGlyph = ({ className = '' }) => (
+    <img src="/xsuper-x-white.png" alt="" aria-hidden="true" className={className} decoding="async" />
 );
 
 // ============================================
@@ -150,7 +154,7 @@ function ChatMessage({ message, userName, isDark, categoryColor, t, onContinue, 
     return (
         <div className={`cw-msg group ${isUser ? 'cw-msg-user' : 'cw-msg-assistant'}`}>
             <div className={`cw-avatar ${isUser ? 'cw-avatar-user' : 'cw-avatar-ai'}`} style={!isUser ? { background: `linear-gradient(135deg, ${catCfg.accent}, var(--red-600))` } : undefined}>
-                {isUser ? (userName?.[0]?.toUpperCase() || 'U') : <Sigil className="cw-sigil-icon" />}
+                {isUser ? (userName?.[0]?.toUpperCase() || 'U') : <XGlyph className="cw-sigil-icon" />}
             </div>
             <div className="cw-msg-body">
                 <div className="cw-msg-meta">
@@ -1141,7 +1145,7 @@ export default function ChatFullPage() {
                             ))}
                             {isStreaming && (messages[messages.length - 1]?.role !== 'assistant' || !messages[messages.length - 1]?.content) && (
                                 <div className="cw-msg cw-msg-assistant">
-                                    <div className="cw-avatar cw-avatar-ai" style={{ background: `linear-gradient(135deg, ${catCfg.accent}, var(--red-600))` }}><Sigil className="cw-sigil-icon" /></div>
+                                    <div className="cw-avatar cw-avatar-ai" style={{ background: `linear-gradient(135deg, ${catCfg.accent}, var(--red-600))` }}><XGlyph className="cw-sigil-icon" /></div>
                                     <div className="cw-msg-body"><div className="cw-msg-meta"><span className="cw-msg-author">XSuper.ai</span></div><GenerationProgress kind="chat" stage="waiting" model={waitModel} startedAt={waitStartedAt} compact /></div>
                                 </div>
                             )}

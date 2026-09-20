@@ -212,9 +212,15 @@ body[data-motion="reduced"] .brand-rail {
         font-size: 25px;
         gap: 8px;
     }
-    .brand img {
-        width: 36px;
-        height: 36px;
+    /* The brand is a horizontal lockup, not the old square mark. Forcing a
+       36x36 box made `object-fit: contain` shrink the whole wordmark to a
+       thumbnail on phones — size by height and let the width follow. */
+    .brand-logo {
+        height: 30px;
+        width: auto;
+    }
+    .footer-brand-block .brand-logo {
+        height: 32px;
     }
     .site-nav {
         gap: 14px;
@@ -495,6 +501,12 @@ body[data-motion="reduced"] .brand-rail {
         min-height: 78px;
         flex-wrap: wrap;
         padding-block: 15px;
+    }
+    .brand-logo {
+        height: 27px;
+    }
+    .footer-brand-block .brand-logo {
+        height: 29px;
     }
     .site-nav {
         display: flex;
