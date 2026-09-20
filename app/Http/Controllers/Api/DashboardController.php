@@ -19,7 +19,7 @@ use Illuminate\Validation\Rule;
 
 class DashboardController extends Controller
 {
-    private const USAGE_PERIODS = ['hourly', 'daily', 'weekly', 'monthly', 'all'];
+    private const USAGE_PERIODS = ['hourly', '7d', 'daily', 'weekly', 'monthly', 'all'];
 
     public function show(Request $request): JsonResponse
     {
@@ -254,6 +254,7 @@ class DashboardController extends Controller
     {
         return match ($period) {
             'hourly' => now()->subHours(23)->startOfHour(),
+            '7d' => now()->subDays(6)->startOfDay(),
             'daily' => now()->subDays(29)->startOfDay(),
             'weekly' => now()->subWeeks(11)->startOfWeek(),
             'monthly' => now()->subMonths(11)->startOfMonth(),
@@ -270,7 +271,7 @@ class DashboardController extends Controller
                 'hourly' => <<<'SQL'
                     TO_CHAR(DATE_TRUNC('hour', created_at), 'YYYY-MM-DD"T"HH24:00:00"Z"')
                     SQL,
-                'daily' => "TO_CHAR(created_at, 'YYYY-MM-DD')",
+                'daily', '7d' => "TO_CHAR(created_at, 'YYYY-MM-DD')",
                 'weekly' => <<<'SQL'
                     TO_CHAR(created_at, 'IYYY-"W"IW')
                     SQL,
@@ -278,7 +279,7 @@ class DashboardController extends Controller
             },
             default => match ($period) {
                 'hourly' => "strftime('%Y-%m-%dT%H:00:00Z', created_at)",
-                'daily' => "strftime('%Y-%m-%d', created_at)",
+                'daily', '7d' => "strftime('%Y-%m-%d', created_at)",
                 'weekly' => "strftime('%Y-W%W', created_at)",
                 default => "strftime('%Y-%m', created_at)",
             },

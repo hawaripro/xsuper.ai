@@ -373,6 +373,14 @@ final class MediaToolService
         }
         $lock = $this->lock($record->job_id);
         if ($lock === null) {
+            // No lock and no directory means the private workspace could not be
+            // created (e.g. storage permissions) — a condition that never
+            // resolves on its own, so fail the job instead of leaving it queued.
+            // A missing lock while the directory exists means another worker owns
+            // it; leave that job for the active worker.
+            if (! is_dir($this->directory($record->job_id))) {
+                $this->finish($id, 'failed', self::ERRORS['runtime']);
+            }
             return;
         }
         $process = null;
@@ -540,17 +548,25 @@ final class MediaToolService
     public function interrupted(int $id): void
     {
         $job = MediaToolJob::find($id);
-        if ($job && $job->status === 'pending' && ($lock = $this->lock($job->job_id)) !== null) {
-            try {
-                if ($this->finish($id, 'failed', 'The media task could not start. It was not automatically retried.')) {
-                    $this->cleanup($job->job_id);
-                }
-            } finally {
+        if (! $job || $job->status !== 'pending') {
+            // Running work owns its process handle; its lease expires without PID-based killing.
+            return;
+        }
+        // A pending job never started its external process, so there is no live
+        // worker to protect. Finalise it as failed even when the private
+        // workspace cannot be locked (e.g. the directory could not be created);
+        // gating this on the lock left such jobs stuck at "queued" forever.
+        $lock = $this->lock($job->job_id);
+        try {
+            if ($this->finish($id, 'failed', 'The media task could not start. It was not automatically retried.')) {
+                $this->cleanup($job->job_id);
+            }
+        } finally {
+            if ($lock !== null) {
                 flock($lock, LOCK_UN);
                 fclose($lock);
             }
         }
-        // Running work owns its process handle; its lease expires without PID-based killing.
     }
 
     public function reconcile(): array
@@ -558,8 +574,16 @@ final class MediaToolService
         $counts = ['failed' => 0, 'cancelled' => 0];
         MediaToolJob::query()->whereIn('status', ['pending', 'processing'])->orderBy('id')->chunkById(100, function ($jobs) use (&$counts): void {
             foreach ($jobs as $job) {
-                $stale = $job->status === 'pending' ? $job->created_at->lt(now()->subMinutes(15)) : ($job->heartbeat_at === null || $job->heartbeat_at->lt(now()->subSeconds(30)));
-                if (! $stale || ($lock = $this->lock($job->job_id)) === null) {
+                $pending = $job->status === 'pending';
+                $stale = $pending ? $job->created_at->lt(now()->subMinutes(15)) : ($job->heartbeat_at === null || $job->heartbeat_at->lt(now()->subSeconds(30)));
+                if (! $stale) {
+                    continue;
+                }
+                // A processing job may still own a live process, so only reclaim
+                // it when the lock is free. A pending job never started, so
+                // reclaim it even if its workspace cannot be locked.
+                $lock = $this->lock($job->job_id);
+                if ($lock === null && ! $pending) {
                     continue;
                 }
                 try {
@@ -569,8 +593,10 @@ final class MediaToolService
                         $counts[$status]++;
                     }
                 } finally {
-                    flock($lock, LOCK_UN);
-                    fclose($lock);
+                    if ($lock !== null) {
+                        flock($lock, LOCK_UN);
+                        fclose($lock);
+                    }
                 }
             }
         });
@@ -642,7 +668,10 @@ final class MediaToolService
     private function lock(string $jobId)
     {
         $directory = $this->directory($jobId);
-        if (! is_dir($directory) && ! mkdir($directory, 0700, true)) {
+        // A failed mkdir (e.g. the storage path is not writable by this worker)
+        // must degrade to a null lock, not a thrown warning: the caller records
+        // the job as failed instead of leaving it stuck at "queued".
+        if (! is_dir($directory) && ! @mkdir($directory, 0700, true) && ! is_dir($directory)) {
             return null;
         }
         if (is_link($directory.'/work.lock')) {

@@ -81,6 +81,7 @@ class UsageController extends Controller
     {
         return match ($period) {
             'hourly' => 24,
+            '7d' => 7 * 24,
             'weekly' => 12 * 7 * 24,
             'monthly' => 365 * 24,
             'all' => null,

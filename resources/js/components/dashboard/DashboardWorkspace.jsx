@@ -93,9 +93,19 @@ export function WorkspaceLoading({ label }) {
 }
 
 function chartDate(value, locale) {
-    const date = /^\d{4}-\d{2}$/.test(value) ? new Date(`${value}-01T12:00:00Z`) : new Date(`${value}T12:00:00Z`);
+    const loc = locale === 'en' ? 'en-US' : 'id-ID';
+    if (/^\d{4}-\d{2}$/.test(value)) {
+        const month = new Date(`${value}-01T12:00:00Z`);
+        return Number.isNaN(month.getTime()) ? value : new Intl.DateTimeFormat(loc, { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(month);
+    }
+    // Hourly buckets ("1 hari") arrive as an ISO UTC hour, e.g. 2025-09-20T14:00:00Z.
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:00:00Z$/.test(value)) {
+        const hour = new Date(value);
+        return Number.isNaN(hour.getTime()) ? value : new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC' }).format(hour);
+    }
+    const date = new Date(`${value}T12:00:00Z`);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'id-ID', { month: 'short', ...(/^\d{4}-\d{2}$/.test(value) ? { year: 'numeric' } : { day: 'numeric' }), timeZone: 'UTC' }).format(date);
+    return new Intl.DateTimeFormat(loc, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(date);
 }
 
 function UsageTooltip({ active, payload, label }) {

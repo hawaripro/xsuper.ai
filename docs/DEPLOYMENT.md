@@ -199,6 +199,26 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 ```
+Media worker (yt-dlp / ffmpeg / rembg) — `sudo nano /etc/systemd/system/xsuper-media.service`:
+```ini
+[Unit]
+Description=XSuper media tool worker (yt-dlp / ffmpeg / rembg)
+After=network.target postgresql.service
+
+[Service]
+# MUST run as the PHP-FPM pool user. admit() creates each job's private
+# workspace as the web user; a worker running as a different user cannot read
+# it, so mkdir()/permission-denied leaves download/convert/rembg jobs stuck at
+# "Menunggu antrean" forever.
+User=www-data
+WorkingDirectory=/var/www/xsuper
+ExecStart=/usr/bin/php artisan queue:work media --queue=media --sleep=1 --tries=1 --timeout=450 --max-time=3600
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
 Reverb — `sudo nano /etc/systemd/system/xsuper-reverb.service`:
 ```ini
 [Unit]
@@ -218,7 +238,7 @@ WantedBy=multi-user.target
 Aktifkan:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now xsuper-queue xsuper-reverb
+sudo systemctl enable --now xsuper-queue xsuper-media xsuper-reverb
 ```
 
 ## 11. Scheduler (cron Laravel)
