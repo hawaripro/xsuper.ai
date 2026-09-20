@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import AnnouncementRibbon from '../components/AnnouncementRibbon';
+import { UltrLockup } from '../components/UltrLogo';
 import { apiRequest } from '../lib/api';
 import GenerationProgress from '../components/GenerationProgress';
 import ReactMarkdown from 'react-markdown';
@@ -945,8 +946,7 @@ export default function ChatFullPage() {
                 <div className="cw-rail-head">
                     {!sidebarCollapsed && (
                         <Link to={localizedPath('/dashboard')} className="cw-brand" aria-label="XSuper.ai">
-                            <Sigil className="cw-brand-sigil" />
-                            <span className="cw-brand-word">XSuper<span className="cw-brand-accent">.ai</span></span>
+                            <UltrLockup height={26} />
                         </Link>
                     )}
                     <button

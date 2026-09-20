@@ -252,9 +252,11 @@
 .orbit-core img {
     width: 138px;
     height: 138px;
-    object-fit: cover;
-    border-radius: 50%;
-    box-shadow: 0 22px 40px -22px rgb(17 25 42 / 45%);
+    /* App icon already carries its own rounded-square silhouette and alpha.
+       `cover` + a 50% radius cropped its corners off; `contain` keeps it whole.
+       drop-shadow follows the alpha — box-shadow would draw a square. */
+    object-fit: contain;
+    filter: drop-shadow(0 22px 40px rgb(17 25 42 / 35%));
 }
 .core-ring {
     position: absolute;

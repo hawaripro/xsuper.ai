@@ -92,8 +92,11 @@ export default function ErrorPage({ code = 404 }) {
 
                 {/* Actions */}
                 <div className="flex flex-wrap justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '160ms' }}>
+                    {/* The landing page is a server-rendered Blade route, not an SPA
+                        route — localizedPath('/dashboard') sent guests back to /login.
+                        A plain href forces a real navigation to the marketing site. */}
                     <a
-                        href={localizedPath('/dashboard')}
+                        href={localizedPath('/')}
                         className="ui-btn-primary px-6 py-3"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">

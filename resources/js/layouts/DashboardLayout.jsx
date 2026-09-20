@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
-import UltrLogo from '../components/UltrLogo';
+import { UltrLockup } from '../components/UltrLogo';
 import AnnouncementRibbon from '../components/AnnouncementRibbon';
 import DashboardSearch from '../components/dashboard/DashboardSearch';
 import NotificationMenu from '../components/dashboard/NotificationMenu';
@@ -154,8 +154,7 @@ export default function DashboardLayout({ children }) {
                 <aside ref={sidebar} id="dashboard-navigation" aria-label={t('Navigasi dashboard')} role={!isDesktop && sidebarOpen ? 'dialog' : undefined} aria-modal={!isDesktop && sidebarOpen ? true : undefined} inert={!isDesktop && !sidebarOpen} className={`dw-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
                     <div className={`h-16 shrink-0 flex items-center justify-between px-5 border-b ${isDark ? 'border-white/[0.06]' : 'border-gray-200/70'}`}>
                         <Link to={localizedPath('/dashboard')} onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 group" aria-label="XSuper.ai home">
-                            <UltrLogo className="w-9 h-9 motion-safe:group-hover:scale-105 transition-transform duration-200" />
-                            <span className="text-xl font-extrabold tracking-tight flex items-center gap-[2px]"><span className={isDark ? 'text-white' : 'text-slate-900'}>XSuper</span><span className="text-red-500">.ai</span></span>
+                            <UltrLockup height={30} className="motion-safe:group-hover:scale-105 transition-transform duration-200" />
                         </Link>
                         <button type="button" onClick={() => setSidebarOpen(false)} className="dw-shell-control dw-mobile-control" aria-label={t('Tutup menu')}>{Icons.close}</button>
                     </div>

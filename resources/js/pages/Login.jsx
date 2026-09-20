@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import UltrLogo from '../components/UltrLogo';
+import { UltrLockup } from '../components/UltrLogo';
 
 export default function Login() {
     const { login, completeTwoFactor } = useAuth();
@@ -121,13 +121,9 @@ export default function Login() {
             <div className="w-full max-w-[440px] animate-fade-in-up">
                 {/* Logo */}
                 <div className="text-center mb-8 animate-fade-in-down">
-                    <Link to={locale === 'en' ? '/en' : '/'} className="inline-flex items-center gap-2.5 mb-4 group">
-                        <UltrLogo className="w-11 h-11 group-hover:scale-105 group-hover:-rotate-3 transition-transform duration-300" />
-                        <span className="text-3xl font-black tracking-tight flex items-center gap-[2px]">
-                            <span className={isDark ? 'text-white' : 'text-slate-900'}>XSuper</span>
-                            <span className="bg-gradient-to-r from-red-500 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient">.ai</span>
-                        </span>
-                    </Link>
+                    <a href={locale === 'en' ? '/en' : '/'} className="inline-flex items-center mb-4 group">
+                        <UltrLockup height={42} className="motion-safe:group-hover:scale-105 transition-transform duration-300" />
+                    </a>
                     <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('Selamat Datang Kembali')}</h1>
                     <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('Masuk untuk mengakses dashboard XSuper.ai')}</p>
                 </div>
