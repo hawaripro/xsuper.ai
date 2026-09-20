@@ -23,9 +23,9 @@
     <meta name="twitter:image" content="https://xsuper.dev/xsuper-logo.png">
     <link rel="canonical" href="{{ rtrim(config('marketing.url'), '/') . '/' . request()->path() }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="/xsuper-icon.png">
-    <link rel="apple-touch-icon" href="/xsuper-icon.png">
-    <link rel="shortcut icon" type="image/png" href="/xsuper-icon.png">
+    <link rel="icon" type="image/png" href="/xsuper-mark.png">
+    <link rel="apple-touch-icon" href="/xsuper-mark.png">
+    <link rel="shortcut icon" type="image/png" href="/xsuper-mark.png">
     @viteReactRefresh
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
 

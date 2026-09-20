@@ -11,7 +11,7 @@ export default function UltrLogo({ size, className, alt = 'XSuper.ai' }) {
     return (
         <span className={`relative inline-flex items-center justify-center ${cls}`} style={style} aria-label={alt}>
             <img
-                src="/xsuper-icon.png"
+                src="/xsuper-mark.png"
                 alt={alt}
                 className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(239,68,68,0.35)]"
                 loading="eager"
@@ -28,7 +28,7 @@ export default function UltrLogo({ size, className, alt = 'XSuper.ai' }) {
 export function UltrLogoPlain({ size = 32, className = '', alt = 'XSuper.ai' }) {
     return (
         <img
-            src="/xsuper-icon.png"
+            src="/xsuper-mark.png"
             alt={alt}
             className={`inline-block object-contain ${className}`}
             style={{ width: size, height: size }}

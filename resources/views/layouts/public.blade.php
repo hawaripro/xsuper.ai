@@ -27,8 +27,8 @@
     <meta name="twitter:title" content="{{ $page['title'] }}">
     <meta name="twitter:description" content="{{ $page['description'] }}">
     <meta name="twitter:image" content="{{ $site['url'] }}/xsuper-logo.png">
-    <link rel="icon" type="image/png" href="/xsuper-icon.png">
-    <link rel="apple-touch-icon" href="/xsuper-icon.png">
+    <link rel="icon" type="image/png" href="/xsuper-mark.png">
+    <link rel="apple-touch-icon" href="/xsuper-mark.png">
     <script>try{if(localStorage.getItem('xsuper-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
     @vite(['resources/css/landing.css', 'resources/js/landing.js'])
     @if(config('services.umami.id'))
