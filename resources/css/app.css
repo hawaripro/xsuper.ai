@@ -793,3 +793,60 @@ body { background: var(--ui-bg); color: var(--ui-text); }
     height: auto;
     max-width: 176px;
 }
+
+/* Provider workbench: card grid on the left, sticky detail panel on the right.
+   Replaces the thin rail, which could not show health, publication state or
+   whether a model was priced — the three things that decide if a provider is
+   actually usable. */
+.pw-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 1180px) {
+    .pw-shell { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
+    .pw-panel { position: sticky; top: 12px; }
+}
+.pw-cards { display: grid; gap: 10px; align-content: start; }
+.pw-card {
+    color: var(--dw-ink, #172033);
+    display: grid; gap: 6px; width: 100%; padding: 12px 14px; text-align: left;
+    border: 1px solid var(--dw-line, #dfe4ec); border-radius: 14px;
+    background: var(--dw-surface, #fff); transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.pw-card:hover { border-color: #b82d47; transform: translateY(-1px); }
+.pw-card[aria-pressed="true"] { border-color: #b82d47; box-shadow: 0 0 0 1px #b82d47 inset; }
+.pw-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pw-card-title { font-weight: 700; font-size: 13px; color: var(--dw-ink, #172033); }
+.pw-card-sub { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--dw-muted, #637084); overflow-wrap: anywhere; }
+.pw-card-sub code { padding: 1px 5px; border-radius: 5px; background: var(--dw-surface-alt, #f1f3f6); }
+.pw-metrics { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--dw-muted, #637084); }
+.pw-metrics span { display: inline-flex; align-items: baseline; gap: 4px; }
+.pw-metrics b { font-size: 13px; color: var(--dw-ink, #172033); }
+.pw-metrics span[data-warn] b { color: #c2410c; }
+.pw-rates { display: flex; flex-wrap: wrap; gap: 10px; font-size: 10px; color: var(--dw-muted, #637084); }
+.pw-empty { padding: 14px; font-size: 12px; color: var(--dw-muted, #637084); }
+.pw-panel { display: grid; gap: 0; border: 1px solid var(--dw-line, #dfe4ec); border-radius: 16px; background: var(--dw-surface, #fff); overflow: hidden; min-width: 0; }
+.pw-panel-head { padding: 14px 16px 10px; }
+.pw-panel-sub { margin-top: 2px; font-size: 11px; color: var(--dw-muted, #637084); }
+.pw-tabs { display: flex; gap: 4px; padding: 0 12px 10px; border-bottom: 1px solid var(--dw-line, #dfe4ec); }
+.pw-tab { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--dw-muted, #637084); }
+.pw-tab[aria-selected="true"] { background: var(--dw-accent-soft, #fbedf0); color: var(--dw-accent, #b82d47); }
+.pw-panel-body { padding: 12px; min-width: 0; overflow-x: auto; }
+.pw-auto { display: grid; gap: 12px; max-width: 460px; }
+.pw-auto-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pw-auto-grid label, .pw-auto-check { display: grid; gap: 4px; font-size: 11px; font-weight: 600; color: var(--dw-muted, #637084); }
+.pw-auto-check { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
+
+/* The --dw-* palette is scoped to .dashboard-workspace/.dw-sidebar/.dw-topbar,
+   so inside the catalog page these fell back to the light defaults and the
+   cards stayed white on a dark page. Bind them to the `dark` class instead. */
+.dark .pw-card { background: #141e2d; border-color: #2a374b; color: #edf1f8; }
+.dark .pw-card:hover { border-color: #ff9cae; }
+.dark .pw-card[aria-pressed="true"] { border-color: #ff9cae; box-shadow: 0 0 0 1px #ff9cae inset; }
+.dark .pw-card-title { color: #edf1f8; }
+.dark .pw-card-sub, .dark .pw-metrics, .dark .pw-rates, .dark .pw-empty, .dark .pw-panel-sub { color: #a5b1c4; }
+.dark .pw-card-sub code { background: #1c293b; }
+.dark .pw-metrics b { color: #edf1f8; }
+.dark .pw-metrics span[data-warn] b { color: #fdba74; }
+.dark .pw-panel { background: #141e2d; border-color: #2a374b; color: #edf1f8; }
+.dark .pw-tabs { border-bottom-color: #2a374b; }
+.dark .pw-tab { color: #a5b1c4; }
+.dark .pw-tab[aria-selected="true"] { background: #322131; color: #ff9cae; }
+.dark .pw-auto-grid label, .dark .pw-auto-check { color: #a5b1c4; }

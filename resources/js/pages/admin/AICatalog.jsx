@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../../contexts/ThemeContext";
 import ProviderConnections from "../../components/dashboard/ProviderConnections";
+import ProviderWorkbench from "../../components/dashboard/ProviderWorkbench";
 import ModelBulkTable from "../../components/dashboard/ModelBulkTable";
 import GenerationConfigFields, { generationConfigDraft, parseGenerationConfig } from "../../components/dashboard/GenerationConfigFields";
 import { useLocale } from "../../contexts/LocaleContext";
@@ -636,103 +637,29 @@ export default function AICatalog() {
                 </div>
             </section>
 
-            <div hidden={section !== "catalog"} className="ai-workspace">
-                <aside className="ai-rail" aria-label={t("Daftar penyedia")}>
-                    <div className="ai-rail-head">
-                        <h2 className="ui-section-title">{t("Penyedia")}</h2>
-                        <span className="ai-rail-count">{count(providers.length)}</span>
+            <div hidden={section !== "catalog"} className="animate-fade-in-up">
+                <div className="mb-3 flex items-start gap-3 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 to-transparent p-4">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
+                        <Icon name="sync" className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                        <p className="font-bold text-slate-900 dark:text-white">{t("Koneksi berhasil langsung mengimpor model")}</p>
+                        <p className="mt-0.5">{t("Tekan Periksa koneksi pada tab Koneksi: model ditarik dan dipublikasikan sekaligus, lalu langsung muncul di workspace. Model yang hilang dari upstream ditandai tidak tersedia.")}</p>
                     </div>
-                    {providers.length > 6 && (
-                        <input
-                            type="search"
-                            className="ui-input min-h-9 text-xs"
-                            placeholder={t("Cari penyedia")}
-                            aria-label={t("Cari penyedia")}
-                            value={railQuery}
-                            onChange={(event) => setRailQuery(event.target.value)}
-                        />
-                    )}
-                    <ul className="ai-rail-list">
-                        <li>
-                            <button type="button" className="ai-rail-item" aria-pressed={providerScope === ""} onClick={() => setProviderScope("")}>
-                                <span className="ai-rail-dot" data-tone="neutral" aria-hidden="true" />
-                                <span className="ai-rail-name">{t("Semua penyedia")}</span>
-                                <span className="ai-rail-count">{count(models.length)}</span>
-                            </button>
-                        </li>
-                        {railProviders.map((provider) => {
-                            const tone = !provider.is_enabled ? "neutral" : ["online", "healthy", "active"].includes(provider.status) ? "good" : provider.status === "degraded" ? "warn" : ["offline", "failed", "error", "unavailable"].includes(provider.status) ? "bad" : "neutral";
-                            return (
-                                <li key={provider.id}>
-                                    <button type="button" className="ai-rail-item" aria-pressed={providerScope === String(provider.id)} onClick={() => setProviderScope(String(provider.id))}>
-                                        <span className="ai-rail-dot" data-tone={tone} aria-hidden="true" />
-                                        <span className="ai-rail-name">{provider.name || provider.slug}</span>
-                                        <span className="ai-rail-count">{count(modelCounts[String(provider.id)] || 0)}</span>
-                                    </button>
-                                </li>
-                            );
-                        })}
-                        {!railProviders.length && providers.length > 0 && <li className="ai-rail-empty">{t("Tidak ada penyedia yang cocok.")}</li>}
-                    </ul>
-                </aside>
-
-                <div className="ai-main">
-                    <div className="flex items-start gap-3 rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 to-transparent p-4 animate-fade-in-up">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
-                            <Icon name="sync" className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                            <p className="font-bold text-slate-900 dark:text-white">{t("Sinkronisasi otomatis mendeteksi model")}</p>
-                            <p className="mt-0.5">{t("Tekan Sinkronkan pada koneksi mana pun untuk menarik daftar model terbaru. Model yang tidak lagi ditemukan dinonaktifkan otomatis; model manual diverifikasi ulang.")}</p>
-                        </div>
-                    </div>
-                    <ProviderConnections
-                        providers={providers}
-                        focusId={scopedProvider?.id ?? null}
-                        loading={catalog.loading}
-                        error={catalog.error}
-                        hasData={!!catalog.data}
-                        onRefresh={loadCatalog}
-                    />
-
-                    <section className="ui-card-flat min-w-0" aria-labelledby="models-title">
-                        <div className="ui-card-header">
-                            <div>
-                                <h2
-                                    id="models-title"
-                                    className="ui-section-title"
-                                >
-                                    {scopedProvider ? `${t("Model")} · ${scopedProvider.name || scopedProvider.slug}` : t("Metadata & harga model")}
-                                </h2>
-                                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                                    {t("Edit banyak baris lalu simpan sekaligus. Publikasi profil terpisah dari ketersediaan upstream.")}
-                                </p>
-                            </div>
-                        </div>
-                        {catalog.loading && !catalog.data ? (
-                            <div className="p-4">
-                                <LoadingState label={t("Memuat model…")} />
-                            </div>
-                        ) : catalog.error && !catalog.data ? (
-                            <div className="p-4">
-                                <ErrorState
-                                    message={catalog.error}
-                                    onRetry={() => loadCatalog()}
-                                />
-                            </div>
-                        ) : (
-                            <ModelBulkTable
-                                models={tableModels}
-                                providers={providers}
-                                providerId={providerScope}
-                                onRefresh={loadCatalog}
-                                onEdit={openModelEditor}
-                                onToggle={(model) => setConfirmation({ type: "toggle", model })}
-                                disabled={mutation.busy}
-                            />
-                        )}
-                    </section>
                 </div>
+                <ProviderWorkbench
+                    providers={providers}
+                    models={models}
+                    scopedProviderId={providerScope}
+                    onScope={setProviderScope}
+                    loading={catalog.loading}
+                    error={catalog.error}
+                    hasData={!!catalog.data}
+                    onRefresh={loadCatalog}
+                    onEditModel={openModelEditor}
+                    onToggleModel={(model) => setConfirmation({ type: "toggle", model })}
+                    disabled={mutation.busy}
+                />
             </div>
 
             {section === "queue" && (
