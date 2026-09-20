@@ -46,6 +46,12 @@ class SecurityHeaders
         // Control referrer information
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+        // Isolate the browsing context from cross-origin popups (Spectre / XS-Leaks)
+        $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
+
+        // Legacy Adobe crossdomain.xml policies are never valid here
+        $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
+
         // Prevent browsers from caching sensitive pages
         if ($request->is('api/*')) {
             $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -55,9 +61,11 @@ class SecurityHeaders
         // Permissions Policy — disable unnecessary browser features
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
 
-        // Strict Transport Security — force HTTPS (1 year)
+        // Strict Transport Security — single authoritative value (2 years, preload-eligible).
+        // The edge proxy intentionally does not set this; duplicate HSTS headers with
+        // conflicting max-age values are resolved by the first header only (RFC 6797).
         if (config('app.env') === 'production') {
-            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            $response->headers->set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
         }
 
         return $response;
