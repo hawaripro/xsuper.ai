@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
@@ -25,7 +26,8 @@ const DEFAULT_PERMS = {
 };
 
 export default function AdminUsers() {
-    const { t } = useLocale();
+    const { t, localizedPath } = useLocale();
+    const navigate = useNavigate();
     const { user: currentUser } = useAuth();
     const { theme } = useTheme();
     const isDark = theme === 'dark';
@@ -38,9 +40,6 @@ export default function AdminUsers() {
     const [formError, setFormError] = useState('');
     const [formLoading, setFormLoading] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
-    const [deviceModal, setDeviceModal] = useState(null);
-    const [devices, setDevices] = useState([]);
-    const [deviceAction, setDeviceAction] = useState(null); // { id, action: 'block'|'delete', name }
 
     const getCsrfToken = () => {
         return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] || '');
@@ -142,47 +141,6 @@ export default function AdminUsers() {
         } catch (err) {
             console.error('Delete failed:', err);
         }
-    };
-
-    // Device functions
-    const loadDevices = async (userId) => {
-        try {
-            const res = await fetch(`/api/d/list?user_id=${userId}`, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
-            if (res.ok) { const d = await res.json(); setDevices(d.devices || []); }
-        } catch {}
-    };
-
-    const openDeviceModal = async (u) => {
-        setDeviceModal(u);
-        loadDevices(u.id);
-    };
-
-    // Auto-refresh devices when modal is open
-    useEffect(() => {
-        if (!deviceModal) return;
-        const interval = setInterval(() => loadDevices(deviceModal.id), 3000);
-        return () => clearInterval(interval);
-    }, [deviceModal]);
-
-    const updateDeviceStatus = async (deviceId, status) => {
-        try {
-            await fetch(`/api/d/${deviceId}`, {
-                method: 'PUT', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
-                body: JSON.stringify({ status }),
-            });
-            if (deviceModal) loadDevices(deviceModal.id);
-        } catch {}
-    };
-
-    const deleteDevice = async (deviceId) => {
-        try {
-            await fetch(`/api/d/${deviceId}`, {
-                method: 'DELETE', credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'X-XSRF-TOKEN': getCsrfToken() },
-            });
-            if (deviceModal) loadDevices(deviceModal.id);
-        } catch {}
     };
 
     const filteredUsers = users.filter(u =>
@@ -310,7 +268,7 @@ export default function AdminUsers() {
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1">
-                                                <button onClick={() => openDeviceModal(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title={t("Devices")}>
+                                                <button onClick={() => navigate(localizedPath('/admin/security'))} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title={t("Kelola perangkat di Keamanan")}>
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                                                 </button>
                                                 <button onClick={() => openEdit(u)} className={`p-2 rounded-lg transition-all ${isDark ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'}`} title={t("Edit")}>
@@ -480,134 +438,6 @@ export default function AdminUsers() {
                 </div>
             )}
 
-            {/* Device Modal */}
-            {deviceModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setDeviceModal(null)} />
-                    <div className={`relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border p-5 scrollbar-thin animate-scale-in ${isDark ? 'bg-gray-900/95 border-white/[0.08] backdrop-blur-2xl' : 'bg-white border-gray-200/80 shadow-[0_32px_64px_-16px_rgba(15,23,42,0.25)]'}`}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t("Perangkat")}</h3>
-                                    {devices.filter(d => d.status === 'pending').length > 0 && (
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 animate-pulse">
-                                            {devices.filter(d => d.status === 'pending').length} pending
-                                        </span>
-                                    )}
-                                </div>
-                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                    {deviceModal.name} — {deviceModal.role === 'admin' ? '∞ Unlimited' : 'Max 2 device'}
-                                    {' · '}{devices.filter(d => d.status === 'active').length} aktif
-                                </p>
-                            </div>
-                            <button onClick={() => setDeviceModal(null)} className={`p-1.5 rounded-lg ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
-                        </div>
-
-                        {/* Pending devices first */}
-                        {devices.filter(d => d.status === 'pending').length > 0 && (
-                            <div className={`mb-3 p-3 rounded-xl border ${isDark ? 'bg-amber-500/[0.05] border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-                                <p className="text-xs font-bold text-amber-400 mb-2">⏳ Menunggu Persetujuan</p>
-                                {devices.filter(d => d.status === 'pending').map(d => (
-                                    <div key={d.id} className={`flex items-center justify-between p-2 rounded-lg mb-1 ${isDark ? 'bg-black/20' : 'bg-white'}`}>
-                                        <div>
-                                            <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{d.device_name}</span>
-                                            <span className={`text-[10px] ml-1.5 px-1.5 py-0.5 rounded ${d.device_type === 'plugin' ? 'bg-violet-500/15 text-violet-400' : d.device_type === 'mobile' ? 'bg-cyan-500/15 text-cyan-400' : 'bg-blue-500/15 text-blue-400'}`}>{d.device_type}</span>
-                                            <div className={`text-[9px] mt-0.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>IP: {d.ip_address} · {d.last_active_at ? new Date(d.last_active_at).toLocaleString('id-ID') : '-'}</div>
-                                        </div>
-                                        <div className="flex gap-1.5">
-                                            <button onClick={() => updateDeviceStatus(d.id, 'active')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500 text-white hover:bg-emerald-600">{t("Setujui")}</button>
-                                            <button onClick={() => updateDeviceStatus(d.id, 'blocked')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20">{t("Tolak")}</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {devices.filter(d => d.status !== 'pending').length === 0 && devices.filter(d => d.status === 'pending').length === 0 ? (
-                            <div className={`text-center py-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                <p className="text-sm">{t("Belum ada perangkat terdaftar")}</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {devices.filter(d => d.status !== 'pending').map(d => (
-                                    <div key={d.id} className={`p-3 rounded-xl border ${isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-gray-50 border-gray-200'}`}>
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-2 h-2 rounded-full ${d.status === 'active' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
-                                                <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{d.device_name}</span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${d.device_type === 'browser' ? 'bg-blue-500/15 text-blue-400' : d.device_type === 'plugin' ? 'bg-violet-500/15 text-violet-400' : d.device_type === 'mobile' ? 'bg-cyan-500/15 text-cyan-400' : 'bg-gray-500/15 text-gray-400'}`}>{d.device_type}</span>
-                                            </div>
-                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${d.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{d.status}</span>
-                                        </div>
-                                        <div className={`text-[10px] space-y-0.5 mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                            <div>IP: {d.ip_address || '-'}</div>
-                                            <div>Last active: {d.last_active_at ? new Date(d.last_active_at).toLocaleString('id-ID') : '-'}</div>
-                                        </div>
-                                        <div className="flex gap-1.5">
-                                            {d.status !== 'active' && (
-                                                <button onClick={() => updateDeviceStatus(d.id, 'active')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>{t("Aktifkan")}</button>
-                                            )}
-                                            {d.status !== 'blocked' && (
-                                                <button onClick={() => setDeviceAction({ id: d.id, action: 'block', name: d.device_name })} className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium ${isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600'}`}>{t("Block")}</button>
-                                            )}
-                                            <button onClick={() => setDeviceAction({ id: d.id, action: 'delete', name: d.device_name })} className={`py-1.5 px-3 rounded-lg text-[11px] font-medium ${isDark ? 'bg-white/[0.05] text-gray-400 hover:bg-red-500/10 hover:text-red-400' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500'} transition-colors`}>{t('Hapus')}</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Device Block/Delete Confirmation Modal */}
-            {deviceAction && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeviceAction(null)} />
-                    <div className={`relative w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl ${isDark ? 'bg-gray-900/95 border-white/[0.08] backdrop-blur-2xl' : 'bg-white border-gray-200'}`}>
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
-                            deviceAction.action === 'delete' ? 'bg-red-500/15' : 'bg-amber-500/15'
-                        }`}>
-                            {deviceAction.action === 'delete' ? (
-                                <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-                            ) : (
-                                <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                            )}
-                        </div>
-                        <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {deviceAction.action === 'delete' ? 'Hapus Perangkat?' : 'Block Perangkat?'}
-                        </h3>
-                        <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {deviceAction.action === 'delete'
-                                ? <>{t("Yakin ingin menghapus")} <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat harus login ulang.</>
-                                : <>{t("Yakin ingin memblokir")} <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{deviceAction.name}</span>? Perangkat tidak bisa mengakses.</>
-                            }
-                        </p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setDeviceAction(null)} className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                                isDark ? 'bg-white/[0.05] border-white/[0.08] text-gray-400 hover:bg-white/[0.08]' : 'bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100'
-                            }`}>{t("Batal")}</button>
-                            <button
-                                onClick={async () => {
-                                    if (deviceAction.action === 'delete') {
-                                        await deleteDevice(deviceAction.id);
-                                    } else {
-                                        await updateDeviceStatus(deviceAction.id, 'blocked');
-                                    }
-                                    setDeviceAction(null);
-                                }}
-                                className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all ${
-                                    deviceAction.action === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
-                                }`}
-                            >
-                                {deviceAction.action === 'delete' ? 'Hapus' : 'Block'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

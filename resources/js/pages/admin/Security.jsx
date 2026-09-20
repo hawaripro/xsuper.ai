@@ -221,17 +221,41 @@ function SecurityOverview({ data, t }) {
     );
 }
 
-function SecuritySessions({ data, t }) {
+function SecuritySessions({ data, t, onRefresh }) {
+    const [busy, setBusy] = useState(0);
+    const [error, setError] = useState('');
+
+    // Device approval/blocking used to live behind a modal on the users page.
+    // It belongs with the rest of the access controls, so the actions moved
+    // here with the table rather than being duplicated.
+    const act = async (device, action) => {
+        setBusy(device.id);
+        setError('');
+        try {
+            if (action === 'delete') {
+                await apiRequest(`/api/d/${device.id}`, { method: 'DELETE' });
+            } else {
+                await apiRequest(`/api/d/${device.id}`, { method: 'PUT', body: { status: action } });
+            }
+            await onRefresh?.();
+        } catch (requestError) {
+            setError(requestError.message);
+        } finally {
+            setBusy(0);
+        }
+    };
+
     if (!data) return <p className="sec-empty">{t('Memuat…')}</p>;
     if (!data.devices.length) return <p className="sec-empty">{t('Belum ada perangkat tercatat.')}</p>;
     return (
         <section className="sec-panel">
+            {error && <p className="ui-alert" data-tone="bad">{error}</p>}
             <div className="max-w-full overflow-x-auto">
                 <table className="sec-table">
                     <thead>
                         <tr>
                             <th>{t('Pengguna')}</th><th>{t('Perangkat')}</th><th>{t('Alamat IP')}</th>
-                            <th>{t('Status')}</th><th>{t('Aktivitas terakhir')}</th>
+                            <th>{t('Status')}</th><th>{t('Aktivitas terakhir')}</th><th>{t('Tindakan')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -248,6 +272,15 @@ function SecuritySessions({ data, t }) {
                                 <td className="font-mono text-[11px]">{device.ip_address || '—'}</td>
                                 <td><span className="ui-status" data-tone={device.status === 'blocked' ? 'bad' : device.status === 'pending' ? 'warn' : 'good'}>{t(device.status)}</span></td>
                                 <td>{device.last_active_at ? formatDateTime(device.last_active_at) : '—'}</td>
+                                <td className="sec-actions">
+                                    {device.status !== 'active' && (
+                                        <button type="button" disabled={busy === device.id} onClick={() => act(device, 'active')}>{t('Setujui')}</button>
+                                    )}
+                                    {device.status !== 'blocked' && (
+                                        <button type="button" disabled={busy === device.id} onClick={() => act(device, 'blocked')}>{t('Blokir')}</button>
+                                    )}
+                                    <button type="button" data-danger="" disabled={busy === device.id} onClick={() => act(device, 'delete')}>{t('Hapus')}</button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>

@@ -933,3 +933,10 @@ body { background: var(--ui-bg); color: var(--ui-text); }
 .sec-alerts li[data-tone="warn"] { border-left-color: #c2410c; background: rgb(249 115 22 / 6%); }
 .sec-alerts li span { font-size: 11px; color: #637084; }
 .dark .sec-alerts li span { color: #a5b1c4; }
+
+.sec-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.sec-actions button { padding: 4px 9px; border-radius: 7px; font-size: 11px; font-weight: 600; background: #f1f3f6; color: #334155; }
+.sec-actions button[data-danger] { background: rgb(185 28 28 / 10%); color: #b91c1c; }
+.sec-actions button:disabled { opacity: .5; }
+.dark .sec-actions button { background: rgb(255 255 255 / 8%); color: #e2e8f0; }
+.dark .sec-actions button[data-danger] { background: rgb(248 113 113 / 14%); color: #fca5a5; }

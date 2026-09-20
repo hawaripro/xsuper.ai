@@ -409,6 +409,35 @@ class ProviderConnectionTest extends TestCase
         $this->assertTrue($model->is_available);
     }
 
+    public function test_models_from_a_newly_connected_provider_reach_the_workspace_and_arrive_priced(): void
+    {
+        $provider = $this->provider('fresh-shop');
+        Http::fake(['https://fresh-shop.example.test/v1/models' => Http::response(['data' => [
+            ['id' => 'fresh-chat', 'name' => 'Fresh Chat'],
+        ]])]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin);
+
+        $this->postJson('/api/admin/ai/providers/'.$provider->id.'/sync')->assertOk();
+
+        $model = AiModelProfile::where('provider_id', $provider->id)->firstOrFail();
+        $this->assertTrue($model->is_enabled, 'discovered model must be published');
+        $this->assertTrue($model->is_available, 'discovered model must be available');
+
+        // Priced on both meters, otherwise billing refuses every call.
+        foreach (['input_tokens', 'output_tokens'] as $meter) {
+            $rate = UsageRate::where(['service' => 'api', 'meter' => $meter, 'model' => $model->model_id])->first();
+            $this->assertNotNull($rate, "missing {$meter} rate");
+            $this->assertTrue($rate->is_active);
+            $this->assertGreaterThan(0, (float) $rate->price_usd);
+        }
+
+        // The workspace picker must list it without any further admin action.
+        $listed = $this->getJson('/api/c/am')->assertOk()->json();
+        $ids = collect(data_get($listed, 'models', $listed))->pluck('id')->filter()->all();
+        $this->assertContains($model->model_id, $ids, 'model missing from the workspace catalogue');
+    }
+
     public function test_model_reassignment_requires_explicit_mapping_and_duplicate_identity_rolls_back(): void
     {
         $alpha = $this->provider('assign-alpha');
