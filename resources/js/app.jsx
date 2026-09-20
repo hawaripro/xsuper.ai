@@ -42,6 +42,7 @@ import AdminOverview from './pages/admin/AdminOverview';
 import Operations from './pages/admin/Operations';
 import ContentSupport from './pages/admin/ContentSupport';
 import AICatalog from './pages/admin/AICatalog';
+import ProviderDetail from './pages/admin/ProviderDetail';
 import SystemActivity from './pages/admin/SystemActivity';
 import Settings from './pages/admin/Settings';
 import ApiKeys from './pages/admin/ApiKeys';
@@ -131,6 +132,7 @@ function LocalizedAppRoutes() {
             <Route path={path('/admin/operations')} element={<DL adminOnly><Operations /></DL>} />
             <Route path={path('/admin/content')} element={<DL adminOnly><ContentSupport /></DL>} />
             <Route path={path('/admin/ai')} element={<DL adminOnly><AICatalog /></DL>} />
+            <Route path={path('/admin/ai/:providerId')} element={<DL adminOnly><ProviderDetail /></DL>} />
             <Route path={path('/admin/system')} element={<DL adminOnly><SystemActivity /></DL>} />
             <Route path={path('/admin/settings')} element={<DL adminOnly><Settings /></DL>} />
             <Route path={path('/admin/api-keys')} element={<DL adminOnly><ApiKeys /></DL>} />

@@ -141,44 +141,13 @@ class PricingController extends Controller
         $idrPerUsd = (float) ($validated['idr_per_usd'] ?? 16000);
         $overwrite = (bool) ($validated['overwrite'] ?? false);
 
-        // Retail USD per 1M tokens by tier (input, output), before the margin.
-        $base = ['Standard' => [0.15, 0.60], 'MAX' => [3.00, 15.00]];
-        $tierFor = static fn (?string $tier): string => match ($tier) {
-            'Authentic', 'MAX' => 'MAX',
-            default => 'Standard',
-        };
-
-        $updated = DB::transaction(function () use ($base, $tierFor, $margin, $idrPerUsd, $overwrite, $request, $audit): int {
-            $models = AiModelProfile::query()->where('category', 'chat')->orderBy('id')->lockForUpdate()->get();
-            $count = 0;
-            foreach ($models as $model) {
-                [$inUsd, $outUsd] = $base[$tierFor($model->tier)];
-                foreach (['input_tokens' => $inUsd, 'output_tokens' => $outUsd] as $meter => $usd) {
-                    $rate = UsageRate::query()->where(['service' => 'api', 'meter' => $meter, 'model' => $model->model_id])->first();
-                    if ($rate && ! $overwrite) {
-                        continue;
-                    }
-                    $price = round($usd * $margin, 6);
-                    $before = $rate?->toArray();
-                    $rate ??= new UsageRate(['service' => 'api', 'meter' => $meter, 'model' => $model->model_id]);
-                    $rate->fill([
-                        'label' => $model->display_name.' '.str_replace('_', ' ', $meter),
-                        'unit' => '1M tokens',
-                        'price_usd' => $price,
-                        'price_idr' => round($price * $idrPerUsd, 6),
-                        'is_active' => true,
-                        'sort_order' => $rate->sort_order ?? (($model->sort_order ?? 0) * 10),
-                    ]);
-                    if (! $rate->exists || $rate->isDirty()) {
-                        $rate->save();
-                        $audit->record($request->user(), 'pricing.rate.auto', $rate, ['before' => $before, 'after' => $rate->toArray()]);
-                        $count++;
-                    }
-                }
-            }
-
-            return $count;
-        });
+        $updated = DB::transaction(fn (): int => app(\App\Services\ModelAutoPricer::class)->price(
+            AiModelProfile::query()->where('category', 'chat')->orderBy('id')->lockForUpdate()->get(),
+            $margin,
+            $idrPerUsd,
+            $overwrite,
+            $request->user(),
+        ));
 
         Cache::forget('public-model-catalog-v3');
 

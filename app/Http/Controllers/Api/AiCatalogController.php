@@ -172,8 +172,21 @@ class AiCatalogController extends Controller
             }
             $missingModels->update(['is_available' => false]);
 
+            // Price the freshly discovered chat models straight away. Without
+            // this they arrive published but unbillable, which is exactly the
+            // state that made a connected provider look broken in the workspace.
+            $priced = app(\App\Services\ModelAutoPricer::class)->price(
+                AiModelProfile::query()->whereIn('id', $seenIds)->get(),
+                1.0,
+                16000,
+                false,
+                $request->user(),
+                'ai_catalog.rate_seeded',
+            );
+
             $audit->record($request->user(), 'ai_catalog.synced', $provider, [
                 'models_synced' => count($models),
+                'rates_seeded' => $priced,
             ]);
 
             return $provider;

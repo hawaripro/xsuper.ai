@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLocale } from "../../contexts/LocaleContext";
 import { apiRequest, formatDateTime } from "../../lib/api";
 import ProviderConnections from "./ProviderConnections";
@@ -50,7 +51,8 @@ export default function ProviderWorkbench({
     onToggleModel,
     disabled = false,
 }) {
-    const { t, locale } = useLocale();
+    const { t, locale, localizedPath } = useLocale();
+    const navigate = useNavigate();
     const [tab, setTab] = useState("models");
     const [autoPrice, setAutoPrice] = useState({ margin: "40", idr: "16000", overwrite: false });
     const [autoState, setAutoState] = useState({ busy: false, error: "", success: "" });
@@ -92,7 +94,7 @@ export default function ProviderWorkbench({
             const result = await apiRequest("/api/pricing/rates/auto", {
                 method: "POST",
                 body: {
-                    margin_percent: Number(autoPrice.margin),
+                    margin: 1 + (Number(autoPrice.margin) / 100),
                     idr_per_usd: Number(autoPrice.idr),
                     overwrite: autoPrice.overwrite,
                 },
@@ -100,7 +102,7 @@ export default function ProviderWorkbench({
             setAutoState({
                 busy: false,
                 error: "",
-                success: `${t("Harga input & output dibuat otomatis.")} ${num(result?.updated ?? result?.count ?? 0)} ${t("tarif ditulis.")}`,
+                success: `${t("Harga input & output dibuat otomatis.")} ${num(result?.updated_count ?? 0)} ${t("tarif ditulis.")}`,
             });
             await onRefresh?.();
         } catch (requestError) {
@@ -140,7 +142,7 @@ export default function ProviderWorkbench({
                             role="listitem"
                             className="pw-card"
                             aria-pressed={String(provider.id) === String(scopedProviderId)}
-                            onClick={() => onScope?.(String(provider.id))}
+                            onClick={() => navigate(localizedPath(`/admin/ai/${provider.id}`))}
                         >
                             <span className="pw-card-head">
                                 <span className="pw-card-title">{provider.name || provider.slug}</span>
