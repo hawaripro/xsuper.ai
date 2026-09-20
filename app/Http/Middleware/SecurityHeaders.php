@@ -4,12 +4,18 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Generated before the view renders so inline <script nonce> tags and the
+        // CSP header always carry the same per-request value. Never use
+        // 'unsafe-inline' here: it would void the whole script-src policy.
+        $nonce = Vite::useCspNonce();
+
         $response = $next($request);
 
         // Prevent MIME type sniffing
@@ -22,11 +28,12 @@ class SecurityHeaders
         // Local/debug relaxes script/connect rules so the Vite dev server (HMR,
         // eval, ws) keeps working; production ships the strict policy.
         $umami = 'https://cloud.umami.is';
+        $cfInsights = 'https://static.cloudflareinsights.com';
         if (config('app.debug')) {
-            $script = "'self' 'unsafe-inline' 'unsafe-eval' ".$umami;
+            $script = "'self' 'unsafe-inline' 'unsafe-eval' ".$umami.' '.$cfInsights;
             $connect = "'self' ws: wss: http: https:";
         } else {
-            $script = "'self' ".$umami;
+            $script = "'self' 'nonce-{$nonce}' ".$umami.' '.$cfInsights;
             $connect = "'self' https: wss:";
         }
         $response->headers->set('Content-Security-Policy', implode('; ', [

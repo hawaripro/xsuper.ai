@@ -29,13 +29,13 @@
     <meta name="twitter:image" content="{{ $site['url'] }}/xsuper-logo.png">
     <link rel="icon" type="image/png" href="/xsuper-mark.png">
     <link rel="apple-touch-icon" href="/xsuper-mark.png">
-    <script>try{if(localStorage.getItem('xsuper-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+    <script nonce="{{ Illuminate\Support\Facades\Vite::cspNonce() }}">try{if(localStorage.getItem('xsuper-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
     @vite(['resources/css/landing.css', 'resources/js/landing.js'])
     @if(config('services.umami.id'))
         <script defer src="{{ config('services.umami.url', 'https://cloud.umami.is/script.js') }}" data-website-id="{{ config('services.umami.id') }}"></script>
     @endif
     @if(!empty($structuredData))
-        <script type="application/ld+json">{!! json_encode($structuredData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) !!}</script>
+        <script type="application/ld+json" nonce="{{ Illuminate\Support\Facades\Vite::cspNonce() }}">{!! json_encode($structuredData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) !!}</script>
     @endif
 </head>
 <body class="public-site {{ $page['type'] === 'policy' ? 'policy-site' : 'landing-site' }}" data-motion="paused" data-copy-success="{{ __('Kode berhasil disalin.') }}" data-copy-failure="{{ __('Penyalinan otomatis tidak tersedia. Pilih teks kode lalu salin secara manual.') }}">
