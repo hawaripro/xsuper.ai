@@ -171,4 +171,41 @@ class ImageLifecycleTest extends TestCase
         $this->assertSame(90, UserToken::getBalance($user->id));
         Http::assertSentCount(3); // 1 createTask + 1 recordInfo + 1 failed download; NOT a second createTask
     }
+
+    public function test_non_pilot_legacy_job_completes_on_the_shared_pipeline(): void
+    {
+        Storage::fake('local');
+        Http::fake([
+            'https://kinovi.ai/api/v1/jobs/createTask' => Http::response(['taskId' => 'task_legacy']),
+            'https://kinovi.ai/api/v1/jobs/recordInfo*' => Http::response(['status' => 'success', 'output' => [['url' => 'https://static.seedance2-pro.com/x.png']]]),
+            'https://static.seedance2-pro.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        ]);
+        $this->model();
+        $pilot = User::factory()->create();
+        $other = User::factory()->create();
+        UserToken::topup($other->id, 100);
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => $pilot->id]);
+        $svc = app(ImageGenerationService::class);
+
+        // Non-pilot submits -> existing path (no capability revision), still accepted + reserved.
+        $job = $svc->generate($other, 'kinovi-ai/gpt-image-2', 'a red apple', '1024x1024', 1);
+        $this->assertNull($job->capability_revision_id, 'non-pilot job carries no capability revision');
+        $this->assertSame(90, UserToken::getBalance($other->id), 'reserved on submit');
+
+        // Accepted job finishes on the SAME shared pipeline: submit -> render -> poll -> complete.
+        $svc->process($job->id);
+        $job->refresh();
+        $this->assertSame('rendering', $job->stage);
+        $this->assertSame('task_legacy', $job->upstream_job_id);
+
+        $this->travel(10)->seconds();
+        $svc->poll($job->id);
+        $job->refresh();
+
+        $this->assertSame('completed', $job->status);
+        $this->assertSame('settled', $job->billing_status);
+        $this->assertNotEmpty($job->result_urls);
+        $this->assertSame(90, UserToken::getBalance($other->id), 'settled once, never refunded or double-charged');
+        $this->actingAs($other)->get($job->result_urls[0])->assertOk()->assertHeader('Content-Type', 'image/png');
+    }
 }

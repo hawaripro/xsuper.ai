@@ -10,6 +10,7 @@ use App\Media\Enums\MediaState;
 use App\Media\Enums\OutputKind;
 use App\Media\Enums\SubmitOutcome;
 use App\Media\MediaAdapterRegistry;
+use App\Media\MediaActivation;
 use App\Media\MediaCapability;
 use App\Models\MediaCapabilityRevision;
 use App\Jobs\PollImageJob;
@@ -37,13 +38,22 @@ class ImageGenerationService
         private readonly AiProviderTransport $transport,
         private readonly MediaGenerationCoordinator $coordinator,
         private readonly MediaAdapterRegistry $adapters,
+        private readonly MediaActivation $activation,
     ) {}
 
     public function generate(User $user, string $model, string $prompt, string $size, int $quantity, array $options = []): ImageJob
     {
         $profile = AiModelProfile::query()->with('provider')->where('model_id', $model)->first();
         if ($profile?->provider?->protocol === 'kinovi') {
-            return $this->coordinator->startImage($user, $profile, MediaOperation::TextToImage, ['prompt' => $prompt, 'size' => $size], 'studio-image', $options);
+            // Route BEFORE any reservation. Kill switch pauses all new Kinovi submissions; the
+            // pilot (or everyone, once unrestricted) uses the capability coordinator, while other
+            // members keep the existing verified async path. No cross-path retry (no double charge).
+            $this->activation->assertNotPaused();
+            if ($this->activation->usesCoordinator($user)) {
+                return $this->coordinator->startImage($user, $profile, MediaOperation::TextToImage, ['prompt' => $prompt, 'size' => $size], 'studio-image', $options);
+            }
+
+            return $this->createAsync($user, $profile, $prompt, $size);
         }
         $jobId = (string) Str::uuid();
         $referenceId = "image:{$jobId}";
@@ -110,6 +120,51 @@ class ImageGenerationService
             $failed = $this->failAndRelease($job, $reservation, $message);
             throw new ImageGenerationException($message, 502, $failed);
         }
+    }
+
+    /**
+     * Existing (pre-capability) async Kinovi path for non-pilot members during limited
+     * activation. Reserve -> persist a pending job carrying provider routing identity (but no
+     * capability revision) -> dispatch. The shared process()/poll() pipeline executes it via the
+     * Kinovi adapter exactly like a coordinator job (capabilityForJob() supplies a default when
+     * capability_revision_id is null). No capability validation, price re-check, or idempotency.
+     */
+    private function createAsync(User $user, AiModelProfile $profile, string $prompt, string $size): ImageJob
+    {
+        $jobId = (string) Str::uuid();
+        $job = DB::transaction(function () use ($user, $profile, $prompt, $size, $jobId): ImageJob {
+            $model = AiModelProfile::query()->with('provider')->where('model_id', $profile->model_id)->lockForUpdate()->first();
+            if (! $model || $model->category !== 'image' || ! MediaModelConfig::allowedFor($user, $model)) {
+                throw new ImageGenerationException('The selected image model is unavailable.', 503);
+            }
+            if (! $model->provider || $model->provider->protocol !== 'kinovi') {
+                throw new ImageGenerationException('The selected image model is unavailable.', 503);
+            }
+            $config = MediaModelConfig::forModel($model);
+            if (($config['supports_size'] ?? false) && ! in_array($size, $config['sizes'], true)) {
+                throw new ImageGenerationException('The selected image options are not supported by this model.', 422);
+            }
+            if (! is_int($model->token_cost) || $model->token_cost < 1) {
+                throw new ImageGenerationException('Image token pricing is unavailable.', 503);
+            }
+            $reservation = $this->tokens->reserve($user, 'image', $model->model_id, 1, "image:{$jobId}", (int) $model->token_cost);
+
+            return ImageJob::create([
+                'user_id' => $user->id, 'job_id' => $jobId, 'model' => $model->model_id,
+                'provider_id' => $model->provider_id, 'upstream_model_id' => $model->upstream_model_id ?: $model->model_id,
+                'connection_fingerprint' => self::fingerprint($model->provider), 'generation_config' => $config,
+                'capability_revision_id' => null, 'routing_identity' => $model->upstream_model_id ?: $model->model_id,
+                'price_tokens' => (int) $model->token_cost,
+                'prompt' => $prompt, 'size' => ($config['supports_size'] ?? false) ? $size : 'auto', 'quantity' => 1,
+                'status' => 'pending', 'stage' => 'queued', 'billing_reserved_microusd' => 0,
+                'billing_reference_id' => "image:{$jobId}", 'billing_status' => 'reserved',
+                'billing_mode' => $reservation['billing_mode'], 'tokens_reserved' => $reservation['amount_tokens'],
+                'next_poll_at' => now()->addMinute(),
+            ]);
+        });
+        ProcessImageJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
+
+        return $job;
     }
 
     public function reconcileStaleReservations(int $minutes): int

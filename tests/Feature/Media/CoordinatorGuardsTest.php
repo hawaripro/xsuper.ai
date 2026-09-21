@@ -103,40 +103,4 @@ class CoordinatorGuardsTest extends TestCase
         $this->assertSame(100, UserToken::getBalance($user->id));
     }
 
-    public function test_limited_activation_restricts_to_one_user(): void
-    {
-        Queue::fake();
-        $allowed = User::factory()->create();
-        $other = User::factory()->create();
-        UserToken::topup($allowed->id, 100);
-        UserToken::topup($other->id, 100);
-        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => $allowed->id]);
-
-        try {
-            $this->start($other);
-            $this->fail('expected restriction to reject the other user');
-        } catch (ImageGenerationException $e) {
-            $this->assertSame(503, $e->responseStatus());
-        }
-
-        $job = $this->start($allowed);
-        $this->assertSame('pending', $job->status);
-        $this->assertSame(1, \App\Models\ImageJob::count());
-    }
-
-    public function test_restricted_mode_with_no_id_is_closed_for_everyone(): void
-    {
-        Queue::fake();
-        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => null]);
-        $user = User::factory()->create();
-        UserToken::topup($user->id, 100);
-
-        try {
-            $this->start($user);
-            $this->fail('empty restricted id must be fail-safe closed, not open');
-        } catch (ImageGenerationException $e) {
-            $this->assertSame(503, $e->responseStatus());
-        }
-        $this->assertDatabaseCount('image_jobs', 0);
-    }
 }

@@ -35,7 +35,7 @@ final class MediaGenerationCoordinator
      */
     public function startImage(User $user, AiModelProfile $model, MediaOperation $operation, array $rawInputs, string $entrypoint, array $options = []): ImageJob
     {
-        $this->activation->assertCanSubmit($user);
+        $this->activation->assertNotPaused();
         if ($model->category !== 'image' || ! MediaModelConfig::allowedFor($user, $model)) {
             throw new ImageGenerationException('The selected image model is unavailable.', 503);
         }
