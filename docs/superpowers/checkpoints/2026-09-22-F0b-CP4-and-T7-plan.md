@@ -1,71 +1,74 @@
-# F0b — CP4 evidence + T7 rollout proposal
+# F0b — CP4 evidence + T7 rollout proposal (revised)
 
-**This document proposes T7. It does NOT authorize prod deploy, migration, worker restart, or paid generation.**
+**This document proposes T7. It does NOT authorize prod deploy, migration, worker restart, DB restore, or paid generation.**
 
-## Release-candidate commit
-`88e41b7` on `main` (chain from `357cb8f`). Test env: isolated local PostgreSQL via `scripts/run-local.ps1`, `Storage::fake`, `Http::fake`. No provider was called for real; no paid generation ran.
-
-Command: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run-local.ps1 artisan test`
-Result: **436 passed / 3109 assertions** (395 baseline + 41 new media tests).
+## Release candidate
+- **RC SHA: `168649b`** on `main` (supersedes `88e41b7`; T7 corrections applied). Any further code change → new RC + new test run reported; `88e41b7` results do NOT carry over.
+- RC artifact = the git repo at `168649b`; migration files live under `database/migrations/` and are present before code activation.
+- Test env: isolated local PostgreSQL via `scripts/run-local.ps1`, `Storage::fake`, `Http::fake`. No real provider call; no paid generation.
+- Command: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run-local.ps1 artisan test` → **444 passed / 3129 assertions**.
 
 ## CP4 acceptance coverage (fixture/mock unless noted; NONE are live)
 | ID | Scenario | Evidence | Status |
 |---|---|---|---|
-| Q01 | published vs legacy capability; broken→error; disabled no-revive | `CapabilityResolverTest` | proven (feature) |
-| Q02 | required/conditional input rejected before paid gen (backend) | `CapabilityValidatorTest`, `CoordinatorImageFlowTest`, `ImageLifecycleTest::rejection` | proven (feature); **FE rejection = F1** |
-| Q03 | revision/price mismatch after form opened | job stores `capability_revision_id`+`price_tokens` | **partial** — mismatch re-confirm is FE (F1); unverified |
-| Q04 | asset ownership/signature/size/cross-user | `AssetServiceTest` | proven (feature) |
-| Q05 | provider delivery cookie-independent; invalid/expired grant rejected | `AssetServiceTest` | proven (feature); **live provider-fetch = unverified** |
-| Q06 | duplicate submission → same job | `CoordinatorImageFlowTest` | proven (feature); client-idempotency-key conflict N/A (key derived from payload) |
-| Q07 | transaction/dispatch failure recovery | `DB::transaction` + `afterCommit` dispatch; `reconcileStaleReservations` | **partial** — no crash-injection test; relies on existing reconcile |
-| Q08 | timeout/uncertain submit → no refund/resubmit; no request id | `ImageLifecycleTest::uncertain_submit` | proven (feature); kinovi has no pre-id lookup → bounded stale-reservation reconcile (documented) |
-| Q09 | duplicate/out-of-order callback | kinovi = polling only (no callback); `ownsClaim`+`complete` idempotent | **partial** — no callback path for kinovi |
-| Q10 | provider done, output save failed → retry finalization, not new gen | `ImageLifecycleTest::finalization_failure` (asserts no 2nd createTask) | proven (feature) |
-| Q11 | refresh/reopen; owner reads private asset | `ImageLifecycleTest::happy` (`GET /api/images/{job}` + asset serve) | proven (feature) |
-| Q12 | ledger/regression (token & API paths unchanged) | full suite 436 green | proven (regression) |
-| Q13 | member no provider/secret; admin sanitized | `ResponseSeparationTest` | proven (feature) |
-| Q14 | F6a schema sampling; unsupported required blocks publish | `FalSchemaCompatibilityTest` | proven (fixture from real fal flux schema — not live import) |
-| Q15 | rollout/rollback; limited smoke | — | **T7, not executed** |
+| Q01 | published vs legacy; broken→error; disabled no-revive | `CapabilityResolverTest` | proven |
+| Q02 | required/conditional input rejected before paid gen (backend) | `CapabilityValidatorTest`, `CoordinatorImageFlowTest`, `ImageLifecycleTest` | proven; FE feedback = F1 |
+| Q03 | stale revision/price rejected before reservation+provider | `CoordinatorGuardsTest` (stale price 409; stale capability hash 409; matching price proceeds) + FE sends `expected_price_tokens` | proven |
+| Q04 | asset ownership/signature/size | `AssetServiceTest` | proven |
+| Q05 | provider delivery cookie-independent; invalid/expired rejected | `AssetServiceTest` | proven; **live provider-fetch unverified** |
+| Q06 | retry same action → same job; new action same input → new job; same key diff input → conflict | `CoordinatorImageFlowTest` (idempotency key: retry/new/conflict; no-key→new each) | proven |
+| Q07 | dispatch failure recovery without duplicate charge | `DispatchRecoveryTest` (`redispatchStalePending` re-queues only stale undispatched) | proven |
+| Q08 | timeout/uncertain submit → no refund/resubmit | `ImageLifecycleTest::uncertain_submit` | proven; kinovi no pre-id lookup → bounded reconcile (documented) |
+| Q09 | duplicate/out-of-order callback | kinovi = polling only; `ownsClaim`+`complete` idempotent | partial (no callback path for kinovi) |
+| Q10 | provider done, output save failed → retry finalization, not new gen | `ImageLifecycleTest::finalization_failure` (asserts no 2nd createTask) | proven |
+| Q11 | refresh/reopen; owner reads private asset | `ImageLifecycleTest::happy` | proven |
+| Q12 | ledger/regression | full suite 444 green | proven |
+| Q13 | member no provider; admin sanitized | `ResponseSeparationTest` | proven |
+| Q14 | F6a schema sampling; unsupported required blocks publish | `FalSchemaCompatibilityTest` | proven (fixture from real fal schema) |
+| Q15 | rollout/rollback; limited smoke | this plan | **T7, not executed** |
 
-**Live provider proof: NOT performed** (isolated option chosen). Pilot is **text-to-image**; reference upload/delivery proven at the AssetService level only — **live reference→provider is unverified**.
+**Kill switch + limited activation** proven: `CoordinatorGuardsTest` (kill switch → new submissions 503, in-flight untouched; `restricted_user_id` → only the test member may submit).
+
+**Live provider proof: NOT performed.** Pilot = text-to-image; reference upload/delivery proven only at the AssetService level → **live reference→provider unverified**. No Kinovi webhook / live reference upload added (out of pilot scope).
 
 ---
 
 ## T7 rollout proposal (awaiting authorization)
 
-### Release commit & migrations
-- Deploy exactly `88e41b7` (verify `git rev-parse HEAD` on prod matches before/after).
-- Migrations introduced by F0b, to run in this order (all **additive + reversible**):
-  1. `2026_09_22_100001_create_media_capabilities_table` (new table)
-  2. `2026_09_22_100002_create_media_assets_table` (new table)
-  3. `2026_09_22_100003_add_capability_to_image_jobs` (nullable columns + index on `image_jobs`)
-- **Do NOT run any other pending migration** that is not in this list. Before `migrate --force`, run `php artisan migrate:status` and confirm only these three are pending; if others are pending, STOP and report.
+### Migrations (unchanged approved list = 3 files)
+1. `2026_09_22_100001_create_media_capabilities_table`
+2. `2026_09_22_100002_create_media_assets_table`
+3. `2026_09_22_100003_add_capability_to_image_jobs` — **column change reported:** now also adds `payload_fingerprint` (nullable) alongside `capability_revision_id`/`routing_identity`/`price_tokens`/`dedup_key`. Still one migration file; still additive + reversible.
+- Before `migrate --force`: run `php artisan migrate:status`; proceed only if exactly these three are pending. If anything else is pending, STOP and report — do not run unrelated migrations.
 
-### Backup & recovery (must be verified before migrate)
-- Take a fresh PostgreSQL dump (`pg_dump`) of the app DB and confirm it restores to a scratch DB. Record the dump path + checksum.
-- Recovery = restore the dump; do NOT rely on `migrate:rollback` for data recovery.
+### Recovery (backup + app-level rollback preferred over DB restore)
+- Take a fresh `pg_dump`, record path+checksum, and verify it restores into a scratch DB before migrating.
+- **Preferred rollback = application-level, non-destructive:** flip the kill switch (`MEDIA_KILL_SWITCH=true`) to halt NEW submissions, and/or redeploy the previous prod commit. Because every schema change is additive + nullable, the previous code runs against the new schema unchanged — **no need to drop tables/columns, no data loss.**
+- **DB restore is a last resort only.** If ever required, data written AFTER the backup (jobs, ledger, settlements) would be lost on restore; therefore restore is not an automatic rollback. If it must happen, first export rows created since the dump (jobs/token_reservations/token_transactions) and reconcile them back manually. Never auto-restore.
 
-### Old-code / new-schema compatibility
-- All new columns are nullable and all new tables are additive → the currently-deployed code keeps working against the new schema (it never reads them). Safe to migrate before deploying code.
-- After deploy, `9282b79`/`88e41b7` code reads the new columns; historical `image_jobs` rows have `capability_revision_id = null` → handled (legacy path).
+### Limited activation + kill switch (server-controlled)
+- `MEDIA_COORDINATOR_USER_ID=<test member id>` → only that member's submissions use the new coordinator path during smoke; everyone else keeps existing verified behavior.
+- `MEDIA_KILL_SWITCH=true` → backend rejects NEW coordinator submissions (503); already-accepted jobs keep being polled/finalized (in-flight never calls the gate).
 
-### Active workers / in-flight jobs
-- `xsuper-media` / `xsuper-queue` hold in-flight VideoJob/AudioJob/ImageJob. Migrations are additive (no column drops/renames) → running jobs are unaffected.
-- Restart workers AFTER migrate + code deploy so they load the new coordinator/adapter classes. Let running jobs finish or rely on the existing lease/reconcile; do not kill mid-write.
+### Release + workers
+- Record the current prod commit (`git rev-parse HEAD`) before pulling `168649b`.
+- Sequence: verify backup → `migrate:status` → `migrate --force` (3 additive) → deploy code `168649b` → restart `xsuper-media`/`xsuper-queue`. Migrations are additive (no drop/rename) so in-flight VideoJob/AudioJob/ImageJob are unaffected; restart after migrate+deploy so workers load the new coordinator/adapter classes. Prefer graceful restart; let in-flight leases finish or resume via reconcile — do not kill mid-write.
 
-### Disable-without-delete (kill switch)
-- The new capability-driven path only affects **kinovi image** (coordinator branch in `ImageGenerationService::generate`). To disable: set the kinovi image models `is_enabled = false` (members stop seeing them) — this removes the new flow WITHOUT deleting any `media_capabilities`, `media_assets`, jobs, or ledger rows.
-- **Never** roll back by dropping `media_capabilities`/`media_assets`/columns once a job references them (restrictOnDelete would block it anyway).
+### Bounded smoke test
+- **1 test member, 1 submission, 1 output.** Set `MEDIA_COORDINATOR_USER_ID` to that member.
+- Before submit: verify the account's ACTUAL `gpt-image-2` configuration + rate on Kinovi (do not assume the low/1K default) and set the app model `token_cost` to match the priced tier.
+- **Cost cap to approve: ≤ 2.17 Kinovi credits** for the single image.
+- If submit times out / status uncertain: reconcile the SAME job (poll `recordInfo` / stale-reservation); NEVER auto-create a new paid generation.
+- Verify: coordinator path (`capability_revision_id` set), member response hides provider, tokens reserve→settle once, asset served owner-gated.
 
-### Limited smoke test (single, bounded)
-- Scope: **1 throwaway test member, 1 generation request, 1 output**.
-- Model `kinovi-ai/gpt-image-2`, operation text-to-image, size `1024x1024` → Kinovi inputs `aspectRatio 1:1`, `resolution 1k`, quality default `low`.
-- **Cost to approve:** Kinovi `gpt-image-2` low·1K = **2.17 Kinovi credits** per image (published rate ≈ $0.01, but the **credit cost is the cap to approve**: max **1 image = 2.17 credits**). No batch, no retries-as-new-gen.
-- If submit times out / status uncertain: reconcile the SAME job (poll `recordInfo` / stale-reservation), never auto-create a new paid generation.
-- Verify: job completes via the coordinator path, `capability_revision_id` set, member response has no provider, tokens reserve→settle once, asset served owner-gated.
+### Cleanup (non-destructive)
+- Do NOT hard-delete the test member. Disable access (`is_active=false`) and revoke its sessions/API tokens.
+- **Keep** the member identity + audit relations, and every job row, capability revision, ledger entry, settlement, and smoke evidence. Remove only safe temporary artifacts. Never alter a real customer balance or delete transaction evidence.
 
-### Cleanup policy (post-smoke)
-- Remove ONLY the throwaway test member + its temp assets. **Keep** every job row, capability revision, ledger entry, settlement, and audit record. Do NOT adjust any real customer balance or delete transaction evidence.
+### Authorization needed for T7
+Explicit go-ahead for: (a) `pg_dump` + verify, (b) `migrate --force` of the 3 listed migrations, (c) deploy `168649b`, (d) worker restart, (e) one paid Kinovi image ≤ 2.17 credits scoped to the test member via `MEDIA_COORDINATOR_USER_ID`.
 
-### Authorization needed to run T7
-Explicit go-ahead for: (a) `migrate --force` of the 3 listed migrations, (b) code deploy of `88e41b7`, (c) worker restart, (d) one paid Kinovi image ≤ 2.17 credits.
+## Remaining limitations
+- Live provider + live reference→provider: unverified (isolated proof only).
+- Q09 callback path: N/A for kinovi (polling only).
+- `redispatchStalePending` scheduler hookup: method + test exist; wiring into the scheduler is a one-line follow-up to run it periodically (note for T7/ops).
