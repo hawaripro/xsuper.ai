@@ -175,7 +175,7 @@ class VideoController extends Controller
         $models = AiModelProfile::query()->with('provider')->where('category', 'video')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
-                && in_array($model->provider->protocol, ['openai', 'fal'], true) && $model->token_cost > 0)
+                && in_array($model->provider->protocol, ['openai', 'fal', 'kinovi'], true) && $model->token_cost > 0)
             ->map(fn (AiModelProfile $model): array => MediaModelConfig::publicModel($model))->values()->all();
 
         return response()->json(['models' => $models, 'balance' => UserToken::getBalance($user->id)]);
