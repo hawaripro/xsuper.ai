@@ -59,3 +59,34 @@ Post: `migrate:status` pending = 0. Additive/reversible; old code runs unchanged
 - Only text-to-image on one Kinovi image model was exercised live. Live reference→provider (image-to-image) and other providers remain unverified in production (isolated proof only).
 - Q09 provider callback path is N/A for Kinovi (polling only).
 - FE compiled bundle not rebuilt (new `idempotency_key`/`expected_price_tokens` are optional; backend accepts their absence; the studio redesign is F1).
+
+---
+
+## Correction (post-CP5) — gate impact on existing service, verified + fixed in isolation
+
+**Status update (accurate):**
+- Pilot coordinator live: **succeeded** (evidence above).
+- General rollout: **NOT authorized.**
+- Gate impact on existing service: **VERIFIED regression** (details below).
+- Live reference upload + other providers: **unverified.**
+
+### Verified impact (read-only; no paid generation)
+The T7 gate DID block previously-available Kinovi image service for regular members. Evidence:
+- All 8 Kinovi image models (ids 783,785,787,788,789,790,791,792) are `is_enabled+is_available` → shown to every member, before and after T7.
+- Concrete prior usage: `image_jobs` id 8 — user 1 generated `seedream-5.0-pro` (a Kinovi model) successfully **before T7** via the legacy `createAsync` path (`capability_revision_id` null).
+- RC `611a88d` removed `createAsync` and routes ALL Kinovi image → coordinator → `assertCanSubmit`, which throws 503 for any non-pilot **before path selection**. So the gate BLOCKS the service; no legacy path remained.
+- Net: on prod (`611a88d`, restricted=true, pilot user 7 now disabled), every member gets 503 for all 8 Kinovi image models. Kinovi video + openai/fal image are unaffected (separate, non-coordinator paths).
+
+### Fix prepared in isolation (RC `6e2e3b5`, pushed, NOT deployed)
+`MediaActivation` now ROUTES instead of blocking:
+- `assertNotPaused()` = kill switch pauses ALL new submissions.
+- `usesCoordinator(user)` = pilot (or everyone when unrestricted) → coordinator; every other member → existing verified path; empty/invalid restricted id → existing path for everyone (coordinator opens for no one).
+- `generate()` selects the path BEFORE any reservation; the removed `createAsync` (existing async Kinovi path) is restored, setting provider routing identity so the SHARED `process()/poll()` execute it via the Kinovi adapter. No "coordinator error → legacy resubmit" fallback (no double charge). Accepted jobs finish on the shared pipeline (`capabilityForJob` defaults when `capability_revision_id` is null).
+- Tests (isolated, 451 pass): pilot→coordinator; non-pilot→existing path (not blocked); empty id→existing for all; unrestricted→coordinator for all; kill switch→503 both; unavailable model→503 both; non-pilot legacy job completes end-to-end, settles once (no double charge), asset owner-gated.
+
+### Proposed production action (needs explicit authorization — NOT executed)
+Deploy `6e2e3b5` to restore existing member service. Specifics + impact:
+- Procedure: `php artisan down` → checkout `6e2e3b5` → `composer dump-autoload -o` → `config:cache` → restart `xsuper-media`+`xsuper-queue` → `up`. **No migration** (code+tests only). `resend` composer change preserved (unchanged across commits).
+- Resulting state (keep `restricted=true`, pilot user 7 stays disabled): every member → existing verified Kinovi image path (service restored); coordinator used by no one (not rolled out). No pricing/balance/provider change.
+- Verification without paid generation: read-only probe that `usesCoordinator(member)=false` and the gate raises no 503; execution already proven by the isolated legacy-lifecycle test + the earlier live coordinator smoke.
+- NOT proposed: opening the coordinator to all (`restricted=false`), app rollback, DB restore, price/balance changes, or any new paid generation.
