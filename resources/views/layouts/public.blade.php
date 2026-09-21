@@ -46,11 +46,11 @@
             <div class="site-announcement-track">
                 @foreach([false, true] as $duplicate)
                     <span class="site-announcement-copy" @if($duplicate) aria-hidden="true" @endif>
-                        <strong>{{ $site['announcement']['message'] }}</strong>
+                        <span>{{ $site['announcement']['message'] }}</span>
                         @if(!empty($site['announcement']['action']))
-                            <a href="{{ $site['announcement']['action']['url'] }}">{{ $site['announcement']['action']['label'] }}</a>
+                            <a href="{{ $site['announcement']['action']['url'] }}">{{ $site['announcement']['action']['label'] }}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
                         @endif
-                        <span aria-hidden="true">•</span>
+                        <span class="site-announcement-sep" aria-hidden="true">•</span>
                     </span>
                 @endforeach
             </div>

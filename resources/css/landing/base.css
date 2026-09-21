@@ -280,34 +280,45 @@ p {
 .site-announcement {
     width: 100%;
     overflow: hidden;
-    border-bottom: 1px solid color-mix(in srgb, var(--blue) 22%, transparent);
-    background: color-mix(in srgb, var(--pale) 90%, white);
-    color: var(--ink);
+    border-bottom: 1px solid #bae6fd; /* sky-200, matches dashboard ribbon */
+    background: #f0f9ff; /* sky-50 */
+    color: #075985; /* sky-800 */
     font-size: 12px;
-    line-height: 1.5;
+    line-height: 20px;
 }
-.site-announcement[data-level="success"] { background: #ecfdf5; color: #065f46; }
-.site-announcement[data-level="warning"] { background: #fffbeb; color: #92400e; }
-.site-announcement[data-level="critical"] { background: #fef2f2; color: #991b1b; }
+.site-announcement[data-level="success"] { background: #ecfdf5; color: #065f46; border-bottom-color: #a7f3d0; }
+.site-announcement[data-level="warning"] { background: #fffbeb; color: #78350f; border-bottom-color: #fde68a; }
+.site-announcement[data-level="critical"] { background: #fef2f2; color: #991b1b; border-bottom-color: #fecaca; }
 .site-announcement-track {
     display: flex;
     width: max-content;
     white-space: nowrap;
-    animation: site-announcement-scroll 30s linear infinite;
+    padding: 6px 0; /* py-1.5 */
+    animation: site-announcement-scroll var(--site-announcement-duration, 30s) linear infinite;
     will-change: transform;
 }
 .site-announcement-copy {
     display: inline-flex;
     flex: none;
     align-items: center;
-    gap: 14px;
-    padding: 8px 24px;
+    padding-left: 16px; /* pl-4 */
+    font-weight: 500;
 }
 .site-announcement-copy a {
     color: inherit;
-    font-weight: 700;
+    margin-left: 12px; /* ml-3 */
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     text-decoration: underline;
-    text-underline-offset: 3px;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
+}
+.site-announcement-copy a:hover { text-decoration-color: currentColor; }
+.site-announcement-sep {
+    margin: 0 24px; /* mx-6 */
+    opacity: 0.4;
 }
 @keyframes site-announcement-scroll {
     from { transform: translateX(0); }

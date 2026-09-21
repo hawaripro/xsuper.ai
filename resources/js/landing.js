@@ -1034,8 +1034,52 @@ function enhanceLanding() {
         scheduleNextPurchase();
     });
 
+    setupAnnouncementMarquee();
     syncMotion();
     document.documentElement.classList.add("js");
+}
+
+// Match the dashboard ribbon: constant 70px/s scroll and enough repeated copies
+// to fill the viewport so a short message never leaves a gap before it loops.
+function setupAnnouncementMarquee() {
+    const aside = document.querySelector(".site-announcement");
+    const track = aside && aside.querySelector(".site-announcement-track");
+    const first = track && track.querySelector(".site-announcement-copy");
+    if (!aside || !track || !first) return;
+    const SPEED = 70;
+    const template = first.cloneNode(true);
+    template.removeAttribute("aria-hidden");
+    let building = false;
+    const build = () => {
+        if (building) return;
+        const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduce) { track.style.removeProperty("--site-announcement-duration"); return; }
+        const probe = template.cloneNode(true);
+        probe.style.visibility = "hidden";
+        probe.style.position = "absolute";
+        track.appendChild(probe);
+        const unit = probe.getBoundingClientRect().width;
+        track.removeChild(probe);
+        const container = aside.getBoundingClientRect().width;
+        if (!unit || !container) return;
+        const copies = Math.max(1, Math.ceil(container / unit) + 1);
+        building = true;
+        const fragment = document.createDocumentFragment();
+        for (let group = 0; group < 2; group += 1) {
+            for (let index = 0; index < copies; index += 1) {
+                const copy = template.cloneNode(true);
+                if (group === 1) copy.setAttribute("aria-hidden", "true");
+                fragment.appendChild(copy);
+            }
+        }
+        track.replaceChildren(fragment);
+        track.style.setProperty("--site-announcement-duration", Math.max(12, Math.round((copies * unit) / SPEED)) + "s");
+        building = false;
+    };
+    build();
+    if (typeof ResizeObserver === "function") {
+        new ResizeObserver(() => build()).observe(aside);
+    }
 }
 
 if (document.readyState === "loading") {
