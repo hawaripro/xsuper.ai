@@ -22,4 +22,12 @@ return [
     'restricted_user_id' => env('MEDIA_COORDINATOR_USER_ID') !== null && env('MEDIA_COORDINATOR_USER_ID') !== ''
         ? (int) env('MEDIA_COORDINATOR_USER_ID')
         : null,
+
+    /*
+     * Local-only development affordance. When true AND APP_ENV=local, the provider endpoint
+     * guard permits a loopback (127.0.0.0/8, ::1, localhost) mock over http/https so a studio
+     * can be exercised end-to-end against a local fake provider. Production never sets this and
+     * is never `local`, so the strict public-HTTPS SSRF guard always applies there.
+     */
+    'allow_local_providers' => (bool) env('MEDIA_ALLOW_LOCAL_PROVIDERS', false),
 ];

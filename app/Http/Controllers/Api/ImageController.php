@@ -31,11 +31,17 @@ class ImageController extends Controller
     public function models(Request $request): JsonResponse
     {
         $user = $request->user();
+        $capabilities = app(\App\Media\CapabilityPresenter::class);
         $models = AiModelProfile::query()->with('provider')->where('category', 'image')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
                 && $model->token_cost > 0)
-            ->map(fn (AiModelProfile $model): array => MediaModelConfig::publicModel($model))
+            ->map(function (AiModelProfile $model) use ($capabilities): array {
+                $payload = MediaModelConfig::publicModel($model);
+                $payload['capabilities'] = $capabilities->forModel($model);
+
+                return $payload;
+            })
             ->values()->all();
 
         return response()->json(['models' => $models, 'balance' => UserToken::getBalance($user->id), ...self::CANCELLATION]);

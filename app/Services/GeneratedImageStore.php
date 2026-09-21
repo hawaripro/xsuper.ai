@@ -123,6 +123,9 @@ final class GeneratedImageStore
             || preg_match('/[\x00-\x20\x7f\\\\]/', rawurldecode($url))) {
             return false;
         }
+        if (self::loopbackResultAllowed($url)) {
+            return true;
+        }
         $parts = parse_url($url);
         if (($parts['scheme'] ?? '') !== 'https' || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
             return false;
@@ -139,5 +142,21 @@ final class GeneratedImageStore
             && str_contains($host, '.')
             && preg_match('/^(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+))*$/i', $host) !== 1
             && preg_match('/(?:^|\.)(?:localhost|localdomain|local|internal|intranet|lan|home|onion)$/i', rtrim($host, '.')) !== 1;
+    }
+
+    // Accept a loopback result URL only under the double-gated local dev affordance
+    // (APP_ENV=local AND media.allow_local_providers); production keeps the strict guard above.
+    private static function loopbackResultAllowed(string $url): bool
+    {
+        if (! (app()->environment('local') && (bool) config('media.allow_local_providers', false))) {
+            return false;
+        }
+        $parts = parse_url($url);
+        if (! is_array($parts) || ! in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true) || empty($parts['host'])) {
+            return false;
+        }
+        $host = strtolower(trim($parts['host'], '[]'));
+
+        return $host === 'localhost' || $host === '::1' || str_starts_with($host, '127.');
     }
 }
