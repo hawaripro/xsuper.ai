@@ -39,6 +39,9 @@ final class AiProviderTransport
         if ($connection['protocol'] === 'anthropic') {
             return $this->anthropicCatalog($connection);
         }
+        if ($connection['protocol'] === 'kinovi') {
+            return KinoviProtocol::catalog();
+        }
 
         $response = $this->send('GET', $connection['base_url'].'/models', $connection, timeout: 10);
         $models = $response->json('data');
@@ -153,6 +156,28 @@ final class AiProviderTransport
             }
 
             return FalProtocol::imageResponse($data);
+        }
+        if ($connection['protocol'] === 'kinovi') {
+            $request = KinoviProtocol::imageTask($payload);
+            $submit = $this->send('POST', $connection['base_url'].'/jobs/createTask', $connection, $request, 30, image: true);
+            $taskId = $submit->json('taskId');
+            if (! is_string($taskId) || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+                throw new AiProxyException('The Kinovi provider did not return a valid task reference.', 502);
+            }
+            $deadline = microtime(true) + 100;
+            do {
+                usleep(2_500_000);
+                $status = $this->send('GET', $connection['base_url'].'/jobs/recordInfo', $connection, timeout: 20, query: ['taskId' => $taskId], image: true);
+                $data = $status->json();
+                $state = is_array($data) ? ($data['status'] ?? null) : null;
+                if ($state === 'success') {
+                    return KinoviProtocol::imageResponse($data);
+                }
+                if ($state === 'fail') {
+                    throw new AiProxyException('The Kinovi image provider could not complete this request.', 502);
+                }
+            } while (microtime(true) < $deadline);
+            throw new AiProxyException('The Kinovi image provider timed out.', 504);
         }
         if ($connection['protocol'] !== 'openai') {
             throw new AiProxyException('Image generation is not supported by this AI provider.', 422);
@@ -432,7 +457,7 @@ final class AiProviderTransport
     {
         $saved = $provider?->base_url !== null;
         $protocol = $saved ? strtolower(trim((string) $provider->protocol)) : 'openai';
-        if (! in_array($protocol, ['openai', 'anthropic', 'fal'], true)) {
+        if (! in_array($protocol, ['openai', 'anthropic', 'fal', 'kinovi'], true)) {
             throw new AiProxyException('The AI provider configuration is invalid.', 503);
         }
         $baseUrl = $saved ? (string) $provider->base_url : (string) config('services.ai_proxy.url', '');

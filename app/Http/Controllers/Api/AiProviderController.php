@@ -249,7 +249,7 @@ class AiProviderController extends Controller
         $presence = $provider ? 'sometimes' : 'required';
         $rules = [
             'name' => [$presence, 'required', 'string', 'max:120'],
-            'protocol' => [$presence, 'required', Rule::in(['openai', 'anthropic', 'fal'])],
+            'protocol' => [$presence, 'required', Rule::in(['openai', 'anthropic', 'fal', 'kinovi'])],
             'base_url' => [$presence, 'required', 'string', 'max:2048', function (string $attribute, mixed $value, \Closure $fail) use ($endpoint, $protocol): void {
                 if (! is_string($value)) {
                     return;

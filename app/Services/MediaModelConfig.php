@@ -14,6 +14,10 @@ final class MediaModelConfig
             return FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id)
                 ?? throw new InvalidArgumentException('This fal media model is not supported.');
         }
+        if ($model->provider?->protocol === 'kinovi') {
+            return KinoviProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id)
+                ?? throw new InvalidArgumentException('This Kinovi media model is not supported.');
+        }
         $id = strtolower($model->upstream_model_id ?: $model->model_id);
         $gptImage = preg_match('/(?:^|\/)gpt-image(?:-|$)/', $id) === 1;
         $geminiImage = str_contains($id, 'gemini-') && str_contains($id, '-image');
@@ -90,6 +94,10 @@ final class MediaModelConfig
         }
         if ($model->provider->protocol === 'fal'
             && (FalProtocol::MEDIA_MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
+            return false;
+        }
+        if ($model->provider->protocol === 'kinovi'
+            && (KinoviProtocol::MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
             return false;
         }
         return true;
