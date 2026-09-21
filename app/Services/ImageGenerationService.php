@@ -4,8 +4,9 @@ namespace App\Services;
 
 use App\Exceptions\AiProxyException;
 use App\Exceptions\ImageGenerationException;
+use App\Media\Enums\MediaOperation;
+use App\Media\MediaGenerationCoordinator;
 use App\Jobs\PollImageJob;
-use App\Jobs\ProcessImageJob;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ImageJob;
@@ -27,13 +28,14 @@ class ImageGenerationService
         private readonly MediaTokenBillingService $tokens,
         private readonly GeneratedImageStore $images,
         private readonly AiProviderTransport $transport,
+        private readonly MediaGenerationCoordinator $coordinator,
     ) {}
 
     public function generate(User $user, string $model, string $prompt, string $size, int $quantity): ImageJob
     {
         $profile = AiModelProfile::query()->with('provider')->where('model_id', $model)->first();
         if ($profile?->provider?->protocol === 'kinovi') {
-            return $this->createAsync($user, $profile, $prompt, $size);
+            return $this->coordinator->startImage($user, $profile, MediaOperation::TextToImage, ['prompt' => $prompt, 'size' => $size], 'studio-image');
         }
         $jobId = (string) Str::uuid();
         $referenceId = "image:{$jobId}";
@@ -164,38 +166,6 @@ class ImageGenerationService
 
             return $locked->fresh();
         });
-    }
-
-    private function createAsync(User $user, AiModelProfile $profile, string $prompt, string $size): ImageJob
-    {
-        $jobId = (string) Str::uuid();
-        $job = DB::transaction(function () use ($jobId, $profile, $prompt, $size, $user): ImageJob {
-            $model = AiModelProfile::query()->with('provider')->whereKey($profile->id)->lockForUpdate()->first();
-            if (! $model || $model->category !== 'image' || ! MediaModelConfig::allowedFor($user, $model)) {
-                throw new ImageGenerationException('The selected image model is unavailable.', 503);
-            }
-            $config = MediaModelConfig::forModel($model);
-            // Kinovi always advertises fixed sizes; coerce an unset/auto choice to the first supported one.
-            $size = in_array($size, $config['sizes'], true) ? $size : ($config['sizes'][0] ?? '1024x1024');
-            if (! is_int($model->token_cost) || $model->token_cost < 1) {
-                throw new ImageGenerationException('Image token pricing is unavailable.', 503);
-            }
-            $reservation = $this->tokens->reserve($user, 'image', $model->model_id, 1, "image:{$jobId}", (int) $model->token_cost);
-
-            return ImageJob::create([
-                'user_id' => $user->id, 'job_id' => $jobId, 'model' => $model->model_id,
-                'provider_id' => $model->provider_id, 'upstream_model_id' => $model->upstream_model_id ?: $model->model_id,
-                'connection_fingerprint' => self::fingerprint($model->provider), 'generation_config' => $config,
-                'prompt' => $prompt, 'size' => $size, 'quantity' => 1,
-                'status' => 'pending', 'stage' => 'queued',
-                'billing_reserved_microusd' => 0, 'billing_reference_id' => "image:{$jobId}",
-                'billing_status' => 'reserved', 'billing_mode' => $reservation['billing_mode'],
-                'tokens_reserved' => $reservation['amount_tokens'], 'next_poll_at' => now()->addMinute(),
-            ]);
-        });
-        $this->queueSubmission($job->id);
-
-        return $job;
     }
 
     public function process(int $id): void
@@ -429,17 +399,6 @@ class ImageGenerationService
     {
         return hash('sha256', json_encode(array_intersect_key($provider->getRawOriginal(),
             array_flip(['base_url', 'api_key', 'protocol', 'api_version'])), JSON_THROW_ON_ERROR));
-    }
-
-    private function queueSubmission(int $id): bool
-    {
-        try {
-            ProcessImageJob::dispatch($id)->onConnection('media')->onQueue('media')->afterCommit();
-
-            return true;
-        } catch (Throwable) {
-            return false;
-        }
     }
 
     private function queuePoll(int $id): bool

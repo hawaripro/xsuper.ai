@@ -18,6 +18,7 @@ class ImageJob extends Model
         'provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint',
         'generation_config', 'submitted_at', 'next_poll_at', 'processing_started_at',
         'processing_token', 'poll_attempts', 'completed_at',
+        'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key',
     ];
 
     protected function casts(): array
@@ -28,6 +29,7 @@ class ImageJob extends Model
             'poll_attempts' => 'integer', 'generation_config' => 'array',
             'submitted_at' => 'datetime', 'next_poll_at' => 'datetime',
             'processing_started_at' => 'datetime', 'completed_at' => 'datetime',
+            'capability_revision_id' => 'integer', 'price_tokens' => 'integer',
         ];
     }
 
