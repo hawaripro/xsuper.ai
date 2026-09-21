@@ -40,9 +40,9 @@ final class KinoviAdapter implements MediaProviderAdapter
         try {
             $result = $this->transport->submitImage($provider, $request, (string) ($request['model'] ?? ''));
         } catch (AiProxyException $e) {
-            // Transport/provider transient failures leave acceptance unknown -> reconcile,
-            // never treat as a definitive rejection that would refund/resubmit.
-            return in_array($e->responseStatus(), [502, 503, 504], true)
+            // send() maps upstream 429/5xx/connection to 503 (unavailable => uncertain) and
+            // 4xx rejections to 502 (definitive). Only 503/504 leave acceptance unknown.
+            return in_array($e->responseStatus(), [503, 504], true)
                 ? SubmitResult::uncertain()
                 : SubmitResult::rejected($e->getMessage());
         }
@@ -70,7 +70,7 @@ final class KinoviAdapter implements MediaProviderAdapter
         return [
             'public_code' => 'kinovi_error',
             'public_message' => $error instanceof AiProxyException ? $error->getMessage() : 'Media generation failed.',
-            'recoverable' => in_array($status, [502, 503, 504], true),
+            'recoverable' => in_array($status, [503, 504], true),
             'internal' => substr($error::class.': '.$error->getMessage(), 0, 500),
         ];
     }

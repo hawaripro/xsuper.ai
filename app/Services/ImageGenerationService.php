@@ -6,6 +6,12 @@ use App\Exceptions\AiProxyException;
 use App\Exceptions\ImageGenerationException;
 use App\Media\Enums\MediaOperation;
 use App\Media\MediaGenerationCoordinator;
+use App\Media\Enums\MediaState;
+use App\Media\Enums\OutputKind;
+use App\Media\Enums\SubmitOutcome;
+use App\Media\MediaAdapterRegistry;
+use App\Media\MediaCapability;
+use App\Models\MediaCapabilityRevision;
 use App\Jobs\PollImageJob;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
@@ -29,6 +35,7 @@ class ImageGenerationService
         private readonly GeneratedImageStore $images,
         private readonly AiProviderTransport $transport,
         private readonly MediaGenerationCoordinator $coordinator,
+        private readonly MediaAdapterRegistry $adapters,
     ) {}
 
     public function generate(User $user, string $model, string $prompt, string $size, int $quantity): ImageJob
@@ -188,31 +195,55 @@ class ImageGenerationService
         }
         try {
             $provider = $this->provider($job);
-            $payload = ['model' => $job->upstream_model_id, 'prompt' => $job->prompt, 'size' => $job->size];
-            $result = $this->transport->submitImage($provider, $payload, $job->generation_config['image_path']);
-            $taskId = $result['id'] ?? null;
-            if (! is_string($taskId) || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1
-                || ! in_array($result['status'] ?? null, ['queued', 'processing'], true)) {
-                throw new AiProxyException('The image provider did not return a valid job reference.', 502);
-            }
-            $submitted = DB::transaction(function () use ($job, $taskId): bool {
-                $locked = ImageJob::query()->lockForUpdate()->find($job->id);
-                if (! $this->ownsClaim($locked, $job)) {
-                    return false;
-                }
-                $locked->update([
-                    'upstream_job_id' => $taskId, 'submitted_at' => now(), 'stage' => 'rendering',
-                    'processing_started_at' => null, 'processing_token' => null,
-                    'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
-                ]);
-
-                return true;
-            });
-            if ($submitted) {
-                $this->queuePoll($job->id);
-            }
+            $adapter = $this->adapters->for($provider->protocol);
+            $request = $adapter->buildRequest($this->capabilityForJob($job), [
+                'inputs' => ['prompt' => $job->prompt],
+                'params' => $job->size !== 'auto' ? ['size' => $job->size] : [],
+            ], (string) $job->upstream_model_id);
+            $submit = $adapter->submit($provider, $request);
         } catch (Throwable) {
-            $this->failClaim($job, 'Image submission could not be completed. Reserved tokens have been returned. No automatic resubmission was made.');
+            // Acceptance is unknown: never refund or resubmit on an unexpected submit error;
+            // free the lease and let bounded stale-reservation reconciliation resolve it.
+            $this->releaseClaimForReconcile($job);
+
+            return;
+        }
+
+        if ($submit->outcome === SubmitOutcome::Rejected) {
+            $this->failClaim($job, 'The image provider rejected this request. Reserved tokens have been returned.');
+
+            return;
+        }
+        if ($submit->outcome === SubmitOutcome::Uncertain) {
+            // Submit timeout / unknown acceptance: do NOT refund or resubmit; reconcile later.
+            $this->releaseClaimForReconcile($job);
+
+            return;
+        }
+        if ($submit->outcome === SubmitOutcome::Immediate) {
+            $saving = $this->claimForSaving($job);
+            if ($saving) {
+                $this->finalize($saving, $submit->resultUrls ?? []);
+            }
+
+            return;
+        }
+        // Accepted as an async job.
+        $submitted = DB::transaction(function () use ($job, $submit): bool {
+            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+            if (! $this->ownsClaim($locked, $job)) {
+                return false;
+            }
+            $locked->update([
+                'upstream_job_id' => $submit->taskId, 'submitted_at' => now(), 'stage' => 'rendering',
+                'processing_started_at' => null, 'processing_token' => null,
+                'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
+            ]);
+
+            return true;
+        });
+        if ($submitted) {
+            $this->queuePoll($job->id);
         }
     }
 
@@ -248,67 +279,40 @@ class ImageGenerationService
             return;
         }
         try {
-            $result = $this->transport->imageStatus($provider, $job->upstream_job_id, $job->generation_config['image_path']);
-            $status = $result['status'] ?? null;
-            if ($status === 'failed') {
-                $this->failClaim($job, 'The image provider could not complete this request. Reserved tokens have been returned.');
-
-                return;
-            }
-            if (! in_array($status, ['processing', 'completed'], true)) {
-                throw new AiProxyException('The image provider returned an invalid status.', 502);
-            }
-            if ($status === 'completed') {
-                $urls = $result['result_urls'] ?? null;
-                if (! is_array($urls) || $urls === []) {
-                    throw new AiProxyException('The image provider returned no usable result.', 502);
-                }
-                $saving = DB::transaction(function () use ($job): ?ImageJob {
-                    $locked = ImageJob::query()->lockForUpdate()->find($job->id);
-                    if (! $this->ownsClaim($locked, $job)) {
-                        return null;
-                    }
-                    $locked->update(['stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null]);
-
-                    return $locked;
-                });
-                if ($saving) {
-                    $this->complete($saving, $urls);
-                }
-
-                return;
-            }
-        } catch (AiProxyException $exception) {
-            if ($job->stage === 'saving') {
-                $this->failClaim($job, 'The image result could not be saved. Reserved tokens have been returned.');
-
-                return;
-            }
-            if ($exception->responseStatus() !== 503) {
-                $this->failClaim($job, 'The image status could not be verified. Reserved tokens have been returned.');
-
-                return;
-            }
+            $status = $this->adapters->for($provider->protocol)->pollStatus($provider, (string) $job->upstream_job_id);
         } catch (Throwable) {
-            $this->failClaim($job, 'Image generation could not be completed. Reserved tokens have been returned.');
+            // Transient status-check failure: reschedule within the 30-minute window, no release.
+            $this->rescheduleClaim($job);
 
             return;
         }
-        $reschedule = DB::transaction(function () use ($job): bool {
-            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
-            if (! $this->ownsClaim($locked, $job)) {
-                return false;
-            }
-            $locked->update([
-                'processing_started_at' => null, 'processing_token' => null,
-                'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
-            ]);
+        if ($status->state === MediaState::Failed) {
+            $this->failClaim($job, 'The image provider could not complete this request. Reserved tokens have been returned.');
 
-            return true;
-        });
-        if ($reschedule) {
-            $this->queuePoll($job->id);
+            return;
         }
+        if ($status->state === MediaState::Completed) {
+            $urls = $status->resultUrls ?? [];
+            if ($urls === []) {
+                $this->rescheduleClaim($job);
+
+                return;
+            }
+            $saving = $this->claimForSaving($job);
+            if ($saving) {
+                try {
+                    $this->finalize($saving, $urls);
+                } catch (Throwable) {
+                    // Provider finished but saving the output failed: retry FINALIZATION only
+                    // (re-poll -> re-download), never a new paid generation; bounded by the timeout.
+                    $this->revertSavingToRendering($saving);
+                }
+            }
+
+            return;
+        }
+        // Still processing.
+        $this->rescheduleClaim($job);
     }
 
     public function failSubmission(int $id): void
@@ -349,6 +353,89 @@ class ImageGenerationService
                 Storage::disk('local')->delete($asset['path']);
             }
         }
+    }
+
+    private function finalize(ImageJob $job, array $urls): void
+    {
+        $this->complete($job, $urls);
+    }
+
+    private function claimForSaving(ImageJob $job): ?ImageJob
+    {
+        return DB::transaction(function () use ($job): ?ImageJob {
+            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+            if (! $this->ownsClaim($locked, $job)) {
+                return null;
+            }
+            $locked->update(['stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null]);
+
+            return $locked;
+        });
+    }
+
+    private function releaseClaimForReconcile(ImageJob $job): void
+    {
+        // Keep the reservation; free the lease so bounded stale-reservation reconciliation acts.
+        DB::transaction(function () use ($job): void {
+            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+            if (! $this->ownsClaim($locked, $job)) {
+                return;
+            }
+            $locked->update([
+                'stage' => 'submitting', 'processing_started_at' => null, 'processing_token' => null,
+                'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
+            ]);
+        });
+    }
+
+    private function rescheduleClaim(ImageJob $job): void
+    {
+        $released = DB::transaction(function () use ($job): bool {
+            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+            if (! $this->ownsClaim($locked, $job)) {
+                return false;
+            }
+            $locked->update([
+                'processing_started_at' => null, 'processing_token' => null,
+                'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
+            ]);
+
+            return true;
+        });
+        if ($released) {
+            $this->queuePoll($job->id);
+        }
+    }
+
+    private function revertSavingToRendering(ImageJob $job): void
+    {
+        $reverted = DB::transaction(function () use ($job): bool {
+            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+            if (! $this->ownsClaim($locked, $job)) {
+                return false;
+            }
+            $locked->update([
+                'stage' => 'rendering', 'processing_started_at' => null, 'processing_token' => null,
+                'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
+            ]);
+
+            return true;
+        });
+        if ($reverted) {
+            $this->queuePoll($job->id);
+        }
+    }
+
+    private function capabilityForJob(ImageJob $job): MediaCapability
+    {
+        if ($job->capability_revision_id) {
+            $revision = MediaCapabilityRevision::query()->find($job->capability_revision_id);
+            if ($revision !== null && is_array($revision->definition)) {
+                return MediaCapability::fromArray($revision->definition);
+            }
+        }
+
+        return new MediaCapability($job->model, MediaOperation::TextToImage, OutputKind::Image, 1);
     }
 
     private function failClaim(ImageJob $claim, string $message): void
