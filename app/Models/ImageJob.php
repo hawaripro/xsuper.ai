@@ -18,7 +18,7 @@ class ImageJob extends Model
         'provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint',
         'generation_config', 'submitted_at', 'next_poll_at', 'processing_started_at',
         'processing_token', 'poll_attempts', 'completed_at',
-        'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key',
+        'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key', 'payload_fingerprint',
     ];
 
     protected function casts(): array

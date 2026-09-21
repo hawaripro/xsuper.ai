@@ -55,6 +55,9 @@ class ImageController extends Controller
             'prompt' => 'required|string|max:4000',
             'size' => ['nullable', 'string', 'max:32'],
             'n' => 'required|integer|min:1|max:10',
+            'idempotency_key' => ['nullable', 'string', 'max:128'],
+            'expected_price_tokens' => ['nullable', 'integer', 'min:1'],
+            'expected_capability_hash' => ['nullable', 'string', 'max:64'],
         ]);
 
         try {
@@ -64,6 +67,11 @@ class ImageController extends Controller
                 $validated['prompt'],
                 $validated['size'] ?? 'auto',
                 $validated['n'],
+                array_filter([
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
+                    'expected_price_tokens' => $validated['expected_price_tokens'] ?? null,
+                    'expected_capability_hash' => $validated['expected_capability_hash'] ?? null,
+                ], static fn ($v): bool => $v !== null),
             );
         } catch (ImageGenerationException $exception) {
             return response()->json([

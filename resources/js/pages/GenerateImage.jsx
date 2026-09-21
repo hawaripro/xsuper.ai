@@ -58,7 +58,7 @@ function ImageStudio({ userId }) {
     const generate = () => {
         if (!canSubmit) return;
         setDialog(null);
-        studio.submit({ model: model.id, prompt: draft.prompt.trim(), n: count, ...(draft.size ? { size: draft.size } : {}) });
+        studio.submit({ model: model.id, prompt: draft.prompt.trim(), n: count, idempotency_key: (globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random().toString(36).slice(2)), ...(unit != null ? { expected_price_tokens: unit } : {}), ...(draft.size ? { size: draft.size } : {}) });
     };
     return <div className="media-studio studio-image">
         <StudioHeader kind="image" title="Studio gambar" description="Dari satu gagasan ke gambar yang siap digunakan." balance={studio.balance} onRefresh={studio.refresh} busy={studio.modelLoading || studio.submitting} />

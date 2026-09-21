@@ -5,6 +5,7 @@ namespace Tests\Feature\Media;
 use App\Jobs\ProcessImageJob;
 use App\Media\Enums\MediaOperation;
 use App\Media\Exceptions\CapabilityValidationException;
+use App\Exceptions\ImageGenerationException;
 use App\Media\MediaGenerationCoordinator;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
@@ -73,7 +74,7 @@ class CoordinatorImageFlowTest extends TestCase
         Queue::assertPushed(ProcessImageJob::class, 1);
     }
 
-    public function test_duplicate_submission_returns_the_same_job(): void
+    public function test_without_idempotency_key_each_submission_is_a_new_job(): void
     {
         Queue::fake();
         $user = User::factory()->create();
@@ -85,9 +86,45 @@ class CoordinatorImageFlowTest extends TestCase
         $first = $coordinator->startImage($user, $model, MediaOperation::TextToImage, $inputs, 'studio-image');
         $second = $coordinator->startImage($user, $model, MediaOperation::TextToImage, $inputs, 'studio-image');
 
-        $this->assertSame($first->id, $second->id);
+        $this->assertNotSame($first->id, $second->id);
+        $this->assertDatabaseCount('image_jobs', 2);
+    }
+
+    public function test_same_idempotency_key_retry_returns_same_job_but_new_key_creates_another(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        $model = $this->model();
+        $coordinator = app(MediaGenerationCoordinator::class);
+        $inputs = ['prompt' => 'same prompt', 'size' => '1024x1024'];
+
+        // Accidental retry of the SAME action (same key) -> same job.
+        $a1 = $coordinator->startImage($user, $model, MediaOperation::TextToImage, $inputs, 'studio-image', ['idempotency_key' => 'act-1']);
+        $a2 = $coordinator->startImage($user, $model, MediaOperation::TextToImage, $inputs, 'studio-image', ['idempotency_key' => 'act-1']);
+        $this->assertSame($a1->id, $a2->id);
+
+        // A NEW Generate action (new key) with identical input -> a new job.
+        $b = $coordinator->startImage($user, $model, MediaOperation::TextToImage, $inputs, 'studio-image', ['idempotency_key' => 'act-2']);
+        $this->assertNotSame($a1->id, $b->id);
+        $this->assertDatabaseCount('image_jobs', 2);
+    }
+
+    public function test_same_key_with_different_input_is_a_conflict(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        $model = $this->model();
+        $coordinator = app(MediaGenerationCoordinator::class);
+
+        $coordinator->startImage($user, $model, MediaOperation::TextToImage, ['prompt' => 'first', 'size' => '1024x1024'], 'studio-image', ['idempotency_key' => 'act-9']);
+        try {
+            $coordinator->startImage($user, $model, MediaOperation::TextToImage, ['prompt' => 'DIFFERENT', 'size' => '1024x1024'], 'studio-image', ['idempotency_key' => 'act-9']);
+            $this->fail('expected an idempotency conflict');
+        } catch (ImageGenerationException $e) {
+            $this->assertSame(409, $e->responseStatus());
+        }
         $this->assertDatabaseCount('image_jobs', 1);
-        $this->assertSame(90, UserToken::getBalance($user->id));
-        Queue::assertPushed(ProcessImageJob::class, 1);
     }
 }

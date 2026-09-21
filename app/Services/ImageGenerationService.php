@@ -13,6 +13,7 @@ use App\Media\MediaAdapterRegistry;
 use App\Media\MediaCapability;
 use App\Models\MediaCapabilityRevision;
 use App\Jobs\PollImageJob;
+use App\Jobs\ProcessImageJob;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ImageJob;
@@ -38,11 +39,11 @@ class ImageGenerationService
         private readonly MediaAdapterRegistry $adapters,
     ) {}
 
-    public function generate(User $user, string $model, string $prompt, string $size, int $quantity): ImageJob
+    public function generate(User $user, string $model, string $prompt, string $size, int $quantity, array $options = []): ImageJob
     {
         $profile = AiModelProfile::query()->with('provider')->where('model_id', $model)->first();
         if ($profile?->provider?->protocol === 'kinovi') {
-            return $this->coordinator->startImage($user, $profile, MediaOperation::TextToImage, ['prompt' => $prompt, 'size' => $size], 'studio-image');
+            return $this->coordinator->startImage($user, $profile, MediaOperation::TextToImage, ['prompt' => $prompt, 'size' => $size], 'studio-image', $options);
         }
         $jobId = (string) Str::uuid();
         $referenceId = "image:{$jobId}";
@@ -313,6 +314,29 @@ class ImageGenerationService
         }
         // Still processing.
         $this->rescheduleClaim($job);
+    }
+
+    /**
+     * Recover coordinator jobs whose ProcessImageJob dispatch failed (e.g. queue down at
+     * submit time): re-dispatch the idempotent processor. process() only acts on a still
+     * queued job, so a re-dispatch never double-submits an already-claimed job.
+     */
+    public function redispatchStalePending(int $minutes = 5): int
+    {
+        $count = 0;
+        ImageJob::query()
+            ->where('status', 'pending')->where('stage', 'queued')
+            ->whereNull('upstream_job_id')->whereNull('submitted_at')
+            ->where('created_at', '<=', now()->subMinutes($minutes))
+            ->orderBy('id')
+            ->chunkById(100, function ($jobs) use (&$count): void {
+                foreach ($jobs as $job) {
+                    ProcessImageJob::dispatch($job->id)->onConnection('media')->onQueue('media');
+                    $count++;
+                }
+            });
+
+        return $count;
     }
 
     public function failSubmission(int $id): void
