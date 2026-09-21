@@ -196,7 +196,7 @@ class AiProviderController extends Controller
             $models = $proxy->fetchCatalog($provider);
         } catch (AiProxyException $exception) {
             $status = $exception->responseStatus();
-            $message = $status === 503 ? 'The provider connection is unavailable.' : 'The provider request failed.';
+            $message = $status === 503 ? 'The provider connection is unavailable.' : ($exception->getMessage() ?: 'The provider request failed.');
         }
 
         $provider = DB::transaction(function () use ($provider, $connection, $status, $message, $models, $request, $audit): AiProviderProfile {

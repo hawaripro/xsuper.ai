@@ -100,7 +100,7 @@ class AiCatalogController extends Controller
             $models = collect($proxy->fetchCatalog($provider))->keyBy('id')->values()->all();
         } catch (AiProxyException $exception) {
             $status = $exception->responseStatus();
-            $message = $status === 503 ? 'The provider connection is unavailable.' : 'The provider request failed.';
+            $message = $status === 503 ? 'The provider connection is unavailable.' : ($exception->getMessage() ?: 'The provider request failed.');
             $provider = DB::transaction(function () use ($audit, $status, $message, $provider, $connection, $request): AiProviderProfile {
                 $provider = $this->lockConnection($provider, $connection);
                 $provider->update([
