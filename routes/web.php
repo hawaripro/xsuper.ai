@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ContentController;
 use App\Http\Controllers\Api\DashboardController as ApiDashboardController;
 use App\Http\Controllers\Api\DashboardSearchController;
 use App\Http\Controllers\Api\DepositController;
+use App\Http\Controllers\Api\MediaAssetController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\EngagementController;
 use App\Http\Controllers\Api\FeedbackController;
@@ -78,6 +79,8 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
     Route::post('/referrals/capture', [ReferralController::class, 'capture']);
     Route::post('/analytics/events', [AnalyticsController::class, 'store'])->middleware('auth');
+    // Cookie-independent signed delivery so providers can fetch an owned reference asset.
+    Route::get('/media/public/{asset}', [MediaAssetController::class, 'deliver'])->middleware('signed')->name('media.asset.deliver');
 
     // Protected routes — track device on ALL authenticated requests
     Route::middleware(['auth', 'track.device', \App\Http\Middleware\EnsureEmailVerified::class, 'ensure.active'])->group(function () {
@@ -148,6 +151,8 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/images/{jobId}/assets/{index}', [ImageController::class, 'asset'])->whereNumber('index');
             Route::get('/images/{jobId}', [ImageController::class, 'show']);
         });
+        // Controlled reference uploads (image/audio/video) for capability-driven studios.
+        Route::post('/media/assets', [MediaAssetController::class, 'upload'])->middleware(['storage.available', 'throttle:30,1']);
 
         // Existing outputs and cancellation remain recoverable after subscription expiry.
         Route::get('/audio/models', [AudioController::class, 'models'])->middleware('check.expiry');
