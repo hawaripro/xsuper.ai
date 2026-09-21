@@ -100,4 +100,4 @@ Unit (resolver/mapping/validation), contract (adapter with representative fixtur
 - fal asset-field role inference is heuristic → needs curation-override table (F6a validates coverage).
 - Public asset delivery method (signed route vs public disk vs provider upload) — pick per verified provider (Kinovi supports both public URL + their upload).
 - Keep media on `local` disk for results; only references/inputs needing provider fetch get public delivery.
-- `max_children` prod tuning done (5→30) — unrelated infra note, already applied.
+- php-fpm `pm.max_children` prod tuning applied (5→30→50, start 10, spare 8–25, max_requests 500) — unrelated infra note, already live.
