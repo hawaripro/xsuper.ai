@@ -3,6 +3,12 @@
 namespace App\Services;
 
 use App\Models\AiModelProfile;
+use App\Media\CapabilityInput;
+use App\Media\CapabilityParam;
+use App\Media\Enums\InputRole;
+use App\Media\Enums\MediaOperation;
+use App\Media\Enums\OutputKind;
+use App\Media\MediaCapability;
 use App\Models\User;
 use InvalidArgumentException;
 
@@ -49,6 +55,76 @@ final class MediaModelConfig
             'duration_min' => null, 'duration_max' => null, 'duration_default' => null,
             'max_characters' => null,
         ]);
+    }
+
+    /**
+     * Derive the effective MediaCapability per operation from existing model config,
+     * for models not yet migrated to a stored revision.
+     *
+     * @return array<string, MediaCapability>
+     */
+    public static function deriveCapabilities(AiModelProfile $model): array
+    {
+        $config = self::forModel($model);
+        $public = $model->model_id;
+        $prompt = new CapabilityInput('prompt', InputRole::Prompt, 'string', required: true);
+
+        return match ($model->category) {
+            'image' => [
+                MediaOperation::TextToImage->value => new MediaCapability(
+                    $public, MediaOperation::TextToImage, OutputKind::Image, 1, [$prompt],
+                    ($config['supports_size'] && ($config['sizes'] ?? []) !== [])
+                        ? [new CapabilityParam('size', 'enum', default: $config['sizes'][0], options: array_values($config['sizes']))]
+                        : [],
+                ),
+            ],
+            'video' => [
+                MediaOperation::TextToVideo->value => new MediaCapability(
+                    $public, MediaOperation::TextToVideo, OutputKind::Video, 1, [$prompt],
+                    array_values(array_filter([
+                        ($config['supports_aspect_ratio'] && ($config['aspect_ratios'] ?? []) !== [])
+                            ? new CapabilityParam('aspect_ratio', 'enum', default: $config['aspect_ratios'][0], options: array_values($config['aspect_ratios']))
+                            : null,
+                        ($config['supports_duration'] && ($config['durations'] ?? []) !== [])
+                            ? new CapabilityParam('duration', 'enum', default: $config['durations'][0], options: array_values($config['durations']), unit: 's')
+                            : null,
+                    ])),
+                ),
+            ],
+            'audio' => self::deriveAudioCapabilities($config, $public, $prompt),
+            default => [],
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, MediaCapability>
+     */
+    private static function deriveAudioCapabilities(array $config, string $public, CapabilityInput $prompt): array
+    {
+        $kind = $config['audio_kind'] ?? null;
+        if ($kind === 'speech') {
+            $params = [];
+            $voices = array_column($config['voices'] ?? [], 'id');
+            if ($voices !== []) {
+                $params[] = new CapabilityParam('voice', 'enum', default: $voices[0], options: $voices);
+            }
+            if (($config['speed_default'] ?? null) !== null) {
+                $params[] = new CapabilityParam('speed', 'number', default: $config['speed_default'], min: $config['speed_min'], max: $config['speed_max']);
+            }
+
+            return [MediaOperation::TextToSpeech->value => new MediaCapability($public, MediaOperation::TextToSpeech, OutputKind::Audio, 1, [$prompt], $params)];
+        }
+        if ($kind === 'music') {
+            $params = [];
+            if (($config['duration_default'] ?? null) !== null) {
+                $params[] = new CapabilityParam('duration', 'number', default: $config['duration_default'], min: $config['duration_min'], max: $config['duration_max'], unit: 's');
+            }
+
+            return [MediaOperation::Music->value => new MediaCapability($public, MediaOperation::Music, OutputKind::Audio, 1, [$prompt], $params)];
+        }
+
+        return [];
     }
 
     public static function catalogModel(array $model): array
