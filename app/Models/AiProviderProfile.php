@@ -45,7 +45,21 @@ class AiProviderProfile extends Model
                 ? ! empty($this->getRawOriginal('api_key'))
                 : is_string(config('services.ai_proxy.key')) && trim(config('services.ai_proxy.key')) !== '',
             'configuration_source' => $saved ? 'admin' : 'environment',
+            'last_error' => $this->sanitizedLastError(),
         ];
+    }
+
+    /** Admin-only failure reason with secrets/signed material redacted (never raw exceptions). */
+    private function sanitizedLastError(): ?string
+    {
+        $error = $this->last_error;
+        if (! is_string($error) || trim($error) === '') {
+            return null;
+        }
+        $error = preg_replace('/([Bb]earer\s+)[A-Za-z0-9._\-]+/', '$1[redacted]', $error);
+        $error = preg_replace('/([?&](?:signature|sig|token|api[_-]?key|X-Amz-Signature)=)[^&\s]+/i', '$1[redacted]', (string) $error);
+
+        return mb_substr((string) $error, 0, 500);
     }
 
     public function models()

@@ -185,7 +185,7 @@ final class MediaModelConfig
 
         return [
             'id' => $model->model_id, 'name' => $model->display_name,
-            'provider' => $model->provider_name ?: $model->provider?->name,
+            'operations' => array_keys(self::deriveCapabilities($model)),
             'category' => $model->category,
             'capabilities' => $model->capabilities ?? [],
             'token_cost' => $model->token_cost,
