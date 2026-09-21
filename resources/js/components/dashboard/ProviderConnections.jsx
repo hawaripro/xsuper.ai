@@ -8,6 +8,7 @@ const defaultEndpoints = {
     openai: "https://api.openai.com/v1",
     anthropic: "https://api.anthropic.com/v1",
     fal: "https://fal.run",
+    kinovi: "https://kinovi.ai/api/v1",
 };
 const healthStates = {
     online: ["good", "Terhubung"],
@@ -283,6 +284,7 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                         <option value="openai">{t("Kompatibel OpenAI")}</option>
                                         <option value="anthropic">{t("Kompatibel Anthropic")}</option>
                                         <option value="fal">{t("fal (gambar, video & teks)")}</option>
+                                        <option value="kinovi">{t("Kinovi (gambar)")}</option>
                                     </select>
                                     {fieldError("protocol")}
                                 </div>
@@ -354,7 +356,7 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                             <h3 className="min-w-0 max-w-full break-all text-sm font-semibold text-slate-900 dark:text-white">{provider.name || provider.slug}</h3>
                                             <span className={`ui-status ui-status-${tone}`}>{t(health)}</span>
                                         </div>
-                                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.protocol === "fal" ? "fal (gambar, video & teks)" : provider.protocol === "anthropic" ? "Kompatibel Anthropic" : "Kompatibel OpenAI")} <span aria-hidden="true">/</span> <span className="break-all">{provider.slug}</span></p>
+                                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.protocol === "fal" ? "fal (gambar, video & teks)" : provider.protocol === "kinovi" ? "Kinovi (gambar)" : provider.protocol === "anthropic" ? "Kompatibel Anthropic" : "Kompatibel OpenAI")} <span aria-hidden="true">/</span> <span className="break-all">{provider.slug}</span></p>
                                         <p className="mt-1 break-all text-xs leading-5 text-slate-600 dark:text-slate-400">{provider.configuration_source === "environment" ? t("Dikelola server — URL dan key tetap di konfigurasi server.") : provider.base_url}</p>
                                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.configuration_source === "environment" ? "Kredensial dikelola server" : provider.has_api_key ? "API key tersimpan" : "API key belum tersimpan")}</p>
                                     </div>
