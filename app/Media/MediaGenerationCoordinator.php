@@ -4,9 +4,11 @@ namespace App\Media;
 
 use App\Exceptions\ImageGenerationException;
 use App\Jobs\ProcessImageJob;
+use App\Jobs\ProcessVideoJob;
 use App\Media\Enums\MediaOperation;
 use App\Models\AiModelProfile;
 use App\Models\ImageJob;
+use App\Models\VideoJob;
 use App\Models\User;
 use App\Models\MediaAsset;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -107,6 +109,97 @@ final class MediaGenerationCoordinator
             ]);
         });
         ProcessImageJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
+
+        return $job;
+    }
+
+    /**
+     * Capability-driven video submission (text_to_video, image_to_video). Mirrors startImage:
+     * resolve -> validate -> price/hash guards -> own references -> dedup -> reserve -> persist a
+     * VideoJob carrying the capability revision + routing + price -> dispatch. image_to_video
+     * routes to the provider's dedicated reference model and carries no aspect ratio.
+     *
+     * @param  array<string, mixed>  $rawInputs
+     */
+    public function startVideo(User $user, AiModelProfile $model, MediaOperation $operation, array $rawInputs, string $entrypoint, array $options = []): VideoJob
+    {
+        $this->activation->assertNotPaused();
+        if ($model->category !== 'video' || ! MediaModelConfig::allowedFor($user, $model)) {
+            throw new ImageGenerationException('The selected video model is unavailable.', 503);
+        }
+        $resolved = $this->resolver->resolve($model, $operation);
+        try {
+            $validated = $this->validator->validate($resolved->capability, $rawInputs);
+        } catch (CapabilityValidationException $e) {
+            throw new ImageGenerationException((string) (array_values($e->errors())[0] ?? $e->getMessage()), 422);
+        }
+        if (! is_int($model->token_cost) || $model->token_cost < 1) {
+            throw new ImageGenerationException('Video token pricing is unavailable.', 503);
+        }
+
+        // Reject a capability/price the member's form was built on if it changed, BEFORE any reservation.
+        $expectedPrice = $options['expected_price_tokens'] ?? null;
+        if ($expectedPrice !== null && (int) $expectedPrice !== (int) $model->token_cost) {
+            throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
+        }
+        $expectedHash = $options['expected_capability_hash'] ?? null;
+        if (is_string($expectedHash) && $expectedHash !== '' && ! hash_equals($resolved->sourceHash, $expectedHash)) {
+            throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
+        }
+
+        // Own every declared reference asset BEFORE reserving or dispatching.
+        $referenceAssetIds = $this->resolveReferenceAssets($user, $resolved->capability, $validated);
+        $hasReference = $referenceAssetIds !== [];
+
+        $fingerprint = $this->fingerprintPayload($operation, $model->model_id, $validated);
+        $idempotencyKey = isset($options['idempotency_key']) && is_string($options['idempotency_key']) && trim($options['idempotency_key']) !== ''
+            ? trim($options['idempotency_key']) : null;
+        $dedup = null;
+        if ($idempotencyKey !== null) {
+            $dedup = hash('sha256', $user->id.'|'.$entrypoint.'|'.$idempotencyKey);
+            $existing = VideoJob::query()->where('user_id', $user->id)->where('dedup_key', $dedup)
+                ->whereIn('status', ['pending', 'processing'])->first();
+            if ($existing !== null) {
+                if ((string) $existing->payload_fingerprint === $fingerprint) {
+                    return $existing;
+                }
+                throw new ImageGenerationException('This request key was already used with different input.', 409);
+            }
+        }
+
+        $config = MediaModelConfig::forModel($model);
+        $upstream = $model->upstream_model_id ?: $model->model_id;
+        // image_to_video routes to the provider's dedicated reference model; text stays on the base model.
+        $routing = ($operation === MediaOperation::ImageToVideo && is_string($config['reference_model'] ?? null))
+            ? $config['reference_model'] : $upstream;
+        $aspect = $operation === MediaOperation::ImageToVideo
+            ? 'auto'
+            : (string) ($validated['params']['aspect_ratio'] ?? ($config['aspect_ratios'][0] ?? 'auto'));
+        $duration = (int) ($validated['params']['duration'] ?? ($config['durations'][0] ?? 0));
+
+        $jobId = (string) Str::uuid();
+        $job = DB::transaction(function () use ($user, $model, $operation, $resolved, $validated, $jobId, $dedup, $fingerprint, $referenceAssetIds, $hasReference, $config, $routing, $aspect, $duration): VideoJob {
+            $revision = $this->resolver->ensureRevision($model, $operation, $resolved);
+            $reservation = $this->tokens->reserve($user, 'video', $model->model_id, 1, "video:{$jobId}", (int) $model->token_cost);
+
+            return VideoJob::create([
+                'user_id' => $user->id, 'job_id' => $jobId, 'model' => $model->model_id, 'mode' => 'prompt',
+                'provider_id' => $model->provider_id, 'upstream_model_id' => $routing,
+                'connection_fingerprint' => $this->fingerprint($model), 'generation_config' => $config,
+                'capability_revision_id' => $revision->id, 'routing_identity' => $routing,
+                'price_tokens' => (int) $model->token_cost, 'dedup_key' => $dedup, 'payload_fingerprint' => $fingerprint,
+                'reference_asset_ids' => $referenceAssetIds !== [] ? $referenceAssetIds : null,
+                'prompt' => (string) ($validated['inputs']['prompt'] ?? ''),
+                'aspect_ratio' => $aspect, 'duration' => $duration,
+                'pro_mode' => false, 'has_reference' => $hasReference,
+                'status' => 'pending', 'stage' => 'queued',
+                'billing_reserved_microusd' => 0, 'billing_reference_id' => "video:{$jobId}",
+                'billing_status' => 'reserved', 'billing_mode' => $reservation['billing_mode'],
+                'tokens_used' => $reservation['amount_tokens'], 'tokens_reserved' => $reservation['amount_tokens'],
+                'settings' => [], 'next_poll_at' => now()->addMinute(),
+            ]);
+        });
+        ProcessVideoJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
 
         return $job;
     }

@@ -86,19 +86,7 @@ final class MediaModelConfig
                     )
                     : null,
             ]),
-            'video' => [
-                MediaOperation::TextToVideo->value => new MediaCapability(
-                    $public, MediaOperation::TextToVideo, OutputKind::Video, 1, [$prompt],
-                    array_values(array_filter([
-                        ($config['supports_aspect_ratio'] && ($config['aspect_ratios'] ?? []) !== [])
-                            ? new CapabilityParam('aspect_ratio', 'enum', default: $config['aspect_ratios'][0], options: array_values($config['aspect_ratios']))
-                            : null,
-                        ($config['supports_duration'] && ($config['durations'] ?? []) !== [])
-                            ? new CapabilityParam('duration', 'enum', default: $config['durations'][0], options: array_values($config['durations']), unit: 's')
-                            : null,
-                    ])),
-                ),
-            ],
+            'video' => self::deriveVideoCapabilities($config, $public, $prompt),
             'audio' => self::deriveAudioCapabilities($config, $public, $prompt),
             default => [],
         };
@@ -133,6 +121,37 @@ final class MediaModelConfig
         }
 
         return [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, MediaCapability>
+     */
+    private static function deriveVideoCapabilities(array $config, string $public, CapabilityInput $prompt): array
+    {
+        $aspect = ($config['supports_aspect_ratio'] && ($config['aspect_ratios'] ?? []) !== [])
+            ? new CapabilityParam('aspect_ratio', 'enum', default: $config['aspect_ratios'][0], options: array_values($config['aspect_ratios']))
+            : null;
+        $duration = ($config['supports_duration'] && ($config['durations'] ?? []) !== [])
+            ? new CapabilityParam('duration', 'enum', default: $config['durations'][0], options: array_values($config['durations']), unit: 's')
+            : null;
+
+        return array_filter([
+            // Text-to-video: prompt + aspect ratio + duration.
+            MediaOperation::TextToVideo->value => new MediaCapability(
+                $public, MediaOperation::TextToVideo, OutputKind::Video, 1, [$prompt],
+                array_values(array_filter([$aspect, $duration])),
+            ),
+            // Image-to-video is offered only when the provider accepts a reference image. The
+            // reference frame fixes the geometry, so aspect ratio is not a parameter here.
+            MediaOperation::ImageToVideo->value => ($config['supports_reference_image'] ?? false)
+                ? new MediaCapability(
+                    $public, MediaOperation::ImageToVideo, OutputKind::Video, 1,
+                    [$prompt, new CapabilityInput('reference_image', InputRole::ImageRef, 'asset', single: true, max: 1, required: true)],
+                    array_values(array_filter([$duration])),
+                )
+                : null,
+        ]);
     }
 
     public static function catalogModel(array $model): array

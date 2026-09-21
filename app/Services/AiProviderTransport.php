@@ -206,7 +206,7 @@ final class AiProviderTransport
         $connection = $this->connection($provider);
         if ($connection['protocol'] === 'fal') {
             $request = FalProtocol::videoRequest($payload);
-            $response = $this->send('POST', 'https://queue.fal.run/'.$payload['model'], $connection, $request, 90);
+            $response = $this->send('POST', $this->falBase($connection).'/'.$payload['model'], $connection, $request, 90);
             $data = $response->json();
             if (! is_array($data) || ! is_string($data['request_id'] ?? null)
                 || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $data['request_id']) !== 1) {
@@ -248,7 +248,7 @@ final class AiProviderTransport
             if ($path !== FalProtocol::VIDEO_REQUEST_PATH) {
                 throw new AiProxyException('The fal video status configuration is invalid.', 502);
             }
-            $url = 'https://queue.fal.run/'.MediaModelConfig::path($path, $taskId);
+            $url = $this->falBase($connection).'/'.MediaModelConfig::path($path, $taskId);
             $response = $this->send('GET', $url.'/status', $connection, timeout: 20);
             $data = $response->json();
             if (! is_array($data) || ! in_array($data['status'] ?? null, ['IN_QUEUE', 'IN_PROGRESS', 'COMPLETED'], true)) {
@@ -541,6 +541,23 @@ final class AiProviderTransport
     }
 
     /**
+     * The fal endpoint base. Production always uses queue.fal.run; the double-gated local dev
+     * affordance (APP_ENV=local + media.allow_local_providers) lets a loopback provider base_url
+     * point video traffic at a local mock instead. Production never satisfies both gates.
+     *
+     * @param  array{base_url: string}  $connection
+     */
+    private function falBase(array $connection): string
+    {
+        $host = (string) parse_url($connection['base_url'], PHP_URL_HOST);
+        if ($this->endpoint->allowsLoopback($host)) {
+            return preg_replace('#/v1$#', '', rtrim($connection['base_url'], '/'));
+        }
+
+        return 'https://queue.fal.run';
+    }
+
+    /**
      * @param  array{protocol: string, base_url: string, key: string, version: string, options: array<string, mixed>, saved: bool}  $connection
      * @param  array<string, mixed>|null  $json
      * @param  array<string, mixed>  $query
@@ -556,11 +573,17 @@ final class AiProviderTransport
         bool $image = false,
     ): Response {
         if ($connection['protocol'] === 'fal') {
-            $host = parse_url($url, PHP_URL_HOST);
-            if (parse_url($url, PHP_URL_SCHEME) !== 'https' || ! in_array($host, ['fal.run', 'queue.fal.run', 'api.fal.ai'], true)) {
-                throw new AiProxyException('The fal provider destination is invalid.', 503);
+            $host = strtolower(trim((string) parse_url($url, PHP_URL_HOST), '[]'));
+            if ($this->endpoint->allowsLoopback($host)) {
+                // Local dev affordance only: a loopback fal mock stands in for queue.fal.run.
+                $port = parse_url($url, PHP_URL_PORT);
+                $connection['options'] = $this->endpoint->requestOptions(parse_url($url, PHP_URL_SCHEME).'://'.$host.($port ? ':'.$port : ''));
+            } else {
+                if (parse_url($url, PHP_URL_SCHEME) !== 'https' || ! in_array($host, ['fal.run', 'queue.fal.run', 'api.fal.ai'], true)) {
+                    throw new AiProxyException('The fal provider destination is invalid.', 503);
+                }
+                $connection['options'] = $this->endpoint->requestOptions('https://'.$host);
             }
-            $connection['options'] = $this->endpoint->requestOptions('https://'.$host);
         }
         if ($stream && $connection['saved']) {
             [$host, $port, $ip] = $this->pinnedStreamTarget($connection);

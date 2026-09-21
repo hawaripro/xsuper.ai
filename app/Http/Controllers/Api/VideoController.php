@@ -10,6 +10,11 @@ use App\Services\GeneratedVideoStore;
 use App\Services\MediaModelConfig;
 use App\Services\VideoGenerationService;
 use App\Services\VideoReferenceStore;
+use App\Exceptions\ImageGenerationException;
+use App\Media\Enums\MediaOperation;
+use App\Media\MediaActivation;
+use App\Media\MediaGenerationCoordinator;
+use Illuminate\Validation\Rule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +24,11 @@ class VideoController extends Controller
 {
     public function generate(Request $request, VideoGenerationService $videos): JsonResponse
     {
+        // Capability-driven submissions (F2) carry an `operation` and route to the coordinator;
+        // legacy submissions (no `operation`) keep the existing verified pipeline below untouched.
+        if ($request->filled('operation')) {
+            return $this->generateCapability($request, $videos);
+        }
         $input = $request->validate([
             'prompt' => 'required|string|max:4000',
             'model' => 'required|string|max:120',
@@ -39,6 +49,69 @@ class VideoController extends Controller
             'jobs' => array_map(fn (VideoJob $job): array => $videos->payload($job), $jobs),
             'tokens_used' => array_sum(array_map(fn (VideoJob $job): int => $job->tokens_reserved, $jobs)),
             'balance' => UserToken::getBalance($request->user()->id),
+            'billing_mode' => 'tokens',
+        ], 202);
+    }
+
+    /**
+     * Capability-driven video (text_to_video, image_to_video). The pilot routes to the coordinator;
+     * a non-pilot keeps the existing verified path (text-to-video only without the coordinator).
+     * This never blocks the existing service — it only routes the pilot to the new path.
+     */
+    private function generateCapability(Request $request, VideoGenerationService $videos): JsonResponse
+    {
+        $validated = $request->validate([
+            'operation' => ['required', Rule::in(['text_to_video', 'image_to_video'])],
+            'model' => ['required', 'string', 'max:160', Rule::exists('ai_model_profiles', 'model_id')->where(
+                fn ($query) => $query->where('category', 'video')->where('is_enabled', true),
+            )],
+            'prompt' => 'required|string|max:4000',
+            'aspect_ratio' => ['nullable', 'string', 'max:16'],
+            'duration' => ['nullable', 'integer', 'min:1', 'max:600'],
+            'reference_image' => ['nullable', 'string', 'max:64'],
+            'idempotency_key' => ['nullable', 'string', 'max:128'],
+            'expected_price_tokens' => ['nullable', 'integer', 'min:1'],
+            'expected_capability_hash' => ['nullable', 'string', 'max:64'],
+        ]);
+        $user = $request->user();
+        $model = AiModelProfile::query()->with('provider')->where('model_id', $validated['model'])->first();
+        if (! $model || $model->category !== 'video' || ! MediaModelConfig::allowedFor($user, $model)) {
+            return response()->json(['message' => 'The selected video model is unavailable.'], 503);
+        }
+        $operation = MediaOperation::from($validated['operation']);
+        $rawInputs = array_filter([
+            'prompt' => $validated['prompt'],
+            'aspect_ratio' => $validated['aspect_ratio'] ?? null,
+            'duration' => $validated['duration'] ?? null,
+            'reference_image' => $validated['reference_image'] ?? null,
+        ], static fn ($v): bool => $v !== null);
+        $options = array_filter([
+            'idempotency_key' => $validated['idempotency_key'] ?? null,
+            'expected_price_tokens' => $validated['expected_price_tokens'] ?? null,
+            'expected_capability_hash' => $validated['expected_capability_hash'] ?? null,
+        ], static fn ($v): bool => $v !== null);
+
+        try {
+            if (app(MediaActivation::class)->usesCoordinator($user)) {
+                $job = app(MediaGenerationCoordinator::class)->startVideo($user, $model, $operation, $rawInputs, 'studio-video', $options);
+            } elseif ($operation === MediaOperation::TextToVideo) {
+                $job = $videos->create($user, [
+                    'model' => $validated['model'], 'prompt' => $validated['prompt'], 'mode' => 'prompt', 'count' => 1,
+                    'aspect_ratio' => $validated['aspect_ratio'] ?? null,
+                    'settings' => ['duration' => $validated['duration'] ?? null],
+                ])[0];
+            } else {
+                return response()->json(['message' => 'This operation is not available for your account yet.'], 503);
+            }
+        } catch (ImageGenerationException $exception) {
+            return response()->json(['message' => $exception->getMessage(), 'balance' => UserToken::getBalance($user->id)], $exception->responseStatus());
+        }
+
+        return response()->json([
+            'message' => 'Video request queued for generation.',
+            'jobs' => [$videos->payload($job)],
+            'tokens_used' => $job->tokens_reserved,
+            'balance' => UserToken::getBalance($user->id),
             'billing_mode' => 'tokens',
         ], 202);
     }
@@ -172,11 +245,17 @@ class VideoController extends Controller
     public function models(Request $request): JsonResponse
     {
         $user = $request->user();
+        $capabilities = app(\App\Media\CapabilityPresenter::class);
         $models = AiModelProfile::query()->with('provider')->where('category', 'video')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
                 && in_array($model->provider->protocol, ['openai', 'fal', 'kinovi'], true) && $model->token_cost > 0)
-            ->map(fn (AiModelProfile $model): array => MediaModelConfig::publicModel($model))->values()->all();
+            ->map(function (AiModelProfile $model) use ($capabilities): array {
+                $payload = MediaModelConfig::publicModel($model);
+                $payload['capabilities'] = $capabilities->forModel($model);
+
+                return $payload;
+            })->values()->all();
 
         return response()->json(['models' => $models, 'balance' => UserToken::getBalance($user->id)]);
     }

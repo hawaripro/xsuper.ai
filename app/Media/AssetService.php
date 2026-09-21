@@ -90,6 +90,23 @@ final class AssetService
         ]);
     }
 
+    /**
+     * Base64 data-uri of an active asset, for providers that consume an inline reference
+     * (e.g. fal image_url) instead of fetching a URL. Bytes stay private — no public URL.
+     */
+    public function dataUri(MediaAsset $asset): string
+    {
+        if ($asset->retention_status !== 'active') {
+            throw new InvalidArgumentException('Aset referensi tidak lagi tersedia.');
+        }
+        $disk = Storage::disk($asset->storage_disk);
+        if (! $disk->exists($asset->storage_path)) {
+            throw new InvalidArgumentException('Berkas aset referensi tidak ditemukan.');
+        }
+
+        return 'data:'.$asset->mime.';base64,'.base64_encode((string) $disk->get($asset->storage_path));
+    }
+
     private function extensionFor(string $mime): string
     {
         return match ($mime) {

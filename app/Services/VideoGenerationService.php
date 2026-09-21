@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Exceptions\AiProxyException;
 use App\Jobs\PollVideoJob;
 use App\Jobs\ProcessVideoJob;
+use App\Media\AssetService;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
+use App\Models\MediaAsset;
 use App\Models\User;
 use App\Models\VideoJob;
 use App\Models\Wallet;
@@ -26,6 +28,7 @@ final class VideoGenerationService
         private readonly MediaTokenBillingService $tokens,
         private readonly GeneratedVideoStore $videos,
         private readonly VideoReferenceStore $references,
+        private readonly AssetService $assets,
     ) {}
 
     public function create(User $user, array $input): array
@@ -180,7 +183,11 @@ final class VideoGenerationService
                 $payload['pro_mode'] = $job->pro_mode;
             }
             if ($job->has_reference) {
-                $payload['image_url'] = $this->references->dataUri($job);
+                // Coordinator jobs carry an owned MediaAsset inlined privately; legacy jobs use the
+                // per-job reference store. Neither ever mints a public URL.
+                $payload['image_url'] = $job->capability_revision_id !== null
+                    ? $this->assets->dataUri($this->coordinatorReference($job))
+                    : $this->references->dataUri($job);
             }
             $result = $this->transport->submitVideo($provider, $payload, $config['video_path']);
             $state = $this->state($result);
@@ -469,6 +476,18 @@ final class VideoGenerationService
             $job->reference_path = null;
             $job->reference_mime_type = null;
         });
+    }
+
+    /** The owned MediaAsset backing a coordinator image_to_video job's reference. */
+    private function coordinatorReference(VideoJob $job): MediaAsset
+    {
+        $assetId = is_array($job->reference_asset_ids) ? ($job->reference_asset_ids[0] ?? null) : null;
+        $asset = is_string($assetId) ? MediaAsset::find($assetId) : null;
+        if ($asset === null) {
+            throw new AiProxyException('The reference asset for this video is no longer available.', 422);
+        }
+
+        return $asset;
     }
 
     public function payload(VideoJob $job): array

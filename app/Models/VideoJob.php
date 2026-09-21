@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class VideoJob extends Model
 {
-    protected $hidden = ['provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint', 'generation_config', 'reference_path', 'reference_mime_type'];
+    protected $hidden = ['provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint', 'generation_config', 'reference_path', 'reference_mime_type', 'reference_asset_ids'];
 
     protected $fillable = [
         'user_id', 'job_id', 'mode', 'prompt', 'model', 'aspect_ratio',
@@ -17,6 +17,7 @@ class VideoJob extends Model
         'generation_config', 'submitted_at', 'next_poll_at', 'processing_started_at',
         'completed_at', 'poll_attempts',
         'pro_mode', 'has_reference', 'reference_path', 'reference_mime_type',
+        'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key', 'payload_fingerprint', 'reference_asset_ids',
     ];
 
     protected function casts(): array
@@ -33,6 +34,7 @@ class VideoJob extends Model
             'next_poll_at' => 'datetime',
             'processing_started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'capability_revision_id' => 'integer', 'price_tokens' => 'integer', 'reference_asset_ids' => 'array',
         ];
     }
 
