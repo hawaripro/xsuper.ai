@@ -22,12 +22,13 @@ interface MediaProviderAdapter
 
     /**
      * Map validated, normalized inputs + the resolved capability into an internal
-     * provider request. Never forwards raw member payload.
+     * provider request. `$upstreamModel` is the provider-side model id (kept server-only,
+     * never leaked to members). Never forwards raw member payload.
      *
      * @param  array{inputs: array<string, mixed>, params: array<string, mixed>}  $inputs
      * @return array<string, mixed>
      */
-    public function buildRequest(MediaCapability $capability, array $inputs): array;
+    public function buildRequest(MediaCapability $capability, array $inputs, string $upstreamModel): array;
 
     /** @param  array<string, mixed>  $request */
     public function submit(AiProviderProfile $provider, array $request): SubmitResult;

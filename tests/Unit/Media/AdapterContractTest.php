@@ -44,9 +44,9 @@ class AdapterContractTest extends TestCase
                 return new AdapterSupport(async: true, polling: true, webhook: false, cancel: false);
             }
 
-            public function buildRequest(MediaCapability $capability, array $inputs): array
+            public function buildRequest(MediaCapability $capability, array $inputs, string $upstreamModel): array
             {
-                return ['model' => $capability->modelPublicId, ...$inputs];
+                return ['model' => $upstreamModel, ...$inputs];
             }
 
             public function submit(AiProviderProfile $provider, array $request): SubmitResult
@@ -68,7 +68,7 @@ class AdapterContractTest extends TestCase
         $this->assertInstanceOf(MediaProviderAdapter::class, $adapter);
         $this->assertTrue($adapter->support()->async);
         $cap = new MediaCapability('m/x', MediaOperation::TextToImage, OutputKind::Image, 1);
-        $this->assertSame('m/x', $adapter->buildRequest($cap, ['prompt' => 'hi'])['model']);
+        $this->assertSame('upstream-x', $adapter->buildRequest($cap, ['prompt' => 'hi'], 'upstream-x')['model']);
         $this->assertSame('t1', $adapter->submit(new AiProviderProfile, [])->taskId);
         $this->assertSame(MediaState::Completed, $adapter->pollStatus(new AiProviderProfile, 't1')->state);
         $this->assertFalse($adapter->normalizeError(new \RuntimeException('secret'))['recoverable']);
