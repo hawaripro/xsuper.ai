@@ -157,28 +157,6 @@ final class AiProviderTransport
 
             return FalProtocol::imageResponse($data);
         }
-        if ($connection['protocol'] === 'kinovi') {
-            $request = KinoviProtocol::imageTask($payload);
-            $submit = $this->send('POST', $connection['base_url'].'/jobs/createTask', $connection, $request, 30, image: true);
-            $taskId = $submit->json('taskId');
-            if (! is_string($taskId) || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
-                throw new AiProxyException('The Kinovi provider did not return a valid task reference.', 502);
-            }
-            $deadline = microtime(true) + 100;
-            do {
-                usleep(2_500_000);
-                $status = $this->send('GET', $connection['base_url'].'/jobs/recordInfo', $connection, timeout: 20, query: ['taskId' => $taskId], image: true);
-                $data = $status->json();
-                $state = is_array($data) ? ($data['status'] ?? null) : null;
-                if ($state === 'success') {
-                    return KinoviProtocol::imageResponse($data);
-                }
-                if ($state === 'fail') {
-                    throw new AiProxyException('The Kinovi image provider could not complete this request.', 502);
-                }
-            } while (microtime(true) < $deadline);
-            throw new AiProxyException('The Kinovi image provider timed out.', 504);
-        }
         if ($connection['protocol'] !== 'openai') {
             throw new AiProxyException('Image generation is not supported by this AI provider.', 422);
         }
@@ -196,6 +174,33 @@ final class AiProviderTransport
         return $data;
     }
 
+    public function submitImage(AiProviderProfile $provider, array $payload, string $path): array
+    {
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'kinovi') {
+            throw new AiProxyException('Asynchronous image generation is not supported by this provider.', 422);
+        }
+        $request = KinoviProtocol::imageTask($payload);
+        $submit = $this->send('POST', $connection['base_url'].'/jobs/createTask', $connection, $request, 30, image: true);
+        $taskId = $submit->json('taskId');
+        if (! is_string($taskId) || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+            throw new AiProxyException('The Kinovi image provider did not return a valid job reference.', 502);
+        }
+
+        return ['id' => $taskId, 'status' => 'queued'];
+    }
+
+    public function imageStatus(AiProviderProfile $provider, string $taskId, string $path): array
+    {
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'kinovi' || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+            throw new AiProxyException('The image status configuration is invalid.', 502);
+        }
+        $data = $this->send('GET', $connection['base_url'].'/jobs/recordInfo', $connection, timeout: 20, query: ['taskId' => $taskId], image: true)->json();
+
+        return $this->kinoviTaskState($data, 'result_urls');
+    }
+
     public function submitVideo(AiProviderProfile $provider, array $payload, string $path): array
     {
         $connection = $this->connection($provider);
@@ -209,6 +214,16 @@ final class AiProviderTransport
             }
 
             return ['id' => $data['request_id'], 'status' => 'queued'];
+        }
+        if ($connection['protocol'] === 'kinovi') {
+            $request = KinoviProtocol::videoTask($payload);
+            $submit = $this->send('POST', $connection['base_url'].'/jobs/createTask', $connection, $request, 30);
+            $taskId = $submit->json('taskId');
+            if (! is_string($taskId) || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+                throw new AiProxyException('The Kinovi video provider did not return a valid job reference.', 502);
+            }
+
+            return ['id' => $taskId, 'status' => 'queued'];
         }
         if ($connection['protocol'] !== 'openai') {
             throw new AiProxyException('Video generation is not supported by this provider.', 422);
@@ -252,6 +267,11 @@ final class AiProviderTransport
             }
 
             return ['status' => 'completed', 'video_url' => $videoUrl];
+        }
+        if ($connection['protocol'] === 'kinovi') {
+            $data = $this->send('GET', $connection['base_url'].'/jobs/recordInfo', $connection, timeout: 20, query: ['taskId' => $taskId])->json();
+
+            return $this->kinoviTaskState($data, 'video_url');
         }
         $response = $this->send('GET', $connection['base_url'].'/'.MediaModelConfig::path($path, $taskId), $connection, timeout: 20);
         $data = $response->json();
@@ -311,6 +331,28 @@ final class AiProviderTransport
         }
 
         return ['status' => 'completed', 'audio_url' => $audioUrl];
+    }
+
+    /**
+     * Normalise a Kinovi recordInfo response into the shared async media state shape.
+     *
+     * @param  'result_urls'|'video_url'  $key
+     * @return array<string, mixed>
+     */
+    private function kinoviTaskState(mixed $data, string $key): array
+    {
+        $status = is_array($data) ? ($data['status'] ?? null) : null;
+        if ($status === 'fail') {
+            return ['status' => 'failed'];
+        }
+        if ($status !== 'success') {
+            return ['status' => 'processing'];
+        }
+        $urls = KinoviProtocol::outputUrls(is_array($data) ? $data : []);
+
+        return $key === 'result_urls'
+            ? ['status' => 'completed', 'result_urls' => $urls]
+            : ['status' => 'completed', $key => $urls[0]];
     }
 
     private function falCatalog(array $connection): array

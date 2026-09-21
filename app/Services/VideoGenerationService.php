@@ -41,7 +41,7 @@ final class VideoGenerationService
                 if (! $model || $model->category !== 'video' || ! MediaModelConfig::allowedFor($user, $model)) {
                     throw ValidationException::withMessages(['model' => 'The selected video model is unavailable.']);
                 }
-                if (! in_array($model->provider->protocol, ['openai', 'fal'], true)) {
+                if (! in_array($model->provider->protocol, ['openai', 'fal', 'kinovi'], true)) {
                     throw ValidationException::withMessages(['model' => 'This provider does not support video generation.']);
                 }
                 $config = MediaModelConfig::forModel($model);
