@@ -9,7 +9,7 @@ import CapabilityForm from "../components/studios/CapabilityForm";
 import { StudioButton, StudioCatalog, StudioField, StudioHeader, StudioHistory, StudioIcon, StudioJobMeta, StudioNotice, StudioProgress, StudioQuote, mediaError } from "../components/studios/StudioUI";
 
 const defaults = { model: "", operation: "", values: {}, count: "1" };
-const operationLabels = { text_to_image: "Teks ke gambar", image_to_image: "Gambar ke gambar" };
+const operationLabels = { text_to_image: "Teks ke gambar", image_edit: "Edit dengan referensi", image_to_image: "Gambar ke gambar" };
 
 function ImageCanvas({ job }) {
     const { t } = useLocale();
@@ -92,6 +92,7 @@ function ImageStudio({ userId }) {
         setDialog(null);
         studio.submit({
             model: model.id,
+            operation,
             n: count,
             idempotency_key: globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random().toString(36).slice(2),
             expected_price_tokens: unit,

@@ -1,4 +1,5 @@
 import { StudioField } from "./StudioUI";
+import AssetUploadField from "./AssetUploadField";
 import { useLocale } from "../../contexts/LocaleContext";
 
 // Renders a resolved capability's declared inputs + params as labelled, correctly-typed
@@ -32,7 +33,11 @@ export default function CapabilityForm({ capability, values, errors = {}, disabl
                     : <input {...common} type="text" maxLength={4000} />}
             </StudioField>;
         }
-        return null; // asset (reference) inputs are handled by the studio itself.
+        if (input.type === "asset") {
+            return <AssetUploadField key={`input:${input.key}`} input={input} meta={meta} value={values[input.key]} error={errors[input.key]} disabled={disabled} idPrefix={idPrefix} onChange={(assetId) => set(input.key, assetId)} />;
+        }
+
+        return null;
     };
 
     const renderParam = (param, meta, id) => {

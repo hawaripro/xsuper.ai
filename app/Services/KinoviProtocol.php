@@ -72,6 +72,12 @@ final class KinoviProtocol
         '1792x1024' => '16:9',
     ];
 
+    // Kinovi image models whose API accepts reference images (inputs.uploadedUrls, up to 10),
+    // per kinovi.ai/models/gpt-image-2. Enables the image_edit operation for these models.
+    private const REFERENCE_IMAGE = ['gpt-image-2', 'gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'];
+
+    public const REFERENCE_IMAGE_MAX = 10;
+
     // Video framing the app exposes; Kinovi accepts these labels on every text-to-video model.
     private const VIDEO_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4'];
 
@@ -120,6 +126,7 @@ final class KinoviProtocol
                 'max_quantity' => 1,
                 'supports_size' => true,
                 'supports_n' => false,
+                'supports_reference_image' => in_array($model, self::REFERENCE_IMAGE, true),
             ];
         }
 
@@ -146,15 +153,20 @@ final class KinoviProtocol
             throw new AiProxyException('The selected image size is not supported by this Kinovi model.', 422);
         }
 
-        return [
-            'model' => $model,
-            'inputs' => [
-                'prompt' => self::prompt($payload),
-                'aspectRatio' => self::SIZE_MAP[$size],
-                'resolution' => '1k',
-            ],
-            'autoFix' => true,
+        $inputs = [
+            'prompt' => self::prompt($payload),
+            'aspectRatio' => self::SIZE_MAP[$size],
+            'resolution' => '1k',
         ];
+        $uploaded = $payload['uploadedUrls'] ?? null;
+        if (is_array($uploaded)) {
+            $urls = array_values(array_filter($uploaded, static fn ($url): bool => is_string($url) && $url !== ''));
+            if ($urls !== []) {
+                $inputs['uploadedUrls'] = array_slice($urls, 0, self::REFERENCE_IMAGE_MAX);
+            }
+        }
+
+        return ['model' => $model, 'inputs' => $inputs, 'autoFix' => true];
     }
 
     /** Build the createTask body for a text-to-video request. */

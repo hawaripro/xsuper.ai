@@ -50,7 +50,19 @@ class ImageGenerationService
             // members keep the existing verified async path. No cross-path retry (no double charge).
             $this->activation->assertNotPaused();
             if ($this->activation->usesCoordinator($user)) {
-                return $this->coordinator->startImage($user, $profile, MediaOperation::TextToImage, ['prompt' => $prompt, 'size' => $size], 'studio-image', $options);
+                $operation = ($options['operation'] ?? null) === 'image_edit' ? MediaOperation::ImageEdit : MediaOperation::TextToImage;
+                $rawInputs = ['prompt' => $prompt, 'size' => $size];
+                $reference = $options['reference_image'] ?? null;
+                if (is_string($reference) && $reference !== '') {
+                    $rawInputs['reference_image'] = $reference;
+                }
+
+                return $this->coordinator->startImage($user, $profile, $operation, $rawInputs, 'studio-image', $options);
+            }
+            // Legacy (non-coordinator) path runs text-to-image only; reject any other operation here
+            // rather than silently dropping a requested reference.
+            if (($options['operation'] ?? 'text_to_image') !== 'text_to_image') {
+                throw new ImageGenerationException('This operation is not available for your account yet.', 503);
             }
 
             return $this->createAsync($user, $profile, $prompt, $size);
@@ -252,8 +264,12 @@ class ImageGenerationService
         try {
             $provider = $this->provider($job);
             $adapter = $this->adapters->for($provider->protocol);
+            $inputs = ['prompt' => $job->prompt];
+            if (! empty($job->reference_asset_ids)) {
+                $inputs['reference_image'] = $job->reference_asset_ids;
+            }
             $request = $adapter->buildRequest($this->capabilityForJob($job), [
-                'inputs' => ['prompt' => $job->prompt],
+                'inputs' => $inputs,
                 'params' => $job->size !== 'auto' ? ['size' => $job->size] : [],
             ], (string) $job->upstream_model_id);
             $submit = $adapter->submit($provider, $request);

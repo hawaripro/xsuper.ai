@@ -9,6 +9,8 @@ use App\Media\MediaCapability;
 use App\Media\StatusResult;
 use App\Media\SubmitResult;
 use App\Models\AiProviderProfile;
+use App\Media\AssetService;
+use App\Models\MediaAsset;
 use App\Services\AiProviderTransport;
 use Throwable;
 
@@ -19,7 +21,7 @@ use Throwable;
  */
 final class KinoviAdapter implements MediaProviderAdapter
 {
-    public function __construct(private readonly AiProviderTransport $transport) {}
+    public function __construct(private readonly AiProviderTransport $transport, private readonly AssetService $assets) {}
 
     public function support(): AdapterSupport
     {
@@ -28,11 +30,28 @@ final class KinoviAdapter implements MediaProviderAdapter
 
     public function buildRequest(MediaCapability $capability, array $inputs, string $upstreamModel): array
     {
-        return [
+        $request = [
             'model' => $upstreamModel,
             'prompt' => $inputs['inputs']['prompt'] ?? '',
             'size' => $inputs['params']['size'] ?? '1024x1024',
         ];
+        // Reference assets are minted into fresh, short-lived, cookie-independent provider-fetch
+        // grants at request time — a signed URL is never persisted on the job.
+        $refs = $inputs['inputs']['reference_image'] ?? null;
+        if ($refs !== null) {
+            $urls = [];
+            foreach (is_array($refs) ? $refs : [$refs] as $assetId) {
+                $asset = MediaAsset::find($assetId);
+                if ($asset !== null) {
+                    $urls[] = $this->assets->signedUrl($asset);
+                }
+            }
+            if ($urls !== []) {
+                $request['uploadedUrls'] = $urls;
+            }
+        }
+
+        return $request;
     }
 
     public function submit(AiProviderProfile $provider, array $request): SubmitResult

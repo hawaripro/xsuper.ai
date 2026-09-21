@@ -4,7 +4,6 @@ namespace Tests\Feature\Media;
 
 use App\Jobs\ProcessImageJob;
 use App\Media\Enums\MediaOperation;
-use App\Media\Exceptions\CapabilityValidationException;
 use App\Exceptions\ImageGenerationException;
 use App\Media\MediaGenerationCoordinator;
 use App\Models\AiModelProfile;
@@ -44,8 +43,9 @@ class CoordinatorImageFlowTest extends TestCase
         try {
             app(MediaGenerationCoordinator::class)->startImage($user, $this->model(), MediaOperation::TextToImage, ['size' => '1024x1024'], 'studio-image');
             $this->fail('expected validation to reject missing prompt');
-        } catch (CapabilityValidationException $e) {
-            $this->assertArrayHasKey('prompt', $e->errors());
+        } catch (ImageGenerationException $e) {
+            // A capability violation surfaces as a member-facing 422, not a raw 500.
+            $this->assertSame(422, $e->responseStatus());
         }
 
         $this->assertDatabaseCount('image_jobs', 0);

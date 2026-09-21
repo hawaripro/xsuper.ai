@@ -32,13 +32,20 @@ class ImageController extends Controller
     {
         $user = $request->user();
         $capabilities = app(\App\Media\CapabilityPresenter::class);
+        $usesCoordinator = app(\App\Media\MediaActivation::class)->usesCoordinator($user);
         $models = AiModelProfile::query()->with('provider')->where('category', 'image')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
                 && $model->token_cost > 0)
-            ->map(function (AiModelProfile $model) use ($capabilities): array {
+            ->map(function (AiModelProfile $model) use ($capabilities, $usesCoordinator): array {
                 $payload = MediaModelConfig::publicModel($model);
-                $payload['capabilities'] = $capabilities->forModel($model);
+                $caps = $capabilities->forModel($model);
+                // The legacy (non-coordinator) Kinovi path runs only text-to-image; never offer an
+                // operation an account cannot execute (e.g. image_edit to a non-pilot while restricted).
+                if (! $usesCoordinator && $model->provider?->protocol === 'kinovi') {
+                    $caps = array_intersect_key($caps, ['text_to_image' => true]);
+                }
+                $payload['capabilities'] = $caps;
 
                 return $payload;
             })
@@ -61,6 +68,8 @@ class ImageController extends Controller
             'prompt' => 'required|string|max:4000',
             'size' => ['nullable', 'string', 'max:32'],
             'n' => 'required|integer|min:1|max:10',
+            'operation' => ['nullable', 'string', Rule::in(['text_to_image', 'image_edit'])],
+            'reference_image' => ['nullable', 'string', 'max:64'],
             'idempotency_key' => ['nullable', 'string', 'max:128'],
             'expected_price_tokens' => ['nullable', 'integer', 'min:1'],
             'expected_capability_hash' => ['nullable', 'string', 'max:64'],
@@ -74,6 +83,8 @@ class ImageController extends Controller
                 $validated['size'] ?? 'auto',
                 $validated['n'],
                 array_filter([
+                    'operation' => $validated['operation'] ?? null,
+                    'reference_image' => $validated['reference_image'] ?? null,
                     'idempotency_key' => $validated['idempotency_key'] ?? null,
                     'expected_price_tokens' => $validated['expected_price_tokens'] ?? null,
                     'expected_capability_hash' => $validated['expected_capability_hash'] ?? null,

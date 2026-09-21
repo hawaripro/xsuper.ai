@@ -68,16 +68,24 @@ final class MediaModelConfig
         $config = self::forModel($model);
         $public = $model->model_id;
         $prompt = new CapabilityInput('prompt', InputRole::Prompt, 'string', required: true);
+        $sizeParams = ($config['supports_size'] && ($config['sizes'] ?? []) !== [])
+            ? [new CapabilityParam('size', 'enum', default: $config['sizes'][0], options: array_values($config['sizes']))]
+            : [];
 
         return match ($model->category) {
-            'image' => [
+            'image' => array_filter([
                 MediaOperation::TextToImage->value => new MediaCapability(
-                    $public, MediaOperation::TextToImage, OutputKind::Image, 1, [$prompt],
-                    ($config['supports_size'] && ($config['sizes'] ?? []) !== [])
-                        ? [new CapabilityParam('size', 'enum', default: $config['sizes'][0], options: array_values($config['sizes']))]
-                        : [],
+                    $public, MediaOperation::TextToImage, OutputKind::Image, 1, [$prompt], $sizeParams,
                 ),
-            ],
+                // image_edit is offered only for models whose provider API accepts a reference image.
+                MediaOperation::ImageEdit->value => ($config['supports_reference_image'] ?? false)
+                    ? new MediaCapability(
+                        $public, MediaOperation::ImageEdit, OutputKind::Image, 1,
+                        [$prompt, new CapabilityInput('reference_image', InputRole::ImageRef, 'asset', single: true, max: 1, required: true)],
+                        $sizeParams,
+                    )
+                    : null,
+            ]),
             'video' => [
                 MediaOperation::TextToVideo->value => new MediaCapability(
                     $public, MediaOperation::TextToVideo, OutputKind::Video, 1, [$prompt],

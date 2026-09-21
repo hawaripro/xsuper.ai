@@ -90,4 +90,25 @@ class ImageCapabilityCatalogTest extends TestCase
             $this->assertSame(409, $e->responseStatus());
         }
     }
+
+    public function test_reference_model_exposes_image_edit_with_required_reference_input(): void
+    {
+        $this->model(); // gpt-image-2 accepts uploadedUrls -> supports_reference_image
+
+        $caps = $this->actingAs(User::factory()->create())
+            ->getJson('/api/images/models')->assertOk()
+            ->json('models.0.capabilities');
+
+        $this->assertArrayHasKey('text_to_image', $caps, 'text-to-image stays available (no regression)');
+        $this->assertArrayHasKey('image_edit', $caps);
+
+        $edit = $caps['image_edit'];
+        $this->assertSame('image_edit', $edit['operation']);
+        $ref = collect($edit['inputs'])->firstWhere('key', 'reference_image');
+        $this->assertNotNull($ref);
+        $this->assertTrue($ref['required']);
+        $this->assertSame('asset', $ref['type']);
+        $this->assertSame('image_ref', $ref['role']);
+        $this->assertSame('image', $edit['ui']['inputs']['reference_image']['control']);
+    }
 }
