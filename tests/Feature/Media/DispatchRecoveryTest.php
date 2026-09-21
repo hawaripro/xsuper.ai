@@ -46,4 +46,15 @@ class DispatchRecoveryTest extends TestCase
         Queue::assertPushed(ProcessImageJob::class, fn (ProcessImageJob $job): bool => $job->imageJobId === $stale->id);
         Queue::assertNotPushed(ProcessImageJob::class, fn (ProcessImageJob $job): bool => $job->imageJobId === $fresh->id);
     }
+
+    public function test_scheduled_reconcile_command_recovers_lost_dispatch(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create();
+        $stale = $this->pendingJob($user, 10);
+
+        $this->artisan('images:reconcile-stale', ['--minutes' => 5])->assertSuccessful();
+
+        Queue::assertPushed(ProcessImageJob::class, fn (ProcessImageJob $job): bool => $job->imageJobId === $stale->id);
+    }
 }

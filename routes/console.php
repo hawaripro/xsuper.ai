@@ -11,8 +11,11 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('images:reconcile-stale {--minutes=3}', function (ImageGenerationService $images) {
     $minutes = max(1, (int) $this->option('minutes'));
     $count = $images->reconcileStaleReservations($minutes);
-    $this->info("Reconciled {$count} stale image jobs.");
-})->purpose('Release wallet reservations for interrupted image requests');
+    // Recover coordinator jobs whose ProcessImageJob dispatch was lost (queue down at submit):
+    // re-queue the idempotent processor; it only acts on a still-queued job (no double charge).
+    $redispatched = $images->redispatchStalePending($minutes);
+    $this->info("Reconciled {$count} stale image jobs; re-dispatched {$redispatched} undispatched jobs.");
+})->purpose('Release interrupted image reservations and recover lost dispatches');
 
 Schedule::command('images:reconcile-stale')->everyMinute()->withoutOverlapping();
 

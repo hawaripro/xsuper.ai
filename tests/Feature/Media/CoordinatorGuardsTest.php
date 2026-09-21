@@ -110,7 +110,7 @@ class CoordinatorGuardsTest extends TestCase
         $other = User::factory()->create();
         UserToken::topup($allowed->id, 100);
         UserToken::topup($other->id, 100);
-        config(['media.restricted_user_id' => $allowed->id]);
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => $allowed->id]);
 
         try {
             $this->start($other);
@@ -122,5 +122,21 @@ class CoordinatorGuardsTest extends TestCase
         $job = $this->start($allowed);
         $this->assertSame('pending', $job->status);
         $this->assertSame(1, \App\Models\ImageJob::count());
+    }
+
+    public function test_restricted_mode_with_no_id_is_closed_for_everyone(): void
+    {
+        Queue::fake();
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => null]);
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+
+        try {
+            $this->start($user);
+            $this->fail('empty restricted id must be fail-safe closed, not open');
+        } catch (ImageGenerationException $e) {
+            $this->assertSame(503, $e->responseStatus());
+        }
+        $this->assertDatabaseCount('image_jobs', 0);
     }
 }
