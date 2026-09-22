@@ -12,6 +12,7 @@ use App\Models\VideoJob;
 use App\Services\FalProtocol;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -127,5 +128,28 @@ class VideoCoordinatorRouteTest extends TestCase
         }
         $this->assertStringNotContainsString('Create variation', $jobs[0]->prompt);
         $this->assertStringContainsString('Create variation 2', $jobs[1]->prompt, 'variation only differentiates the later videos');
+    }
+
+    public function test_coordinator_reference_stays_viewable_and_owner_gated(): void
+    {
+        Queue::fake();
+        Storage::fake('local');
+        $this->model();
+        $user = $this->member();
+        $asset = app(AssetService::class)->store($user, UploadedFile::fake()->image('r.jpg', 32, 32), InputRole::ImageRef);
+
+        $res = $this->actingAs($user)->postJson('/api/v/gen', [
+            'operation' => 'image_to_video', 'model' => FalProtocol::VIDEO, 'prompt' => 'Animate',
+            'reference_image' => $asset->id, 'duration' => 5,
+        ])->assertStatus(202);
+        $jobId = $res->json('jobs.0.job_id');
+
+        // An asset-backed reference must stay visible in the studio, not silently disappear
+        // because it is no longer a per-job file.
+        $res->assertJsonPath('jobs.0.reference_url', '/api/v/'.$jobId.'/reference');
+        $shown = $this->actingAs($user)->get('/api/v/'.$jobId.'/reference')->assertOk();
+        $this->assertSame($asset->size_bytes, strlen($shown->streamedContent()));
+
+        $this->actingAs($this->member())->get('/api/v/'.$jobId.'/reference')->assertNotFound();
     }
 }

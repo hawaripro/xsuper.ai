@@ -496,7 +496,10 @@ final class VideoGenerationService
             'job_id' => $job->job_id, 'mode' => $job->mode, 'model' => $job->model,
             'prompt' => $job->prompt, 'improved_prompt' => $job->improved_prompt,
             'pro_mode' => (bool) $job->pro_mode, 'has_reference' => (bool) $job->has_reference,
-            'reference_url' => $job->reference_path !== null ? '/api/v/'.$job->job_id.'/reference' : null,
+            // A reference lives either in the per-job store (legacy) or as an owned MediaAsset
+            // (coordinator); both are served by the same owner-gated route.
+            'reference_url' => ($job->reference_path !== null || (is_array($job->reference_asset_ids) && $job->reference_asset_ids !== []))
+                ? '/api/v/'.$job->job_id.'/reference' : null,
             'aspect_ratio' => $job->aspect_ratio, 'duration' => $job->duration,
             'status' => $job->status, 'stage' => $job->stage,
             ...self::cancellation($job),

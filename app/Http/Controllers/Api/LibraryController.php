@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AudioJob;
 use App\Models\ImageJob;
+use App\Models\MediaAsset;
 use App\Models\MediaToolJob;
 use App\Models\User;
 use App\Models\VideoJob;
@@ -96,10 +97,11 @@ class LibraryController extends Controller
     {
         $disk = Storage::disk('local');
         $items = [];
+        $seenAssets = [];
         VideoJob::query()->where('user_id', $user->id)
             ->where(fn ($query) => $query->where('status', 'completed')->orWhere('has_reference', true))
             ->latest('id')->limit(self::SOURCE_LIMIT)->get()
-            ->each(function (VideoJob $job) use (&$items, $disk, $references): void {
+            ->each(function (VideoJob $job) use (&$items, &$seenAssets, $disk, $references): void {
                 $path = GeneratedVideoStore::path($job->job_id);
                 if ($job->status === 'completed' && $job->video_url === '/api/v/'.$job->job_id.'/asset' && $disk->exists($path)) {
                     $items[] = $this->item('video', $job->job_id, mb_substr(trim($job->prompt), 0, 120) ?: 'Video', [
@@ -116,18 +118,30 @@ class LibraryController extends Controller
                         'created_at' => $job->completed_at ?? $job->created_at,
                     ]);
                 }
-                if ($job->has_reference && ($reference = $references->existingPath($job)) !== null) {
-                    $items[] = $this->item('reference', $job->job_id.':reference', 'Referensi video · '.(mb_substr(trim($job->prompt), 0, 80) ?: $job->job_id), [
-                        'mime_type' => (string) $job->reference_mime_type,
-                        'size_bytes' => $disk->size($reference),
-                        'preview_url' => '/api/v/'.$job->job_id.'/reference',
-                        'download_url' => '/api/v/'.$job->job_id.'/reference',
-                        'page_url' => '/video?job='.$job->job_id,
-                        'deletable' => true,
-                        'delete_url' => '/api/v/'.$job->job_id.'/reference',
-                        'model' => $job->model,
-                        'created_at' => $job->created_at,
-                    ]);
+                if ($job->has_reference) {
+                    // A reference is either a per-job stored file (legacy) or an owned MediaAsset
+                    // (coordinator). Several videos of one submission share the same asset, so it
+                    // is listed once.
+                    $assetId = is_array($job->reference_asset_ids) ? ($job->reference_asset_ids[0] ?? null) : null;
+                    $asset = is_string($assetId) && ! isset($seenAssets[$assetId]) ? MediaAsset::find($assetId) : null;
+                    $reference = $assetId === null ? $references->existingPath($job) : null;
+                    if ($asset !== null || $reference !== null) {
+                        if ($asset !== null) {
+                            $seenAssets[$assetId] = true;
+                        }
+                        $items[] = $this->item('reference', $job->job_id.':reference', 'Referensi video · '.(mb_substr(trim($job->prompt), 0, 80) ?: $job->job_id), [
+                            'mime_type' => (string) ($asset?->mime ?? $job->reference_mime_type),
+                            'size_bytes' => $asset?->size_bytes ?? $disk->size($reference),
+                            'preview_url' => '/api/v/'.$job->job_id.'/reference',
+                            'download_url' => '/api/v/'.$job->job_id.'/reference',
+                            'page_url' => '/video?job='.$job->job_id,
+                            // An owned asset can back several jobs, so it is not deleted from here.
+                            'deletable' => $asset === null,
+                            'delete_url' => $asset === null ? '/api/v/'.$job->job_id.'/reference' : null,
+                            'model' => $job->model,
+                            'created_at' => $job->created_at,
+                        ]);
+                    }
                 }
             });
 

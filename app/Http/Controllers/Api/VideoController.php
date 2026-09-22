@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AiModelProfile;
 use App\Models\UserToken;
+use App\Models\MediaAsset;
 use App\Models\VideoJob;
 use App\Services\GeneratedVideoStore;
 use App\Services\MediaModelConfig;
 use App\Services\VideoGenerationService;
 use App\Services\VideoReferenceStore;
 use App\Exceptions\ImageGenerationException;
+use App\Media\AssetService;
 use App\Media\Enums\MediaOperation;
 use App\Media\MediaActivation;
 use App\Media\MediaGenerationCoordinator;
@@ -19,6 +21,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class VideoController extends Controller
 {
@@ -258,10 +261,19 @@ class VideoController extends Controller
         ]);
     }
 
-    public function reference(Request $request, string $jobId, VideoReferenceStore $references): BinaryFileResponse
+    public function reference(Request $request, string $jobId, VideoReferenceStore $references): SymfonyResponse
     {
         $job = VideoJob::query()->where('job_id', $jobId)->firstOrFail();
         abort_unless($request->user()->isAdmin() || $job->user_id === $request->user()->id, 404);
+        // Coordinator jobs keep the reference as an owned MediaAsset; legacy jobs use the
+        // per-job store. Both are owner-gated here and neither mints a public URL.
+        $assetId = is_array($job->reference_asset_ids) ? ($job->reference_asset_ids[0] ?? null) : null;
+        if (is_string($assetId)) {
+            $asset = MediaAsset::find($assetId);
+            abort_if($asset === null, 404);
+
+            return app(AssetService::class)->deliver($asset);
+        }
         $path = $references->existingPath($job);
         abort_if($path === null, 404);
 
