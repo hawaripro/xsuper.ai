@@ -81,10 +81,12 @@ final class KinoviProtocol
     // Video framing the app exposes; Kinovi accepts these labels on every text-to-video model.
     private const VIDEO_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4'];
 
-    // Discrete durations within Kinovi's 2-15s window. Output tier is fixed at the cheapest (480p).
+    // Discrete durations within Kinovi's 2-15s window. Output tier stays at the cheapest tier
+    // Kinovi still accepts: it now rejects 480p with HTTP 400 "Invalid enum value. Expected
+    // '720p' | '1080p'", which broke submission for every Kinovi text-to-video model.
     private const VIDEO_DURATIONS = [5, 8, 10];
 
-    private const VIDEO_RESOLUTION = '480p';
+    private const VIDEO_RESOLUTION = '720p';
 
     public static function mediaConfig(string $model): ?array
     {
