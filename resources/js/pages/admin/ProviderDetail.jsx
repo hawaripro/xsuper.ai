@@ -88,7 +88,7 @@ export default function ProviderDetail() {
     const [modelPage, setModelPage] = useState({ data: null, loading: true, error: "" });
     const [query, setQuery] = useState({ q: "", category: "", status: "", sort: "display_name", direction: "asc", page: 1, per_page: 25 });
     const [discovery, setDiscovery] = useState({ busy: false, error: "", nextCursor: null, started: false, discovered: 0, imported: 0 });
-    const [discoveryLimit, setDiscoveryLimit] = useState(25);
+    const [discoveryLimit, setDiscoveryLimit] = useState(10);
     const [tab, setTab] = useState("models");
     const [audit, setAudit] = useState({ rows: [], loading: false, error: "" });
     const [confirmation, setConfirmation] = useState(null);
@@ -519,13 +519,13 @@ export default function ProviderDetail() {
                         </span>
                         <div className="min-w-0 text-xs leading-5 text-slate-600 dark:text-slate-300">
                             <p className="font-bold text-slate-900 dark:text-white">{t(provider.protocol === "fal" ? "Impor bertahap, tinjau sebelum publikasi" : "Model kurasi dan harga")}</p>
-                            <p className="mt-0.5">{t(provider.protocol === "fal" ? "Setiap klik mengambil satu halaman schema, maksimal 25 model. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan." : "Sinkronkan metadata dari tab Koneksi. Impor OpenAPI bertahap tersedia untuk fal; provider ini tetap memakai integrasi dan konfigurasi kurasi yang didukung.")}</p>
+                            <p className="mt-0.5">{t(provider.protocol === "fal" ? "Setiap klik mengambil satu halaman schema, maksimal 10 model. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan." : "Sinkronkan metadata dari tab Koneksi. Impor OpenAPI bertahap tersedia untuk fal; provider ini tetap memakai integrasi dan konfigurasi kurasi yang didukung.")}</p>
                         </div>
                     </div>
                     <div className="space-y-3 border-b border-slate-200 p-4 dark:border-white/10">
                         {provider.protocol === "fal" ? <>
                         <div className="flex flex-wrap items-end gap-3">
-                            <label className="text-xs font-medium">{t("Batas impor per halaman")}<select className="ui-input mt-1 min-h-11" value={discoveryLimit} disabled={discovery.busy} onChange={(event) => setDiscoveryLimit(Number(event.target.value))}><option value={10}>10</option><option value={25}>25</option></select></label>
+                            <label className="text-xs font-medium">{t("Batas impor per halaman")}<select className="ui-input mt-1 min-h-11" value={discoveryLimit} disabled={discovery.busy} onChange={(event) => setDiscoveryLimit(Number(event.target.value))}><option value={5}>5</option><option value={10}>10</option></select></label>
                             <button type="button" className="ui-btn-primary min-h-11" disabled={discovery.busy || !provider.is_enabled} onClick={discoverModels}>{t(discovery.busy ? "Mengimpor schema…" : discovery.nextCursor ? "Lanjutkan halaman impor" : discovery.started ? "Mulai impor ulang" : "Impor halaman pertama")}</button>
                         </div>
                         {!provider.is_enabled && <p className="text-xs text-slate-600 dark:text-slate-400">{t("Aktifkan koneksi sebelum mengimpor schema.")}</p>}

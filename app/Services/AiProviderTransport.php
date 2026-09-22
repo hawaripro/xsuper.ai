@@ -58,7 +58,7 @@ final class AiProviderTransport
     public function discoverFalPage(AiProviderProfile $provider, ?string $cursor = null, int $limit = 10): array
     {
         $connection = $this->connection($provider);
-        if ($connection['protocol'] !== 'fal' || $limit < 1 || $limit > 25
+        if ($connection['protocol'] !== 'fal' || $limit < 1 || $limit > 10
             || ($cursor !== null && (strlen($cursor) > 2048 || preg_match('/^[A-Za-z0-9+\/_=\\-]+$/D', $cursor) !== 1))) {
             throw new AiProxyException('Schema discovery requires a configured fal provider and a valid bounded page.', 422);
         }

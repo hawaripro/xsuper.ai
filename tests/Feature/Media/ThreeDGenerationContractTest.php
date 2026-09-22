@@ -10,6 +10,7 @@ use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ThreeDJob;
 use App\Models\User;
+use App\Models\UserDevice;
 use App\Models\UserToken;
 use App\Services\AiProviderEndpoint;
 use App\Services\GeneratedModel3dStore;
@@ -85,6 +86,48 @@ class ThreeDGenerationContractTest extends TestCase
         $this->get($job->model_url)->assertNotFound();
         $this->postJson('/api/3d/'.$job->job_id.'/cancel')->assertNotFound();
         $this->deleteJson('/api/3d/'.$job->job_id)->assertNotFound();
+    }
+
+    public function test_native_assets_keep_session_device_identity_but_recheck_approval(): void
+    {
+        [$user, $model, $asset, $input] = $this->fixture();
+        UserDevice::create([
+            'user_id' => $user->id, 'device_hash' => hash('sha256', 'another-browser'),
+            'device_name' => 'Another browser', 'device_type' => 'browser', 'status' => 'active',
+        ]);
+        $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0.0.0';
+        $this->withHeaders([
+            'User-Agent' => $userAgent, 'Accept-Language' => 'en-US,en;q=0.9',
+            'Sec-CH-UA' => '"Chromium";v="140"', 'Sec-CH-UA-Platform' => '"Windows"',
+        ]);
+        $this->fakeProvider($this->glb());
+        $job = $this->submitAndPoll($user, $input);
+        $browser = UserDevice::where('user_id', $user->id)->where('user_agent', $userAgent)->sole();
+        $this->get($job->model_url)->assertOk()->assertHeader('Content-Type', 'model/gltf-binary');
+
+        $session = $this->app['session.store'];
+        $session->regenerate();
+        $session->save();
+        $this->withCookie($session->getName(), $session->getId())->flushHeaders();
+        // Symfony supplies a default language unless it is explicitly removed.
+        $nativeHeaders = ['User-Agent' => $userAgent, 'Accept-Language' => null, 'Sec-Fetch-Mode' => 'navigate'];
+        $this->get($job->model_url, [...$nativeHeaders, 'Sec-Fetch-Mode' => 'no-cors'])
+            ->assertOk()->assertHeader('Content-Type', 'model/gltf-binary');
+        $this->get($job->model_url.'?download=1', $nativeHeaders)
+            ->assertOk()->assertHeader('Content-Type', 'model/gltf-binary')
+            ->assertHeader('Content-Disposition', 'attachment; filename=model-'.$job->job_id.'.glb');
+        $this->assertDatabaseCount('user_devices', 2);
+        $this->assertSame(2, UserDevice::where('user_id', $user->id)->where('status', 'active')->count());
+
+        $browser->update(['status' => 'blocked']);
+        $this->get($job->model_url.'?download=1', $nativeHeaders)
+            ->assertForbidden()->assertJsonPath('device_blocked', true);
+        $browser->update(['status' => 'pending']);
+        $this->get($job->model_url, $nativeHeaders)
+            ->assertForbidden()->assertJsonPath('device_pending', true);
+        $browser->update(['status' => 'active']);
+        $this->get($job->model_url.'?download=1', $nativeHeaders)->assertOk();
+        $this->assertDatabaseCount('user_devices', 2);
     }
 
     public function test_hash_conflict_precedes_validation_and_owned_active_assets_are_required_before_charge(): void

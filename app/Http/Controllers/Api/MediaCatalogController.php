@@ -15,7 +15,7 @@ class MediaCatalogController extends Controller
 {
     public function discover(Request $request, AiProviderProfile $provider, MediaCatalogService $catalog): JsonResponse
     {
-        $input = $request->validate(['cursor' => ['nullable', 'string', 'max:2048', 'regex:/^[A-Za-z0-9+\/_=\-]+$/D'], 'limit' => ['sometimes', 'integer', 'min:1', 'max:25']]);
+        $input = $request->validate(['cursor' => ['nullable', 'string', 'max:2048', 'regex:/^[A-Za-z0-9+\/_=\-]+$/D'], 'limit' => ['sometimes', 'integer', 'min:1', 'max:10']]);
         try {
             return response()->json($catalog->discover($provider, $request->user(), $input['cursor'] ?? null, $input['limit'] ?? 10));
         } catch (AiProxyException $exception) {

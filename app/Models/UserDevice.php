@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 
 class UserDevice extends Model
 {
+    private const SESSION_DEVICE_KEY = 'auth.user_device_id';
+
     protected $fillable = ['user_id', 'device_hash', 'device_name', 'device_type', 'user_agent', 'ip_address', 'status', 'last_active_at'];
 
     protected function casts(): array
@@ -40,65 +42,71 @@ class UserDevice extends Model
 
     public static function trackDevice(int $userId, Request $request, int $maxDevices = 2): ?self
     {
-        $hash = self::generateFingerprint($userId, $request);
         $ua = $request->userAgent() ?? 'Unknown';
         $ip = $request->ip();
-        $isApiKey = $request->bearerToken() && str_starts_with($request->bearerToken() ?? '', 'xsuper-');
+        $apiKey = $request->bearerToken();
+        $isApiKey = $apiKey && str_starts_with($apiKey, 'xsuper-');
+        // Plugin keys keep their stateless identity, even when a session is attached.
+        $session = ! $isApiKey && $request->hasSession() && $request->user()?->getAuthIdentifier() === $userId
+            ? $request->session()
+            : null;
+        $device = null;
 
-        // Try find existing device
-        $device = static::where('device_hash', $hash)->first();
+        if ($session) {
+            $deviceId = $session->get(self::SESSION_DEVICE_KEY);
+            if (is_int($deviceId)) {
+                // The session carries identity, never approval or another owner's row.
+                $device = static::where('user_id', $userId)->find($deviceId);
+            }
+            if (! $device) {
+                $session->forget(self::SESSION_DEVICE_KEY);
+            }
+        }
+
+        if (! $device) {
+            // Preserve existing fingerprints and admission for an unbound session.
+            $hash = self::generateFingerprint($userId, $request);
+            $device = static::where('device_hash', $hash)->first();
+        }
 
         if ($device) {
-            if ($device->status === 'blocked') {
-                return null;
+            if ($device->status !== 'blocked') {
+                $device->ip_address = $ip;
+                $device->last_active_at = now();
+                $device->save();
             }
-            // Update last active + IP
-            $device->ip_address = $ip;
-            $device->last_active_at = now();
-            $device->save();
-            return $device;
+        } else {
+            $deviceName = $isApiKey ? self::parsePluginName($ua, $request) : self::parseDeviceName($ua);
+            $deviceType = $isApiKey ? 'plugin' : self::parseDeviceType($ua);
+            $status = 'active';
+
+            $user = User::find($userId);
+            $isAdmin = $user && $user->isAdmin();
+            if (! $isAdmin) {
+                $activeCount = static::where('user_id', $userId)->where('status', 'active')->count();
+                if ($activeCount >= $maxDevices) {
+                    $status = 'pending';
+                }
+            }
+
+            $device = static::updateOrCreate(
+                ['device_hash' => $hash],
+                [
+                    'user_id' => $userId,
+                    'device_name' => $deviceName,
+                    'device_type' => $deviceType,
+                    'user_agent' => substr($ua, 0, 500),
+                    'ip_address' => $ip,
+                    'status' => $status,
+                    'last_active_at' => now(),
+                ]
+            );
         }
 
-        // New device
-        $deviceName = $isApiKey ? self::parsePluginName($ua, $request) : self::parseDeviceName($ua);
-        $deviceType = $isApiKey ? 'plugin' : self::parseDeviceType($ua);
+        // Bind denied identities too, so different request headers cannot evade them.
+        $session?->put(self::SESSION_DEVICE_KEY, $device->getKey());
 
-        // Check limit for non-admin
-        $user = User::find($userId);
-        $isAdmin = $user && $user->isAdmin();
-
-        if (!$isAdmin) {
-            $activeCount = static::where('user_id', $userId)->where('status', 'active')->count();
-            if ($activeCount >= $maxDevices) {
-                // Over limit — create as pending (needs admin approval)
-                return static::updateOrCreate(
-                    ['device_hash' => $hash],
-                    [
-                        'user_id' => $userId,
-                        'device_name' => $deviceName,
-                        'device_type' => $deviceType,
-                        'user_agent' => substr($ua, 0, 500),
-                        'ip_address' => $ip,
-                        'status' => 'pending',
-                        'last_active_at' => now(),
-                    ]
-                );
-            }
-        }
-
-        // Create active device
-        return static::updateOrCreate(
-            ['device_hash' => $hash],
-            [
-                'user_id' => $userId,
-                'device_name' => $deviceName,
-                'device_type' => $deviceType,
-                'user_agent' => substr($ua, 0, 500),
-                'ip_address' => $ip,
-                'status' => 'active',
-                'last_active_at' => now(),
-            ]
-        );
+        return $device->status === 'blocked' ? null : $device;
     }
 
     /**

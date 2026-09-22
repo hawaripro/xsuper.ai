@@ -40,6 +40,21 @@ class FalCatalogLifecycleTest extends TestCase
         });
     }
 
+    public function test_schema_expanded_discovery_rejects_oversized_pages_before_contacting_the_provider(): void
+    {
+        [$admin, $provider] = $this->connection();
+        $this->fakePage(FalCatalogFixture::model());
+        $url = '/api/admin/ai/providers/'.$provider->id.'/discover';
+
+        $this->actingAs($admin)->postJson($url, ['limit' => 11])
+            ->assertUnprocessable()->assertJsonValidationErrors('limit');
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('media_capabilities', 0);
+
+        $this->postJson($url, ['limit' => 10])->assertOk()
+            ->assertJsonPath('imported', 1)->assertJsonPath('next_cursor', 'Mg==');
+    }
+
     public function test_repeating_a_page_preserves_curated_identity_price_and_unseen_availability(): void
     {
         [$admin, $provider] = $this->connection();

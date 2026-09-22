@@ -2534,7 +2534,7 @@ const dictionaries = {
         "Satu pekerjaan dapat menghasilkan beberapa berkas audio. Biaya dikenakan satu kali per pekerjaan, bukan per berkas; tetapkan biaya token secara eksplisit.": "A job may generate multiple audio files. Charges apply once per job, not per file; set token costs explicitly.",
         "Saya telah meninjau schema, definisi, dan laporan kompatibilitas. Publikasi memilih revisi ini untuk permintaan baru; label dan harga kurasi tidak berubah.": "I have reviewed the schema, definition, and compatibility report. Publication selects this revision for new requests; curated labels and pricing remain unchanged.",
         "Schema sumber": "Source schema",
-        "Setiap klik mengambil satu halaman schema, maksimal 25 model. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan.": "Each click fetches one schema page, up to 25 models. Curated labels and pricing are preserved; models not shown on this page are not disabled.",
+        "Setiap klik mengambil satu halaman schema, maksimal 10 model. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan.": "Each click fetches one schema page, up to 10 models. Curated labels and pricing are preserved; models not shown on this page are not disabled.",
         "Sinkronkan metadata (draf)": "Sync metadata (draft)",
         "Sinkronkan metadata dari tab Koneksi. Impor OpenAPI bertahap tersedia untuk fal; provider ini tetap memakai integrasi dan konfigurasi kurasi yang didukung.": "Sync metadata from the Connections tab. Incremental OpenAPI import is available for fal; this provider continues to use supported integrations and curated configuration.",
         "Status katalog": "Catalog status",
