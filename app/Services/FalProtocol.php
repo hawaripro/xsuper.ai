@@ -24,6 +24,10 @@ final class FalProtocol
 
     public const VIDEO_REQUEST_PATH = 'fal-ai/longcat-video/requests/{id}';
 
+    public const AVATAR = 'minimax/h3-max-turbo/image-to-video';
+
+    public const AVATAR_REQUEST_PATH = 'minimax/h3-max-turbo/requests/{id}';
+
     public const AUDIO_SPEECH = 'fal-ai/kokoro/american-english';
 
     public const AUDIO_MUSIC = 'fal-ai/stable-audio-25/text-to-audio';
@@ -44,6 +48,7 @@ final class FalProtocol
         self::IMAGE_SANA => 'image',
         self::VIDEO => 'video',
         self::VIDEO_REFERENCE => 'video',
+        self::AVATAR => 'avatar',
         self::AUDIO_SPEECH => 'audio',
         self::AUDIO_MUSIC => 'audio',
     ];
@@ -58,22 +63,23 @@ final class FalProtocol
         $reference = $model === self::VIDEO_REFERENCE;
         $speech = $model === self::AUDIO_SPEECH;
         $music = $model === self::AUDIO_MUSIC;
+        $avatar = $model === self::AVATAR;
 
         return [
             'image_path' => $image ? $model : self::IMAGE_SCHNELL,
-            'video_path' => $video ? $model : self::VIDEO,
-            'video_status_path' => self::VIDEO_REQUEST_PATH,
+            'video_path' => $video || $avatar ? $model : self::VIDEO,
+            'video_status_path' => $avatar ? self::AVATAR_REQUEST_PATH : self::VIDEO_REQUEST_PATH,
             'sizes' => $image ? ['1024x1024', '1024x1792', '1792x1024'] : [],
-            'durations' => $video ? [2, 3, 5, 10] : [],
+            'durations' => $avatar ? range(5, 15) : ($video ? [2, 3, 5, 10] : []),
             'aspect_ratios' => $video && ! $reference ? ['16:9', '9:16', '1:1'] : [],
-            'max_quantity' => $speech || $music ? 1 : 4,
+            'max_quantity' => $speech || $music || $avatar ? 1 : 4,
             'supports_size' => $image,
             'supports_n' => $image && $model !== self::IMAGE_PRO,
-            'supports_duration' => $video,
+            'supports_duration' => $video || $avatar,
             'supports_aspect_ratio' => $video && ! $reference,
             'supports_pro' => $video,
-            'supports_reference_image' => $video,
-            'reference_required' => $reference,
+            'supports_reference_image' => $video || $avatar,
+            'reference_required' => $reference || $avatar,
             'reference_model' => $video ? self::VIDEO_REFERENCE : null,
             'audio_path' => $speech || $music ? $model : null,
             'audio_status_path' => $speech ? self::AUDIO_SPEECH_REQUEST_PATH : ($music ? self::AUDIO_MUSIC_REQUEST_PATH : null),
@@ -90,10 +96,18 @@ final class FalProtocol
             'speed_min' => $speech ? 0.1 : null,
             'speed_max' => $speech ? 5 : null,
             'speed_default' => $speech ? 1 : null,
-            'duration_min' => $music ? 1 : null,
-            'duration_max' => $music ? 190 : null,
-            'duration_default' => $music ? 190 : null,
+            'duration_min' => $avatar ? 5 : ($music ? 1 : null),
+            'duration_max' => $avatar ? 15 : ($music ? 190 : null),
+            'duration_default' => $avatar ? 5 : ($music ? 190 : null),
             'max_characters' => $speech || $music ? 4000 : null,
+            ...($avatar ? [
+                'prompt_required' => true,
+                'price_unit' => 'second',
+                'avatar_audio_mode' => 'soundtrack',
+                'reference_image_max_bytes' => 15_728_640,
+                'reference_audio_max_bytes' => 15_000_000,
+                'reference_audio_min_seconds' => 2,
+            ] : []),
         ];
     }
 
@@ -147,6 +161,9 @@ final class FalProtocol
     public static function videoRequest(array $payload): array
     {
         $model = $payload['model'] ?? null;
+        if ($model === self::AVATAR) {
+            return self::avatarRequest($payload);
+        }
         if (! in_array($model, [self::VIDEO, self::VIDEO_REFERENCE], true)) {
             throw new AiProxyException('This fal video model is not supported.', 422);
         }
@@ -187,6 +204,55 @@ final class FalProtocol
         }
 
         return $request;
+    }
+
+    private static function avatarRequest(array $payload): array
+    {
+        $config = self::mediaConfig(self::AVATAR);
+        $duration = array_key_exists('duration', $payload) ? $payload['duration'] : $config['duration_default'];
+        if (! is_int($duration) || $duration < $config['duration_min'] || $duration > $config['duration_max']
+            || array_diff_key($payload, ['model' => true, 'prompt' => true, 'duration' => true, 'image_url' => true, 'audio_url' => true]) !== []) {
+            throw new AiProxyException('The selected avatar options are not supported by this fal model.', 422);
+        }
+
+        return [
+            'prompt' => self::prompt($payload),
+            'duration' => $duration,
+            'resolution' => '480P',
+            'prompt_expansion_mode' => 'disabled',
+            'enable_safety_checker' => true,
+            'sync_mode' => false,
+            'image_url' => self::inlineReference($payload['image_url'] ?? null, 'image', $config['reference_image_max_bytes']),
+            // Fal replaces the soundtrack; this does not promise lip-sync accuracy.
+            'target_audio_url' => self::inlineReference($payload['audio_url'] ?? null, 'audio', $config['reference_audio_max_bytes']),
+        ];
+    }
+
+    /** Owned assets are signature-checked before encoding; validate the envelope without copying or decoding it. */
+    private static function inlineReference(mixed $value, string $mediaType, int $maxBytes): string
+    {
+        $pattern = $mediaType === 'image'
+            ? '#\Adata:image/(?:jpeg|png|webp);base64,#'
+            : '#\Adata:audio/(?:mpeg|wav|x-wav|mp4|webm);base64,#';
+        if (! is_string($value) || preg_match($pattern, $value, $prefix) !== 1) {
+            throw new AiProxyException("A validated inline {$mediaType} reference is required by this fal model.", 422);
+        }
+        $offset = strlen($prefix[0]);
+        $length = strlen($value) - $offset;
+        if ($length < 4 || $length % 4 !== 0 || $length > intdiv($maxBytes + 2, 3) * 4) {
+            throw new AiProxyException("The inline {$mediaType} reference is invalid or exceeds the fal size limit.", 422);
+        }
+        $padding = str_ends_with($value, '==') ? 2 : (str_ends_with($value, '=') ? 1 : 0);
+        $dataLength = $length - $padding;
+        $decodedBytes = intdiv($length, 4) * 3 - $padding;
+        if ($decodedBytes > $maxBytes
+            || strspn($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', $offset, $dataLength) !== $dataLength
+            || ($padding === 2 && ! str_contains('AQgw', $value[$offset + $dataLength - 1]))
+            || ($padding === 1 && ! str_contains('AEIMQUYcgkosw048', $value[$offset + $dataLength - 1]))) {
+            throw new AiProxyException("The inline {$mediaType} reference is invalid or exceeds the fal size limit.", 422);
+        }
+
+        return $value;
     }
 
     public static function audioRequest(array $payload): array

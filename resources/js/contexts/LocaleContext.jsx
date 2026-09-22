@@ -2606,6 +2606,7 @@ const dictionaries = {
         "Hasil avatar": "Avatar results",
         "Pratinjau avatar": "Avatar preview",
         "Foto + audio → video": "Photo + audio → video",
+        "Audio Fal menggantikan soundtrack video; sinkronisasi bibir tidak dijamin. Audio minimal 2 detik, maksimal 15 MB.": "Fal uses your audio as the video soundtrack; lip-sync is not guaranteed. Audio must be at least 2 seconds and at most 15 MB.",
         "Avatar belum berhasil dibuat": "Avatar could not be created",
         "Foto Anda, ucapan Anda": "Your photo, your voice",
         "Pilih foto wajah dan audio ucapan. Video hasilnya akan tampil di sini.": "Choose a face photo and speech audio. Your generated video will appear here.",

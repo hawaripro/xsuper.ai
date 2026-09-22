@@ -223,7 +223,7 @@ final class MediaGenerationCoordinator
                     'rights_confirmed_at' => now()->toISOString()]
                 : ['cta' => $cta !== '' ? $cta : null, 'ugc_variation' => $variation];
 
-            $referenceAssetIds = $this->resolveReferenceAssets($user, $resolved->capability, $validated);
+            $referenceAssetIds = $this->resolveReferenceAssets($user, $resolved->capability, $validated, $config);
             $hasReference = $referenceAssetIds !== [];
             $revision = $this->resolver->ensureRevision($model, $operation, $resolved);
             $created = [];
@@ -380,7 +380,7 @@ final class MediaGenerationCoordinator
      * @param  array{inputs: array<string, mixed>, params: array<string, mixed>}  $validated
      * @return string[]
      */
-    private function resolveReferenceAssets(User $user, MediaCapability $capability, array $validated): array
+    private function resolveReferenceAssets(User $user, MediaCapability $capability, array $validated, array $config = []): array
     {
         $ids = [];
         foreach ($capability->inputs as $input) {
@@ -413,6 +413,23 @@ final class MediaGenerationCoordinator
                     || ($asset->expires_at !== null && $asset->expires_at->isPast())
                     || ! Storage::disk($asset->storage_disk)->exists($asset->storage_path)) {
                     throw new ImageGenerationException('This reference is no longer available. Upload it again.', 422);
+                }
+                $maxBytes = $config['reference_'.$expectedType.'_max_bytes'] ?? null;
+                if (is_int($maxBytes) && $asset->size_bytes > $maxBytes) {
+                    throw new ImageGenerationException('This model accepts '.$expectedType.' references up to '.number_format($maxBytes / 1_000_000, 0).' MB.', 422);
+                }
+                $minimumSeconds = $expectedType === 'audio' ? ($config['reference_audio_min_seconds'] ?? null) : null;
+                if (is_int($minimumSeconds) && $minimumSeconds > 0) {
+                    try {
+                        $longEnough = $this->assets->audioHasDuration($asset, $minimumSeconds);
+                    } catch (\InvalidArgumentException $exception) {
+                        throw new ImageGenerationException($exception->getMessage(), 422);
+                    } catch (\RuntimeException) {
+                        throw new ImageGenerationException('Audio inspection is temporarily unavailable. Try again later.', 503);
+                    }
+                    if (! $longEnough) {
+                        throw new ImageGenerationException('This model requires at least '.$minimumSeconds.' seconds of audio.', 422);
+                    }
                 }
                 $ids[] = $asset->id;
             }

@@ -138,20 +138,7 @@ final class MediaModelConfig
             ]),
             'video' => self::deriveVideoCapabilities($config, $public, $prompt),
             'audio' => self::deriveAudioCapabilities($config, $public, $prompt),
-            'avatar' => [
-                MediaOperation::TalkingAvatar->value => new MediaCapability(
-                    $public, MediaOperation::TalkingAvatar, OutputKind::Video, 1,
-                    [
-                        new CapabilityInput('avatar_photo', InputRole::AvatarPhoto, 'asset', required: true),
-                        new CapabilityInput('speech_audio', InputRole::SpeechAudio, 'asset', required: true),
-                        new CapabilityInput('prompt', InputRole::Prompt, 'string'),
-                    ],
-                    [
-                        new CapabilityParam('duration', 'integer', default: 5, min: 2, max: 15, unit: 's'),
-                        new CapabilityParam('aspect_ratio', 'enum', default: '16:9', options: $config['aspect_ratios']),
-                    ],
-                ),
-            ],
+            'avatar' => self::deriveAvatarCapabilities($config, $public),
             default => [],
         };
     }
@@ -236,6 +223,40 @@ final class MediaModelConfig
         ]);
     }
 
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, MediaCapability>
+     */
+    private static function deriveAvatarCapabilities(array $config, string $public): array
+    {
+        $durations = $config['durations'] ?? [];
+        if (! ($config['supports_duration'] ?? false) || $durations === []) {
+            return [];
+        }
+        $duration = new CapabilityParam(
+            'duration', 'integer',
+            default: $config['duration_default'] ?? (in_array(5, $durations, true) ? 5 : $durations[0]),
+            min: $config['duration_min'] ?? min($durations),
+            max: $config['duration_max'] ?? max($durations),
+            unit: 's',
+        );
+        $aspect = ($config['supports_aspect_ratio'] && ($config['aspect_ratios'] ?? []) !== [])
+            ? new CapabilityParam('aspect_ratio', 'enum', default: $config['aspect_ratios'][0], options: array_values($config['aspect_ratios']))
+            : null;
+
+        return [
+            MediaOperation::TalkingAvatar->value => new MediaCapability(
+                $public, MediaOperation::TalkingAvatar, OutputKind::Video, 1,
+                [
+                    new CapabilityInput('avatar_photo', InputRole::AvatarPhoto, 'asset', required: true),
+                    new CapabilityInput('speech_audio', InputRole::SpeechAudio, 'asset', required: true),
+                    new CapabilityInput('prompt', InputRole::Prompt, 'string', required: $config['prompt_required'] ?? false),
+                ],
+                array_values(array_filter([$duration, $aspect])),
+            ),
+        ];
+    }
+
     public static function catalogModel(array $model): array
     {
         $kind = $model['category'] ?? $model['kind'] ?? null;
@@ -262,7 +283,7 @@ final class MediaModelConfig
         if (! isset($model['output_modalities'])) {
             $model['output_modalities'] = match ($kind) {
                 'image', 'images' => ['image'],
-                'video' => ['video'],
+                'video', 'avatar' => ['video'],
                 'audio' => ['audio'],
                 default => ['text'],
             };
@@ -301,6 +322,7 @@ final class MediaModelConfig
             'token_cost' => $model->token_cost,
             'billing_mode' => 'tokens',
             'price_unit' => $config['price_unit'] ?? 'generation',
+            ...(isset($config['avatar_audio_mode']) ? ['avatar_audio_mode' => $config['avatar_audio_mode']] : []),
             'sizes' => $config['sizes'], 'durations' => $config['durations'],
             'aspect_ratios' => $config['aspect_ratios'], 'max_quantity' => $config['max_quantity'],
             'pro' => [
@@ -311,7 +333,7 @@ final class MediaModelConfig
             'reference_image' => [
                 'supported' => $config['supports_reference_image'],
                 'required' => $config['reference_required'],
-                'max_bytes' => 10 * 1024 * 1024,
+                'max_bytes' => $config['reference_image_max_bytes'] ?? 10 * 1024 * 1024,
                 'mime_types' => ['image/jpeg', 'image/png', 'image/webp'],
                 'aspect_ratio_from_image' => $config['supports_reference_image'],
             ],

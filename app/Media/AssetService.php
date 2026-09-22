@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Process\Process;
 
 /**
  * Controlled media asset service. Validates size + allowed type + content signature
@@ -106,6 +107,60 @@ final class AssetService
         }
 
         return 'data:'.$asset->mime.';base64,'.base64_encode((string) $disk->get($asset->storage_path));
+    }
+
+    /** Decode a bounded initial interval using a private seek cache, never a container duration or remote/file protocol. */
+    public function audioHasDuration(MediaAsset $asset, int $minimumSeconds): bool
+    {
+        $binary = config('media_tools.ffprobe');
+        if (! is_string($binary) || ! is_file($binary)) {
+            throw new \RuntimeException('Audio inspection is unavailable.');
+        }
+        if ($asset->media_type !== 'audio' || $minimumSeconds < 1 || ! $asset->signature_ok
+            || $asset->retention_status !== 'active' || ($asset->expires_at !== null && $asset->expires_at->isPast())) {
+            throw new InvalidArgumentException('This audio reference is no longer available.');
+        }
+        $stream = Storage::disk($asset->storage_disk)->readStream($asset->storage_path);
+        if (! is_resource($stream)) {
+            throw new InvalidArgumentException('The audio reference could not be read.');
+        }
+        $process = null;
+        try {
+            $process = app(Process::class, ['command' => [
+                $binary, '-v', 'error', '-protocol_whitelist', 'cache,pipe',
+                // Include the boundary frame despite codec priming or a nonzero initial timestamp.
+                '-select_streams', 'a:0', '-read_intervals', '%+'.($minimumSeconds + 1),
+                '-read_ahead_limit', (string) min((int) $asset->size_bytes, self::MAX_BYTES['audio']),
+                '-show_entries', 'stream=sample_rate:frame=nb_samples', '-of', 'json', 'cache:pipe:0',
+            ]]);
+            $outputBytes = 0;
+            $exit = $process->setInput($stream)->setTimeout(5)->run(function (string $type, string $chunk) use (&$outputBytes): void {
+                $outputBytes += strlen($chunk);
+                if ($outputBytes > 65_536) {
+                    throw new \RuntimeException('Audio inspection exceeded its output limit.');
+                }
+            });
+            $result = json_decode($process->getOutput(), true, 32);
+            $rate = $result['streams'][0]['sample_rate'] ?? null;
+            if ($exit !== 0 || ! is_string($rate) || ! ctype_digit($rate) || (int) $rate < 1
+                || ! is_array($result['frames'] ?? null) || $result['frames'] === []) {
+                throw new InvalidArgumentException('The audio could not be decoded. Upload another audio file.');
+            }
+            $samples = 0;
+            foreach ($result['frames'] as $frame) {
+                if (! is_int($frame['nb_samples'] ?? null) || $frame['nb_samples'] < 0) {
+                    throw new InvalidArgumentException('The audio could not be decoded. Upload another audio file.');
+                }
+                $samples += $frame['nb_samples'];
+            }
+
+            return $samples >= $minimumSeconds * (int) $rate;
+        } finally {
+            if ($process?->isRunning()) {
+                $process->stop(0.1);
+            }
+            fclose($stream);
+        }
     }
 
     private function extensionFor(string $mime): string

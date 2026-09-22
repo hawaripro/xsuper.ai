@@ -183,10 +183,10 @@ final class VideoGenerationService
                 $payload['pro_mode'] = $job->pro_mode;
             }
             if ($job->mode === 'avatar') {
-                $payload['image_url'] = $this->assets->signedUrl($this->avatarReference($job, 'avatar_photo', 'image'));
-                $payload['audio_url'] = $this->assets->signedUrl($this->avatarReference($job, 'speech_audio', 'audio'));
+                $payload['image_url'] = $this->avatarReferenceUrl($provider, $this->avatarReference($job, 'avatar_photo', 'image'));
+                $payload['audio_url'] = $this->avatarReferenceUrl($provider, $this->avatarReference($job, 'speech_audio', 'audio'));
             } elseif ($job->has_reference) {
-                // Fal accepts a private inline image; Kinovi avatar fetches short-lived grants above.
+                // Fal consumes the owned image inline rather than fetching a workspace URL.
                 $payload['image_url'] = $job->capability_revision_id !== null
                     ? $this->assets->dataUri($this->coordinatorReference($job))
                     : $this->references->dataUri($job);
@@ -490,6 +490,33 @@ final class VideoGenerationService
         }
 
         return $asset;
+    }
+
+    private function avatarReferenceUrl(AiProviderProfile $provider, MediaAsset $asset): string
+    {
+        if ($provider->protocol === 'fal') {
+            if ($asset->media_type === 'audio' && $asset->size_bytes > 15_000_000) {
+                throw new AiProxyException('Speech audio must not exceed 15 MB for this model.', 422);
+            }
+
+            return $this->assets->dataUri($asset);
+        }
+        if ($provider->protocol !== 'kinovi') {
+            throw new AiProxyException('Avatar references are not supported by this provider.', 422);
+        }
+        $stream = Storage::disk($asset->storage_disk)->readStream($asset->storage_path);
+        if (! is_resource($stream)) {
+            throw new AiProxyException('An avatar input is no longer available. Upload it again.', 422);
+        }
+        try {
+            return $this->transport->uploadKinoviReference(
+                $provider, $stream, basename($asset->storage_path), $asset->mime, (int) $asset->size_bytes,
+            );
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
     }
 
     private function avatarReference(VideoJob $job, string $key, string $type): MediaAsset

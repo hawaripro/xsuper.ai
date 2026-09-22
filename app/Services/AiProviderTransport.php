@@ -5,15 +5,20 @@ namespace App\Services;
 use App\Exceptions\AiProxyException;
 use App\Media\FalCapabilityImporter;
 use App\Models\AiProviderProfile;
+use DateTimeImmutable;
+use DateTimeZone;
 use Generator;
+use GuzzleHttp\Handler\CurlHandler;
 use GuzzleHttp\Handler\StreamHandler;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Stream;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\StreamInterface;
 use Throwable;
 
 final class AiProviderTransport
@@ -257,6 +262,151 @@ final class AiProviderTransport
         return $this->kinoviTaskState($data, 'result_urls');
     }
 
+    /**
+     * Stage an owned reference without submitting a generation task.
+     * The caller supplies a readable stream at its start and retains ownership.
+     *
+     * @param  resource  $stream
+     */
+    public function uploadKinoviReference(AiProviderProfile $provider, mixed $stream, string $fileName, string $mime, int $sizeBytes): string
+    {
+        if (! is_resource($stream) || get_resource_type($stream) !== 'stream' || $sizeBytes < 1
+            || trim($fileName) === '' || strlen($fileName) > 255
+            || str_contains($fileName, '/') || str_contains($fileName, '\\')
+            || preg_match('/[\x00-\x1f\x7f]/', $fileName)
+            || preg_match('/^(?:image|audio|video)\/[a-z0-9][a-z0-9.+-]*$/iD', $mime) !== 1) {
+            throw new AiProxyException('The Kinovi reference upload is invalid.', 422);
+        }
+        $body = new Stream($stream, ['size' => $sizeBytes]);
+        try {
+            if (! $body->isReadable()) {
+                throw new AiProxyException('The Kinovi reference upload is invalid.', 422);
+            }
+            $connection = $this->connection($provider);
+            if ($connection['protocol'] !== 'kinovi') {
+                throw new AiProxyException('Reference staging is not supported by this provider.', 422);
+            }
+            $requestedAt = microtime(true);
+            $upload = $this->send('POST', $connection['base_url'].'/uploads', $connection, [
+                'fileName' => $fileName, 'contentType' => $mime,
+            ], timeout: 30)->json();
+            if (! is_array($upload) || ($upload['method'] ?? null) !== 'PUT'
+                || ! is_string($upload['path'] ?? null) || trim($upload['path']) === ''
+                || strlen($upload['path']) > 2048 || preg_match('/[\x00-\x1f\x7f]/', $upload['path'])
+                || ! is_string($upload['contentType'] ?? null) || strcasecmp($upload['contentType'], $mime) !== 0) {
+                throw new AiProxyException('The Kinovi reference upload metadata is invalid.', 502);
+            }
+            $options = $this->kinoviReferenceOptions($upload['uploadUrl'] ?? null);
+            $this->kinoviReferenceOptions($upload['url'] ?? null);
+            $deadline = $this->kinoviUploadDeadline($upload, $requestedAt);
+            $timeout = (int) min(120, floor($deadline - microtime(true)));
+            if ($timeout < 1) {
+                throw new AiProxyException('The Kinovi reference upload has expired.', 502);
+            }
+            $this->putKinoviReference($upload['uploadUrl'], $body, $upload['contentType'], $sizeBytes, $options, $timeout);
+
+            // Never follow provider-supplied confirmUrl: credentials stay on the configured API.
+            $confirmed = $this->send('GET', $connection['base_url'].'/uploads', $connection,
+                timeout: 20, query: ['path' => $upload['path']])->json();
+            if (! is_array($confirmed) || ($confirmed['path'] ?? null) !== $upload['path']
+                || ($confirmed['url'] ?? null) !== $upload['url']
+                || (($confirmed['size'] ?? null) !== $sizeBytes && ($confirmed['size'] ?? null) !== (float) $sizeBytes)
+                || ! is_string($confirmed['contentType'] ?? null) || strcasecmp($confirmed['contentType'], $mime) !== 0
+                || ! array_key_exists('expiresAt', $confirmed) || ! $this->kinoviAssetExpiryIsUsable($confirmed['expiresAt'])) {
+                throw new AiProxyException('The Kinovi reference upload could not be confirmed.', 502);
+            }
+
+            return $confirmed['url'];
+        } catch (AiProxyException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            throw new AiProxyException('The Kinovi reference upload failed.', 502);
+        } finally {
+            // Guzzle streams close their resource on destruction unless it is detached.
+            $body->detach();
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function kinoviReferenceOptions(mixed $url): array
+    {
+        if (! is_string($url) || ! GeneratedImageStore::validResultUrl($url)) {
+            throw new AiProxyException('The Kinovi reference destination is invalid.', 502);
+        }
+        $parts = parse_url($url);
+        if (isset($parts['user']) || isset($parts['pass']) || array_key_exists('fragment', $parts)
+            || ($parts['path'] ?? '') === '') {
+            throw new AiProxyException('The Kinovi reference destination is invalid.', 502);
+        }
+        $origin = $parts['scheme'].'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '');
+
+        return $this->endpoint->requestOptions($origin);
+    }
+
+    private function kinoviUploadDeadline(array $upload, float $requestedAt): float
+    {
+        foreach (['expiresIn', 'assetTtlSeconds'] as $field) {
+            $seconds = $upload[$field] ?? null;
+            if ((! is_int($seconds) && ! is_float($seconds)) || ! is_finite((float) $seconds) || $seconds <= 0) {
+                throw new AiProxyException('The Kinovi reference upload metadata is invalid.', 502);
+            }
+        }
+        $deadline = $requestedAt + $upload['expiresIn'];
+        parse_str((string) parse_url($upload['uploadUrl'], PHP_URL_QUERY), $query);
+        if (array_key_exists('X-Amz-Date', $query) || array_key_exists('X-Amz-Expires', $query)) {
+            $date = $query['X-Amz-Date'] ?? null;
+            $seconds = $query['X-Amz-Expires'] ?? null;
+            if (! is_string($date) || ! is_string($seconds) || preg_match('/^[0-9]{1,10}$/D', $seconds) !== 1
+                || (int) $seconds < 1) {
+                throw new AiProxyException('The Kinovi reference upload metadata is invalid.', 502);
+            }
+            $signedAt = DateTimeImmutable::createFromFormat('!Ymd\THis\Z', $date, new DateTimeZone('UTC'));
+            if ($signedAt === false || $signedAt->format('Ymd\THis\Z') !== $date) {
+                throw new AiProxyException('The Kinovi reference upload metadata is invalid.', 502);
+            }
+            $deadline = min($deadline, $signedAt->getTimestamp() + (int) $seconds);
+        }
+
+        return $deadline;
+    }
+
+    private function kinoviAssetExpiryIsUsable(mixed $expiry): bool
+    {
+        if ($expiry === null) {
+            return true;
+        }
+        if (! is_string($expiry)
+            || preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/D', $expiry) !== 1) {
+            return false;
+        }
+        try {
+            $date = new DateTimeImmutable($expiry);
+            $errors = DateTimeImmutable::getLastErrors();
+
+            return $errors === false && $date->getTimestamp() > time();
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    private function putKinoviReference(string $url, StreamInterface $body, string $mime, int $sizeBytes, array $options, int $timeout): void
+    {
+        $handler = new CurlHandler;
+        $response = Http::withHeaders(['Content-Length' => (string) $sizeBytes])
+            ->withBody($body, $mime)->timeout($timeout)->connectTimeout(10)
+            ->withOptions([...$options, 'stream' => false, 'cookies' => false, 'auth' => null])
+            ->setHandler(static function (RequestInterface $request, array $options) use ($handler, $sizeBytes): PromiseInterface {
+                // Guzzle otherwise copies sub-1MB bodies into CURLOPT_POSTFIELDS. Let cURL
+                // supply Content-Length from INFILESIZE while reading the stream directly.
+                $options['curl'][CURLOPT_INFILESIZE] = $sizeBytes;
+
+                return $handler($request->withoutHeader('Content-Length'), $options);
+            })->send('PUT', $url);
+        if (! $response->successful()) {
+            throw new AiProxyException('The Kinovi reference upload failed.', 502);
+        }
+    }
+
     public function submitVideo(AiProviderProfile $provider, array $payload, string $path): array
     {
         $connection = $this->connection($provider);
@@ -301,7 +451,7 @@ final class AiProviderTransport
     {
         $connection = $this->connection($provider);
         if ($connection['protocol'] === 'fal') {
-            if ($path !== FalProtocol::VIDEO_REQUEST_PATH) {
+            if (! in_array($path, [FalProtocol::VIDEO_REQUEST_PATH, FalProtocol::AVATAR_REQUEST_PATH], true)) {
                 throw new AiProxyException('The fal video status configuration is invalid.', 502);
             }
             $url = $this->falBase($connection).'/'.MediaModelConfig::path($path, $taskId);
@@ -458,8 +608,12 @@ final class AiProviderTransport
                     'capabilities' => $chat ? ['chat', 'text-only', 'buffered-stream'] : array_values(array_filter([
                         $category, $category === 'audio' ? FalProtocol::mediaConfig($id)['audio_kind'] : null,
                     ])),
-                    'input_modalities' => in_array($id, [FalProtocol::VIDEO, FalProtocol::VIDEO_REFERENCE], true) ? ['text', 'image'] : ['text'],
-                    'output_modalities' => [$chat ? 'text' : $category],
+                    'input_modalities' => match ($category) {
+                        'avatar' => ['text', 'image', 'audio'],
+                        'video' => ['text', 'image'],
+                        default => ['text'],
+                    },
+                    'output_modalities' => [$chat ? 'text' : ($category === 'avatar' ? 'video' : $category)],
                 ];
             }
         }

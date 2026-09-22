@@ -231,7 +231,7 @@ final class KinoviProtocol
         return ['model' => $model, 'inputs' => $inputs, 'autoFix' => true];
     }
 
-    /** Both URLs are server-minted grants, never member-controlled remote URLs. */
+    /** Both URLs refer to verified provider uploads of owned assets. */
     private static function avatarTask(array $payload): array
     {
         foreach (['image_url', 'audio_url'] as $key) {

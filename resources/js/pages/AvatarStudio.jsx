@@ -31,6 +31,7 @@ function AvatarWorkbench({ userId }) {
 
     const price = capability?.price_tokens ?? tokenPrice(model);
     const duration = Number(draft.values.duration);
+    const durationParam = capability?.params?.find((param) => param.name === "duration");
     const total = price != null && Number.isInteger(duration) && duration > 0 ? price * duration : null;
     const clientErrors = capabilityErrors(capability, draft.values);
     const errors = { ...clientErrors, ...validationErrors(studio.submitError) };
@@ -66,11 +67,12 @@ function AvatarWorkbench({ userId }) {
             <form className="studio-video-inspector" onSubmit={generate} aria-busy={studio.submitting}>
                 <div className="studio-section-heading"><h2>{t("Bahan avatar")}</h2><StudioIcon name="settings" /></div>
                 <StudioCatalog studio={studio} id="avatar-model" value={selectedId} error={errors.model} onChange={studio.selectModel} />
+                {model?.avatar_audio_mode === "soundtrack" && <p className="studio-help">{t("Audio Fal menggantikan soundtrack video; sinkronisasi bibir tidak dijamin. Audio minimal 2 detik, maksimal 15 MB.")}</p>}
                 {capability ? <CapabilityForm capability={capability} values={draft.values} errors={errors} disabled={studio.submitting} idPrefix="avatar" onChange={changeValues} />
                     : !studio.modelLoading && !studio.modelError && <StudioNotice>{t("Belum ada model avatar aktif. Hubungi pengelola untuk mengaktifkan model yang sudah diverifikasi.")}</StudioNotice>}
                 <label className="studio-checkbox"><input type="checkbox" checked={consent} disabled={studio.submitting || !inputReady} onChange={(event) => setConsent(event.target.checked)} /><span>{t("Saya memiliki hak atau izin untuk menggunakan wajah dan suara ini.")}<small>{t("Persetujuan diperlukan sebelum token dicadangkan.")}</small></span></label>
                 <details><summary>{t("Aturan penggunaan avatar")}</summary><p className="studio-help">{t("Gunakan wajah dan suara milik sendiri atau dengan izin pemiliknya. Jangan menyamar untuk menipu, membuat kesan dukungan palsu, atau membuat konten intim tanpa persetujuan. Nyatakan bahwa video dibuat dengan AI bila dapat disalahartikan sebagai rekaman asli.")}</p></details>
-                {price != null && <p className="studio-help">{new Intl.NumberFormat(locale).format(price)} {t("token per detik")} · 480p · 2–15 {t("detik")}</p>}
+                {price != null && durationParam && <p className="studio-help">{new Intl.NumberFormat(locale).format(price)} {t("token per detik")} · 480p · {durationParam.min}–{durationParam.max} {t("detik")}</p>}
                 {studio.submitError && <StudioNotice error>{t(studio.submitError.status ? mediaError(studio.submitError) : "Respons belum dapat dikonfirmasi. Periksa riwayat sebelum mengirim lagi.")}</StudioNotice>}
                 <StudioQuote total={total} balance={studio.balance} />
                 <StudioButton type="submit" primary icon="video" disabled={!canSubmit}>{t(studio.submitting ? "Mengirim permintaan…" : "Generate avatar")}<StudioIcon name="arrow" /></StudioButton>
