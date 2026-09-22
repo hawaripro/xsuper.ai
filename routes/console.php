@@ -30,6 +30,7 @@ Artisan::command('audio:reconcile', function (AudioGenerationService $audio) {
 })->purpose('Resume audio polling and release abandoned reservations without paid resubmission');
 
 Schedule::command('audio:reconcile')->everyMinute()->withoutOverlapping();
+Schedule::command('model3d:reconcile')->everyMinute()->withoutOverlapping();
 
 Artisan::command('media-tools:reconcile', function (MediaToolService $tools) {
     $this->info('Reconciled media tools: '.json_encode($tools->reconcile(), JSON_THROW_ON_ERROR));

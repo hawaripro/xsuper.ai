@@ -7,12 +7,14 @@ use App\Models\AudioJob;
 use App\Models\ImageJob;
 use App\Models\MediaAsset;
 use App\Models\MediaToolJob;
+use App\Models\ThreeDJob;
 use App\Models\User;
 use App\Models\VideoJob;
 use App\Services\GeneratedAudioStore;
+use App\Services\GeneratedModel3dStore;
 use App\Services\GeneratedVideoStore;
-use App\Services\VideoReferenceStore;
 use App\Services\StorageQuotaService;
+use App\Services\VideoReferenceStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -25,7 +27,7 @@ use Illuminate\Validation\Rule;
  */
 class LibraryController extends Controller
 {
-    public const TYPES = ['image', 'video', 'audio', 'reference', 'download', 'convert', 'rembg'];
+    public const TYPES = ['image', 'video', 'avatar', 'audio', 'model3d', 'reference', 'download', 'convert', 'rembg'];
 
     private const SOURCE_LIMIT = 300;
 
@@ -45,6 +47,8 @@ class LibraryController extends Controller
             ...$this->images($user),
             ...$this->videos($user, $references),
             ...$this->audio($user),
+            ...$this->models3d($user),
+            ...$this->references($user),
             ...$this->tools($user),
         ])->sortByDesc('created_at')->values();
 
@@ -97,47 +101,40 @@ class LibraryController extends Controller
     {
         $disk = Storage::disk('local');
         $items = [];
-        $seenAssets = [];
         VideoJob::query()->where('user_id', $user->id)
             ->where(fn ($query) => $query->where('status', 'completed')->orWhere('has_reference', true))
             ->latest('id')->limit(self::SOURCE_LIMIT)->get()
-            ->each(function (VideoJob $job) use (&$items, &$seenAssets, $disk, $references): void {
+            ->each(function (VideoJob $job) use (&$items, $disk, $references): void {
                 $path = GeneratedVideoStore::path($job->job_id);
+                $avatar = $job->mode === 'avatar';
+                $base = $avatar ? '/api/avatar/' : '/api/v/';
+                $page = $avatar ? '/avatar' : '/video';
                 if ($job->status === 'completed' && $job->video_url === '/api/v/'.$job->job_id.'/asset' && $disk->exists($path)) {
-                    $items[] = $this->item('video', $job->job_id, mb_substr(trim($job->prompt), 0, 120) ?: 'Video', [
+                    $items[] = $this->item($avatar ? 'avatar' : 'video', $job->job_id, mb_substr(trim($job->prompt), 0, 120) ?: ($avatar ? 'Avatar' : 'Video'), [
                         'mime_type' => 'video/mp4',
                         'size_bytes' => $disk->size($path),
                         'duration' => $job->duration,
-                        'preview_url' => '/api/v/'.$job->job_id.'/asset',
-                        'download_url' => '/api/v/'.$job->job_id.'/asset',
+                        'preview_url' => $base.$job->job_id.'/asset',
+                        'download_url' => $base.$job->job_id.'/asset',
                         'poster_url' => is_string($job->thumbnail_url) && str_starts_with($job->thumbnail_url, '/api/') ? $job->thumbnail_url : null,
-                        'page_url' => '/video?job='.$job->job_id,
+                        'page_url' => $page.'?job='.$job->job_id,
                         'deletable' => true,
-                        'delete_url' => '/api/v/'.$job->job_id,
+                        'delete_url' => $base.$job->job_id,
                         'model' => $job->model,
                         'created_at' => $job->completed_at ?? $job->created_at,
                     ]);
                 }
-                if ($job->has_reference) {
-                    // A reference is either a per-job stored file (legacy) or an owned MediaAsset
-                    // (coordinator). Several videos of one submission share the same asset, so it
-                    // is listed once.
-                    $assetId = is_array($job->reference_asset_ids) ? ($job->reference_asset_ids[0] ?? null) : null;
-                    $asset = is_string($assetId) && ! isset($seenAssets[$assetId]) ? MediaAsset::find($assetId) : null;
-                    $reference = $assetId === null ? $references->existingPath($job) : null;
-                    if ($asset !== null || $reference !== null) {
-                        if ($asset !== null) {
-                            $seenAssets[$assetId] = true;
-                        }
+                if ($job->has_reference && empty($job->reference_asset_ids)) {
+                    $reference = $references->existingPath($job);
+                    if ($reference !== null) {
                         $items[] = $this->item('reference', $job->job_id.':reference', 'Referensi video · '.(mb_substr(trim($job->prompt), 0, 80) ?: $job->job_id), [
-                            'mime_type' => (string) ($asset?->mime ?? $job->reference_mime_type),
-                            'size_bytes' => $asset?->size_bytes ?? $disk->size($reference),
+                            'mime_type' => (string) $job->reference_mime_type,
+                            'size_bytes' => $disk->size($reference),
                             'preview_url' => '/api/v/'.$job->job_id.'/reference',
                             'download_url' => '/api/v/'.$job->job_id.'/reference',
-                            'page_url' => '/video?job='.$job->job_id,
-                            // An owned asset can back several jobs, so it is not deleted from here.
-                            'deletable' => $asset === null,
-                            'delete_url' => $asset === null ? '/api/v/'.$job->job_id.'/reference' : null,
+                            'page_url' => $page.'?job='.$job->job_id,
+                            'deletable' => true,
+                            'delete_url' => '/api/v/'.$job->job_id.'/reference',
                             'model' => $job->model,
                             'created_at' => $job->created_at,
                         ]);
@@ -148,6 +145,24 @@ class LibraryController extends Controller
         return $items;
     }
 
+    private function references(User $user): array
+    {
+        return MediaAsset::query()->where('user_id', $user->id)->where('retention_status', 'active')
+            ->latest()->limit(self::SOURCE_LIMIT)->get()
+            ->filter(fn (MediaAsset $asset): bool => Storage::disk($asset->storage_disk)->exists($asset->storage_path))
+            ->map(fn (MediaAsset $asset): array => $this->item('reference', $asset->id,
+                match ($asset->role) {
+                    'avatar_photo' => 'Foto avatar', 'speech_audio' => 'Audio ucapan',
+                    default => 'Referensi tersimpan',
+                }, [
+                    'mime_type' => $asset->mime, 'size_bytes' => $asset->size_bytes,
+                    'preview_url' => '/api/media/assets/'.$asset->id, 'download_url' => '/api/media/assets/'.$asset->id,
+                    'page_url' => in_array($asset->role, ['avatar_photo', 'speech_audio'], true) ? '/avatar' : '/generate-image',
+                    'deletable' => true, 'delete_url' => '/api/media/assets/'.$asset->id,
+                    'created_at' => $asset->created_at,
+                ]))->values()->all();
+    }
+
     private function audio(User $user): array
     {
         $disk = Storage::disk('local');
@@ -155,26 +170,49 @@ class LibraryController extends Controller
         AudioJob::query()->where('user_id', $user->id)->where('status', 'completed')
             ->latest('id')->limit(self::SOURCE_LIMIT)->get()
             ->each(function (AudioJob $job) use (&$items, $disk): void {
-                $path = GeneratedAudioStore::path($job->job_id);
-                if ($job->audio_url !== '/api/audio/'.$job->job_id.'/asset' || $job->audio_path !== $path || ! $disk->exists($path)) {
-                    return;
+                $outputs = $job->outputs ?? [];
+                foreach ($outputs as $index => $output) {
+                    $path = GeneratedAudioStore::outputPath($job, $index);
+                    if ($path === null || ! $disk->exists($path)) {
+                        continue;
+                    }
+                    $title = mb_substr(trim($job->prompt), 0, 120) ?: 'Audio';
+                    if (count($outputs) > 1) {
+                        $title .= ' · Track '.($index + 1);
+                    }
+                    $url = '/api/audio/'.$job->job_id.'/assets/'.$index;
+                    $items[] = $this->item('audio', $job->job_id.':'.$index, $title, [
+                        'mime_type' => (string) $output['mime_type'],
+                        'size_bytes' => $disk->size($path),
+                        'duration' => $job->duration,
+                        'preview_url' => $url, 'download_url' => $url,
+                        'page_url' => '/audio?job='.$job->job_id.'&track='.$index,
+                        'deletable' => true, 'delete_url' => '/api/audio/'.$job->job_id,
+                        'model' => $job->model, 'kind' => $job->mode,
+                        'created_at' => $job->completed_at ?? $job->created_at,
+                    ]);
                 }
-                $items[] = $this->item('audio', $job->job_id, mb_substr(trim($job->prompt), 0, 120) ?: 'Audio', [
-                    'mime_type' => (string) $job->mime_type,
-                    'size_bytes' => $disk->size($path),
-                    'duration' => $job->duration,
-                    'preview_url' => '/api/audio/'.$job->job_id.'/asset',
-                    'download_url' => '/api/audio/'.$job->job_id.'/asset',
-                    'page_url' => '/audio?job='.$job->job_id,
-                    'deletable' => true,
-                    'delete_url' => '/api/audio/'.$job->job_id,
-                    'model' => $job->model,
-                    'kind' => $job->mode,
-                    'created_at' => $job->completed_at ?? $job->created_at,
-                ]);
             });
 
         return $items;
+    }
+
+    private function models3d(User $user): array
+    {
+        $disk = Storage::disk('local');
+
+        return ThreeDJob::query()->where('user_id', $user->id)->where('status', 'completed')
+            ->latest('id')->limit(self::SOURCE_LIMIT)->get()
+            ->filter(fn (ThreeDJob $job): bool => $job->model_path === GeneratedModel3dStore::path($job->job_id) && $disk->exists($job->model_path))
+            ->map(fn (ThreeDJob $job): array => $this->item('model3d', $job->job_id, $job->model, [
+                'mime_type' => 'model/gltf-binary', 'size_bytes' => $job->size_bytes,
+                'format' => 'glb', 'previewable' => $job->previewable,
+                'preview_url' => '/api/3d/'.$job->job_id.'/asset',
+                'download_url' => '/api/3d/'.$job->job_id.'/asset',
+                'page_url' => '/3d?job='.$job->job_id,
+                'deletable' => true, 'delete_url' => '/api/3d/'.$job->job_id,
+                'model' => $job->model, 'created_at' => $job->completed_at ?? $job->created_at,
+            ]))->values()->all();
     }
 
     private function tools(User $user): array
@@ -187,7 +225,9 @@ class LibraryController extends Controller
                 'duration' => $job->duration,
                 'preview_url' => '/api/media-tools/'.$job->job_id.'/asset',
                 'download_url' => '/api/media-tools/'.$job->job_id.'/asset?download=1',
-                'page_url' => (match ($job->kind) { 'download' => '/downloads', 'rembg' => '/remove-background', default => '/converter' }).'?job='.$job->job_id,
+                'page_url' => (match ($job->kind) {
+                    'download' => '/downloads', 'rembg' => '/remove-background', default => '/converter'
+                }).'?job='.$job->job_id,
                 'format' => $job->format,
                 'deletable' => true,
                 'delete_url' => '/api/media-tools/'.$job->job_id,

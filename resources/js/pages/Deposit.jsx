@@ -428,7 +428,9 @@ export default function Deposit() {
         else return;
         event.preventDefault();
         selectTab(tabs[next].key);
-        tabRefs.current[tabs[next].key]?.focus();
+        const target = tabRefs.current[tabs[next].key];
+        target?.focus({ preventScroll: true });
+        target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     };
 
     const startCheckout = async (body, trigger) => {

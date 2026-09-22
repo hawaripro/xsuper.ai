@@ -5,10 +5,10 @@ import ProviderConnections from "../../components/dashboard/ProviderConnections"
 import { LoadingState, ErrorState, EmptyState } from "../../components/dashboard/AsyncState";
 import { apiRequest, formatDateTime } from "../../lib/api";
 
-const mediaCategories = ["image", "video", "audio"];
 const count = (value) => new Intl.NumberFormat("id-ID").format(Number(value || 0));
 
 const healthTone = {
+    discovered: ["neutral", "Katalog terdokumentasi"],
     healthy: ["good", "Terhubung"],
     online: ["good", "Terhubung"],
     active: ["good", "Terhubung"],
@@ -16,10 +16,6 @@ const healthTone = {
     unavailable: ["warn", "Tidak tersedia"],
     unknown: ["neutral", "Belum diperiksa"],
 };
-
-const isUnpriced = (model) => mediaCategories.includes(model.category)
-    ? !Number(model.token_cost)
-    : !Number(model.rates?.input_tokens?.price_usd) && !Number(model.rates?.output_tokens?.price_usd);
 
 function Icon({ name, className = "h-4 w-4" }) {
     const common = { className, fill: "none", stroke: "currentColor", strokeWidth: 2, viewBox: "0 0 24 24", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
@@ -39,14 +35,6 @@ function Icon({ name, className = "h-4 w-4" }) {
     }
 }
 
-function averageRate(models, meter) {
-    const values = models
-        .map((model) => Number(model.rates?.[meter]?.price_usd))
-        .filter((value) => Number.isFinite(value) && value > 0);
-    if (!values.length) return null;
-    return values.reduce((total, value) => total + value, 0) / values.length;
-}
-
 /**
  * Pure provider card grid, per the catalogue brief: every operational surface
  * (model table, connection ops, settings, audit trail) lives on the provider
@@ -64,7 +52,7 @@ export default function AICatalog() {
         const id = ++requestId.current;
         setCatalog((current) => ({ ...current, loading: true, error: "" }));
         try {
-            const data = await apiRequest("/api/admin/ai/catalog", { signal });
+            const data = await apiRequest("/api/admin/ai/catalog/summary", { signal });
             if (!signal?.aborted && id === requestId.current) setCatalog({ data, loading: false, error: "" });
         } catch (error) {
             if (error?.name !== "AbortError" && !signal?.aborted && id === requestId.current)
@@ -79,14 +67,6 @@ export default function AICatalog() {
     }, [loadCatalog]);
 
     const providers = catalog.data?.providers || [];
-    const models = catalog.data?.models || [];
-    const byProvider = new Map();
-    models.forEach((model) => {
-        const key = String(model.provider_id ?? model.provider?.id ?? "");
-        if (!byProvider.has(key)) byProvider.set(key, []);
-        byProvider.get(key).push(model);
-    });
-    const money = (value) => value === null ? null : `$${value < 0.01 ? value.toFixed(5) : value.toFixed(3)}`;
 
     return (
         <div className="ui-page space-y-5">
@@ -98,7 +78,6 @@ export default function AICatalog() {
                             <Icon name="provider" className="h-6 w-6" />
                         </span>
                         <div className="min-w-0">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-red-500">{t("Operasi AI")}</p>
                             <h1 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">{t("Penyedia AI")}</h1>
                             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
                                 {t("Kelola koneksi API dan model dari setiap penyedia. Buka kartu untuk tabel model, harga, koneksi, dan pengaturannya.")}
@@ -139,16 +118,12 @@ export default function AICatalog() {
                 <div className="ui-card-flat p-6"><ErrorState message={catalog.error} onRetry={() => loadCatalog()} /></div>
             ) : (
                 <>
+                    {catalog.error && <div className="ui-card-flat p-4"><ErrorState message={catalog.error} onRetry={() => loadCatalog()} /></div>}
                     {providers.length > 0 && (
                         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label={t("Kartu penyedia AI")}>
                             {providers.map((provider, index) => {
-                                const own = byProvider.get(String(provider.id)) || [];
-                                const published = own.filter((model) => model.is_enabled).length;
-                                const available = own.filter((model) => model.is_available).length;
-                                const unpriced = own.filter(isUnpriced).length;
-                                const inputRate = money(averageRate(own, "input_tokens"));
-                                const outputRate = money(averageRate(own, "output_tokens"));
-                                const [tone, label] = healthTone[String(provider.status).toLowerCase()] || healthTone.unknown;
+                                const totals = provider.model_counts || {};
+                                const [tone, label] = !provider.is_enabled ? ["neutral", "Nonaktif"] : healthTone[String(provider.status).toLowerCase()] || healthTone.unknown;
                                 return (
                                     <li key={provider.id} className="min-w-0">
                                         <button
@@ -176,10 +151,10 @@ export default function AICatalog() {
                                             </span>
                                             <span className="mt-4 grid grid-cols-4 gap-2 text-center">
                                                 {[
-                                                    [own.length, "Model", false],
-                                                    [published, "Terbit", false],
-                                                    [available, "Tersedia", false],
-                                                    [unpriced, "Belum berharga", unpriced > 0],
+                                                    [totals.total, "Model", false],
+                                                    [totals.enabled, "Aktif", false],
+                                                    [provider.counts?.published, "Capability terbit", false],
+                                                    [provider.counts?.needs_handling, "Perlu penanganan", provider.counts?.needs_handling > 0],
                                                 ].map(([value, metric, warn]) => (
                                                     <span key={metric} className="rounded-xl bg-slate-50 px-1 py-2 dark:bg-white/[0.04]">
                                                         <b className={`block text-base font-bold tabular-nums ${warn ? "text-amber-500" : "text-slate-900 dark:text-white"}`}>{count(value)}</b>
@@ -188,13 +163,14 @@ export default function AICatalog() {
                                                 ))}
                                             </span>
                                             <span className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                                {inputRate && <span className="tabular-nums">{t("Input")} {inputRate}</span>}
-                                                {outputRate && <span className="tabular-nums">{t("Output")} {outputRate}</span>}
+                                                <span>{t("Belum berharga")}: {count(totals.unpriced)}</span>
                                                 <span>{provider.last_checked_at ? formatDateTime(provider.last_checked_at) : t("Belum diperiksa")}</span>
                                                 <span className="ml-auto inline-flex items-center gap-1 font-semibold text-red-500 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:transform-none">
                                                     {t("Lihat detail")} <Icon name="arrow" className="h-3.5 w-3.5" />
                                                 </span>
                                             </span>
+                                            {provider.last_error && <span className="mt-3 block break-words text-xs leading-5 text-red-700 dark:text-red-300">{provider.last_error}</span>}
+                                            {provider.verification?.catalog_source === "static_documentation" && <span className="mt-2 block text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Katalog dari dokumentasi; autentikasi dan generasi belum diverifikasi.")}</span>}
                                         </button>
                                     </li>
                                 );
@@ -206,7 +182,7 @@ export default function AICatalog() {
                         <div className="ui-card-flat p-6">
                             <EmptyState
                                 title={t("Belum ada penyedia terhubung")}
-                                description={t("Hubungkan penyedia pertama Anda; model dan harga ditarik otomatis saat koneksi diperiksa.")}
+                                description={t("Hubungkan penyedia pertama Anda, periksa koneksinya, lalu impor dan tinjau model sebelum publikasi.")}
                                 action={
                                     <button type="button" className="ui-btn-primary" onClick={() => setShowConnect(true)}>
                                         {t("Tambah penyedia")}

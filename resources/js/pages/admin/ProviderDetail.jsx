@@ -6,11 +6,14 @@ import ProviderConnections from "../../components/dashboard/ProviderConnections"
 import ModelBulkTable from "../../components/dashboard/ModelBulkTable";
 import GenerationConfigFields, { generationConfigDraft, parseGenerationConfig } from "../../components/dashboard/GenerationConfigFields";
 import { LoadingState, ErrorState } from "../../components/dashboard/AsyncState";
+import MediaActionDialog from "../../components/MediaActionDialog";
+import { capabilityStatuses } from "../../components/dashboard/CatalogRevisionPanel";
 
-const mediaCategories = ["image", "video", "audio"];
+const mediaCategories = ["image", "video", "audio", "avatar", "model3d"];
 const count = (value) => new Intl.NumberFormat("id-ID").format(Number(value || 0));
 
 const healthTone = {
+    discovered: ["neutral", "Katalog terdokumentasi"],
     healthy: ["good", "Terhubung"],
     online: ["good", "Terhubung"],
     active: ["good", "Terhubung"],
@@ -18,15 +21,6 @@ const healthTone = {
     unavailable: ["warn", "Tidak tersedia"],
     unknown: ["neutral", "Belum diperiksa"],
 };
-
-/**
- * Pricing gates usability: media bills per result via token_cost, chat bills
- * per token via usage rates. A published model without a price silently
- * rejects every request, so the counter is surfaced on the header strip.
- */
-const isUnpriced = (model) => mediaCategories.includes(model.category)
-    ? !Number(model.token_cost)
-    : !Number(model.rates?.input_tokens?.price_usd) && !Number(model.rates?.output_tokens?.price_usd);
 
 function Icon({ name, className = "h-4 w-4" }) {
     const common = {
@@ -75,59 +69,9 @@ function Icon({ name, className = "h-4 w-4" }) {
     }
 }
 
-function ConfirmDialog({
-    title,
-    description,
-    confirmLabel,
-    onConfirm,
-    onCancel,
-    busy,
-}) {
+function ConfirmDialog({ title, description, confirmLabel, onConfirm, onCancel, busy }) {
     const { t } = useLocale();
-    return (
-        <div
-            className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 p-4"
-            role="presentation"
-            onMouseDown={(event) => {
-                if (event.target === event.currentTarget && !busy) onCancel();
-            }}
-        >
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="ai-confirm-title"
-                className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900"
-            >
-                <h2
-                    id="ai-confirm-title"
-                    className="text-base font-bold text-slate-900 dark:text-white"
-                >
-                    {title}
-                </h2>
-                <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                    {description}
-                </p>
-                <div className="mt-5 flex justify-end gap-2">
-                    <button
-                        type="button"
-                        className="ui-btn-secondary"
-                        onClick={onCancel}
-                        disabled={busy}
-                    >
-                        {t("Batal")}
-                    </button>
-                    <button
-                        type="button"
-                        className="ui-btn-primary min-h-10 px-4 text-xs"
-                        onClick={onConfirm}
-                        disabled={busy}
-                    >
-                        {busy ? t("Memproses…") : confirmLabel}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+    return <MediaActionDialog title={title} description={description} confirmLabel={confirmLabel} closeLabel={t("Batal")} busyLabel={t("Memproses…")} onConfirm={onConfirm} onClose={onCancel} busy={busy} />;
 }
 
 /**
@@ -141,54 +85,114 @@ export default function ProviderDetail() {
     const { providerId } = useParams();
     const navigate = useNavigate();
     const [catalog, setCatalog] = useState({ data: null, loading: true, error: "" });
+    const [modelPage, setModelPage] = useState({ data: null, loading: true, error: "" });
+    const [query, setQuery] = useState({ q: "", category: "", status: "", sort: "display_name", direction: "asc", page: 1, per_page: 25 });
+    const [discovery, setDiscovery] = useState({ busy: false, error: "", nextCursor: null, started: false, discovered: 0, imported: 0 });
+    const [discoveryLimit, setDiscoveryLimit] = useState(25);
     const [tab, setTab] = useState("models");
-    const [audit, setAudit] = useState({ rows: [], loaded: false });
+    const [audit, setAudit] = useState({ rows: [], loading: false, error: "" });
     const [confirmation, setConfirmation] = useState(null);
     const [modelEditor, setModelEditor] = useState(null);
     const [providerOp, setProviderOp] = useState({ busy: false, error: "", success: "" });
     const [autoPrice, setAutoPrice] = useState({ margin: "40", idr: "16000", overwrite: false });
     const [autoState, setAutoState] = useState({ busy: false, error: "", success: "" });
     const [mutation, setMutation] = useState({ busy: false, error: "", success: "", fields: {} });
+    const discoveryInFlight = useRef(false);
+    const currentProviderId = useRef(providerId);
+    const editorDialog = useRef(null);
+    const editorOpen = !!modelEditor;
+    useEffect(() => {
+        if (!editorOpen) return;
+        const dialog = editorDialog.current;
+        const previousFocus = document.activeElement;
+        dialog.showModal();
+        return () => {
+            dialog.close();
+            if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+        };
+    }, [editorOpen]);
 
     const catalogRequest = useRef(0);
-    const loadCatalog = useCallback(async (signal) => {
+    const loadSummary = useCallback(async (signal) => {
         const requestId = ++catalogRequest.current;
         setCatalog((current) => ({ ...current, loading: true, error: "" }));
         try {
-            const data = await apiRequest("/api/admin/ai/catalog", { signal });
+            const data = await apiRequest("/api/admin/ai/catalog/summary", { signal });
             if (!signal?.aborted && requestId === catalogRequest.current) setCatalog({ data, loading: false, error: "" });
         } catch (error) {
             if (error?.name !== "AbortError" && !signal?.aborted && requestId === catalogRequest.current)
                 setCatalog((current) => ({ ...current, loading: false, error: error.message || t("Katalog AI tidak dapat dimuat.") }));
         }
     }, []);
-
+    const modelsRequest = useRef(0);
+    const loadModels = useCallback(async (signal) => {
+        const requestId = ++modelsRequest.current;
+        setModelPage((current) => ({ ...current, loading: true, error: "" }));
+        try {
+            const params = new URLSearchParams(query);
+            const data = await apiRequest(`/api/admin/ai/providers/${providerId}/models?${params}`, { signal });
+            if (!signal?.aborted && requestId === modelsRequest.current) {
+                setModelPage({ data, loading: false, error: "" });
+                if (query.page > Math.max(1, data.meta.last_page)) setQuery((current) => ({ ...current, page: Math.max(1, data.meta.last_page) }));
+            }
+        } catch (error) {
+            if (!signal?.aborted && requestId === modelsRequest.current) setModelPage((current) => ({ ...current, loading: false, error: error.message || t("Daftar model tidak dapat dimuat.") }));
+        }
+    }, [providerId, query]);
+    const latestModelsLoader = useRef(loadModels);
+    useEffect(() => { latestModelsLoader.current = loadModels; }, [loadModels]);
+    const loadCatalog = useCallback(async () => { await Promise.all([loadSummary(), latestModelsLoader.current()]); }, [loadSummary]);
+    const changeQuery = useCallback((patch) => setQuery((current) => ({ ...current, ...patch, page: patch.page ?? 1 })), []);
     useEffect(() => {
         const controller = new AbortController();
-        loadCatalog(controller.signal);
+        loadSummary(controller.signal);
         return () => controller.abort();
-    }, [loadCatalog]);
-
-    // The tab only appears when real events exist; an empty "Aktivitas" tab
-    // would be furniture. Failure keeps the tab hidden instead of erroring.
+    }, [loadSummary]);
     useEffect(() => {
         const controller = new AbortController();
-        const query = new URLSearchParams({
-            subject_type: "App\\Models\\AiProviderProfile",
-            subject_id: String(providerId),
-            per_page: "50",
-        });
-        apiRequest(`/api/admin/audit?${query}`, { signal: controller.signal })
-            .then((page) => setAudit({ rows: page?.data || [], loaded: true }))
-            .catch(() => setAudit({ rows: [], loaded: true }));
+        loadModels(controller.signal);
         return () => controller.abort();
+    }, [loadModels]);
+    useEffect(() => {
+        if (currentProviderId.current === providerId) return;
+        currentProviderId.current = providerId;
+        setQuery({ q: "", category: "", status: "", sort: "display_name", direction: "asc", page: 1, per_page: 25 });
+        setDiscovery({ busy: false, error: "", nextCursor: null, started: false, discovered: 0, imported: 0 });
     }, [providerId]);
+    useEffect(() => {
+        if (tab !== "activity") return;
+        const controller = new AbortController();
+        setAudit({ rows: [], loading: true, error: "" });
+        const params = new URLSearchParams({ provider_id: String(providerId), per_page: "50" });
+        apiRequest(`/api/admin/audit?${params}`, { signal: controller.signal })
+            .then((page) => { if (!controller.signal.aborted) setAudit({ rows: page?.data || [], loading: false, error: "" }); })
+            .catch((error) => { if (!controller.signal.aborted) setAudit({ rows: [], loading: false, error: error.message || t("Aktivitas tidak dapat dimuat.") }); });
+        return () => controller.abort();
+    }, [providerId, tab]);
 
     const providers = catalog.data?.providers || [];
     const provider = providers.find((entry) => String(entry.id) === String(providerId)) || null;
-    const models = (catalog.data?.models || []).filter((model) => String(model.provider_id ?? model.provider?.id ?? "") === String(providerId));
+    const models = modelPage.data?.models || [];
     const editorProvider = modelEditor ? providers.find((candidate) => candidate.slug === modelEditor.provider_slug) : null;
-    const generationConfigReadOnly = editorProvider?.protocol === "fal" || (modelEditor?.generation_config_readonly && modelEditor.provider_slug === modelEditor.original_provider_slug);
+    const generationConfigReadOnly = ["fal", "kinovi"].includes(editorProvider?.protocol) || (modelEditor?.generation_config_readonly && modelEditor.provider_slug === modelEditor.original_provider_slug);
+    const discoverModels = async () => {
+        if (discoveryInFlight.current) return;
+        discoveryInFlight.current = true;
+        setDiscovery((current) => ({ ...current, busy: true, error: "" }));
+        try {
+            const result = await apiRequest(`/api/admin/ai/providers/${provider.id}/discover`, {
+                method: "POST",
+                body: { limit: discoveryLimit, ...(discovery.nextCursor ? { cursor: discovery.nextCursor } : {}) },
+            });
+            if (currentProviderId.current !== providerId) return;
+            setDiscovery({ busy: false, error: "", started: true, nextCursor: result.next_cursor, discovered: result.discovered, imported: result.imported });
+            await loadCatalog();
+        } catch (error) {
+            setDiscovery((current) => ({ ...current, busy: false, error: error.message || t("Impor belum selesai. Coba lagi dari halaman yang sama.") }));
+        } finally {
+            discoveryInFlight.current = false;
+        }
+    };
 
     const updateModel = async (model, patch, success) => {
         setMutation({ busy: true, error: "", success: "", fields: {} });
@@ -226,7 +230,7 @@ export default function ProviderDetail() {
                 error: "",
                 fields: {},
                 success: t(
-                    "Model dibuat. Ketersediaan tetap nonaktif sampai sinkronisasi katalog upstream mengonfirmasinya.",
+                    "Model dibuat. Tinjau koneksi, harga, dan capability sebelum mengaktifkannya.",
                 ),
             });
             await loadCatalog();
@@ -413,18 +417,14 @@ export default function ProviderDetail() {
         );
     }
 
-    const [tone, label] = healthTone[String(provider.status).toLowerCase()] || healthTone.unknown;
-    const stats = {
-        total: models.length,
-        published: models.filter((model) => model.is_enabled).length,
-        available: models.filter((model) => model.is_available).length,
-        unpriced: models.filter(isUnpriced).length,
-    };
+    const [tone, label] = !provider.is_enabled ? ["neutral", "Nonaktif"] : healthTone[String(provider.status).toLowerCase()] || healthTone.unknown;
+    const stats = provider.model_counts || {};
+    const counts = modelPage.data?.counts || provider.counts || {};
     const tabs = [
         ["models", "Model & Harga"],
         ["connection", "Koneksi"],
         ["settings", "Pengaturan"],
-        ...(audit.rows.length ? [["activity", "Aktivitas"]] : []),
+        ["activity", "Aktivitas"],
     ];
 
     return (
@@ -476,11 +476,14 @@ export default function ProviderDetail() {
                     </div>
                 </div>
             </header>
+            {catalog.error && <ErrorState message={catalog.error} onRetry={() => loadSummary()} />}
+            {provider.last_error && <p role="alert" className="ui-alert break-words" data-tone="bad">{provider.last_error}</p>}
+            {provider.verification?.catalog_source === "static_documentation" && <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">{t("Katalog dari dokumentasi; autentikasi dan generasi belum diverifikasi.")}</p>}
 
             <div className="pd-stats animate-fade-in-up motion-reduce:animate-none">
                 <div><b>{count(stats.total)}</b><span>{t("Model")}</span></div>
-                <div><b>{count(stats.published)}</b><span>{t("Terbit")}</span></div>
-                <div><b>{count(stats.available)}</b><span>{t("Tersedia")}</span></div>
+                <div><b>{count(stats.enabled)}</b><span>{t("Aktif")}</span></div>
+                <div><b>{count(counts.published)}</b><span>{t("Capability terbit")}</span></div>
                 <div data-warn={stats.unpriced > 0 ? "" : undefined}><b>{count(stats.unpriced)}</b><span>{t("Belum berharga")}</span></div>
             </div>
 
@@ -495,27 +498,55 @@ export default function ProviderDetail() {
 
             <div className="pw-tabs" role="tablist" aria-label={t("Bagian penyedia")}>
                 {tabs.map(([id, tabLabel]) => (
-                    <button key={id} type="button" role="tab" aria-selected={tab === id} className="pw-tab" onClick={() => setTab(id)}>
+                    <button key={id} id={`provider-tab-${id}`} type="button" role="tab" aria-controls={`provider-panel-${id}`} aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} className="pw-tab" onClick={() => setTab(id)} onKeyDown={(event) => {
+                        const index = tabs.findIndex(([value]) => value === id);
+                        const next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : null;
+                        if (next === null) return;
+                        event.preventDefault();
+                        setTab(tabs[next][0]);
+                        event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[next].focus();
+                    }}>
                         {t(tabLabel)}
                     </button>
                 ))}
             </div>
 
             {tab === "models" && (
-                <section className="ui-card-flat min-w-0 animate-fade-in-up motion-reduce:animate-none" aria-label={t("Model & Harga")}>
+                <section id="provider-panel-models" role="tabpanel" aria-labelledby="provider-tab-models" data-provider-models className="ui-card-flat min-w-0 animate-fade-in-up motion-reduce:animate-none">
                     <div className="flex items-start gap-3 border-b border-slate-200 p-4 dark:border-white/10">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
                             <Icon name="sync" className="h-4 w-4" />
                         </span>
                         <div className="min-w-0 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                            <p className="font-bold text-slate-900 dark:text-white">{t("Model terisi otomatis dari upstream")}</p>
-                            <p className="mt-0.5">{t("Tekan Periksa koneksi pada tab Koneksi: model ditarik dan dipublikasikan sekaligus, lalu langsung muncul di workspace. Model yang hilang dari upstream ditandai tidak tersedia.")}</p>
+                            <p className="font-bold text-slate-900 dark:text-white">{t(provider.protocol === "fal" ? "Impor bertahap, tinjau sebelum publikasi" : "Model kurasi dan harga")}</p>
+                            <p className="mt-0.5">{t(provider.protocol === "fal" ? "Setiap klik mengambil satu halaman schema, maksimal 25 model. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan." : "Sinkronkan metadata dari tab Koneksi. Impor OpenAPI bertahap tersedia untuk fal; provider ini tetap memakai integrasi dan konfigurasi kurasi yang didukung.")}</p>
                         </div>
                     </div>
+                    <div className="space-y-3 border-b border-slate-200 p-4 dark:border-white/10">
+                        {provider.protocol === "fal" ? <>
+                        <div className="flex flex-wrap items-end gap-3">
+                            <label className="text-xs font-medium">{t("Batas impor per halaman")}<select className="ui-input mt-1 min-h-11" value={discoveryLimit} disabled={discovery.busy} onChange={(event) => setDiscoveryLimit(Number(event.target.value))}><option value={10}>10</option><option value={25}>25</option></select></label>
+                            <button type="button" className="ui-btn-primary min-h-11" disabled={discovery.busy || !provider.is_enabled} onClick={discoverModels}>{t(discovery.busy ? "Mengimpor schema…" : discovery.nextCursor ? "Lanjutkan halaman impor" : discovery.started ? "Mulai impor ulang" : "Impor halaman pertama")}</button>
+                        </div>
+                        {!provider.is_enabled && <p className="text-xs text-slate-600 dark:text-slate-400">{t("Aktifkan koneksi sebelum mengimpor schema.")}</p>}
+                        {discovery.started && <p role="status" className="text-sm text-slate-700 dark:text-slate-300">{t("Halaman terakhir")}: {count(discovery.discovered)} {t("ditemukan")}, {count(discovery.imported)} {t("diimpor")}. {t(discovery.nextCursor ? "Masih ada halaman berikutnya. Lanjutkan saat siap." : "Impor mencapai halaman terakhir. Tinjau revisi sebelum publikasi.")}</p>}
+                        {discovery.nextCursor && <details><summary className="cursor-pointer text-xs font-semibold">{t("Cursor halaman berikutnya")}</summary><code className="mt-2 block break-all text-xs">{discovery.nextCursor}</code></details>}
+                        {discovery.error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{discovery.error}</p>}
+                        </> : <button type="button" className="ui-btn-secondary min-h-11" onClick={() => setTab("connection")}>{t("Buka koneksi provider")}</button>}
+                        <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+                            {Object.entries(capabilityStatuses).map(([status, [, statusLabel]]) => <div key={status} className="flex items-center gap-2"><dt>{t(statusLabel)}</dt><dd className="font-semibold tabular-nums">{count(counts[status])}</dd></div>)}
+                        </dl>
+                    </div>
                     <ModelBulkTable
+                        key={provider.id}
                         models={models}
                         providers={providers}
                         providerId={String(provider.id)}
+                        pagination={modelPage.data?.meta || { current_page: 1, last_page: 1, per_page: query.per_page, total: 0 }}
+                        query={query}
+                        onQueryChange={changeQuery}
+                        loading={modelPage.loading}
+                        error={modelPage.error}
                         onRefresh={loadCatalog}
                         onEdit={openModelEditor}
                         onToggle={(model) => setConfirmation({ type: "toggle", model })}
@@ -525,7 +556,7 @@ export default function ProviderDetail() {
             )}
 
             {tab === "connection" && (
-                <div className="animate-fade-in-up motion-reduce:animate-none">
+                <div id="provider-panel-connection" role="tabpanel" aria-labelledby="provider-tab-connection" className="animate-fade-in-up motion-reduce:animate-none">
                     <ProviderConnections
                         providers={[provider]}
                         focusId={provider.id}
@@ -538,7 +569,7 @@ export default function ProviderDetail() {
             )}
 
             {tab === "settings" && (
-                <section className="space-y-4 animate-fade-in-up motion-reduce:animate-none" aria-label={t("Pengaturan")}>
+                <section id="provider-panel-settings" role="tabpanel" aria-labelledby="provider-tab-settings" className="space-y-4 animate-fade-in-up motion-reduce:animate-none">
                     <div className="ui-card-flat p-4">
                         <h2 className="ui-section-title mb-3">{t("Fakta koneksi")}</h2>
                         <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
@@ -594,13 +625,16 @@ export default function ProviderDetail() {
             )}
 
             {tab === "activity" && (
-                <section className="ui-card-flat animate-fade-in-up motion-reduce:animate-none" aria-label={t("Aktivitas")}>
+                <section id="provider-panel-activity" role="tabpanel" aria-labelledby="provider-tab-activity" className="ui-card-flat animate-fade-in-up motion-reduce:animate-none">
                     <div className="ui-card-header">
                         <div>
                             <h2 className="ui-section-title">{t("Aktivitas")}</h2>
                             <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t("Riwayat aksi admin untuk penyedia ini, terekam dari log audit.")}</p>
                         </div>
                     </div>
+                    {audit.loading && <div className="p-4"><LoadingState label={t("Memuat aktivitas…")} /></div>}
+                    {audit.error && <p role="alert" className="p-4 text-sm text-red-700 dark:text-red-300">{audit.error}</p>}
+                    {!audit.loading && !audit.error && !audit.rows.length && <p className="p-4 text-sm text-slate-600 dark:text-slate-400">{t("Belum ada aktivitas untuk penyedia ini.")}</p>}
                     <ul className="divide-y divide-slate-200 dark:divide-white/10">
                         {audit.rows.map((event) => (
                             <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-4 text-xs">
@@ -614,12 +648,10 @@ export default function ProviderDetail() {
                 </section>
             )}
             {modelEditor && (
-                <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-950/55 p-4 sm:items-center">
+                <dialog ref={editorDialog} aria-labelledby="model-editor-title" onCancel={(event) => { event.preventDefault(); if (!mutation.busy) setModelEditor(null); }} className="m-auto w-[calc(100%_-_2rem)] max-w-2xl border-0 bg-transparent p-0 backdrop:bg-slate-950/55">
                     <form
                         className="max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900"
                         data-model-editor
-                        role="dialog"
-                        aria-modal="true"
                         aria-labelledby="model-editor-title"
                         onSubmit={saveModel}
                     >
@@ -661,7 +693,7 @@ export default function ProviderDetail() {
                                 {!modelEditor.id && (
                                     <p className="mt-2 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
                                         {t(
-                                            "Ketersediaan tetap nonaktif sampai sinkronisasi katalog upstream mengonfirmasi model ini. Mengaktifkan hanya mempublikasikan profil.",
+                                            "Profil baru tidak menguji koneksi upstream. Tinjau harga dan capability sebelum mengaktifkan model.",
                                         )}
                                     </p>
                                 )}
@@ -938,16 +970,18 @@ export default function ProviderDetail() {
                         {mediaCategories.includes(modelEditor.category) && (
                             <div className="space-y-4 border-t border-slate-200 pt-4 dark:border-white/10">
                                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    {t("Token per hasil")}
+                                    {t("Biaya token")}
                                     <input className="ui-input mt-1 min-h-10" type="number" min="1" max="2147483647" step="1" value={modelEditor.token_cost} onChange={(event) => setModelEditor((current) => ({ ...current, token_cost: event.target.value }))} />
-                                    <span className="mt-1 block font-normal text-slate-500 dark:text-slate-400">{t("Semua akun, termasuk admin, membayar biaya ini × jumlah hasil. Kosong menonaktifkan pembuatan, bukan publikasi profil.")}</span>
+                                    <span className="mt-1 block font-normal text-slate-500 dark:text-slate-400">{t(modelEditor.configDraft.price_unit === "second" ? "Biaya ini dikalikan durasi audio yang dibulatkan ke atas ke detik penuh. Kosong menonaktifkan pembuatan." : modelEditor.category === "audio" ? "Biaya audio dikenakan satu kali per pekerjaan, termasuk jika provider menghasilkan beberapa berkas. Kosong menonaktifkan pembuatan." : "Biaya mengikuti satuan capability, bukan selalu jumlah berkas. Periksa satuannya sebelum mengaktifkan model. Kosong menonaktifkan pembuatan.")}</span>
                                 </label>
-                                {generationConfigReadOnly && <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Pengaturan generasi fal mengikuti skema model yang didukung dan tidak dapat diubah di sini. Harga, biaya token, dan publikasi tetap dapat diedit.")}</p>}
+                                {generationConfigReadOnly && <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Konfigurasi efektif mengikuti adapter dan capability aktif. Ubah revisi melalui tinjauan capability; label, harga, dan aktivasi profil tetap dapat diedit.")}</p>}
                                 <GenerationConfigFields
                                     category={modelEditor.category}
                                     value={modelEditor.configDraft}
                                     onChange={(configDraft) => setModelEditor((current) => ({ ...current, configDraft }))}
                                     disabled={mutation.busy || generationConfigReadOnly}
+                                    readOnly={generationConfigReadOnly}
+                                    protocol={editorProvider?.protocol}
                                     errors={generationConfigReadOnly ? undefined : Object.fromEntries(Object.entries(mutation.fields).filter(([key]) => key.startsWith("generation_config.")).map(([key, value]) => [key.slice(18), value]))}
                                 />
                             </div>
@@ -994,13 +1028,13 @@ export default function ProviderDetail() {
                             </button>
                         </div>
                     </form>
-                </div>
+                </dialog>
             )}
 
             {confirmation?.type === "toggle" && (
                 <ConfirmDialog
                     title={confirmation.model.is_enabled ? t("Nonaktifkan model?") : t("Aktifkan model?")}
-                    description={t("Publikasi profil terpisah dari ketersediaan upstream. Perubahan ini juga memperbarui publikasi tarif model yang sesuai.")}
+                    description={t("Aktivasi profil terpisah dari publikasi revisi capability dan ketersediaan upstream. Perubahan ini juga memperbarui publikasi tarif model yang sesuai.")}
                     confirmLabel={
                         confirmation.model.is_enabled
                             ? t("Nonaktifkan model")

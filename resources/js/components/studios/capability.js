@@ -31,9 +31,10 @@ export function capabilityValues(capability, previous = {}) {
         const options = Array.isArray(param.options) ? param.options : null;
         if (options) {
             values[param.name] = options.includes(prev) ? prev : param.default ?? options[0] ?? "";
-        } else if (param.type === "number") {
+        } else if (param.type === "number" || param.type === "integer") {
             const n = Number(prev);
-            values[param.name] = Number.isFinite(n) && nonEmpty(prev) ? n : Number(param.default ?? param.min ?? 0);
+            values[param.name] = Number.isFinite(n) && nonEmpty(prev) ? n
+                : nonEmpty(param.default) ? Number(param.default) : param.required ? Number(param.min ?? 0) : "";
         } else if (param.type === "boolean") {
             values[param.name] = typeof prev === "boolean" ? prev : Boolean(param.default);
         } else {
@@ -56,9 +57,10 @@ export function capabilityErrors(capability, values) {
         if (!nonEmpty(value)) continue;
         if (Array.isArray(param.options) && !param.options.includes(value)) {
             errors[param.name] = "Pilihan tidak didukung oleh model ini.";
-        } else if (param.type === "number") {
+        } else if (param.type === "number" || param.type === "integer") {
             const n = Number(value);
             if (!Number.isFinite(n)) errors[param.name] = "Masukkan angka yang valid.";
+            else if (param.type === "integer" && !Number.isInteger(n)) errors[param.name] = "Masukkan bilangan bulat.";
             else if (param.min != null && n < Number(param.min)) errors[param.name] = "Nilai di bawah batas minimum model ini.";
             else if (param.max != null && n > Number(param.max)) errors[param.name] = "Nilai melebihi batas maksimum model ini.";
         }

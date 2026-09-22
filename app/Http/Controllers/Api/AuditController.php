@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiModelProfile;
+use App\Models\AiProviderProfile;
 use App\Models\AuditEvent;
+use App\Models\MediaCapabilityRevision;
+use App\Models\UsageRate;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +22,7 @@ class AuditController extends Controller
             'actor_id' => ['sometimes', 'integer', 'exists:users,id'],
             'subject_type' => ['sometimes', 'string', 'max:255'],
             'subject_id' => ['sometimes', 'integer', 'min:1'],
+            'provider_id' => ['sometimes', 'integer', 'min:1'],
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date', 'after_or_equal:from'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
@@ -26,6 +31,22 @@ class AuditController extends Controller
         $query = AuditEvent::query()
             ->with('actor:id,name,email')
             ->latest('id');
+
+        if (isset($validated['provider_id'])) {
+            $providerId = $validated['provider_id'];
+            $models = AiModelProfile::where('provider_id', $providerId)->select('id');
+            $query->where(function ($query) use ($providerId, $models): void {
+                $query->where(fn ($q) => $q->where('subject_type', (new AiProviderProfile)->getMorphClass())->where('subject_id', $providerId))
+                    ->orWhere(fn ($q) => $q->where('subject_type', (new AiModelProfile)->getMorphClass())->whereIn('subject_id', clone $models))
+                    ->orWhere(fn ($q) => $q->where('subject_type', (new MediaCapabilityRevision)->getMorphClass())
+                        ->whereIn('subject_id', MediaCapabilityRevision::whereIn('ai_model_profile_id', clone $models)->select('id')))
+                    ->orWhere(fn ($q) => $q->where('subject_type', (new UsageRate)->getMorphClass())
+                        ->whereIn('subject_id', UsageRate::whereIn('model', AiModelProfile::where('provider_id', $providerId)->select('model_id'))->select('id')))
+                    ->orWhere('metadata->provider_id', $providerId)
+                    ->orWhere('metadata->before->provider_id', $providerId)
+                    ->orWhere('metadata->after->provider_id', $providerId);
+            });
+        }
 
         if (isset($validated['action'])) {
             $query->where('action', $validated['action']);

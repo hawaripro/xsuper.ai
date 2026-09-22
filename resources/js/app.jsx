@@ -18,6 +18,8 @@ import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
 import VideoGenerator from './pages/VideoGenerator';
 import AudioGenerator from './pages/AudioGenerator';
+import AvatarStudio from './pages/AvatarStudio';
+import ThreeDStudio from './pages/ThreeDStudio';
 import VideoDownloader from './pages/VideoDownloader';
 import MediaConverter from './pages/MediaConverter';
 import RemoveBackground from './pages/RemoveBackground';
@@ -114,6 +116,8 @@ function LocalizedAppRoutes() {
             <Route path={path('/profile')} element={<DL><Profile /></DL>} />
             <Route path={path('/video')} element={<DL permission="video_generator"><VideoGenerator /></DL>} />
             <Route path={path('/audio')} element={<DL permission="audio_generator"><AudioGenerator /></DL>} />
+            <Route path={path('/avatar')} element={<DL permission="video_generator"><AvatarStudio /></DL>} />
+            <Route path={path('/3d')} element={<DL permission="image_generator"><ThreeDStudio /></DL>} />
             <Route path={path('/downloads')} element={<DL permission="video_downloader"><VideoDownloader /></DL>} />
             <Route path={path('/converter')} element={<DL permission="media_converter"><MediaConverter /></DL>} />
             <Route path={path('/remove-background')} element={<DL permission="media_converter"><RemoveBackground /></DL>} />

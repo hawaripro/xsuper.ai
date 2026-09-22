@@ -14,6 +14,8 @@ const TYPES = [
     { key: 'all', label: 'Semua', icon: 'dashboard', tone: 'red' },
     { key: 'image', label: 'Gambar', icon: 'image', tone: 'fuchsia' },
     { key: 'video', label: 'Video', icon: 'video', tone: 'violet' },
+    { key: 'avatar', label: 'Avatar', icon: 'profile', tone: 'violet' },
+    { key: 'model3d', label: '3D', icon: 'cube', tone: 'cyan' },
     { key: 'audio', label: 'Audio', icon: 'audio', tone: 'pink' },
     { key: 'reference', label: 'Unggahan referensi', icon: 'image', tone: 'amber' },
     { key: 'download', label: 'Unduhan', icon: 'download', tone: 'blue' },
@@ -21,7 +23,7 @@ const TYPES = [
     { key: 'rembg', label: 'Hapus Latar', icon: 'image', tone: 'teal' },
 ];
 const TYPE_LABEL = Object.fromEntries(TYPES.map(type => [type.key, type.label]));
-const PAGE_LABELS = { image: 'Buka studio gambar', video: 'Buka studio video', audio: 'Buka studio audio', reference: 'Buka studio video', download: 'Buka unduhan', convert: 'Buka konverter', rembg: 'Buka Hapus Latar' };
+const PAGE_LABELS = { image: 'Buka studio gambar', video: 'Buka studio video', avatar: 'Buka studio avatar', model3d: 'Buka Studio 3D', audio: 'Buka studio audio', reference: 'Buka studio video', download: 'Buka unduhan', convert: 'Buka konverter', rembg: 'Buka Hapus Latar' };
 
 function bytes(value, locale) {
     if (typeof value !== 'number' || value < 0) return null;
@@ -48,6 +50,7 @@ function Preview({ item, title }) {
 }
 
 function Lightbox({ item, onClose, t, locale }) {
+    const { localizedPath } = useLocale();
     const kind = mediaKind(item);
     return (
         <MediaActionDialog title={item.title} description={[t(TYPE_LABEL[item.type] || item.type), bytes(item.size_bytes, locale), clock(item.duration), formatLocalDate(item.created_at, { locale })].filter(Boolean).join(' · ')} closeLabel={t('Tutup')} onClose={onClose}>
@@ -55,10 +58,11 @@ function Lightbox({ item, onClose, t, locale }) {
                 {kind === 'image' && <img src={item.preview_url} alt={item.title} />}
                 {kind === 'video' && <video src={item.preview_url} controls autoPlay playsInline aria-label={item.title} />}
                 {kind === 'audio' && <audio src={item.preview_url} controls autoPlay aria-label={item.title} />}
-                {!kind && <p className="dw-note">{t('Format ini tidak memiliki pratinjau di browser. Unduh file untuk membukanya.')}</p>}
+                {!kind && <p className="dw-note">{t(item.type === 'model3d' && item.previewable ? 'Pratinjau interaktif tersedia di Studio 3D.' : 'Format ini tidak memiliki pratinjau di browser. Unduh file untuk membukanya.')}</p>}
             </div>
             <div className="lib-lightbox-actions">
                 {item.download_url && <a className="dw-button dw-button-primary" href={item.download_url} download>{Icons.download}<span>{t('Unduh')}</span></a>}
+                {item.type === 'model3d' && item.page_url && <Link className="dw-button" to={localizedPath(item.page_url)}>{t('Buka Studio 3D')}</Link>}
             </div>
         </MediaActionDialog>
     );

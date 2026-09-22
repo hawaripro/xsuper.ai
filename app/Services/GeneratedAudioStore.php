@@ -16,16 +16,41 @@ final class GeneratedAudioStore
 {
     private const MAX_BYTES = 128 * 1024 * 1024;
 
+    // The supported Suno music contract returns two tracks; other audio paths return one.
+    private const MAX_OUTPUTS = 2;
+
     public function __construct(private readonly AiProviderEndpoint $endpoint) {}
 
-    public function persist(AudioJob $job, string $url): array
+    /** Persist the entire ordered result before the job can be settled. */
+    public function persist(AudioJob $job, array $urls): array
+    {
+        if ($urls === [] || ! array_is_list($urls) || count($urls) > self::MAX_OUTPUTS) {
+            throw new AiProxyException('The audio provider returned an invalid result collection.', 502);
+        }
+        $outputs = [];
+        try {
+            foreach ($urls as $index => $url) {
+                if (! is_string($url)) {
+                    throw new AiProxyException('The audio provider returned an invalid result URL.', 502);
+                }
+                $outputs[] = $this->persistTrack($job, $url, $index);
+            }
+        } catch (Throwable $exception) {
+            Storage::disk('local')->deleteDirectory(self::directory($job->job_id));
+            throw $exception;
+        }
+
+        return $outputs;
+    }
+
+    private function persistTrack(AudioJob $job, string $url, int $index): array
     {
         if (! GeneratedImageStore::validResultUrl($url)) {
             throw new AiProxyException('The audio provider returned an invalid result URL.', 502);
         }
         $parts = parse_url($url);
         $disk = Storage::disk('local');
-        $path = self::path($job->job_id);
+        $path = self::path($job->job_id, $index);
         if ($disk->exists($path) && ($metadata = $this->inspect($disk->path($path))) !== null) {
             return ['path' => $path, ...$metadata];
         }
@@ -103,9 +128,27 @@ final class GeneratedAudioStore
         }
     }
 
-    public static function path(string $jobId): string
+    public static function directory(string $jobId): string
     {
-        return 'generated/audio/'.hash('sha256', $jobId).'/output.audio';
+        return 'generated/audio/'.hash('sha256', $jobId);
+    }
+
+    public static function path(string $jobId, int $index): string
+    {
+        return self::directory($jobId).'/'.$index.'.audio';
+    }
+
+    /** Historical single-track paths remain private without copying their bytes. */
+    public static function outputPath(AudioJob $job, int $index): ?string
+    {
+        $path = $job->outputs[$index]['path'] ?? null;
+        if ($index < 0 || ! is_string($path)) {
+            return null;
+        }
+
+        return $path === self::path($job->job_id, $index)
+            || ($index === 0 && $path === self::directory($job->job_id).'/output.audio')
+                ? $path : null;
     }
 
     public static function extensionForMime(string $mime): ?string
@@ -139,7 +182,7 @@ final class GeneratedAudioStore
                     && $this->validWave($handle, $header, $size) => 'audio/wav',
                 $detected === 'audio/mpeg' && $this->validMpeg($handle, $header, $size) => 'audio/mpeg',
                 in_array($detected, ['audio/flac', 'audio/x-flac'], true)
-                    && substr($header, 0, 4) === 'fLaC' && (ord($header[4]) & 0x7f) === 0
+                    && substr($header, 0, 4) === 'fLaC' && (ord($header[4]) & 0x7F) === 0
                     && substr($header, 5, 3) === "\x00\x00\x22" && $size > 42 => 'audio/flac',
                 in_array($detected, ['audio/ogg', 'application/ogg'], true)
                     && substr($header, 0, 5) === "OggS\x00"
@@ -213,8 +256,8 @@ final class GeneratedAudioStore
         $second = ord($frame[1]);
         $third = ord($frame[2]);
 
-        return ord($frame[0]) === 0xff && ($second & 0xe0) === 0xe0
+        return ord($frame[0]) === 0xFF && ($second & 0xE0) === 0xE0
             && ($second & 0x18) !== 0x08 && ($second & 0x06) !== 0
-            && ($third & 0xf0) !== 0 && ($third & 0xf0) !== 0xf0 && ($third & 0x0c) !== 0x0c;
+            && ($third & 0xF0) !== 0 && ($third & 0xF0) !== 0xF0 && ($third & 0x0C) !== 0x0C;
     }
 }

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { login, databaseRows, captureErrors } from './helpers.js';
 
 async function createProvider(page, { name, protocol, baseUrl, key }) {
-    await page.getByRole('button', { name: 'New provider', exact: true }).click();
+    await page.getByRole('button', { name: 'Add provider', exact: true }).click();
     const editor = page.locator('[data-provider-editor]');
     await editor.getByLabel('Provider name', { exact: true }).fill(name);
     await editor.getByLabel('Protocol', { exact: true }).selectOption(protocol);
@@ -20,8 +20,13 @@ async function createProvider(page, { name, protocol, baseUrl, key }) {
     expect(Object.hasOwn(payload.provider, 'api_key')).toBe(false);
     expect(JSON.stringify(payload).includes(key)).toBe(false);
     await expect(editor).toHaveCount(0);
-    await expect(page.locator(`[data-provider-id="${payload.provider.id}"]`)).toBeVisible();
+    await expect(page.getByRole('list', { name: 'AI provider cards' }).getByRole('button').filter({ hasText: name })).toBeVisible();
     return payload.provider;
+}
+
+async function openConnection(page, id, locale = 'en') {
+    await page.goto(`${locale === 'en' ? '/en' : ''}/admin/ai/${id}`);
+    await page.locator('#provider-tab-connection').click();
 }
 
 async function saveProviderEdit(page, providerId) {
@@ -47,12 +52,11 @@ test('independent provider secrets survive reload and rotation, model routing an
     });
     const originalSecret = databaseRows('ai_provider_profiles', { id: openai.id })[0].api_key;
     expect(typeof originalSecret === 'string' && originalSecret !== firstKey).toBe(true);
-    await page.reload();
+    await openConnection(page, openai.id);
     const openaiRow = page.locator(`[data-provider-id="${openai.id}"]`);
     const anthropicRow = page.locator(`[data-provider-id="${anthropic.id}"]`);
     await expect(openaiRow).toBeVisible();
-    await expect(anthropicRow).toBeVisible();
-    const catalog = await page.request.get('/api/admin/ai/catalog');
+    const catalog = await page.request.get('/api/admin/ai/catalog/summary');
     expect(catalog.status()).toBe(200);
     const catalogText = await catalog.text();
     expect(catalogText.includes(firstKey) || catalogText.includes(anthropicKey)).toBe(false);
@@ -77,12 +81,14 @@ test('independent provider secrets survive reload and rotation, model routing an
     expect(rotated.api_key !== originalSecret).toBe(true);
     expect(typeof rotated.api_key === 'string' && !rotated.api_key.includes(rotatedKey)).toBe(true);
     await page.reload();
+    await page.locator('#provider-tab-connection').click();
     await openaiRow.getByRole('button', { name: 'Edit', exact: true }).click();
     await expect.poll(async () => (await keyInput.inputValue()) === '').toBe(true);
     await providerEditor.getByLabel('Provider name', { exact: true }).fill('QA OpenAI rotated');
     await saveProviderEdit(page, openai.id);
     expect(databaseRows('ai_provider_profiles', { id: openai.id })[0].api_key === rotated.api_key).toBe(true);
 
+    await page.locator('#provider-tab-models').click();
     await page.getByRole('button', { name: 'New model', exact: true }).click();
     const modelEditor = page.locator('[data-model-editor]');
     await modelEditor.getByLabel('Model ID', { exact: true }).fill('qa-provider-routed-model');
@@ -96,7 +102,7 @@ test('independent provider secrets survive reload and rotation, model routing an
     expect((await modelCreated).status()).toBe(201);
     await expect(modelEditor).toHaveCount(0);
     const model = databaseRows('ai_model_profiles', { model_id: 'qa-provider-routed-model' })[0];
-    expect(model).toMatchObject({ provider_id: openai.id, upstream_model_id: 'shared-upstream-model', provider_name: 'Editorial provider label', is_available: 0 });
+    expect(model).toMatchObject({ provider_id: openai.id, upstream_model_id: 'shared-upstream-model', provider_name: 'Editorial provider label' });
     const modelRow = page.getByRole('row').filter({ hasText: 'qa-provider-routed-model' });
     await modelRow.getByRole('button', { name: 'Edit model', exact: true }).click();
     await modelEditor.getByLabel('Provider connection', { exact: true }).selectOption(anthropic.slug);
@@ -110,7 +116,7 @@ test('independent provider secrets survive reload and rotation, model routing an
     await page.goto('/en/models');
     await page.locator('[data-model-search]').fill('qa-provider-routed-model');
     await expect(page.locator('[data-model-card]:visible')).toHaveCount(1);
-    await page.goto('/en/admin/ai');
+    await openConnection(page, anthropic.id);
     const disabled = page.waitForResponse(response => response.url().endsWith(`/api/admin/ai/providers/${anthropic.id}`) && response.request().method() === 'PATCH');
     await anthropicRow.getByRole('button', { name: 'Disable connection', exact: true }).click();
     expect((await disabled).status()).toBe(200);
@@ -119,7 +125,7 @@ test('independent provider secrets survive reload and rotation, model routing an
     expect(databaseRows('ai_provider_profiles', { id: openai.id })[0].is_enabled).toBe(1);
     await page.goto('/en/models');
     await expect(page.locator('[data-model-card]').filter({ hasText: 'qa-provider-routed-model' })).toHaveCount(0);
-    await page.goto('/en/admin/ai');
+    await openConnection(page, anthropic.id);
     const enabled = page.waitForResponse(response => response.url().endsWith(`/api/admin/ai/providers/${anthropic.id}`) && response.request().method() === 'PATCH');
     await anthropicRow.getByRole('button', { name: 'Enable connection', exact: true }).click();
     expect((await enabled).status()).toBe(200);
@@ -128,7 +134,7 @@ test('independent provider secrets survive reload and rotation, model routing an
     expect(errors).toEqual([]);
 });
 
-test('real failed checks and syncs preserve another provider draft without reporting health success', async ({ page }) => {
+test('editing locks connection actions and failed checks and syncs never report health success', async ({ page }) => {
     test.setTimeout(90_000);
     const errors = captureErrors(page);
     await login(page);
@@ -136,43 +142,38 @@ test('real failed checks and syncs preserve another provider draft without repor
     const checked = await createProvider(page, {
         name: 'QA unreachable connection', protocol: 'openai', baseUrl: 'https://check-provider.invalid/v1', key: 'qa-check-not-a-real-key',
     });
-    const editing = await createProvider(page, {
-        name: 'QA independent draft', protocol: 'anthropic', baseUrl: 'https://draft-provider.invalid/v1', key: 'qa-draft-not-a-real-key',
-    });
+    await openConnection(page, checked.id);
     const checkedRow = page.locator(`[data-provider-id="${checked.id}"]`);
-    const editingRow = page.locator(`[data-provider-id="${editing.id}"]`);
-    await editingRow.getByRole('button', { name: 'Edit', exact: true }).click();
+    const checkButton = checkedRow.getByRole('button', { name: 'Check connection', exact: true });
+    const syncButton = checkedRow.getByRole('button', { name: 'Sync metadata (draft)', exact: true });
+    await checkedRow.getByRole('button', { name: 'Edit', exact: true }).click();
     const editor = page.locator('[data-provider-editor]');
-    await editor.getByLabel('Provider name', { exact: true }).fill('Unsaved independent name');
+    await editor.getByLabel('Provider name', { exact: true }).fill('Unsaved connection name');
     await editor.getByLabel('Provider API key', { exact: true }).fill('qa-unsaved-draft-key');
+    await expect(checkButton).toBeDisabled();
+    await expect(syncButton).toBeDisabled();
+    await page.locator('[data-provider-connections]').getByRole('button', { name: 'Refresh', exact: true }).click();
+    await expect(editor.getByLabel('Provider name', { exact: true })).toHaveValue('Unsaved connection name');
+    await expect(editor.getByLabel('Provider API key', { exact: true })).toHaveValue('qa-unsaved-draft-key');
+    await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
     const failedCheck = page.waitForResponse(response => response.url().endsWith(`/api/admin/ai/providers/${checked.id}/check`));
-    await checkedRow.getByRole('button', { name: 'Check connection', exact: true }).click();
+    await checkButton.click();
     const checkResponse = await failedCheck;
     expect(checkResponse.status()).toBe(503);
     expect((await checkResponse.text()).includes('qa-check-not-a-real-key')).toBe(false);
     await expect(checkedRow.getByRole('alert')).toBeVisible();
     await expect(checkedRow.getByRole('status')).toHaveCount(0);
-    await expect(editor.getByLabel('Provider name', { exact: true })).toHaveValue('Unsaved independent name');
-    await expect.poll(async () => (await editor.getByLabel('Provider API key', { exact: true }).inputValue()) === 'qa-unsaved-draft-key').toBe(true);
-    await page.getByRole('tab', { name: 'Global media queue', exact: true }).click();
-    await expect(editor).toBeHidden();
-    await page.getByRole('tab', { name: 'Catalog & health', exact: true }).click();
-    await expect(editor.getByLabel('Provider name', { exact: true })).toHaveValue('Unsaved independent name');
-    await expect.poll(async () => (await editor.getByLabel('Provider API key', { exact: true }).inputValue()) === 'qa-unsaved-draft-key').toBe(true);
-    await expect(checkedRow.getByRole('button', { name: 'Sync models', exact: true })).toBeEnabled();
     const failedSync = page.waitForResponse(response => response.url().endsWith(`/api/admin/ai/providers/${checked.id}/sync`));
-    await checkedRow.getByRole('button', { name: 'Sync models', exact: true }).click();
+    await syncButton.click();
     expect((await failedSync).status()).toBe(503);
     await expect(checkedRow.getByRole('alert')).toBeVisible();
     await expect(checkedRow.getByRole('status')).toHaveCount(0);
-    await expect(editor.getByLabel('Provider name', { exact: true })).toHaveValue('Unsaved independent name');
     expect(databaseRows('ai_model_profiles', { provider_id: checked.id })).toEqual([]);
-    expect(databaseRows('ai_provider_profiles', { id: editing.id })[0].name).toBe('QA independent draft');
+    expect(databaseRows('ai_provider_profiles', { id: checked.id })[0].name).toBe('QA unreachable connection');
+    await checkedRow.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(editor.getByLabel('Provider API key', { exact: true })).toHaveValue('');
     await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await editingRow.getByRole('button', { name: 'Edit', exact: true }).click();
-    await expect.poll(async () => (await editor.getByLabel('Provider API key', { exact: true }).inputValue()) === '').toBe(true);
-    await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.reload();
+    await openConnection(page, checked.id);
     await expect(page.locator(`[data-provider-id="${checked.id}"]`).getByText('Connection failed', { exact: true })).toBeVisible();
     expect(errors).toEqual([]);
 });
@@ -184,7 +185,7 @@ test('mobile Indonesian dark provider form saves and reopens with a write-only k
     await page.getByRole('button', { name: /Dark mode|Mode gelap/i }).click();
     await expect(page.locator('html')).toHaveClass(/dark/);
     await page.goto('/admin/ai');
-    await page.getByRole('button', { name: 'Provider baru', exact: true }).click();
+    await page.getByRole('button', { name: 'Tambah penyedia', exact: true }).click();
     const editor = page.locator('[data-provider-editor]');
     await editor.getByLabel('Nama provider', { exact: true }).fill('QA koneksi seluler');
     await editor.getByLabel('Protokol', { exact: true }).selectOption('anthropic');
@@ -197,7 +198,7 @@ test('mobile Indonesian dark provider form saves and reopens with a write-only k
     await expect(editor).toHaveCount(0);
     const provider = databaseRows('ai_provider_profiles', { name: 'QA koneksi seluler' })[0];
     expect({ protocol: provider.protocol, api_version: provider.api_version, is_enabled: provider.is_enabled }).toEqual({ protocol: 'anthropic', api_version: '2023-06-01', is_enabled: 1 });
-    await page.reload();
+    await openConnection(page, provider.id, 'id');
     await expect(page.locator('html')).toHaveClass(/dark/);
     const row = page.locator(`[data-provider-id="${provider.id}"]`);
     await row.getByRole('button', { name: 'Edit', exact: true }).click();

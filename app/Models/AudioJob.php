@@ -8,15 +8,15 @@ class AudioJob extends Model
 {
     protected $hidden = [
         'provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint',
-        'generation_config', 'provider_prompt', 'audio_path', 'processing_token',
+        'generation_config', 'provider_prompt', 'outputs', 'processing_token',
         'routing_identity', 'dedup_key', 'payload_fingerprint', 'reference_asset_ids',
     ];
 
     protected $fillable = [
         'user_id', 'job_id', 'model', 'mode', 'prompt', 'provider_prompt', 'voice', 'speed',
         'duration', 'tempo', 'provider_id', 'upstream_model_id', 'upstream_job_id',
-        'connection_fingerprint', 'generation_config', 'status', 'stage', 'audio_url',
-        'audio_path', 'mime_type', 'size_bytes', 'error_message', 'billing_mode',
+        'connection_fingerprint', 'generation_config', 'status', 'stage', 'outputs',
+        'error_message', 'billing_mode',
         'billing_status', 'billing_reference_id', 'tokens_reserved', 'submitted_at',
         'next_poll_at', 'processing_started_at', 'processing_token', 'completed_at', 'poll_attempts',
         'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key', 'payload_fingerprint',
@@ -30,7 +30,7 @@ class AudioJob extends Model
             'speed' => 'float',
             'duration' => 'integer',
             'tempo' => 'integer',
-            'size_bytes' => 'integer',
+            'outputs' => 'array',
             'tokens_reserved' => 'integer',
             'poll_attempts' => 'integer',
             'generation_config' => 'array',

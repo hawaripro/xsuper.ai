@@ -4,17 +4,19 @@ import { apiRequest } from "../../lib/api";
 import MediaActionDialog from "../MediaActionDialog";
 import BulkConfirmDialog from "./BulkConfirmDialog";
 import GenerationConfigFields, { generationConfigDraft, parseGenerationConfig } from "./GenerationConfigFields";
+import CatalogRevisionPanel, { capabilityStatuses, CapabilityStatus } from "./CatalogRevisionPanel";
+import { LoadingState, ErrorState } from "./AsyncState";
 
 const pageSizeOptions = [25, 50, 100];
-const mediaCategories = ["image", "video", "audio"];
+const mediaCategories = ["image", "video", "audio", "avatar", "model3d"];
 const isUnpriced = (model) => mediaCategories.includes(model.category)
     ? !Number(model.token_cost)
     : !Number(model.rates?.input_tokens?.price_usd) && !Number(model.rates?.output_tokens?.price_usd);
 const integer = (value, min, max) => value !== "" && Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max;
 
-export default function ModelBulkTable({ models, providers = [], onRefresh, onEdit, onToggle, mediaOnly = false, disabled = false, providerId }) {
+export default function ModelBulkTable({ models, providers = [], onRefresh, onEdit, onToggle, mediaOnly = false, disabled = false, providerId, pagination, query, onQueryChange, loading = false, error = "" }) {
     const { t } = useLocale();
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState(query?.q || "");
     const [providerFilter, setProviderFilter] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
     const [publicationFilter, setPublicationFilter] = useState("");
@@ -25,6 +27,9 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const [explicitIds, setExplicitIds] = useState("");
     const [drafts, setDrafts] = useState({});
     const [expanded, setExpanded] = useState([]);
+    const [reviewModel, setReviewModel] = useState(null);
+    const reviewTrigger = useRef(null);
+    const retainedModels = useRef(new Map());
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(25);
     const [massField, setMassField] = useState("token_cost");
@@ -37,13 +42,21 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const deletionCompleted = useRef(false);
     const deletionTrigger = useRef(null);
     const searchInput = useRef(null);
-    const locked = busy || disabled;
+    const server = !!pagination;
+    const locked = busy || disabled || loading || !!error;
     const scopedModels = useMemo(() => mediaOnly ? models.filter((model) => mediaCategories.includes(model.category)) : models, [models, mediaOnly]);
-    const byId = useMemo(() => new Map(scopedModels.map((model) => [model.id, model])), [scopedModels]);
+    // Only keep off-page rows with an explicit selection or unsaved edits.
+    const byId = useMemo(() => {
+        const next = new Map(server ? [...retainedModels.current].filter(([id]) => selected.includes(id) || drafts[id]) : []);
+        scopedModels.forEach((model) => next.set(model.id, model));
+        return next;
+    }, [scopedModels, server, selected, drafts]);
+    useEffect(() => { retainedModels.current = byId; }, [byId]);
     const selection = useMemo(() => new Set(selected), [selected]);
-    const categories = useMemo(() => [...new Set([...scopedModels.map((model) => model.category), ...(mediaOnly ? mediaCategories : ["chat", ...mediaCategories])])].sort(), [scopedModels, mediaOnly]);
+    const categories = useMemo(() => [...new Set([...scopedModels.map((model) => model.category), ...(query?.category ? [query.category] : []), ...(mediaOnly ? mediaCategories : ["chat", ...mediaCategories])])].sort(), [scopedModels, mediaOnly, query?.category]);
     const activeProvider = providerId !== undefined ? String(providerId ?? "") : providerFilter;
     const visible = useMemo(() => {
+        if (server) return selectedOnly ? selected.map((id) => byId.get(id)).filter(Boolean) : scopedModels;
         const needle = search.trim().toLowerCase();
         return scopedModels.filter((model) => (!selectedOnly || selection.has(model.id))
             && (!activeProvider || String(model.provider_id ?? model.provider?.id ?? "") === activeProvider)
@@ -51,17 +64,25 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             && (!publicationFilter || String(model.is_enabled) === publicationFilter)
             && (!priceFilter || (priceFilter === "unpriced") === isUnpriced(model))
             && (!needle || [model.id, model.model_id, model.upstream_model_id, model.display_name, model.provider_name].some((value) => String(value ?? "").toLowerCase().includes(needle))));
-    }, [scopedModels, selectedOnly, selection, activeProvider, categoryFilter, publicationFilter, priceFilter, search]);
-    const lastPage = Math.max(1, Math.ceil(visible.length / pageSize));
-    const currentPage = Math.min(page, lastPage);
-    const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    }, [scopedModels, selectedOnly, selection, activeProvider, categoryFilter, publicationFilter, priceFilter, search, server, selected, byId]);
+    const remotePage = server && !selectedOnly;
+    const effectivePageSize = server ? Number(query.per_page) : pageSize;
+    const lastPage = remotePage ? Math.max(1, pagination.last_page) : Math.max(1, Math.ceil(visible.length / effectivePageSize));
+    const currentPage = remotePage ? pagination.current_page : Math.min(page, lastPage);
+    const pageRows = remotePage ? visible : visible.slice((currentPage - 1) * effectivePageSize, currentPage * effectivePageSize);
+    const total = remotePage ? pagination.total : visible.length;
     const allPageSelected = pageRows.length > 0 && pageRows.every((model) => selection.has(model.id));
     const dirtyIds = Object.keys(drafts).map(Number).filter((id) => byId.has(id));
     const selectedDirty = dirtyIds.filter((id) => selection.has(id));
     const selectedOffPage = selected.filter((id) => !pageRows.some((model) => model.id === id)).length;
 
     useEffect(() => { setPage(1); }, [search, activeProvider, categoryFilter, publicationFilter, priceFilter, selectedOnly, pageSize]);
-    useEffect(() => { setSelected((current) => current.every((id) => byId.has(id)) ? current : current.filter((id) => byId.has(id))); }, [byId]);
+    useEffect(() => { if (!server) setSelected((current) => current.every((id) => byId.has(id)) ? current : current.filter((id) => byId.has(id))); }, [byId, server]);
+    useEffect(() => {
+        if (!server || search === query.q) return;
+        const timer = setTimeout(() => onQueryChange({ q: search }), 300);
+        return () => clearTimeout(timer);
+    }, [search, server, query?.q, onQueryChange]);
     useEffect(() => {
         if (!confirmation && deletionCompleted.current) {
             deletionCompleted.current = false;
@@ -98,7 +119,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             selected.forEach((id) => { next[id] = { ...next[id], [massField]: value }; });
             return next;
         });
-        setStatus({ error: "", success: t("Perubahan diterapkan ke draf pilihan. Simpan untuk mempublikasikannya.") });
+        setStatus({ error: "", success: t("Perubahan diterapkan ke draf pilihan. Simpan untuk menerapkannya; revisi capability tidak dipublikasikan.") });
     };
     const prepareSave = (ids) => {
         if (!ids.length || ids.length > 200) { setStatus({ error: t("Pilih maksimal 200 baris dalam satu operasi."), success: "" }); return; }
@@ -209,10 +230,10 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const tableInput = "ui-input min-h-9 w-24 px-2";
     const numericInput = "ui-input min-h-9 w-24 px-2 text-right tabular-nums";
 
-    return <div className="min-w-0 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" aria-busy={busy}>
+    return <div className="min-w-0 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" aria-busy={busy || loading}>
         <div className="flex flex-wrap gap-3 border-b border-slate-200 p-4 dark:border-white/10">
             <label className="min-w-48 flex-1 text-xs font-medium">{t("Cari model")}
-                <input ref={searchInput} type="search" className="ui-input mt-1 min-h-10" placeholder={t("ID, nama, atau provider")} value={search} onChange={(event) => setSearch(event.target.value)} />
+                <input ref={searchInput} type="search" className="ui-input mt-1 min-h-10" placeholder={t("ID publik, ID upstream, atau nama")} value={search} disabled={server && selectedOnly} onChange={(event) => setSearch(event.target.value)} />
             </label>
             {providerId === undefined && <label className="text-xs font-medium">{t("Penyedia")}
                 <select className="ui-input mt-1 min-h-10" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)}>
@@ -221,14 +242,32 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                 </select>
             </label>}
             <label className="text-xs font-medium">{t("Kategori")}
-                <select className="ui-input mt-1 min-h-10" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="">{t("Semua kategori")}</option>{categories.map((category) => <option key={category}>{category}</option>)}</select>
+                <select className="ui-input mt-1 min-h-10" value={server ? query.category : categoryFilter} disabled={server && selectedOnly} onChange={(event) => server ? onQueryChange({ category: event.target.value }) : setCategoryFilter(event.target.value)}><option value="">{t("Semua kategori")}</option>{categories.map((category) => <option key={category}>{category}</option>)}</select>
             </label>
-            <label className="text-xs font-medium">{t("Publikasi")}
-                <select className="ui-input mt-1 min-h-10" value={publicationFilter} onChange={(event) => setPublicationFilter(event.target.value)}><option value="">{t("Semua status")}</option><option value="true">{t("Dipublikasikan")}</option><option value="false">{t("Draf")}</option></select>
-            </label>
-            <label className="text-xs font-medium">{t("Harga")}
-                <select className="ui-input mt-1 min-h-10" value={priceFilter} onChange={(event) => setPriceFilter(event.target.value)}><option value="">{t("Semua harga")}</option><option value="priced">{t("Sudah berharga")}</option><option value="unpriced">{t("Belum berharga")}</option></select>
-            </label>
+            {server ? <>
+                <label className="text-xs font-medium">{t("Status katalog")}
+                    <select className="ui-input mt-1 min-h-10" value={query.status} disabled={selectedOnly} onChange={(event) => onQueryChange({ status: event.target.value })}>
+                        <option value="">{t("Semua status")}</option>
+                        {Object.entries(capabilityStatuses).map(([value, [, label]]) => <option key={value} value={value}>{t(label)}</option>)}
+                        <option value="enabled">{t("Profil aktif")}</option><option value="unavailable">{t("Belum tersedia di upstream")}</option><option value="unpriced">{t("Belum berharga")}</option>
+                    </select>
+                </label>
+                <label className="text-xs font-medium">{t("Urutkan menurut")}
+                    <select className="ui-input mt-1 min-h-10" value={query.sort} disabled={selectedOnly} onChange={(event) => onQueryChange({ sort: event.target.value })}>
+                        {[["display_name", "Nama tampilan"], ["model_id", "ID publik"], ["upstream_model_id", "ID upstream"], ["category", "Kategori"], ["sort_order", "Urutan tampil"], ["status", "Status katalog"]].map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}
+                    </select>
+                </label>
+                <label className="text-xs font-medium">{t("Arah urutan")}
+                    <select className="ui-input mt-1 min-h-10" value={query.direction} disabled={selectedOnly} onChange={(event) => onQueryChange({ direction: event.target.value })}><option value="asc">{t("Menaik")}</option><option value="desc">{t("Menurun")}</option></select>
+                </label>
+            </> : <>
+                <label className="text-xs font-medium">{t("Aktivasi profil")}
+                    <select className="ui-input mt-1 min-h-10" value={publicationFilter} onChange={(event) => setPublicationFilter(event.target.value)}><option value="">{t("Semua status")}</option><option value="true">{t("Aktif")}</option><option value="false">{t("Nonaktif")}</option></select>
+                </label>
+                <label className="text-xs font-medium">{t("Harga")}
+                    <select className="ui-input mt-1 min-h-10" value={priceFilter} onChange={(event) => setPriceFilter(event.target.value)}><option value="">{t("Semua harga")}</option><option value="priced">{t("Sudah berharga")}</option><option value="unpriced">{t("Belum berharga")}</option></select>
+                </label>
+            </>}
         </div>
         <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4 dark:border-white/10">
             <label className="min-w-44 flex-1 text-xs font-medium">{t("Pilih ID baris secara eksplisit")}
@@ -237,25 +276,28 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             <button className="ui-btn-secondary" type="button" disabled={locked || !explicitIds.trim()} onClick={selectExplicit}>{t("Gunakan ID ini")}</button>
             <label className="flex min-h-10 items-center gap-2 text-xs"><input type="checkbox" checked={selectedOnly} onChange={(event) => setSelectedOnly(event.target.checked)} />{t("Tampilkan pilihan saja")}</label>
         </div>
+        {server && <p className="px-4 py-3 text-xs leading-5 text-slate-600 dark:text-slate-400">{t(selectedOnly ? "Menampilkan pilihan yang disimpan lintas halaman. Matikan pilihan saja untuk mencari katalog kembali." : "Pencarian, filter, dan urutan berlaku untuk seluruh katalog provider. Pilihan dan draf tetap tersimpan saat berpindah halaman.")}</p>}
         {selected.length > 0 && <div className="flex flex-wrap items-end gap-3 bg-slate-50 p-4 dark:bg-white/5">
             <label className="text-xs font-medium">{t("Ubah pilihan sekaligus")}
                 <select className="ui-input mt-1 min-h-10" value={massField} disabled={locked} onChange={(event) => { setMassField(event.target.value); setMassValue(event.target.value === "is_enabled" ? "false" : ""); }}>
-                    <option value="token_cost">{t("Token per hasil")}</option><option value="category">{t("Kategori")}</option><option value="is_enabled">{t("Publikasi")}</option><option value="sort_order">{t("Urutan tampil")}</option>
+                    <option value="token_cost">{t("Biaya token")}</option><option value="category">{t("Kategori")}</option><option value="is_enabled">{t("Aktivasi profil")}</option><option value="sort_order">{t("Urutan tampil")}</option>
                 </select>
             </label>
             <label className="min-w-32 flex-1 text-xs font-medium">{t("Nilai baru")}
-                {massField === "is_enabled" ? <select className="ui-input mt-1 min-h-10" value={massValue} disabled={locked} onChange={(event) => setMassValue(event.target.value)}><option value="false">{t("Draf")}</option><option value="true">{t("Dipublikasikan")}</option></select>
+                {massField === "is_enabled" ? <select className="ui-input mt-1 min-h-10" value={massValue} disabled={locked} onChange={(event) => setMassValue(event.target.value)}><option value="false">{t("Nonaktif")}</option><option value="true">{t("Aktif")}</option></select>
                     : <input className="ui-input mt-1 min-h-10" type={["token_cost", "sort_order"].includes(massField) ? "number" : "text"} value={massValue} disabled={locked} onChange={(event) => setMassValue(event.target.value)} />}
             </label>
             <button className="ui-btn-secondary" type="button" disabled={locked} onClick={applyMass}>{t("Terapkan ke draf")} ({selected.length})</button>
         </div>}
         {(status.error || status.success) && <p role={status.error ? "alert" : "status"} className={`px-4 py-3 text-sm ${status.error ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{status.error || status.success}</p>}
-        <div className="max-w-full overflow-x-auto">
+        {loading && <div className="p-4"><LoadingState label={t("Memuat model…")} /></div>}
+        {error && <div className="p-4"><ErrorState message={error} onRetry={onRefresh} /></div>}
+        <div className="max-w-full overflow-x-auto" role="region" aria-label={t("Tabel model")} tabIndex={0}>
             <table className="w-full text-left text-xs text-slate-700 dark:text-slate-200">
                 <caption className="sr-only">{t(mediaOnly ? "Harga token dan konfigurasi model media" : "Edit model secara massal")}</caption>
                 <thead className="bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr>
                     <th className="p-3"><input type="checkbox" aria-label={t("Pilih halaman ini")} checked={allPageSelected} disabled={locked || !pageRows.length} onChange={togglePage} /></th>
-                    <th className="p-3">{t("Model")}</th><th className="p-3">{t("Kategori")}</th><th className="p-3">{t("Token per hasil")}</th><th className="p-3">{t("Urutan")}</th><th className="p-3">{t("Publikasi / upstream")}</th><th className="p-3">{t("Tindakan")}</th>
+                    <th scope="col" className="p-3">{t("Model")}</th><th scope="col" className="p-3">{t("Kategori")}</th><th scope="col" className="p-3">{t("Biaya token")}</th><th scope="col" className="p-3">{t("Urutan")}</th><th scope="col" className="p-3">{t("Aktivasi / upstream")}</th><th scope="col" className="p-3">{t("Operasi / revisi")}</th><th scope="col" className="p-3">{t("Tindakan")}</th>
                 </tr></thead>
                 <tbody>{pageRows.map((model) => {
                     const draft = drafts[model.id] || {};
@@ -264,16 +306,18 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                     const isExpanded = expanded.includes(model.id);
                     const generationReadOnly = !!model.generation_config_readonly;
                     const config = (!generationReadOnly && draft.configDraft) || generationConfigDraft(model.generation_config);
+                    const costLabel = model.generation_config?.price_unit === "second" ? "Token per detik" : model.category === "audio" ? "Token per pekerjaan" : "Token per hasil";
                     const errors = rowErrors[model.id] || {};
                     return <Fragment key={model.id}>
                         <tr className={`border-t border-slate-200 align-top dark:border-white/10 ${selection.has(model.id) ? "bg-red-50/60 dark:bg-red-500/5" : ""}`}>
                             <td className="p-3"><input type="checkbox" aria-label={`${t("Pilih model")} ${model.model_id}`} checked={selection.has(model.id)} disabled={locked} onChange={() => setSelection(selection.has(model.id) ? selected.filter((id) => id !== model.id) : [...selected, model.id])} /></td>
-                            <td className="min-w-48 max-w-64 p-3"><strong className="block whitespace-normal text-slate-900 dark:text-white">{model.display_name || model.model_id}</strong><span className="mt-1 flex items-center gap-1.5 break-all font-mono text-xs">#{model.id} · {model.model_id}
+                            <td className="min-w-48 max-w-64 p-3"><strong className="block whitespace-normal text-slate-900 dark:text-white">{model.display_name || model.model_id}</strong><span className="mt-1 block text-slate-600 dark:text-slate-400">{t("ID publik")} · #{model.id}</span><span className="mt-1 flex items-center gap-1.5 break-all font-mono text-xs">{model.model_id}
                                 <button type="button" className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors motion-reduce:transition-none ${copiedId === model.id ? "border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-slate-200 text-slate-500 hover:bg-slate-100 dark:border-white/10 dark:hover:bg-white/10"}`} aria-label={`${t(copiedId === model.id ? "Tersalin" : "Salin ID model")} ${model.model_id}`} title={t(copiedId === model.id ? "Tersalin" : "Salin ID model")} onClick={() => { navigator.clipboard?.writeText(model.model_id); setCopiedId(model.id); setTimeout(() => setCopiedId((current) => current === model.id ? null : current), 1600); }}>
                                     {copiedId === model.id
                                         ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6 9 17l-5-5" /></svg>
                                         : <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="h-3 w-3"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>}
                                 </button></span><span className="mt-1 block text-slate-500 dark:text-slate-400">{model.provider_name || model.provider?.name || "—"}</span>{drafts[model.id] && <span className="mt-2 block font-semibold text-amber-700 dark:text-amber-300">{t("Belum disimpan")}</span>}{errors.row && fieldError(model.id, "row")}{errors.rates && fieldError(model.id, "rates")}
+                                <span className="mt-2 block text-slate-600 dark:text-slate-400">{t("ID upstream")}</span><code className="mt-1 block break-all text-xs">{model.upstream_model_id || "—"}</code>
                                 <span className="mt-2 block tabular-nums text-slate-500 dark:text-slate-400">{isMedia
                                     ? `${t("Tarif unit USD (terpisah)")}: ${model.rates?.unit?.price_usd == null ? t("Belum tersedia") : `$${model.rates.unit.price_usd}`}`
                                     : model.rates?.input_tokens?.price_usd == null && model.rates?.output_tokens?.price_usd == null
@@ -282,31 +326,36 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                             </td>
                             <td className="p-3"><input className={tableInput} aria-label={`${t("Kategori")} ${model.model_id}`} value={row.category || ""} maxLength={32} disabled={locked} aria-invalid={!!errors.category} onChange={(event) => patch(model.id, "category", event.target.value)} />{fieldError(model.id, "category")}</td>
                             <td className="p-3">{isMedia
-                                ? <><input className={numericInput} aria-label={`${t("Token per hasil")} ${model.model_id}`} type="number" min="1" max="2147483647" step="1" value={row.token_cost ?? ""} placeholder={t("Belum diatur")} disabled={locked} aria-invalid={!!errors.token_cost} onChange={(event) => patch(model.id, "token_cost", event.target.value)} />{fieldError(model.id, "token_cost")}</>
+                                ? <><input className={numericInput} aria-label={`${t(costLabel)} ${model.model_id}`} type="number" min="1" max="2147483647" step="1" value={row.token_cost ?? ""} placeholder={t("Belum diatur")} disabled={locked} aria-invalid={!!errors.token_cost} onChange={(event) => patch(model.id, "token_cost", event.target.value)} /><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(costLabel)}</span>{fieldError(model.id, "token_cost")}</>
                                 : <span className="block text-slate-400 dark:text-slate-500" title={t("Model chat ditagih per token masukan/keluaran (lihat tarif USD/1M di bawah nama model), bukan per hasil.")}>{t("Per token")}</span>}</td>
                             <td className="p-3"><input className="ui-input min-h-9 w-16 px-2 text-right tabular-nums" aria-label={`${t("Urutan")} ${model.model_id}`} type="number" min="0" max="65535" step="1" value={row.sort_order ?? 0} disabled={locked} aria-invalid={!!errors.sort_order} onChange={(event) => patch(model.id, "sort_order", event.target.value)} />{fieldError(model.id, "sort_order")}</td>
-                            <td className="min-w-36 p-3"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`${t("Publikasikan")} ${model.model_id}`} checked={!!row.is_enabled} disabled={locked} onChange={(event) => patch(model.id, "is_enabled", event.target.checked)} />{t(row.is_enabled ? "Dipublikasikan" : "Draf")}</label><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(model.is_available ? "Tersedia di upstream" : "Belum tersedia di upstream")}</span></td>
+                            <td className="min-w-36 p-3"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`${t("Aktifkan profil")} ${model.model_id}`} checked={!!row.is_enabled} disabled={locked} onChange={(event) => patch(model.id, "is_enabled", event.target.checked)} />{t(row.is_enabled ? "Aktif" : "Nonaktif")}</label><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(model.is_available ? "Tersedia di upstream" : "Belum tersedia di upstream")}</span></td>
+                            <td className="min-w-48 max-w-64 p-3">
+                                {model.capability_summary?.length ? <ul className="space-y-3">{model.capability_summary.map((revision) => <li key={revision.id} className="space-y-1"><code className="block break-all text-xs">{revision.operation} · r{revision.revision}</code><CapabilityStatus status={revision.status} />{revision.is_active && <span className="ml-1 text-xs font-semibold">{t("Aktif")}</span>}{revision.blocker_count > 0 && <span className="block text-xs text-amber-800 dark:text-amber-200">{revision.blocker_count} {t("penghalang publikasi")}</span>}</li>)}</ul> : <span className="text-slate-600 dark:text-slate-400">{t(isMedia ? "Konfigurasi kurasi; belum ada revisi impor" : "Tidak memakai revisi media")}</span>}
+                            </td>
                             <td className="min-w-36 max-w-44 p-3"><div className="flex flex-wrap gap-1">
                                 {isMedia && <button type="button" className="ui-btn-mini" aria-expanded={isExpanded} disabled={locked} onClick={() => setExpanded((current) => isExpanded ? current.filter((id) => id !== model.id) : [...current, model.id])}>{t("Konfigurasi")}</button>}
+                                {isMedia && <button type="button" className="ui-btn-mini min-h-9" aria-expanded={reviewModel === model.id} disabled={locked || !!drafts[model.id]} onClick={(event) => { reviewTrigger.current = event.currentTarget; setReviewModel(reviewModel === model.id ? null : model.id); }}>{t("Tinjau capability")}</button>}
                                 {onEdit && <button type="button" className="ui-btn-mini" disabled={locked || !!drafts[model.id]} onClick={() => onEdit(model)}>{t("Edit model")}</button>}
                                 {onToggle && <button type="button" className="ui-btn-mini" disabled={locked || !!drafts[model.id]} onClick={() => onToggle(model)}>{t(model.is_enabled ? "Nonaktifkan" : "Aktifkan")}</button>}
                                 <button type="button" className="ui-btn-mini ui-btn-mini-danger" disabled={locked} onClick={(event) => prepareDeletion([model.id], event)} aria-label={`${t("Hapus model")} ${model.display_name || model.model_id}`}>{t("Hapus")}</button>
                             </div></td>
                         </tr>
-                        {isMedia && isExpanded && <tr className="border-t border-slate-200 dark:border-white/10"><td colSpan={7} className="p-4"><div className="max-w-3xl">
-                            {generationReadOnly && <p className="mb-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Pengaturan generasi fal mengikuti skema model yang didukung dan tidak dapat diubah di sini. Harga, biaya token, dan publikasi tetap dapat diedit.")}</p>}
-                            <GenerationConfigFields category={row.category} value={config} onChange={(value) => patch(model.id, "configDraft", value)} disabled={locked || generationReadOnly} errors={generationReadOnly ? undefined : Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith("generation_config.")).map(([key, value]) => [key.slice(18), value]))} />
+                        {isMedia && isExpanded && <tr className="border-t border-slate-200 dark:border-white/10"><td colSpan={8} className="p-4"><div className="max-w-3xl">
+                            {generationReadOnly && <p className="mb-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Konfigurasi efektif mengikuti adapter dan capability aktif. Ubah revisi melalui tinjauan capability; label, harga, dan aktivasi profil tetap dapat diedit.")}</p>}
+                            <GenerationConfigFields category={row.category} value={config} onChange={(value) => patch(model.id, "configDraft", value)} disabled={locked || generationReadOnly} readOnly={generationReadOnly} protocol={model.provider?.protocol} errors={generationReadOnly ? undefined : Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith("generation_config.")).map(([key, value]) => [key.slice(18), value]))} />
                             {!generationReadOnly && fieldError(model.id, "generation_config")}
                         </div></td></tr>}
                     </Fragment>;
                 })}</tbody>
             </table>
-            {!pageRows.length && <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{t(scopedModels.length ? "Tidak ada model yang cocok. Ubah pencarian atau filter." : "Belum ada model. Sinkronkan katalog dari koneksi provider.")}</p>}
+            {!pageRows.length && !loading && !error && <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{t(selectedOnly ? "Belum ada pilihan. Pilih baris pada daftar katalog." : scopedModels.length || query?.q || query?.category || query?.status || search ? "Tidak ada model yang cocok. Ubah pencarian atau filter." : "Belum ada model. Impor dari halaman provider atau tambahkan model kurasi.")}</p>}
         </div>
+        {reviewModel && byId.has(reviewModel) && <div className="min-w-0 border-t border-slate-200 p-4 dark:border-white/10"><CatalogRevisionPanel key={reviewModel} model={byId.get(reviewModel)} disabled={locked} onRefresh={onRefresh} onClose={() => { setReviewModel(null); reviewTrigger.current?.focus({ preventScroll: true }); }} /></div>}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 p-4 text-xs dark:border-white/10">
-            <label>{t("Baris per halaman")} <select className="ui-input ml-2 min-h-10 w-auto" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>{pageSizeOptions.map((size) => <option key={size}>{size}</option>)}</select></label>
-            <span className="tabular-nums">{visible.length} {t("model")} · {t("Halaman")} {currentPage}/{lastPage}</span>
-            <div className="flex gap-2"><button type="button" className="ui-btn-secondary" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>{t("Sebelumnya")}</button><button type="button" className="ui-btn-secondary" disabled={currentPage >= lastPage} onClick={() => setPage(currentPage + 1)}>{t("Berikutnya")}</button></div>
+            <label>{t("Baris per halaman")} <select className="ui-input ml-2 min-h-10 w-auto" value={effectivePageSize} disabled={loading} onChange={(event) => server ? onQueryChange({ per_page: Number(event.target.value) }) : setPageSize(Number(event.target.value))}>{pageSizeOptions.map((size) => <option key={size}>{size}</option>)}</select></label>
+            <span className="tabular-nums" aria-live="polite">{total} {t("model")} · {t("Halaman")} {currentPage}/{lastPage}</span>
+            <div className="flex gap-2"><button type="button" className="ui-btn-secondary" disabled={loading || currentPage <= 1} onClick={() => remotePage ? onQueryChange({ page: currentPage - 1 }) : setPage(currentPage - 1)}>{t("Sebelumnya")}</button><button type="button" className="ui-btn-secondary" disabled={loading || currentPage >= lastPage} onClick={() => remotePage ? onQueryChange({ page: currentPage + 1 }) : setPage(currentPage + 1)}>{t("Berikutnya")}</button></div>
         </div>
         <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
             <p className="text-xs tabular-nums">{selected.length} {t("dipilih")} ({selectedOffPage} {t("di luar halaman ini")}) · {dirtyIds.length} {t("draf berubah")}</p>

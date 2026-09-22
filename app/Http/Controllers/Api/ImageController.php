@@ -4,19 +4,25 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\ImageGenerationException;
 use App\Http\Controllers\Controller;
+use App\Media\CapabilityPresenter;
+use App\Media\MediaActivation;
 use App\Models\AiModelProfile;
 use App\Models\AudioJob;
 use App\Models\ImageJob;
+use App\Models\ThreeDJob;
 use App\Models\UserToken;
 use App\Models\VideoJob;
 use App\Services\AudioGenerationService;
 use App\Services\ImageGenerationService;
 use App\Services\MediaModelConfig;
+use App\Services\ThreeDGenerationService;
 use App\Services\VideoGenerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ImageController extends Controller
@@ -31,12 +37,12 @@ class ImageController extends Controller
     public function models(Request $request): JsonResponse
     {
         $user = $request->user();
-        $capabilities = app(\App\Media\CapabilityPresenter::class);
-        $usesCoordinator = app(\App\Media\MediaActivation::class)->usesCoordinator($user);
+        $capabilities = app(CapabilityPresenter::class);
+        $usesCoordinator = app(MediaActivation::class)->usesCoordinator($user);
         $models = AiModelProfile::query()->with('provider')->where('category', 'image')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
-                && $model->token_cost > 0)
+                && $model->token_cost > 0 && ($usesCoordinator || ! MediaModelConfig::hasCatalogImage($model)))
             ->map(function (AiModelProfile $model) use ($capabilities, $usesCoordinator): array {
                 $payload = MediaModelConfig::publicModel($model);
                 $caps = $capabilities->forModel($model);
@@ -126,10 +132,10 @@ class ImageController extends Controller
     /** Delete one finished image job with its private assets. Active work is protected. */
     public function destroy(Request $request, string $jobId): JsonResponse
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $jobId): void {
+        DB::transaction(function () use ($request, $jobId): void {
             $job = ImageJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
             if (in_array($job->status, ['pending', 'processing'], true)) {
-                throw \Illuminate\Validation\ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
+                throw ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
             }
             $this->removeImageAssets($job);
             $job->delete();
@@ -146,7 +152,7 @@ class ImageController extends Controller
             ->whereNotIn('status', ['pending', 'processing'])->orderBy('id')
             ->chunkById(50, function ($jobs) use (&$removed): void {
                 foreach ($jobs as $job) {
-                    \Illuminate\Support\Facades\DB::transaction(function () use ($job, &$removed): void {
+                    DB::transaction(function () use ($job, &$removed): void {
                         $locked = ImageJob::query()->lockForUpdate()->find($job->id);
                         if (! $locked || in_array($locked->status, ['pending', 'processing'], true)) {
                             return;
@@ -193,10 +199,12 @@ class ImageController extends Controller
         $imageQuery = ImageJob::query()->with('user:id,name,email')->latest();
         $videoQuery = VideoJob::query()->with('user:id,name,email')->latest();
         $audioQuery = AudioJob::query()->with('user:id,name,email')->latest();
+        $model3dQuery = ThreeDJob::query()->with('user:id,name,email')->latest();
         if (isset($validated['status'])) {
             $imageQuery->where('status', $validated['status']);
             $videoQuery->where('status', $validated['status']);
             $audioQuery->where('status', $validated['status']);
+            $model3dQuery->where('status', $validated['status']);
         }
 
         return response()->json([
@@ -212,6 +220,11 @@ class ImageController extends Controller
                     'user' => $job->user?->only(['id', 'name', 'email']),
                 ])
                 ->all(),
+            'model3d' => $model3dQuery->limit($limit)->get()
+                ->map(fn (ThreeDJob $job): array => [
+                    ...ThreeDGenerationService::payload($job),
+                    'user' => $job->user?->only(['id', 'name', 'email']),
+                ])->all(),
         ]);
     }
 

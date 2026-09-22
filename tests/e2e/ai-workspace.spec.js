@@ -46,6 +46,6 @@ test('failed image generation persists failure and refunds reserved tokens', asy
     expect(ledger.map(entry => entry.type).sort()).toEqual(['deduct', 'refund']);
     expect(ledger.find(entry => entry.type === 'deduct').amount).toBe(15);
     await page.reload();
-    await expect(page.getByText('QA unavailable provider must not leave a charge.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^QA unavailable provider must not leave a charge\./ })).toBeVisible();
     expect(errors).toEqual([]);
 });

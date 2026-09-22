@@ -8,11 +8,17 @@ use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
 use App\Models\ImageJob;
+use App\Models\MediaCapabilityRevision;
+use App\Models\ThreeDJob;
 use App\Models\UsageRate;
 use App\Models\VideoJob;
 use App\Services\AiProxyService;
 use App\Services\AuditService;
 use App\Services\FalProtocol;
+use App\Services\KinoviProtocol;
+use App\Services\MediaCatalogService;
+use App\Services\MediaModelConfig;
+use App\Services\ModelAutoPricer;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AiCatalogController extends Controller
@@ -92,6 +99,70 @@ class AiCatalogController extends Controller
         ]);
     }
 
+    public function summary(MediaCatalogService $catalog): JsonResponse
+    {
+        $providers = AiProviderProfile::query()->withCount('models')->orderBy('name')->get();
+
+        return response()->json(['providers' => $providers->map(function (AiProviderProfile $provider) use ($catalog): array {
+            $counts = AiModelProfile::where('provider_id', $provider->id)->selectRaw(
+                'COUNT(*) as total, SUM(CASE WHEN is_enabled THEN 1 ELSE 0 END) as enabled, SUM(CASE WHEN is_available THEN 1 ELSE 0 END) as available, SUM(CASE WHEN category IN (?, ?, ?, ?, ?) AND (token_cost IS NULL OR token_cost < 1) THEN 1 ELSE 0 END) as unpriced',
+                ['image', 'video', 'audio', 'avatar', 'model3d'],
+            )->first();
+
+            return [...$provider->adminPayload(),
+                'model_counts' => array_map('intval', $counts->only(['total', 'enabled', 'available', 'unpriced'])),
+                'counts' => $catalog->counts($provider->id),
+            ];
+        })->all()]);
+    }
+
+    public function providerModels(Request $request, AiProviderProfile $provider, MediaCatalogService $catalog): JsonResponse
+    {
+        $input = $request->validate([
+            'q' => ['nullable', 'string', 'max:160'], 'category' => ['nullable', 'string', 'max:32'],
+            'status' => ['nullable', Rule::in([...MediaCatalogService::STATUSES, 'enabled', 'unavailable', 'unpriced'])],
+            'sort' => ['sometimes', Rule::in(['display_name', 'model_id', 'upstream_model_id', 'category', 'sort_order', 'status', 'token_cost'])],
+            'direction' => ['sometimes', Rule::in(['asc', 'desc'])],
+            'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+        $query = AiModelProfile::query()->where('provider_id', $provider->id)->with('provider')
+            ->with(['capabilityRevisions' => fn ($query) => $query->select(['id', 'ai_model_profile_id', 'operation', 'revision', 'status', 'compatibility_report', 'published_at'])->orderByDesc('revision')]);
+        if (($input['q'] ?? '') !== '') {
+            $needle = '%'.strtolower(str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $input['q'])).'%';
+            $query->where(fn ($query) => $query->whereRaw('LOWER(display_name) LIKE ?', [$needle])
+                ->orWhereRaw('LOWER(model_id) LIKE ?', [$needle])->orWhereRaw('LOWER(upstream_model_id) LIKE ?', [$needle]));
+        }
+        if (($input['category'] ?? '') !== '') {
+            $query->where('category', $input['category']);
+        }
+        $status = $input['status'] ?? null;
+        if ($status === 'enabled') {
+            $query->where('is_enabled', true);
+        } elseif ($status === 'unavailable') {
+            $query->where('is_available', false);
+        } elseif ($status === 'unpriced') {
+            $query->whereIn('category', ['image', 'video', 'audio', 'avatar', 'model3d'])->where(fn ($q) => $q->whereNull('token_cost')->orWhere('token_cost', '<', 1));
+        } elseif ($status === 'found') {
+            $query->whereDoesntHave('capabilityRevisions', fn ($q) => $q->whereNotNull('source_schema'));
+        } elseif ($status !== null && $status !== '') {
+            $query->whereHas('capabilityRevisions', fn ($q) => $q->where('status', $status)->whereNotNull('source_schema'));
+        }
+        $sort = $input['sort'] ?? 'display_name';
+        if ($sort === 'status') {
+            $query->select('ai_model_profiles.*')->selectSub(MediaCapabilityRevision::query()
+                ->select('status')->whereColumn('ai_model_profile_id', 'ai_model_profiles.id')->whereNotNull('source_schema')->orderByDesc('id')->limit(1), 'catalog_status');
+            $sort = 'catalog_status';
+        }
+        $page = $query->orderBy($sort, $input['direction'] ?? 'asc')->orderBy('id')->paginate($input['per_page'] ?? 25);
+        $rates = UsageRate::whereIn('model', $page->getCollection()->pluck('model_id'))->get()->groupBy('model');
+
+        return response()->json([
+            'models' => $page->getCollection()->map(fn ($model) => $this->modelPayload($model, $rates->get($model->model_id, collect())))->all(),
+            'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'per_page' => $page->perPage(), 'total' => $page->total()],
+            'counts' => $catalog->counts($provider->id),
+        ]);
+    }
+
     public function sync(Request $request, AiProxyService $proxy, AuditService $audit, AiProviderProfile $provider): JsonResponse
     {
         $connection = Arr::only($provider->getRawOriginal(), ['base_url', 'api_key', 'protocol', 'api_version']);
@@ -107,6 +178,7 @@ class AiCatalogController extends Controller
                     'status' => $status === 503 ? 'unavailable' : 'error',
                     'last_checked_at' => now(),
                     'last_error' => $message,
+                    'authenticated_at' => null,
                 ]);
                 $audit->record($request->user(), 'ai_catalog.sync_failed', $provider, [
                     'status' => $provider->status,
@@ -130,9 +202,11 @@ class AiCatalogController extends Controller
         $provider = DB::transaction(function () use ($audit, $models, $provider, $connection, $request, $publish): AiProviderProfile {
             $provider = $this->lockConnection($provider, $connection);
             $provider->update([
-                'status' => 'healthy',
+                'status' => $provider->protocol === 'kinovi' ? 'discovered' : 'healthy',
                 'capabilities' => collect($models)->pluck('category')->unique()->values()->all(),
                 'last_checked_at' => now(),
+                'catalog_discovered_at' => now(),
+                'authenticated_at' => $provider->protocol === 'kinovi' ? null : now(),
                 'last_error' => null,
             ]);
             $seenIds = [];
@@ -165,13 +239,17 @@ class AiCatalogController extends Controller
                 // stay hidden from the workspace even when categorized + available.
                 // Seed a default so a synced media model is immediately usable.
                 $mediaDefaults = config('media_tools.default_generation_tokens', []);
-                if (in_array($model->category, ['image', 'video', 'audio'], true) && empty($model->token_cost) && ! empty($mediaDefaults[$model->category])) {
+                if (! $model->exists && in_array($model->category, ['image', 'video', 'audio', 'avatar'], true) && empty($model->token_cost) && ! empty($mediaDefaults[$model->category])) {
                     $model->token_cost = (int) $mediaDefaults[$model->category];
                 }
                 $this->saveSyncedModel($model, $provider);
                 $seenIds[] = $model->id;
             }
             $missingModels = AiModelProfile::query()->where('provider_id', $provider->id);
+            // Curated fal sync is intentionally incomplete; it must not hide schema-imported models.
+            if ($provider->protocol === 'fal') {
+                $missingModels->whereIn('upstream_identity', [...array_keys(FalProtocol::MEDIA_MODELS), FalProtocol::CHAT_MODEL]);
+            }
             if ($seenIds !== []) {
                 $missingModels->whereNotIn('id', $seenIds);
             }
@@ -180,7 +258,7 @@ class AiCatalogController extends Controller
             // Price the freshly discovered chat models straight away. Without
             // this they arrive published but unbillable, which is exactly the
             // state that made a connected provider look broken in the workspace.
-            $priced = app(\App\Services\ModelAutoPricer::class)->price(
+            $priced = app(ModelAutoPricer::class)->price(
                 AiModelProfile::query()->whereIn('id', $seenIds)->get(),
                 1.0,
                 16000,
@@ -310,13 +388,13 @@ class AiCatalogController extends Controller
             $this->assertExactCount($models->count(), (int) $validated['expected_count']);
             $modelIds = $models->pluck('model_id');
             $rates = UsageRate::query()->whereIn('model', $modelIds)->orderBy('id')->lockForUpdate()->get();
-            foreach ([ImageJob::class, VideoJob::class, AudioJob::class] as $jobClass) {
+            foreach ([ImageJob::class, VideoJob::class, AudioJob::class, ThreeDJob::class] as $jobClass) {
                 $busy = $jobClass::query()->whereIn('model', $modelIds)
-                    ->where(fn ($query) => $query->whereIn('status', ['pending', 'processing'])->orWhere('billing_status', 'reserved'))
+                    ->where(fn ($query) => $query->whereIn('status', ['pending', 'processing'])->orWhere('billing_status', 'reserved')->orWhereNotNull('capability_revision_id'))
                     ->orderBy('id')->lockForUpdate()->first();
                 if ($busy) {
                     throw new HttpResponseException(response()->json([
-                        'message' => 'Selected models have active or unreconciled media jobs. Finish or refund those jobs before deleting.',
+                        'message' => 'Selected models have active jobs or retained capability history. Disable them instead of deleting.',
                     ], 409));
                 }
             }
@@ -358,16 +436,7 @@ class AiCatalogController extends Controller
 
     private function publicModelId(AiProviderProfile $provider, string $upstreamId, int $attempt = 0): string
     {
-        if ($attempt === 0 && strlen($upstreamId) <= 120) {
-            return $upstreamId;
-        }
-        $base = $provider->slug.'/'.$upstreamId;
-        if ($attempt === 1 && strlen($base) <= 120) {
-            return $base;
-        }
-        $suffix = substr(hash('sha256', $provider->slug."\0".$upstreamId."\0".$attempt), 0, 12);
-
-        return substr($base, 0, 107).'-'.$suffix;
+        return MediaCatalogService::publicModelId($provider, $upstreamId, $attempt);
     }
 
     private function saveSyncedModel(AiModelProfile $model, AiProviderProfile $provider): void
@@ -566,11 +635,20 @@ class AiCatalogController extends Controller
             $model->unsetRelation('provider');
         }
         $falConfig = null;
-        if ($model->provider?->protocol === 'fal' && in_array($model->category, ['image', 'video', 'audio'], true)) {
+        if (in_array($model->provider?->protocol, ['fal', 'kinovi'], true) && in_array($model->category, ['image', 'video', 'audio', 'avatar', 'model3d'], true)) {
             $upstream = $model->upstream_model_id ?: $model->model_id;
-            $falConfig = FalProtocol::mediaConfig($upstream);
-            if ($falConfig === null || FalProtocol::MEDIA_MODELS[$upstream] !== $model->category) {
-                throw ValidationException::withMessages(['upstream_model_id' => 'This fal media model is not supported.']);
+            $curatedCategory = $model->provider->protocol === 'fal'
+                ? (FalProtocol::MEDIA_MODELS[$upstream] ?? null)
+                : (KinoviProtocol::MODELS[$upstream] ?? null);
+            if ($curatedCategory !== null && $curatedCategory !== $model->category) {
+                throw ValidationException::withMessages(['category' => 'The category must match this supported provider integration.']);
+            }
+            $falConfig = $this->effectiveGenerationConfig($model);
+            if ($falConfig === null && ! $model->capabilityRevisions()->whereNotNull('source_schema')->exists()) {
+                throw ValidationException::withMessages(['upstream_model_id' => 'This provider media model requires a supported integration or imported capability.']);
+            }
+            if ($falConfig === null && ! empty($model->generation_config)) {
+                throw ValidationException::withMessages(['generation_config' => 'Imported generation settings are read-only. Review and publish the capability.']);
             }
         }
         $config = $model->generation_config;
@@ -597,12 +675,12 @@ class AiCatalogController extends Controller
         }
         if ($falConfig !== null) {
             foreach ($config as $field => $value) {
-                $expected = $falConfig[$field];
+                $expected = $falConfig[$field] ?? null;
                 if (in_array($field, ['speed_min', 'speed_max', 'speed_default'], true) && $expected !== null) {
                     $expected = (float) $expected;
                 }
                 if ($value !== $expected) {
-                    throw ValidationException::withMessages(['generation_config' => 'Fal generation settings follow the supported model schema and cannot be overridden.']);
+                    throw ValidationException::withMessages(['generation_config' => 'Generation settings follow the supported provider schema and cannot be overridden.']);
                 }
             }
         } else {
@@ -662,7 +740,7 @@ class AiCatalogController extends Controller
 
     private function rateService(AiModelProfile $model): string
     {
-        return in_array($model->category, ['image', 'video', 'audio'], true) ? $model->category : 'api';
+        return in_array($model->category, ['image', 'video', 'audio', 'avatar', 'model3d'], true) ? $model->category : 'api';
     }
 
     private function syncModelRates(AiModelProfile $model, array $prices, bool $publicationChanged = false, bool $categoryChanged = false, string $errorKey = 'rates'): void
@@ -702,6 +780,15 @@ class AiCatalogController extends Controller
         return $provider->adminPayload();
     }
 
+    private function effectiveGenerationConfig(AiModelProfile $model): ?array
+    {
+        try {
+            return MediaModelConfig::forModel($model);
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+    }
+
     private function modelPayload(AiModelProfile $model, iterable $rates = []): array
     {
         $rateMap = collect($rates)->where('service', $this->rateService($model))->keyBy('meter')->map(fn (UsageRate $rate): array => [
@@ -727,10 +814,12 @@ class AiCatalogController extends Controller
             'context_window' => $model->context_window,
             'max_output_tokens' => $model->max_output_tokens,
             'token_cost' => $model->token_cost,
-            'generation_config' => $model->provider?->protocol === 'fal' && in_array($model->category, ['image', 'video', 'audio'], true)
-                ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id)
+            'generation_config' => in_array($model->provider?->protocol, ['fal', 'kinovi'], true) && in_array($model->category, ['image', 'video', 'audio', 'avatar', 'model3d'], true)
+                ? $this->effectiveGenerationConfig($model)
                 : ($model->generation_config === null ? null : Arr::only($model->generation_config, self::CONFIG_KEYS)),
-            'generation_config_readonly' => $model->provider?->protocol === 'fal',
+            'generation_config_readonly' => in_array($model->provider?->protocol, ['fal', 'kinovi'], true),
+            'capability_summary' => ($model->relationLoaded('capabilityRevisions') ? $model->capabilityRevisions : $model->capabilityRevisions()->select(['id', 'ai_model_profile_id', 'operation', 'revision', 'status', 'compatibility_report', 'published_at'])->get())
+                ->map(fn ($revision) => $revision->adminPayload(false))->values()->all(),
             'is_enabled' => $model->is_enabled,
             'is_available' => $model->is_available,
             'capabilities' => $model->capabilities ?? [],

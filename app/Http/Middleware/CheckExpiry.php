@@ -12,7 +12,7 @@ class CheckExpiry
     {
         $user = $request->user();
 
-        if ($user && !$user->isAdmin()) {
+        if ($user && ! $user->isAdmin()) {
             // Check expired
             if ($user->isExpired()) {
                 if ($request->expectsJson() || $request->is('api/*')) {
@@ -29,7 +29,7 @@ class CheckExpiry
             // Chat routes: require 'chat' permission
             if (str_starts_with($path, 'api/c/')) {
                 // allModels endpoint is allowed (it filters internally)
-                if (!str_contains($path, '/c/am') && !$user->hasPermission('chat')) {
+                if (! str_contains($path, '/c/am') && ! $user->hasPermission('chat')) {
                     if ($request->expectsJson() || $request->is('api/*')) {
                         return response()->json([
                             'message' => 'Anda tidak memiliki akses ke fitur Chat.',
@@ -41,7 +41,7 @@ class CheckExpiry
 
             // Video routes: require 'video_generator' permission
             if (str_starts_with($path, 'api/v/')) {
-                if (!$user->hasPermission('video_generator')) {
+                if (! $user->hasPermission('video_generator')) {
                     if ($request->expectsJson() || $request->is('api/*')) {
                         return response()->json([
                             'message' => 'Anda tidak memiliki akses ke fitur Video Generator.',
@@ -62,6 +62,8 @@ class CheckExpiry
 
             $permission = match ($path) {
                 'api/audio', 'api/audio/models' => 'audio_generator',
+                'api/avatar', 'api/avatar/models' => 'video_generator',
+                'api/3d', 'api/3d/models' => 'image_generator',
                 'api/media-tools/download' => 'video_downloader',
                 'api/media-tools/convert' => 'media_converter',
                 'api/media-tools/rembg' => 'media_converter',

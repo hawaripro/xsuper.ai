@@ -41,6 +41,7 @@ foreach (['admin', 'member', 'other'] as $role) {
         'permissions' => $permissions,
         'onboarding_mode' => 'coding',
     ]);
+    $user->forceFill(['email_verified_at' => now()])->save();
     UserToken::create(['user_id' => $user->id, 'balance' => 500]);
     Wallet::create(['user_id' => $user->id, 'balance_microusd' => 5000000]);
 }

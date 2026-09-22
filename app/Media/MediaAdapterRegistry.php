@@ -2,6 +2,7 @@
 
 namespace App\Media;
 
+use App\Media\Adapters\FalAdapter;
 use App\Media\Adapters\KinoviAdapter;
 use App\Media\Contracts\MediaProviderAdapter;
 use InvalidArgumentException;
@@ -13,18 +14,19 @@ use InvalidArgumentException;
  */
 final class MediaAdapterRegistry
 {
-    public function __construct(private readonly KinoviAdapter $kinovi) {}
+    public function __construct(private readonly KinoviAdapter $kinovi, private readonly FalAdapter $fal) {}
 
     public function for(string $protocol): MediaProviderAdapter
     {
         return match ($protocol) {
             'kinovi' => $this->kinovi,
+            'fal' => $this->fal,
             default => throw new InvalidArgumentException("No media adapter is implemented for protocol '{$protocol}'."),
         };
     }
 
     public function has(string $protocol): bool
     {
-        return $protocol === 'kinovi';
+        return in_array($protocol, ['kinovi', 'fal'], true);
     }
 }

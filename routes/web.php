@@ -6,19 +6,21 @@ use App\Http\Controllers\Api\AiCatalogController;
 use App\Http\Controllers\Api\AiProviderController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\ApiKeyController;
-use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\AudioController;
+use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\AvatarController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ContentController;
 use App\Http\Controllers\Api\DashboardController as ApiDashboardController;
 use App\Http\Controllers\Api\DashboardSearchController;
 use App\Http\Controllers\Api\DepositController;
-use App\Http\Controllers\Api\MediaAssetController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\EngagementController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\ImageController;
 use App\Http\Controllers\Api\LibraryController;
+use App\Http\Controllers\Api\MediaAssetController;
+use App\Http\Controllers\Api\MediaCatalogController;
 use App\Http\Controllers\Api\MediaToolController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
@@ -27,14 +29,17 @@ use App\Http\Controllers\Api\PricingController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\RealtimeController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\SecurityController;
 use App\Http\Controllers\Api\StorageUpgradeController;
 use App\Http\Controllers\Api\SupportController;
+use App\Http\Controllers\Api\ThreeDController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\VideoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\PublicSiteController;
+use App\Http\Middleware\EnsureEmailVerified;
 use App\Services\AiProxyService;
 use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Http\Request;
@@ -83,7 +88,7 @@ Route::prefix('api')->middleware('web')->group(function () {
     Route::get('/media/public/{asset}', [MediaAssetController::class, 'deliver'])->middleware('signed')->name('media.asset.deliver');
 
     // Protected routes — track device on ALL authenticated requests
-    Route::middleware(['auth', 'track.device', \App\Http\Middleware\EnsureEmailVerified::class, 'ensure.active'])->group(function () {
+    Route::middleware(['auth', 'track.device', EnsureEmailVerified::class, 'ensure.active'])->group(function () {
         Route::post('/broadcasting/auth', [BroadcastController::class, 'authenticate']);
 
         // Profile
@@ -153,6 +158,25 @@ Route::prefix('api')->middleware('web')->group(function () {
         });
         // Controlled reference uploads (image/audio/video) for capability-driven studios.
         Route::post('/media/assets', [MediaAssetController::class, 'upload'])->middleware(['storage.available', 'throttle:30,1']);
+        Route::get('/media/assets', [MediaAssetController::class, 'index']);
+        Route::get('/media/assets/{asset}', [MediaAssetController::class, 'show']);
+        Route::delete('/media/assets/{asset}', [MediaAssetController::class, 'destroy']);
+
+        Route::get('/avatar/models', [AvatarController::class, 'models'])->middleware('check.expiry');
+        Route::post('/avatar', [AvatarController::class, 'generate'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
+        Route::get('/avatar', [AvatarController::class, 'history']);
+        Route::get('/avatar/{jobId}', [VideoController::class, 'status']);
+        Route::get('/avatar/{jobId}/asset', [VideoController::class, 'asset']);
+        Route::post('/avatar/{jobId}/cancel', [VideoController::class, 'cancel']);
+        Route::delete('/avatar/{jobId}', [VideoController::class, 'destroy']);
+
+        Route::get('/3d/models', [ThreeDController::class, 'models'])->middleware('check.expiry');
+        Route::post('/3d', [ThreeDController::class, 'generate'])->middleware(['check.expiry', 'throttle:10,1']);
+        Route::get('/3d', [ThreeDController::class, 'history']);
+        Route::get('/3d/{jobId}', [ThreeDController::class, 'show']);
+        Route::get('/3d/{jobId}/asset', [ThreeDController::class, 'asset']);
+        Route::post('/3d/{jobId}/cancel', [ThreeDController::class, 'cancel']);
+        Route::delete('/3d/{jobId}', [ThreeDController::class, 'destroy']);
 
         // Existing outputs and cancellation remain recoverable after subscription expiry.
         Route::get('/audio/models', [AudioController::class, 'models'])->middleware('check.expiry');
@@ -160,7 +184,8 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::get('/audio', [AudioController::class, 'history']);
         Route::get('/audio/{jobId}', [AudioController::class, 'show']);
         Route::post('/audio/{jobId}/cancel', [AudioController::class, 'cancel']);
-        Route::get('/audio/{jobId}/asset', [AudioController::class, 'asset']);
+        Route::get('/audio/{jobId}/assets/{index}', [AudioController::class, 'asset'])->whereNumber('index');
+        Route::post('/audio/{jobId}/reference', [AudioController::class, 'reference'])->middleware(['storage.available', 'throttle:30,1']);
         Route::delete('/audio/{jobId}', [AudioController::class, 'destroy']);
 
         Route::get('/media-tools/capabilities', [MediaToolController::class, 'capabilities']);
@@ -195,9 +220,9 @@ Route::prefix('api')->middleware('web')->group(function () {
             // Admin: topup tokens
             Route::post('/t/topup', [TokenController::class, 'topup']);
             // Admin: security controls (IP allowlist, admin 2FA policy)
-            Route::get('/security/overview', [\App\Http\Controllers\Api\SecurityController::class, 'overview']);
-            Route::get('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'index']);
-            Route::put('/security/settings', [\App\Http\Controllers\Api\SecurityController::class, 'update']);
+            Route::get('/security/overview', [SecurityController::class, 'overview']);
+            Route::get('/security/settings', [SecurityController::class, 'index']);
+            Route::put('/security/settings', [SecurityController::class, 'update']);
             Route::get('/pricing/settings', [PricingController::class, 'index']);
             Route::patch('/pricing/durations/bulk', [PricingController::class, 'bulkSaveDurations']);
             Route::patch('/pricing/rates/bulk', [PricingController::class, 'bulkUpdateUsageRates']);
@@ -282,6 +307,14 @@ Route::prefix('api')->middleware('web')->group(function () {
 
             // AI catalog and media operations
             Route::get('/admin/ai/catalog', [AiCatalogController::class, 'index']);
+            Route::get('/admin/ai/catalog/summary', [AiCatalogController::class, 'summary']);
+            Route::get('/admin/ai/providers/{provider}/models', [AiCatalogController::class, 'providerModels']);
+            Route::get('/admin/ai/models/{model}/capabilities', [MediaCatalogController::class, 'capabilities']);
+            Route::post('/admin/ai/providers/{provider}/discover', [MediaCatalogController::class, 'discover'])->middleware('throttle:12,1');
+            Route::post('/admin/ai/capabilities/{revision}/review', [MediaCatalogController::class, 'review']);
+            Route::post('/admin/ai/capabilities/{revision}/publish', [MediaCatalogController::class, 'publish']);
+            Route::post('/admin/ai/capabilities/{revision}/disable', [MediaCatalogController::class, 'disable']);
+            Route::post('/admin/ai/capabilities/{revision}/rollback', [MediaCatalogController::class, 'rollback']);
             Route::post('/admin/ai/providers', [AiProviderController::class, 'store']);
             Route::patch('/admin/ai/providers/{provider}', [AiProviderController::class, 'update']);
             Route::delete('/admin/ai/providers/{provider}', [AiProviderController::class, 'destroy']);

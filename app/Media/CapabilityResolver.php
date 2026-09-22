@@ -18,6 +18,23 @@ use Throwable;
  */
 final class CapabilityResolver
 {
+    /** Published operations extend, rather than depend on, the legacy inventory. */
+    public function operations(AiModelProfile $model): array
+    {
+        $operations = array_fill_keys(array_keys(MediaModelConfig::deriveCapabilities($model)), true);
+        $revisions = MediaCapabilityRevision::where('ai_model_profile_id', $model->id)
+            ->select(['operation', 'status', 'published_at'])->get()->groupBy('operation');
+        foreach ($revisions as $operation => $rows) {
+            if ($rows->contains('status', 'published') && MediaOperation::tryFrom($operation) !== null) {
+                $operations[$operation] = true;
+            } elseif ($rows->contains(fn ($row) => $row->published_at !== null)) {
+                unset($operations[$operation]);
+            }
+        }
+
+        return array_keys($operations);
+    }
+
     public function resolve(AiModelProfile $model, MediaOperation $operation): ResolvedCapability
     {
         $published = MediaCapabilityRevision::query()
@@ -29,7 +46,15 @@ final class CapabilityResolver
 
         if ($published !== null) {
             try {
-                $capability = MediaCapability::fromArray($published->definition ?? []);
+                $capability = MediaCapability::fromArray([...($published->definition ?? []), 'provider_bindings' => $published->provider_bindings ?? []]);
+                if ($capability->modelPublicId !== $model->model_id || $capability->operation !== $operation || $capability->contractVersion !== 1) {
+                    throw new \UnexpectedValueException('Capability identity or contract version does not match.');
+                }
+                if ($published->source_schema !== null && ($model->provider?->protocol !== 'fal'
+                    || ($capability->providerBindings['adapter'] ?? null) !== 'fal_image_v1'
+                    || ($capability->providerBindings['endpoint'] ?? null) !== ($model->upstream_model_id ?: $model->model_id))) {
+                    throw new \UnexpectedValueException('Published provider binding does not match model routing.');
+                }
             } catch (Throwable $e) {
                 throw new CapabilityConfigException(
                     "Published capability for {$model->model_id}/{$operation->value} is invalid.", 0, $e
@@ -38,8 +63,12 @@ final class CapabilityResolver
 
             return new ResolvedCapability(
                 $capability, 'published', $published->id,
-                (string) ($published->source_hash ?: $this->hash($published->definition ?? [])),
+                $this->hash(['definition' => $published->definition, 'provider_bindings' => $published->provider_bindings]),
             );
+        }
+
+        if (MediaCapabilityRevision::where('ai_model_profile_id', $model->id)->where('operation', $operation->value)->whereNotNull('published_at')->exists()) {
+            throw new CapabilityConfigException("Operation {$operation->value} is disabled for {$model->model_id}.");
         }
 
         $derived = MediaModelConfig::deriveCapabilities($model)[$operation->value] ?? null;

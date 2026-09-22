@@ -15,6 +15,9 @@ final class CapabilityUi
     private const INPUTS = [
         'prompt' => ['label' => 'Prompt', 'control' => 'textarea', 'placeholder' => 'Jelaskan subjek, komposisi, pencahayaan, dan gaya visual…', 'help' => null],
         'reference_image' => ['label' => 'Gambar referensi', 'control' => 'image', 'placeholder' => null, 'help' => 'Unggah gambar sebagai acuan komposisi atau gaya.'],
+        'avatar_photo' => ['label' => 'Foto wajah', 'control' => 'image', 'placeholder' => null, 'help' => 'Gunakan foto wajah yang jelas dan Anda berhak gunakan.'],
+        'speech_audio' => ['label' => 'Audio ucapan', 'control' => 'audio', 'placeholder' => null, 'help' => 'Gunakan ucapan bahasa Inggris yang jelas, tanpa musik latar.'],
+        'image_ref' => ['label' => 'Gambar referensi', 'control' => 'image', 'placeholder' => null, 'help' => 'Gunakan satu objek yang terlihat jelas.'],
     ];
 
     /** param name => [label, help] (control derived from the param type) */
@@ -26,6 +29,7 @@ final class CapabilityUi
         'quality' => ['label' => 'Kualitas', 'help' => null],
         'voice' => ['label' => 'Suara', 'help' => null],
         'speed' => ['label' => 'Kecepatan', 'help' => null],
+        'seed' => ['label' => 'Seed (opsional)', 'help' => 'Kosongkan untuk hasil acak.'],
     ];
 
     /** @return array{inputs: array<string, mixed>, params: array<string, mixed>, order: string[]} */
@@ -63,6 +67,7 @@ final class CapabilityUi
         return match ($param->type) {
             'enum' => 'select',
             'number' => $param->min !== null && $param->max !== null ? 'slider' : 'number',
+            'integer' => 'number',
             'boolean' => 'toggle',
             default => 'text',
         };

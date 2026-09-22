@@ -29,7 +29,7 @@ test('QRIS paid confirmation becomes a persisted order then admin approval exten
     const row = admin.page.getByRole('row').filter({ hasText: 'QA Member' });
     await row.getByRole('button', { name: 'Approve', exact: true }).click();
     const approval = admin.page.waitForResponse(response => response.url().endsWith(`/api/a/period/approve/${order.id}`));
-    await admin.page.getByRole('button', { name: 'Confirm approve', exact: true }).click();
+    await admin.page.getByRole('dialog').getByRole('button', { name: 'Confirm', exact: true }).click();
     expect((await approval).status()).toBe(200);
     await expect.poll(() => databaseRows('duration_orders', { id: order.id })[0].status).toBe('approved');
     await expect(page.getByText('Payment approved. Your account duration has been extended.', { exact: true })).toBeVisible();

@@ -2,18 +2,22 @@
 
 namespace Tests\Feature\Media;
 
+use App\Jobs\ProcessVideoJob;
 use App\Media\AssetService;
+use App\Media\CapabilityPresenter;
 use App\Media\Enums\InputRole;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
+use App\Models\MediaCapabilityRevision;
 use App\Models\User;
 use App\Models\UserToken;
 use App\Models\VideoJob;
 use App\Services\FalProtocol;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -85,11 +89,9 @@ class VideoCoordinatorRouteTest extends TestCase
         $other = $this->member();
 
         // Non-pilot text-to-video falls back to the legacy (non-coordinator) path — never blocked.
-        $res = $this->actingAs($other)->postJson('/api/v/gen', [
+        $this->actingAs($other)->postJson('/api/v/gen', [
             'operation' => 'text_to_video', 'model' => FalProtocol::VIDEO, 'prompt' => 'Legacy garden', 'aspect_ratio' => '16:9', 'duration' => 5,
         ])->assertStatus(202);
-        $job = VideoJob::query()->where('job_id', $res->json('jobs.0.job_id'))->firstOrFail();
-        $this->assertNull($job->capability_revision_id, 'non-pilot stays on the legacy path');
 
         // Image-to-video is a coordinator-only capability for now.
         $this->actingAs($other)->postJson('/api/v/gen', [
@@ -151,5 +153,126 @@ class VideoCoordinatorRouteTest extends TestCase
         $this->assertSame($asset->size_bytes, strlen($shown->streamedContent()));
 
         $this->actingAs($this->member())->get('/api/v/'.$jobId.'/reference')->assertNotFound();
+    }
+
+    public function test_retry_returns_the_whole_original_batch_even_after_terminal_transitions(): void
+    {
+        Queue::fake();
+        $this->model();
+        $user = $this->member();
+        $input = [
+            'operation' => 'text_to_video', 'model' => FalProtocol::VIDEO, 'prompt' => 'A quiet garden',
+            'aspect_ratio' => '16:9', 'duration' => 5, 'count' => 2, 'pro' => true,
+            'cta' => 'Order today', 'ugc_variation' => true, 'idempotency_key' => 'batch-network-retry',
+        ];
+        $first = $this->actingAs($user)->postJson('/api/v/gen', $input)->assertStatus(202);
+        $ids = array_column($first->json('jobs'), 'job_id');
+        VideoJob::query()->where('job_id', $ids[0])->update(['status' => 'completed']);
+        AiModelProfile::query()->where('model_id', FalProtocol::VIDEO)->update([
+            'token_cost' => 250, 'generation_config' => ['durations' => [6]],
+        ]);
+
+        $retry = $this->postJson('/api/v/gen', $input)->assertStatus(202)->assertJsonCount(2, 'jobs')->assertJsonPath('balance', 200);
+        $this->assertSame($ids, array_column($retry->json('jobs'), 'job_id'));
+        VideoJob::query()->where('job_id', $ids[1])->update(['status' => 'failed']);
+        $this->postJson('/api/v/gen', $input)->assertStatus(202)->assertJsonCount(2, 'jobs')->assertJsonPath('balance', 200);
+        $this->postJson('/api/v/gen', [...$input, 'cta' => 'Different message'])->assertStatus(409);
+        $this->assertSame(2, VideoJob::query()->count());
+        $this->assertSame(200, UserToken::getBalance($user->id));
+    }
+
+    public function test_stale_video_quote_or_contract_never_reserves_tokens(): void
+    {
+        Queue::fake();
+        $model = $this->model();
+        $user = $this->member();
+        $hash = app(CapabilityPresenter::class)->forModel($model)['text_to_video']['source_hash'];
+        $input = [
+            'operation' => 'text_to_video', 'model' => FalProtocol::VIDEO, 'prompt' => 'Garden',
+            'duration' => 5, 'pro' => true, 'expected_price_tokens' => 400, 'expected_capability_hash' => $hash,
+        ];
+        $model->update(['token_cost' => 210]);
+        $this->actingAs($user)->postJson('/api/v/gen', $input)->assertStatus(409);
+        $this->postJson('/api/v/gen', [...$input, 'duration' => 6, 'expected_capability_hash' => str_repeat('0', 64)])->assertStatus(409);
+        $this->assertSame(1000, UserToken::getBalance($user->id));
+        $this->assertSame(0, VideoJob::query()->count());
+    }
+
+    public function test_restricted_cohort_fallback_preserves_quote_and_retry_guards(): void
+    {
+        Queue::fake();
+        $model = $this->model();
+        $user = $this->member();
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => $user->id + 1]);
+        $input = [
+            'operation' => 'text_to_video', 'model' => FalProtocol::VIDEO, 'prompt' => 'Garden',
+            'duration' => 5, 'expected_price_tokens' => 200, 'idempotency_key' => 'legacy-network-retry',
+            'expected_capability_hash' => app(CapabilityPresenter::class)->forModel($model)['text_to_video']['source_hash'],
+        ];
+        $this->actingAs($user)->postJson('/api/v/gen', [...$input, 'expected_price_tokens' => 1])->assertStatus(409);
+        $first = $this->postJson('/api/v/gen', $input)->assertStatus(202);
+        $id = $first->json('jobs.0.job_id');
+        VideoJob::query()->where('job_id', $id)->update(['status' => 'completed']);
+        $model->update(['token_cost' => 250, 'generation_config' => ['durations' => [6]]]);
+        $this->postJson('/api/v/gen', $input)->assertStatus(202)->assertJsonPath('jobs.0.job_id', $id)->assertJsonPath('balance', 800);
+        $this->postJson('/api/v/gen', [...$input, 'prompt' => 'Changed'])->assertStatus(409);
+        $this->assertSame(1, VideoJob::query()->count());
+    }
+
+    public function test_pre_cutover_request_keeps_its_original_identity_after_catalog_changes(): void
+    {
+        Queue::fake();
+        $model = $this->model();
+        $user = $this->member();
+        $input = ['operation' => 'text_to_video', 'model' => $model->model_id, 'prompt' => 'Garden',
+            'aspect_ratio' => '16:9', 'duration' => 5, 'idempotency_key' => 'before-upgrade'];
+        $id = $this->actingAs($user)->postJson('/api/v/gen', $input)->assertAccepted()->json('jobs.0.job_id');
+        $job = VideoJob::where('job_id', $id)->firstOrFail();
+        // The deployed F3 format, including defaults omitted from the original request.
+        $job->update(['payload_fingerprint' => hash('sha256', json_encode([
+            'o' => 'text_to_video', 'm' => $model->model_id,
+            'p' => ['inputs' => ['prompt' => 'Garden'], 'params' => ['aspect_ratio' => '16:9', 'duration' => 5, 'count' => 1, 'pro' => false]],
+        ], JSON_THROW_ON_ERROR))]);
+        $revision = MediaCapabilityRevision::findOrFail($job->capability_revision_id);
+        $definition = $revision->definition;
+        foreach ($definition['params'] as &$param) {
+            $param['type'] = ['integer' => 'int', 'boolean' => 'bool'][$param['type']] ?? $param['type'];
+        }
+        unset($param);
+        $revision->update(['definition' => $definition]);
+        (require database_path('migrations/2026_09_22_100011_canonicalize_capability_parameter_types.php'))->up();
+        $model->update(['token_cost' => 300, 'generation_config' => ['durations' => [6]]]);
+        $this->postJson('/api/v/gen', $input)->assertAccepted()->assertJsonPath('jobs.0.job_id', $id)->assertJsonPath('balance', 800);
+        $this->postJson('/api/v/gen', [...$input, 'cta' => 'New creative input'])->assertConflict();
+        Queue::assertPushed(ProcessVideoJob::class, 1);
+        $this->assertDatabaseCount('video_jobs', 1);
+    }
+
+    public function test_fallback_rechecks_price_when_it_changes_after_the_initial_model_read(): void
+    {
+        Queue::fake();
+        $model = $this->model();
+        $user = $this->member();
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => $user->id + 1]);
+        $hash = app(CapabilityPresenter::class)->forModel($model)['text_to_video']['source_hash'];
+        $dispatcher = AiModelProfile::getEventDispatcher();
+        AiModelProfile::setEventDispatcher(clone $dispatcher);
+        $changed = false;
+        AiModelProfile::retrieved(function (AiModelProfile $snapshot) use ($model, &$changed): void {
+            if (! $changed && $snapshot->id === $model->id) {
+                $changed = true;
+                DB::table('ai_model_profiles')->where('id', $model->id)->update(['token_cost' => 400]);
+            }
+        });
+        try {
+            $this->actingAs($user)->postJson('/api/v/gen', [
+                'operation' => 'text_to_video', 'model' => FalProtocol::VIDEO, 'prompt' => 'Garden',
+                'duration' => 5, 'expected_price_tokens' => 200, 'expected_capability_hash' => $hash,
+            ])->assertStatus(409);
+            $this->assertSame(1000, UserToken::getBalance($user->id));
+            $this->assertSame(0, VideoJob::query()->count());
+        } finally {
+            AiModelProfile::setEventDispatcher($dispatcher);
+        }
     }
 }

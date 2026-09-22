@@ -4,20 +4,23 @@ namespace App\Services;
 
 use App\Exceptions\AiProxyException;
 use App\Exceptions\ImageGenerationException;
+use App\Jobs\PollImageJob;
+use App\Jobs\ProcessImageJob;
+use App\Media\CapabilityResolver;
 use App\Media\Enums\MediaOperation;
-use App\Media\MediaGenerationCoordinator;
 use App\Media\Enums\MediaState;
 use App\Media\Enums\OutputKind;
 use App\Media\Enums\SubmitOutcome;
-use App\Media\MediaAdapterRegistry;
+use App\Media\Exceptions\CapabilityConfigException;
 use App\Media\MediaActivation;
+use App\Media\MediaAdapterRegistry;
 use App\Media\MediaCapability;
-use App\Models\MediaCapabilityRevision;
-use App\Jobs\PollImageJob;
-use App\Jobs\ProcessImageJob;
+use App\Media\MediaGenerationCoordinator;
+use App\Media\StatusResult;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ImageJob;
+use App\Models\MediaCapabilityRevision;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +47,32 @@ class ImageGenerationService
     public function generate(User $user, string $model, string $prompt, string $size, int $quantity, array $options = []): ImageJob
     {
         $profile = AiModelProfile::query()->with('provider')->where('model_id', $model)->first();
+        if ($profile !== null && MediaModelConfig::hasCatalogImage($profile)) {
+            if (! $this->activation->usesCoordinator($user)) {
+                throw new ImageGenerationException('This operation is not available for your account yet.', 503);
+            }
+            if ($quantity !== 1) {
+                throw new ImageGenerationException('This image capability supports one generation per request.', 422);
+            }
+            $operation = MediaOperation::tryFrom($options['operation'] ?? 'text_to_image');
+            if (! in_array($operation, [MediaOperation::TextToImage, MediaOperation::ImageEdit], true)) {
+                throw new ImageGenerationException('The selected image operation is unavailable.', 422);
+            }
+            try {
+                $resolved = app(CapabilityResolver::class)->resolve($profile, $operation);
+                $raw = ['prompt' => $prompt];
+                if ($size !== 'auto' || in_array('auto', $resolved->capability->param('size')?->options ?? [], true)) {
+                    $raw['size'] = $size;
+                }
+                if (isset($options['reference_image'])) {
+                    $raw['reference_image'] = $options['reference_image'];
+                }
+
+                return $this->coordinator->startImage($user, $profile, $operation, $raw, 'studio-image', $options);
+            } catch (CapabilityConfigException) {
+                throw new ImageGenerationException('The selected image capability is unavailable. Contact an administrator.', 503);
+            }
+        }
         if ($profile?->provider?->protocol === 'kinovi') {
             // Route BEFORE any reservation. Kill switch pauses all new Kinovi submissions; the
             // pilot (or everyone, once unrestricted) uses the capability coordinator, while other
@@ -196,6 +225,16 @@ class ImageGenerationService
                             || $locked->updated_at->gt($staleBefore)) {
                             return false;
                         }
+                        if ($locked->processing_started_at !== null && $locked->processing_started_at->gt(now()->subSeconds(self::POLL_LEASE_SECONDS))) {
+                            return false;
+                        }
+                        if (! empty($locked->provider_result_urls) && ($locked->submitted_at ?? $locked->created_at)->gte(now()->subMinutes(30))) {
+                            // The provider already completed. Recover only private output storage, never submit again.
+                            $locked->update(['stage' => 'rendering', 'processing_started_at' => null, 'processing_token' => null, 'next_poll_at' => now()]);
+                            DB::afterCommit(fn () => $this->queuePoll($locked->id));
+
+                            return false;
+                        }
 
                         if (in_array($locked->billing_mode, ['tokens', 'admin'], true)) {
                             $this->tokens->release($locked->user_id, [
@@ -211,6 +250,7 @@ class ImageGenerationService
                         $locked->update([
                             'status' => 'failed', 'stage' => 'failed',
                             'result_urls' => null,
+                            'provider_result_urls' => null,
                             'error_message' => 'Image generation timed out.',
                             'billing_status' => 'released',
                         ]);
@@ -268,9 +308,11 @@ class ImageGenerationService
             if (! empty($job->reference_asset_ids)) {
                 $inputs['reference_image'] = $job->reference_asset_ids;
             }
-            $request = $adapter->buildRequest($this->capabilityForJob($job), [
+            $capability = $this->capabilityForJob($job);
+            $hasSize = $job->capability_revision_id ? $capability->param('size') !== null : $job->size !== 'auto';
+            $request = $adapter->buildRequest($capability, [
                 'inputs' => $inputs,
-                'params' => $job->size !== 'auto' ? ['size' => $job->size] : [],
+                'params' => $hasSize ? ['size' => $job->size] : [],
             ], (string) $job->upstream_model_id);
             $submit = $adapter->submit($provider, $request);
         } catch (Throwable) {
@@ -293,9 +335,13 @@ class ImageGenerationService
             return;
         }
         if ($submit->outcome === SubmitOutcome::Immediate) {
-            $saving = $this->claimForSaving($job);
+            $saving = $this->claimForSaving($job, $submit->resultUrls ?? []);
             if ($saving) {
-                $this->finalize($saving, $submit->resultUrls ?? []);
+                try {
+                    $this->finalize($saving, $submit->resultUrls ?? []);
+                } catch (Throwable) {
+                    $this->revertSavingToRendering($saving);
+                }
             }
 
             return;
@@ -323,7 +369,8 @@ class ImageGenerationService
     {
         $job = DB::transaction(function () use ($id): ?ImageJob {
             $job = ImageJob::query()->lockForUpdate()->find($id);
-            if (! $job || $job->status !== 'processing' || $job->stage !== 'rendering' || ! $job->upstream_job_id
+            if (! $job || $job->status !== 'processing' || ! in_array($job->stage, ['rendering', 'saving'], true)
+                || (! $job->upstream_job_id && empty($job->provider_result_urls))
                 || ($job->next_poll_at !== null && $job->next_poll_at->isFuture())
                 || ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subSeconds(self::POLL_LEASE_SECONDS)))) {
                 return null;
@@ -343,20 +390,23 @@ class ImageGenerationService
 
             return;
         }
-        try {
-            $provider = $this->provider($job);
-        } catch (Throwable) {
-            $this->failClaim($job, 'The image connection changed or became unavailable. Reserved tokens have been returned.');
+        if (! empty($job->provider_result_urls)) {
+            $status = StatusResult::completed($job->provider_result_urls);
+        } else {
+            try {
+                $provider = $this->provider($job);
+            } catch (Throwable) {
+                $this->failClaim($job, 'The image connection changed or became unavailable. Reserved tokens have been returned.');
 
-            return;
-        }
-        try {
-            $status = $this->adapters->for($provider->protocol)->pollStatus($provider, (string) $job->upstream_job_id);
-        } catch (Throwable) {
-            // Transient status-check failure: reschedule within the 30-minute window, no release.
-            $this->rescheduleClaim($job);
+                return;
+            }
+            try {
+                $status = $this->adapters->for($provider->protocol)->pollStatus($provider, (string) $job->upstream_job_id);
+            } catch (Throwable) {
+                $this->rescheduleClaim($job);
 
-            return;
+                return;
+            }
         }
         if ($status->state === MediaState::Failed) {
             $this->failClaim($job, 'The image provider could not complete this request. Reserved tokens have been returned.');
@@ -370,7 +420,7 @@ class ImageGenerationService
 
                 return;
             }
-            $saving = $this->claimForSaving($job);
+            $saving = $this->claimForSaving($job, $urls);
             if ($saving) {
                 try {
                     $this->finalize($saving, $urls);
@@ -438,6 +488,7 @@ class ImageGenerationService
             $locked->update([
                 'status' => 'completed', 'stage' => 'completed', 'result_urls' => $stored, 'asset_paths' => $assets,
                 'error_message' => null, 'billing_status' => 'settled', 'completed_at' => now(),
+                'provider_result_urls' => null,
                 'next_poll_at' => null, 'processing_started_at' => null, 'processing_token' => null,
             ]);
 
@@ -455,14 +506,17 @@ class ImageGenerationService
         $this->complete($job, $urls);
     }
 
-    private function claimForSaving(ImageJob $job): ?ImageJob
+    private function claimForSaving(ImageJob $job, array $resultUrls): ?ImageJob
     {
-        return DB::transaction(function () use ($job): ?ImageJob {
+        return DB::transaction(function () use ($job, $resultUrls): ?ImageJob {
             $locked = ImageJob::query()->lockForUpdate()->find($job->id);
             if (! $this->ownsClaim($locked, $job)) {
                 return null;
             }
-            $locked->update(['stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null]);
+            $locked->update([
+                'stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null,
+                'provider_result_urls' => $resultUrls, 'submitted_at' => $locked->submitted_at ?? now(),
+            ]);
 
             return $locked;
         });
@@ -526,7 +580,7 @@ class ImageGenerationService
         if ($job->capability_revision_id) {
             $revision = MediaCapabilityRevision::query()->find($job->capability_revision_id);
             if ($revision !== null && is_array($revision->definition)) {
-                return MediaCapability::fromArray($revision->definition);
+                return MediaCapability::fromArray([...$revision->definition, 'provider_bindings' => $revision->provider_bindings ?? []]);
             }
         }
 
@@ -554,6 +608,7 @@ class ImageGenerationService
         ], 'Image generation did not complete');
         $job->update([
             'status' => 'failed', 'stage' => 'failed', 'error_message' => $message, 'result_urls' => null,
+            'provider_result_urls' => null,
             'billing_status' => 'released', 'next_poll_at' => null, 'processing_started_at' => null,
             'processing_token' => null, 'completed_at' => now(),
         ]);
@@ -569,7 +624,7 @@ class ImageGenerationService
     private function provider(ImageJob $job): AiProviderProfile
     {
         $provider = AiProviderProfile::query()->find($job->provider_id);
-        if (! $provider || ! $provider->is_enabled || $provider->protocol !== 'kinovi'
+        if (! $provider || ! $provider->is_enabled || ! $this->adapters->has($provider->protocol)
             || ! hash_equals((string) $job->connection_fingerprint, self::fingerprint($provider))) {
             throw new AiProxyException('The image connection changed. No request was sent to a different provider.', 503);
         }

@@ -64,7 +64,7 @@ export function parseGenerationConfig(draft) {
     return { config: Object.keys(config).length ? config : null, errors };
 }
 
-export default function GenerationConfigFields({ value, onChange, category, disabled = false, errors = {} }) {
+export default function GenerationConfigFields({ value, onChange, category, disabled = false, readOnly = false, protocol, errors = {} }) {
     const { t } = useLocale();
     const fieldClass = "ui-input mt-1 min-h-10";
     const error = (key) => errors[key] && <span role="alert" className="mt-1 block text-xs text-red-600 dark:text-red-300">{t(Array.isArray(errors[key]) ? errors[key][0] : errors[key])}</span>;
@@ -72,23 +72,40 @@ export default function GenerationConfigFields({ value, onChange, category, disa
     if (category === "audio") {
         return <section className="min-w-0 space-y-3" aria-label={t("Konfigurasi audio")}>
             <h3 className="text-sm font-semibold">{t("Konfigurasi audio")}</h3>
-            {!value.audio_kind ? <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Audio memerlukan model fal yang didukung. Simpan lalu sinkronkan koneksi untuk melihat kemampuan terverifikasi; harga dan publikasi tidak diatur otomatis.")}</p> : <>
+            {!value.audio_kind ? <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Konfigurasi audio efektif belum tersedia. Impor dan tinjau capability model yang didukung; harga dan aktivasi profil diatur terpisah.")}</p> : <>
                 <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                     <div><dt className="text-slate-600 dark:text-slate-400">{t("Jenis audio")}</dt><dd className="mt-1 font-medium">{t(value.audio_kind === "speech" ? "Suara / text-to-speech" : "Musik / efek suara")}</dd></div>
                     <div><dt className="text-slate-600 dark:text-slate-400">{t("Batas karakter")}</dt><dd className="mt-1 tabular-nums">{value.max_characters}</dd></div>
                     {value.speed_min != null && <div><dt className="text-slate-600 dark:text-slate-400">{t("Kecepatan suara")}</dt><dd className="mt-1 tabular-nums">{value.speed_min}–{value.speed_max}× · {t("Bawaan provider")}: {value.speed_default}×</dd></div>}
                     {value.duration_min != null && <div><dt className="text-slate-600 dark:text-slate-400">{t("Durasi audio (detik)")}</dt><dd className="mt-1 tabular-nums">{value.duration_min}–{value.duration_max} · {t("Bawaan provider")}: {value.duration_default}</dd></div>}
                     <div className="min-w-0 sm:col-span-2"><dt className="text-slate-600 dark:text-slate-400">{t("Endpoint audio")}</dt><dd className="mt-1 break-all font-mono text-xs">{value.audio_path}</dd></div>
+                    {value.supports_custom_lyrics != null && <div><dt className="text-slate-600 dark:text-slate-400">{t("Lirik khusus")}</dt><dd className="mt-1 font-medium">{t(value.supports_custom_lyrics ? "Didukung" : "Tidak didukung")}</dd></div>}
+                    {value.supports_instrumental != null && <div><dt className="text-slate-600 dark:text-slate-400">{t("Instrumental")}</dt><dd className="mt-1 font-medium">{t(value.supports_instrumental ? "Didukung" : "Tidak didukung")}</dd></div>}
+                    {value.duration_min == null && <div className="sm:col-span-2"><dt className="text-slate-600 dark:text-slate-400">{t("Durasi audio")}</dt><dd className="mt-1">{t("Mengikuti hasil provider; kontrol durasi tidak tersedia.")}</dd></div>}
                     <div className="min-w-0 sm:col-span-2"><dt className="text-slate-600 dark:text-slate-400">{t("Endpoint status audio")}</dt><dd className="mt-1 break-all font-mono text-xs">{value.audio_status_path}</dd></div>
                 </dl>
                 {value.audio_kind === "speech" && <>
-                    <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Kokoro ini menyediakan suara bahasa Inggris Amerika, bukan suara bahasa Indonesia.")}</p>
+                    {protocol === "fal" && value.audio_path?.includes("kokoro") && <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Kokoro ini menyediakan suara bahasa Inggris Amerika, bukan suara bahasa Indonesia.")}</p>}
                     <ul className="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
                         {(value.voices || []).map((voice) => <li key={voice.id}><span className="font-medium">{voice.label}</span> · {voice.language} <code className="text-slate-600 dark:text-slate-400">{voice.id}</code></li>)}
                     </ul>
                 </>}
-                <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Satu permintaan menghasilkan satu audio. Batas dan pilihan mengikuti skema provider; biaya token harus ditetapkan secara eksplisit.")}</p>
+                <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Satu pekerjaan dapat menghasilkan beberapa berkas audio. Biaya dikenakan satu kali per pekerjaan, bukan per berkas; tetapkan biaya token secara eksplisit.")}</p>
             </>}
+        </section>;
+    }
+    if (readOnly || ["avatar", "model3d"].includes(category)) {
+        const labels = Object.fromEntries([...pathFields, ...listFields, ...booleanFields, ["max_quantity", "Jumlah maksimal per permintaan"]]);
+        const entries = Object.entries(value).filter(([, item]) => item !== "" && item != null);
+        return <section className="min-w-0 space-y-3" aria-label={t("Konfigurasi efektif")}>
+            <h3 className="text-sm font-semibold">{t("Konfigurasi efektif")}</h3>
+            <p className="max-w-prose text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Nilai ini berasal dari adapter dan capability aktif, bukan override mentah. Tinjau schema dan revisi untuk melihat kontrak input lengkap.")}</p>
+            {entries.length ? <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                {entries.map(([key, item]) => <div key={key} className="min-w-0">
+                    <dt className={labels[key] ? "text-slate-600 dark:text-slate-400" : "break-all font-mono text-xs text-slate-600 dark:text-slate-400"}>{labels[key] ? t(labels[key]) : key}</dt>
+                    <dd className="mt-1 break-words">{typeof item === "boolean" || item === "true" || item === "false" ? t(item === true || item === "true" ? "Ya" : "Tidak") : typeof item === "object" ? <code className="break-all text-xs">{JSON.stringify(item)}</code> : String(item)}</dd>
+                </div>)}
+            </dl> : <p className="text-sm text-slate-600 dark:text-slate-400">{t("Belum ada konfigurasi efektif. Simpan identitas model, lalu impor dan tinjau capability.")}</p>}
         </section>;
     }
     return <fieldset disabled={disabled} className="min-w-0 space-y-3">

@@ -37,4 +37,9 @@ class AiModelProfile extends Model
     {
         return $this->belongsTo(AiProviderProfile::class, 'provider_id');
     }
+
+    public function capabilityRevisions()
+    {
+        return $this->hasMany(MediaCapabilityRevision::class, 'ai_model_profile_id');
+    }
 }

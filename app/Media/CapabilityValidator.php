@@ -40,16 +40,15 @@ final class CapabilityValidator
         // rules can read a stable param snapshot.
         $params = [];
         foreach ($capability->params as $param) {
-            if (array_key_exists($param->name, $raw)) {
-                $message = $this->validateParam($param, $raw[$param->name]);
+            if (array_key_exists($param->name, $raw) || $param->default !== null) {
+                $value = array_key_exists($param->name, $raw) ? $raw[$param->name] : $param->default;
+                $message = $this->validateParam($param, $value);
                 if ($message !== null) {
                     $errors[$param->name] = $message;
 
                     continue;
                 }
-                $params[$param->name] = $raw[$param->name];
-            } elseif ($param->default !== null) {
-                $params[$param->name] = $param->default;
+                $params[$param->name] = $value;
             }
         }
         foreach ($capability->params as $param) {
@@ -91,6 +90,17 @@ final class CapabilityValidator
 
     private function validateParam(CapabilityParam $param, mixed $value): ?string
     {
+        $validType = match ($param->type) {
+            'integer' => is_int($value),
+            'number' => (is_int($value) || is_float($value)) && is_finite((float) $value),
+            'boolean' => is_bool($value),
+            'string' => is_string($value),
+            'enum' => $param->options !== null && in_array($value, $param->options, true),
+            default => false,
+        };
+        if (! $validType) {
+            return 'Tipe nilai tidak sesuai dengan parameter model ini.';
+        }
         if ($param->options !== null && ! in_array($value, $param->options, true)) {
             return 'Pilihan tidak didukung oleh model ini.';
         }
@@ -152,6 +162,7 @@ final class CapabilityValidator
         }
         if (isset($rule['param_equals']) && is_array($rule['param_equals'])) {
             $name = $rule['param_equals']['name'] ?? null;
+
             return $name !== null && ($params[$name] ?? null) === ($rule['param_equals']['value'] ?? null);
         }
         if (isset($rule['has_input'])) {

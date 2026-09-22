@@ -113,4 +113,36 @@ class CapabilityValidatorTest extends TestCase
             $this->assertArrayHasKey('image_ref', $e->errors());
         }
     }
+
+    public function test_integer_boundary_rejects_fractional_and_string_values_without_overwriting_valid_input_with_default(): void
+    {
+        $capability = new MediaCapability('avatar', MediaOperation::TalkingAvatar, OutputKind::Video, 1, [], [
+            new CapabilityParam('duration', 'integer', default: 5, min: 2, max: 15),
+        ]);
+        $this->assertSame(15, $this->validator->validate($capability, ['duration' => 15])['params']['duration']);
+        foreach ([2.5, '5', 16] as $value) {
+            try {
+                $this->validator->validate($capability, ['duration' => $value]);
+                $this->fail('An invalid duration must not reach the provider.');
+            } catch (CapabilityValidationException $exception) {
+                $this->assertArrayHasKey('duration', $exception->errors());
+            }
+        }
+    }
+
+    public function test_numeric_enums_and_boolean_flags_are_strictly_typed(): void
+    {
+        $capability = new MediaCapability('video', MediaOperation::TextToVideo, OutputKind::Video, 1, [], [
+            new CapabilityParam('duration', 'enum', options: [5, 10]),
+            new CapabilityParam('pro', 'boolean'),
+            new CapabilityParam('speed', 'number'),
+        ]);
+        $this->assertSame(['duration' => 10, 'pro' => false, 'speed' => 1.5], $this->validator->validate($capability, ['duration' => 10, 'pro' => false, 'speed' => 1.5])['params']);
+        try {
+            $this->validator->validate($capability, ['duration' => '10', 'pro' => 'false', 'speed' => INF]);
+            $this->fail('Untyped or non-finite values must not reach the provider.');
+        } catch (CapabilityValidationException $exception) {
+            $this->assertSame(['duration', 'pro', 'speed'], array_keys($exception->errors()));
+        }
+    }
 }

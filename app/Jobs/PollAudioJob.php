@@ -12,7 +12,8 @@ class PollAudioJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 240;
+    // Two bounded 180s downloads plus status checks and private persistence.
+    public int $timeout = 480;
 
     public bool $failOnTimeout = true;
 

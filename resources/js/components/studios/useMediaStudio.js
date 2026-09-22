@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiRequest } from "../../lib/api";
+import { useAuth } from "../../contexts/AuthContext";
 
 const endpoints = {
     image: { models: "/api/images/models", history: "/api/images", create: "/api/images", detail: (id) => `/api/images/${id}`, remove: (id) => `/api/images/${id}`, removeAll: "/api/images" },
     video: { models: "/api/v/models", history: "/api/v/history", create: "/api/v/gen", detail: (id) => `/api/v/status/${id}`, cancel: (id) => `/api/v/${id}/cancel`, remove: (id) => `/api/v/${id}`, removeAll: "/api/v/history" },
     audio: { models: "/api/audio/models", history: "/api/audio", create: "/api/audio", detail: (id) => `/api/audio/${id}`, cancel: (id) => `/api/audio/${id}/cancel` },
+    avatar: { models: "/api/avatar/models", history: "/api/avatar", create: "/api/avatar", detail: (id) => `/api/avatar/${id}`, cancel: (id) => `/api/avatar/${id}/cancel`, remove: (id) => `/api/avatar/${id}` },
+    model3d: { models: "/api/3d/models", history: "/api/3d", create: "/api/3d", detail: (id) => `/api/3d/${id}`, cancel: (id) => `/api/3d/${id}/cancel`, remove: (id) => `/api/3d/${id}` },
 };
 
 export const isPending = (job) => ["pending", "processing"].includes(job?.status);
@@ -45,6 +48,13 @@ export function useObjectUrl(file) {
 
 export function useMediaStudio(kind) {
     const paths = endpoints[kind];
+    const { user } = useAuth();
+    const submissionKey = `xsuper:studio:${kind}:${user?.id}:pending`;
+    const pendingSubmission = useRef(undefined);
+    if (pendingSubmission.current === undefined) {
+        try { pendingSubmission.current = JSON.parse(sessionStorage.getItem(submissionKey) || "null"); }
+        catch { pendingSubmission.current = null; }
+    }
     const [params, setParams] = useSearchParams();
     const requestedJob = params.get("job") || "";
     const requestedModel = params.get("model") || "";
@@ -212,22 +222,42 @@ export function useMediaStudio(kind) {
         setSubmitting(true);
         setSubmitError(null);
         setStartedAt(Date.now());
+        // Keep an unconfirmed request intact across network errors/navigation. A confirmed
+        // response clears it; a subsequent deliberate Generate gets a new request identity.
+        const creativeInput = { ...body };
+        delete creativeInput.expected_price_tokens;
+        delete creativeInput.expected_capability_hash;
+        const input = JSON.stringify(creativeInput);
+        const pending = pendingSubmission.current;
+        const prepared = pending?.input === input ? pending.body : {
+            ...body, idempotency_key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        };
+        pendingSubmission.current = { input, body: prepared };
+        try { sessionStorage.setItem(submissionKey, JSON.stringify(pendingSubmission.current)); } catch { /* In-memory retry still works. */ }
+        const confirmed = () => {
+            pendingSubmission.current = null;
+            try { sessionStorage.removeItem(submissionKey); } catch { /* Private storage can be unavailable. */ }
+        };
         try {
             // Do not abort paid submission on navigation; history is authoritative on return.
-            const data = await apiRequest(paths.create, { method: "POST", body });
-            if (!mounted.current) return;
+            const data = await apiRequest(paths.create, { method: "POST", body: prepared });
             if (!data?.job?.job_id && !(Array.isArray(data?.jobs) && data.jobs.length)) throw new Error("Respons belum dapat dikonfirmasi. Periksa riwayat sebelum mengirim lagi.");
+            confirmed();
+            if (!mounted.current) return data;
             remember(data, true);
             const id = data.job?.job_id || data.jobs[0].job_id;
             setParams((current) => { const next = new URLSearchParams(current); next.set("job", id); return next; }, { replace: true });
             return data;
         } catch (error) {
+            // Admission conflicts run after serialized replay: this key was not admitted
+            // for these inputs. Throttle/auth/quota/network failures cannot prove that.
+            if (error.status === 409) confirmed();
             if (mounted.current) { setSubmitError(error); remember(error.details, true); }
         } finally {
             submitLock.current = false;
             if (mounted.current) { setSubmitting(false); loadModels(); loadHistory(); }
         }
-    }, [paths, remember, loadModels, loadHistory, setParams]);
+    }, [paths, remember, loadModels, loadHistory, setParams, submissionKey]);
     const cancel = useCallback(async (id) => {
         try {
             const data = await apiRequest(paths.cancel(encodeURIComponent(id)), { method: "POST" });

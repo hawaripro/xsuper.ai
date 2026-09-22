@@ -2,21 +2,33 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Exceptions\ImageGenerationException;
+use App\Http\Controllers\Controller;
+use App\Media\AssetService;
+use App\Media\CapabilityPresenter;
+use App\Media\CapabilityResolver;
+use App\Media\CapabilityValidator;
+use App\Media\Enums\InputRole;
 use App\Media\Enums\MediaOperation;
+use App\Media\Exceptions\CapabilityValidationException;
 use App\Media\MediaActivation;
 use App\Media\MediaGenerationCoordinator;
 use App\Models\AiModelProfile;
 use App\Models\AudioJob;
+use App\Models\MediaAsset;
+use App\Models\User;
 use App\Models\UserToken;
 use App\Services\AudioGenerationService;
 use App\Services\GeneratedAudioStore;
 use App\Services\MediaModelConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
@@ -25,15 +37,20 @@ class AudioController extends Controller
     public function models(Request $request): JsonResponse
     {
         $user = $request->user();
-        // Kinovi audio (Suno) runs only through the coordinator; while activation is
-        // restricted, a non-coordinator member never sees a model that cannot complete.
+        $capabilities = app(CapabilityPresenter::class);
+        // Kinovi audio is coordinator-only while activation is restricted.
         $protocols = app(MediaActivation::class)->usesCoordinator($user) ? ['fal', 'kinovi'] : ['fal'];
         $models = AiModelProfile::query()->with('provider')->where('category', 'audio')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
                 && in_array($model->provider->protocol, $protocols, true) && is_int($model->token_cost)
                 && $model->token_cost > 0 && $model->token_cost <= 2_147_483_647)
-            ->map(fn (AiModelProfile $model): array => MediaModelConfig::publicModel($model))->values()->all();
+            ->map(function (AiModelProfile $model) use ($capabilities): array {
+                $payload = MediaModelConfig::publicModel($model);
+                $payload['capabilities'] = $capabilities->forModel($model);
+
+                return $payload;
+            })->filter(fn (array $model): bool => $model['capabilities'] !== [])->values()->all();
 
         return response()->json(['models' => $models, 'balance' => UserToken::getBalance($user->id)]);
     }
@@ -115,11 +132,10 @@ class AudioController extends Controller
                 $rawInputs[$param] = $validated[$param];
             }
         }
-        // Booleans are declared only when chosen: a model whose contract omits them rejects
-        // unknown fields, and the default (false) never needs to travel.
+        // Preserve an explicit false value when the resolved contract declares a toggle.
         foreach (['instrumental', 'custom'] as $flag) {
-            if ((bool) ($validated[$flag] ?? false)) {
-                $rawInputs[$flag] = true;
+            if (array_key_exists($flag, $validated) && $validated[$flag] !== null) {
+                $rawInputs[$flag] = (bool) $validated[$flag];
             }
         }
         $options = array_filter([
@@ -132,20 +148,47 @@ class AudioController extends Controller
             if (app(MediaActivation::class)->usesCoordinator($user)) {
                 $job = app(MediaGenerationCoordinator::class)->startAudio($user, $model, $operation, $rawInputs, 'studio-audio', $options);
             } elseif ($model->provider?->protocol === 'fal') {
-                $job = $audio->create($user, array_filter([
-                    'model' => $validated['model'],
-                    'mode' => $operation === MediaOperation::TextToSpeech ? 'speech' : 'music',
-                    'prompt' => $validated['prompt'],
-                    'voice' => $validated['voice'] ?? null,
-                    'speed' => $validated['speed'] ?? null,
-                    'duration' => $validated['duration'] ?? null,
-                    'tempo' => $validated['tempo'] ?? null,
-                ], static fn ($v): bool => $v !== null));
+                $job = DB::transaction(function () use ($user, $model, $operation, $rawInputs, $options, $audio): AudioJob {
+                    User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                    $key = trim((string) ($options['idempotency_key'] ?? ''));
+                    $dedup = $key !== '' ? hash('sha256', $user->id.'|studio-audio|'.$key) : null;
+                    if ($dedup !== null) {
+                        $existing = AudioJob::query()->where('user_id', $user->id)->where('dedup_key', $dedup)->first();
+                        if ($existing !== null) {
+                            if (! app(MediaGenerationCoordinator::class)->matchesRequest($existing, $operation, $model->model_id, $rawInputs)) {
+                                throw new ImageGenerationException('This request key was already used with different input.', 409);
+                            }
+
+                            return $existing;
+                        }
+                    }
+                    $model = AiModelProfile::query()->with('provider')->lockForUpdate()->findOrFail($model->id);
+                    $resolved = app(CapabilityResolver::class)->resolve($model, $operation);
+                    if (isset($options['expected_price_tokens']) && (int) $options['expected_price_tokens'] !== $model->token_cost) {
+                        throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
+                    }
+                    if (isset($options['expected_capability_hash']) && ! hash_equals($resolved->sourceHash, $options['expected_capability_hash'])) {
+                        throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
+                    }
+                    $values = app(CapabilityValidator::class)->validate($resolved->capability, $rawInputs);
+                    $fingerprint = MediaGenerationCoordinator::fingerprintPayload($operation, $model->model_id, $values);
+                    $revision = app(CapabilityResolver::class)->ensureRevision($model, $operation, $resolved);
+                    $job = $audio->create($user, [
+                        'model' => $model->model_id,
+                        'mode' => $operation === MediaOperation::TextToSpeech ? 'speech' : 'music',
+                        ...$values['inputs'], ...$values['params'],
+                    ]);
+                    $job->update(['dedup_key' => $dedup, 'payload_fingerprint' => $fingerprint, 'capability_revision_id' => $revision->id]);
+
+                    return $job;
+                });
             } else {
                 return response()->json(['message' => 'This operation is not available for your account yet.'], 503);
             }
         } catch (ImageGenerationException $exception) {
             return response()->json(['message' => $exception->getMessage(), 'balance' => UserToken::getBalance($user->id)], $exception->responseStatus());
+        } catch (CapabilityValidationException $exception) {
+            return response()->json(['message' => $exception->getMessage(), 'errors' => $exception->errors()], 422);
         }
 
         return response()->json([
@@ -174,39 +217,71 @@ class AudioController extends Controller
         ], $cancelled ? 200 : 409);
     }
 
-    /** Delete one finished audio job and its private asset. Active work is protected. */
+    /** Delete one finished audio job and every private track. Active work is protected. */
     public function destroy(Request $request, string $jobId): JsonResponse
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $jobId): void {
+        DB::transaction(function () use ($request, $jobId): void {
             $job = AudioJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
             if (in_array($job->status, ['pending', 'processing'], true)) {
-                throw \Illuminate\Validation\ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
+                throw ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
             }
-            $path = GeneratedAudioStore::path($job->job_id);
-            $disk = Storage::disk('local');
-            if ($disk->exists($path)) {
-                $disk->deleteDirectory(dirname($path));
-            }
+            Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($job->job_id));
             $job->delete();
         });
 
         return response()->json(['deleted_count' => 1]);
     }
 
-    public function asset(Request $request, string $jobId): BinaryFileResponse
+    public function asset(Request $request, string $jobId, int $index): BinaryFileResponse
     {
         $job = AudioJob::query()->where('job_id', $jobId)->firstOrFail();
         abort_unless($request->user()->isAdmin() || $job->user_id === $request->user()->id, 404);
-        $path = GeneratedAudioStore::path($job->job_id);
-        $extension = GeneratedAudioStore::extensionForMime((string) $job->mime_type);
+        $path = GeneratedAudioStore::outputPath($job, $index);
+        $output = $job->outputs[$index] ?? null;
+        $extension = GeneratedAudioStore::extensionForMime((string) ($output['mime_type'] ?? ''));
         $disk = Storage::disk('local');
-        abort_unless($job->status === 'completed' && $job->audio_url === '/api/audio/'.$job->job_id.'/asset'
-            && $job->audio_path === $path && $extension !== null && $disk->exists($path), 404);
+        abort_unless($job->status === 'completed' && $path !== null && $extension !== null && $disk->exists($path), 404);
 
         return response()->file($disk->path($path), [
-            'Content-Type' => $job->mime_type,
+            'Content-Type' => $output['mime_type'],
             'Cache-Control' => 'private, max-age=3600',
             'X-Content-Type-Options' => 'nosniff',
-        ])->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, 'audio-'.$job->job_id.'.'.$extension);
+        ])->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, 'audio-'.$job->job_id.'-'.($index + 1).'.'.$extension);
+    }
+
+    /** Copy owned generated speech into an independently retained avatar reference. */
+    public function reference(Request $request, string $jobId): JsonResponse
+    {
+        $input = $request->validate(['index' => ['required', 'integer', 'min:0']]);
+        try {
+            $asset = DB::transaction(function () use ($request, $jobId, $input): MediaAsset {
+                $job = AudioJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
+                $index = (int) $input['index'];
+                $path = GeneratedAudioStore::outputPath($job, $index);
+                $disk = Storage::disk('local');
+                abort_unless($job->status === 'completed' && $job->mode === 'speech' && $path !== null && $disk->exists($path), 404);
+                $existing = MediaAsset::query()->where('user_id', $job->user_id)->where('role', InputRole::SpeechAudio->value)
+                    ->where('metadata->audio_job_id', $job->job_id)->where('metadata->audio_output_index', $index)
+                    ->where('retention_status', 'active')->where('signature_ok', true)
+                    ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))->first();
+                if ($existing !== null && Storage::disk($existing->storage_disk)->exists($existing->storage_path)) {
+                    return $existing;
+                }
+                $file = new UploadedFile($disk->path($path), 'speech.audio', null, null, true);
+                $asset = app(AssetService::class)->store($request->user(), $file, InputRole::SpeechAudio);
+                $asset->update(['metadata' => [
+                    ...($asset->metadata ?? []), 'audio_job_id' => $job->job_id, 'audio_output_index' => $index,
+                ]]);
+
+                return $asset;
+            });
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json(['asset' => [
+            'id' => $asset->id, 'media_type' => $asset->media_type, 'mime' => $asset->mime,
+            'size_bytes' => $asset->size_bytes, 'preview_url' => '/api/media/assets/'.$asset->id,
+        ]]);
     }
 }

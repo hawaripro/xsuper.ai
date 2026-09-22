@@ -19,10 +19,17 @@ test.beforeAll(async () => {
     clientModule = bundles.flatMap(bundle => bundle.output).find(item => item.type === 'chunk').code;
 });
 
+test.beforeEach(async ({ page }) => {
+    await page.route('**/__qa/recovery-client.js', route => route.fulfill({
+        contentType: 'text/javascript',
+        body: clientModule,
+    }));
+});
+
 test('page boundary retains recoverable UI and retries the child render', async ({ page }) => {
     await page.goto('/en/login');
     await page.evaluate(() => { document.body.innerHTML = '<div id="recovery-test"></div>'; });
-    await page.addScriptTag({ content: clientModule, type: 'module' });
+    await page.addScriptTag({ url: '/__qa/recovery-client.js', type: 'module' });
     await expect(page.getByRole('heading', { name: 'Page could not be displayed' })).toBeVisible();
     await expect(page.getByText('private error details')).toHaveCount(0);
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
@@ -32,7 +39,7 @@ test('page boundary retains recoverable UI and retries the child render', async 
 test('dashboard recovery link retries a failure on the dashboard itself', async ({ page }) => {
     await page.goto('/en/login');
     await page.evaluate(() => { document.body.innerHTML = '<div id="recovery-test"></div>'; });
-    await page.addScriptTag({ content: clientModule, type: 'module' });
+    await page.addScriptTag({ url: '/__qa/recovery-client.js', type: 'module' });
     await expect(page.getByRole('heading', { name: 'Page could not be displayed' })).toBeVisible();
     await page.getByRole('link', { name: 'Back to dashboard', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Recovered content' })).toBeVisible();

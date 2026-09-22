@@ -4,19 +4,23 @@ import { api, login, captureErrors } from './helpers.js';
 test('model table saves a filtered selection atomically and deletes only explicit IDs', async ({ page }) => {
     const errors = captureErrors(page);
     await login(page);
+    const summary = await (await api(page, '/api/admin/ai/catalog/summary')).json();
+    const provider = summary.providers.find((entry) => entry.slug === 'qa-local');
+    expect(provider).toBeTruthy();
+    const modelPage = async () => (await (await api(page, `/api/admin/ai/providers/${provider.id}/models?q=qa-bulk-table&per_page=25`)).json()).models;
     const ids = [];
     for (const suffix of ['first', 'second', 'untouched']) {
         const created = await api(page, '/api/admin/ai/models', { method: 'POST', data: {
             model_id: `qa-bulk-table-${suffix}`, display_name: `QA bulk table ${suffix}`, category: 'image',
-            provider_slug: 'qa-local',
+            provider_slug: 'qa-local', upstream_model_id: `qa-bulk-table-${suffix}`,
             token_cost: 15, is_enabled: false,
         } });
         expect(created.status()).toBe(201);
         ids.push((await created.json()).model.id);
     }
     try {
-        await page.goto('/en/admin/ai');
-        const table = page.locator('section[aria-labelledby="models-title"]');
+        await page.goto(`/en/admin/ai/${provider.id}`);
+        const table = page.locator('[data-provider-models]');
         await table.getByRole('searchbox', { name: 'Search models', exact: true }).fill('qa-bulk-table');
         await table.getByRole('spinbutton', { name: 'Tokens per result qa-bulk-table-first', exact: true }).fill('21');
         await table.getByRole('spinbutton', { name: 'Tokens per result qa-bulk-table-second', exact: true }).fill('39');
@@ -31,7 +35,7 @@ test('model table saves a filtered selection atomically and deletes only explici
         const saved = page.waitForResponse((response) => response.url().endsWith('/api/admin/ai/models/bulk') && response.request().method() === 'PATCH');
         await dialog.getByRole('button', { name: 'Save 2 rows', exact: true }).click();
         expect((await saved).status()).toBe(200);
-        const models = (await (await api(page, '/api/admin/ai/catalog')).json()).models;
+        const models = await modelPage();
         expect(models.find((model) => model.id === ids[0]).token_cost).toBe(21);
         expect(models.find((model) => model.id === ids[1]).token_cost).toBe(39);
         expect(models.find((model) => model.id === ids[2]).token_cost).toBe(15);
@@ -39,12 +43,12 @@ test('model table saves a filtered selection atomically and deletes only explici
         const deleted = page.waitForResponse((response) => response.url().endsWith('/api/admin/ai/models/bulk') && response.request().method() === 'DELETE');
         await page.getByRole('dialog').getByRole('button', { name: 'Delete 2 rows', exact: true }).click();
         expect((await deleted).status()).toBe(200);
-        const remaining = (await (await api(page, '/api/admin/ai/catalog')).json()).models;
+        const remaining = await modelPage();
         expect(remaining.some((model) => model.id === ids[0] || model.id === ids[1])).toBe(false);
         expect(remaining.some((model) => model.id === ids[2])).toBe(true);
         expect(errors).toEqual([]);
     } finally {
-        const existing = (await (await api(page, '/api/admin/ai/catalog')).json()).models.filter((model) => ids.includes(model.id)).map((model) => model.id);
+        const existing = (await modelPage()).filter((model) => ids.includes(model.id)).map((model) => model.id);
         if (existing.length) await api(page, '/api/admin/ai/models/bulk', { method: 'DELETE', data: { ids: existing, expected_count: existing.length, delete_usage_rates: true } });
     }
 });
@@ -62,6 +66,7 @@ test('pricing table keeps both row drafts after atomic API pair validation fails
     }
     try {
         await page.goto('/en/admin/settings');
+        await page.getByRole('tab', { name: 'PAYG rates', exact: true }).click();
         const table = page.locator('section[aria-labelledby="usage-prices-title"]');
         await table.getByRole('searchbox', { name: 'Search rates', exact: true }).fill('qa-bulk-price-pair');
         await table.getByLabel(`IDR #${ids[0]}`, { exact: true }).fill('16000');

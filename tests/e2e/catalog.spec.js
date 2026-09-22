@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { login, databaseRows, captureErrors } from './helpers.js';
+import { api, login, databaseRows, captureErrors } from './helpers.js';
 
-test('admin-created model persists and public catalog respects enablement without fake availability', async ({ page }) => {
+test('provider detail preserves curated model metadata and public catalog respects enablement', async ({ page }) => {
     const errors = captureErrors(page);
     await login(page);
+    const summary = await (await api(page, '/api/admin/ai/catalog/summary')).json();
+    const provider = summary.providers.find((entry) => entry.slug === 'qa-local');
+    expect(provider).toBeTruthy();
     await page.goto('/en/admin/ai');
+    await page.getByRole('button').filter({ hasText: provider.name }).click();
+    await expect(page).toHaveURL(`/en/admin/ai/${provider.id}`);
     await page.getByRole('button', { name: 'New model', exact: true }).click();
     const editor = page.locator('form').filter({ has: page.getByLabel('Model ID', { exact: true }) });
     await editor.getByLabel('Provider connection', { exact: true }).selectOption('qa-local');
@@ -13,7 +18,6 @@ test('admin-created model persists and public catalog respects enablement withou
     await editor.getByLabel('Display name', { exact: true }).fill('QA browser model');
     await editor.getByLabel('Providers', { exact: true }).fill('QA provider');
     await editor.getByLabel('Category', { exact: true }).fill('chat');
-    await editor.getByLabel('Tier', { exact: true }).fill('Original');
     await editor.getByLabel('Context window (tokens)', { exact: true }).fill('64000');
     await editor.getByLabel('Description (Indonesian)', { exact: true }).fill('Deskripsi model dari tes browser nyata.');
     await editor.getByLabel('Description (English)', { exact: true }).fill('Description persisted by the real browser.');
@@ -27,7 +31,8 @@ test('admin-created model persists and public catalog respects enablement withou
     await editor.getByRole('button', { name: /Save model|Create model/, exact: true }).click();
     expect((await created).status()).toBe(201);
     const model = databaseRows('ai_model_profiles', { model_id: 'qa-browser-model' })[0];
-    expect(model.is_available).toBe(0);
+    expect(model.display_name).toBe('QA browser model');
+    expect(model.upstream_model_id).toBe('qa-browser-model');
     await page.goto('/en/models');
     await page.locator('[data-model-search]').fill('qa-browser-model');
     await expect(page.locator('[data-model-card]:visible')).toHaveCount(1);
@@ -41,7 +46,8 @@ test('admin-created model persists and public catalog respects enablement withou
     await page.keyboard.press('Escape');
     await expect(page.locator('[data-model-card]:visible')).toBeInViewport();
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto('/en/admin/ai');
+    await page.goto(`/en/admin/ai/${provider.id}`);
+    await page.getByRole('searchbox', { name: 'Search models', exact: true }).fill('qa-browser-model');
     const row = page.getByRole('row').filter({ hasText: 'qa-browser-model' });
     await row.getByRole('button', { name: 'Disable', exact: true }).click();
     const confirm = page.getByRole('dialog');

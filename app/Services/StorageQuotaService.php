@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\AudioJob;
 use App\Models\ImageJob;
+use App\Models\MediaAsset;
 use App\Models\MediaToolJob;
+use App\Models\ThreeDJob;
 use App\Models\User;
 use App\Models\UserStorageUpgrade;
 use App\Models\VideoJob;
@@ -53,37 +55,56 @@ class StorageQuotaService
 
     public function usedBytes(User $user): int
     {
-        $disk = Storage::disk('local');
         $total = 0;
+        $seen = [];
+        $countFile = function (?string $path, string $diskName = 'local') use (&$total, &$seen): void {
+            if ($path === null || $path === '' || isset($seen[$diskName."\0".$path])) {
+                return;
+            }
+            $seen[$diskName."\0".$path] = true;
+            $disk = Storage::disk($diskName);
+            if ($disk->exists($path)) {
+                $total += $disk->size($path);
+            }
+        };
 
         ImageJob::query()->where('user_id', $user->id)->where('status', 'completed')
-            ->get(['asset_paths'])->each(function (ImageJob $job) use (&$total, $disk): void {
+            ->get(['asset_paths'])->each(function (ImageJob $job) use ($countFile): void {
                 foreach ((array) $job->asset_paths as $asset) {
-                    if (is_array($asset) && is_string($asset['path'] ?? null) && $disk->exists($asset['path'])) {
-                        $total += $disk->size($asset['path']);
+                    if (is_array($asset) && is_string($asset['path'] ?? null)) {
+                        $countFile($asset['path']);
                     }
                 }
             });
 
         VideoJob::query()->where('user_id', $user->id)
             ->where(fn ($query) => $query->where('status', 'completed')->orWhere('has_reference', true))
-            ->get()->each(function (VideoJob $job) use (&$total, $disk): void {
-                $path = GeneratedVideoStore::path($job->job_id);
-                if ($job->status === 'completed' && $job->video_url === '/api/v/'.$job->job_id.'/asset' && $disk->exists($path)) {
-                    $total += $disk->size($path);
+            ->get()->each(function (VideoJob $job) use ($countFile): void {
+                if ($job->status === 'completed' && $job->video_url === '/api/v/'.$job->job_id.'/asset') {
+                    $countFile(GeneratedVideoStore::path($job->job_id));
                 }
-                if ($job->has_reference && ($reference = $this->references->existingPath($job)) !== null) {
-                    $total += $disk->size($reference);
+                if ($job->has_reference) {
+                    $countFile($this->references->existingPath($job));
                 }
             });
 
         AudioJob::query()->where('user_id', $user->id)->where('status', 'completed')
-            ->get()->each(function (AudioJob $job) use (&$total, $disk): void {
-                $path = GeneratedAudioStore::path($job->job_id);
-                if ($job->audio_path === $path && $disk->exists($path)) {
-                    $total += $job->size_bytes ?: $disk->size($path);
+            ->get()->each(function (AudioJob $job) use ($countFile): void {
+                foreach (array_keys($job->outputs ?? []) as $index) {
+                    $countFile(GeneratedAudioStore::outputPath($job, $index));
                 }
             });
+
+        ThreeDJob::query()->where('user_id', $user->id)->where('status', 'completed')
+            ->get(['job_id', 'model_path'])->each(function (ThreeDJob $job) use ($countFile): void {
+                $path = GeneratedModel3dStore::path($job->job_id);
+                if ($job->model_path === $path) {
+                    $countFile($path);
+                }
+            });
+
+        MediaAsset::query()->where('user_id', $user->id)->get(['storage_disk', 'storage_path'])
+            ->each(fn (MediaAsset $asset) => $countFile($asset->storage_path, $asset->storage_disk));
 
         $total += (int) MediaToolJob::query()->where('user_id', $user->id)->where('status', 'completed')->sum('size_bytes');
 
@@ -138,7 +159,7 @@ class StorageQuotaService
         $cutoff ??= now()->subDays((int) config('storage_quota.retention_days', 7));
         $adminIds = User::query()->where('role', 'admin')->pluck('id')->all();
         $disk = Storage::disk('local');
-        $counts = ['image' => 0, 'video' => 0, 'reference' => 0, 'audio' => 0, 'media_tool' => 0];
+        $counts = ['image' => 0, 'video' => 0, 'reference' => 0, 'audio' => 0, 'model3d' => 0, 'media_asset' => 0, 'media_tool' => 0];
 
         ImageJob::query()->whereNotIn('user_id', $adminIds)->where('status', 'completed')
             ->where('created_at', '<', $cutoff)->orderBy('id')->chunkById(100, function ($jobs) use (&$counts, $disk): void {
@@ -154,6 +175,7 @@ class StorageQuotaService
             });
 
         VideoJob::query()->whereNotIn('user_id', $adminIds)
+            ->whereNotIn('status', ['pending', 'processing'])
             ->where(fn ($query) => $query->where('status', 'completed')->orWhere('has_reference', true))
             ->where('created_at', '<', $cutoff)->orderBy('id')->chunkById(100, function ($jobs) use (&$counts, $disk): void {
                 foreach ($jobs as $job) {
@@ -173,12 +195,45 @@ class StorageQuotaService
         AudioJob::query()->whereNotIn('user_id', $adminIds)->where('status', 'completed')
             ->where('created_at', '<', $cutoff)->orderBy('id')->chunkById(100, function ($jobs) use (&$counts, $disk): void {
                 foreach ($jobs as $job) {
-                    $path = GeneratedAudioStore::path($job->job_id);
-                    if ($disk->exists($path)) {
-                        $disk->deleteDirectory(dirname($path));
-                    }
+                    $disk->deleteDirectory(GeneratedAudioStore::directory($job->job_id));
                     $job->delete();
                     $counts['audio']++;
+                }
+            });
+
+        ThreeDJob::query()->whereNotIn('user_id', $adminIds)->where('status', 'completed')
+            ->where('created_at', '<', $cutoff)->orderBy('id')->chunkById(100, function ($jobs) use (&$counts, $disk): void {
+                foreach ($jobs as $job) {
+                    $disk->deleteDirectory(dirname(GeneratedModel3dStore::path($job->job_id)));
+                    $job->delete();
+                    $counts['model3d']++;
+                }
+            });
+
+        $activeReferences = [];
+        foreach ([ImageJob::class, VideoJob::class, AudioJob::class, ThreeDJob::class] as $jobType) {
+            $jobType::query()->whereIn('status', ['pending', 'processing'])->whereNotNull('reference_asset_ids')
+                ->select(['id', 'reference_asset_ids'])->chunkById(100, function ($jobs) use (&$activeReferences): void {
+                    foreach ($jobs as $job) {
+                        foreach ($job->reference_asset_ids ?? [] as $id) {
+                            $activeReferences[$id] = true;
+                        }
+                    }
+                });
+        }
+        MediaAsset::query()->whereNotIn('user_id', $adminIds)
+            ->where(fn ($query) => $query->where('created_at', '<', $cutoff)->orWhere('expires_at', '<=', now()))
+            ->orderBy('id')->chunkById(100, function ($assets) use (&$counts, $activeReferences): void {
+                foreach ($assets as $asset) {
+                    if (isset($activeReferences[$asset->id])) {
+                        continue;
+                    }
+                    $disk = Storage::disk($asset->storage_disk);
+                    if ($disk->exists($asset->storage_path) && ! $disk->delete($asset->storage_path)) {
+                        continue;
+                    }
+                    $asset->delete();
+                    $counts['media_asset']++;
                 }
             });
 

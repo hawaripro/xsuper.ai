@@ -11,6 +11,7 @@ const defaultEndpoints = {
     kinovi: "https://kinovi.ai/api/v1",
 };
 const healthStates = {
+    discovered: ["neutral", "Katalog terdokumentasi"],
     online: ["good", "Terhubung"],
     healthy: ["good", "Terhubung"],
     active: ["good", "Terhubung"],
@@ -156,21 +157,13 @@ export default function ProviderConnections({ providers, focusId = null, loading
         try {
             const result = await apiRequest(`/api/admin/ai/providers/${provider.id}${action === "toggle" ? "" : `/${action}`}`, {
                 method: action === "toggle" ? "PATCH" : "POST",
-                ...(action === "toggle" ? { body: { is_enabled: !provider.is_enabled } } : {}),
+                ...(action === "toggle" ? { body: { is_enabled: !provider.is_enabled } } : action === "sync" ? { body: { publish: false } } : {}),
             });
             let success;
             if (action === "check") {
-                // Checking only wrote the provider status and discarded the
-                // catalogue it had just fetched, so a provider could read
-                // "Terhubung" while the workspace had no models at all.
-                // Import them in the same click.
-                const imported = await apiRequest(`/api/admin/ai/providers/${provider.id}/sync`, { method: "POST" })
-                    .catch(() => null);
-                success = imported
-                    ? `${t("Koneksi berhasil.")} ${Number(imported.synced_models).toLocaleString(locale)} ${t("model diimpor dan dipublikasikan.")}`
-                    : `${t("Pemeriksaan selesai.")} ${Number(result.model_count).toLocaleString(locale)} ${t("model ditemukan.")} ${t("Impor model gagal — coba Sinkronkan model.")}`;
+                success = `${t(result.message || "Pemeriksaan selesai.")} ${t("Pemeriksaan koneksi tidak mengimpor atau mempublikasikan model.")}`;
             } else if (action === "sync") {
-                success = `${t("Model provider disinkronkan.")} ${Number(result.synced_models).toLocaleString(locale)} ${t("model dilaporkan.")}`;
+                success = `${t("Metadata provider disinkronkan tanpa publikasi otomatis.")} ${Number(result.synced_models).toLocaleString(locale)} ${t("model dilaporkan.")}`;
             } else {
                 success = t(provider.is_enabled ? "Koneksi dinonaktifkan." : "Koneksi diaktifkan.");
             }
@@ -283,8 +276,8 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                     <select id="provider-protocol" name="protocol" className="ui-input min-h-11" value={draft.protocol} onChange={(event) => changeField("protocol", event.target.value)} aria-invalid={!!formState.fields.protocol} aria-describedby={formState.fields.protocol ? "provider-protocol-error" : undefined}>
                                         <option value="openai">{t("Kompatibel OpenAI")}</option>
                                         <option value="anthropic">{t("Kompatibel Anthropic")}</option>
-                                        <option value="fal">{t("fal (gambar, video & teks)")}</option>
-                                        <option value="kinovi">{t("Kinovi (gambar)")}</option>
+                                        <option value="fal">{t("fal (gambar, video, audio & teks)")}</option>
+                                        <option value="kinovi">{t("Kinovi (gambar, video, audio & avatar)")}</option>
                                     </select>
                                     {fieldError("protocol")}
                                 </div>
@@ -334,7 +327,7 @@ export default function ProviderConnections({ providers, focusId = null, loading
             ) : !providers.length && !error ? (
                 <div className="px-4 py-8 text-center">
                     <h3 className="ui-section-title">{t("Belum ada koneksi provider")}</h3>
-                    <p className="mx-auto mt-2 max-w-prose text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Tambahkan provider untuk menghubungkan katalog OpenAI, Anthropic, atau fal. Sinkronkan model dari masing-masing koneksi.")}</p>
+                    <p className="mx-auto mt-2 max-w-prose text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Tambahkan koneksi provider, periksa aksesnya, lalu impor dan tinjau model dari halaman detail.")}</p>
                 </div>
             ) : (
                 <ul className="divide-y divide-slate-200 dark:divide-white/10">
@@ -356,14 +349,14 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                             <h3 className="min-w-0 max-w-full break-all text-sm font-semibold text-slate-900 dark:text-white">{provider.name || provider.slug}</h3>
                                             <span className={`ui-status ui-status-${tone}`}>{t(health)}</span>
                                         </div>
-                                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.protocol === "fal" ? "fal (gambar, video & teks)" : provider.protocol === "kinovi" ? "Kinovi (gambar)" : provider.protocol === "anthropic" ? "Kompatibel Anthropic" : "Kompatibel OpenAI")} <span aria-hidden="true">/</span> <span className="break-all">{provider.slug}</span></p>
+                                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.protocol === "fal" ? "fal (gambar, video, audio & teks)" : provider.protocol === "kinovi" ? "Kinovi (gambar, video, audio & avatar)" : provider.protocol === "anthropic" ? "Kompatibel Anthropic" : "Kompatibel OpenAI")} <span aria-hidden="true">/</span> <span className="break-all">{provider.slug}</span></p>
                                         <p className="mt-1 break-all text-xs leading-5 text-slate-600 dark:text-slate-400">{provider.configuration_source === "environment" ? t("Dikelola server — URL dan key tetap di konfigurasi server.") : provider.base_url}</p>
                                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.configuration_source === "environment" ? "Kredensial dikelola server" : provider.has_api_key ? "API key tersimpan" : "API key belum tersimpan")}</p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || !!draft} onClick={(event) => openEditor(provider, event)}>{t("Edit")}</button>
-                                        <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "check")}>{operation.action === "check" ? t("Memeriksa…") : t("Periksa koneksi")}</button>
-                                        <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "sync")}>{operation.action === "sync" ? t("Menyinkronkan…") : t("Sinkronkan model")}</button>
+                                        <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "check")}>{operation.action === "check" ? t("Memeriksa…") : t(provider.protocol === "kinovi" ? "Periksa katalog terdokumentasi" : "Periksa koneksi")}</button>
+                                        {provider.protocol !== "fal" && <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "sync")}>{operation.action === "sync" ? t("Menyinkronkan…") : t("Sinkronkan metadata (draf)")}</button>}
                                         <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing} onClick={() => runOperation(provider, "toggle")}>{operation.action === "toggle" ? t("Menyimpan…") : t(provider.is_enabled ? "Nonaktifkan koneksi" : "Aktifkan koneksi")}</button>
                                         <button type="button" className="ui-btn-secondary min-h-11 text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300" disabled={busy || editing} onClick={() => prepareDeletion(provider)} aria-label={`${t("Hapus provider")} ${provider.name || provider.slug}`}>{t("Hapus provider")}</button>
                                     </div>
@@ -373,7 +366,11 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                     <div><dt className="text-slate-500 dark:text-slate-400">{t("Kemampuan")}</dt><dd className="mt-1 break-words text-slate-700 dark:text-slate-200">{capabilities || t("Belum dilaporkan")}</dd></div>
                                     <div><dt className="text-slate-500 dark:text-slate-400">{t("Jumlah model")}</dt><dd className="mt-1 tabular-nums text-slate-700 dark:text-slate-200">{Number.isInteger(provider.models_count) ? provider.models_count.toLocaleString(locale) : t("Belum tersedia")}</dd></div>
                                 </dl>
+                                {provider.verification?.catalog_source === "static_documentation" && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Katalog dari dokumentasi; autentikasi dan generasi belum diverifikasi.")}</p>}
+                                {provider.verification?.authenticated && !provider.verification?.generation_verified && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Kredensial terverifikasi. Pemeriksaan ini bukan pengujian generasi model.")}</p>}
                                 {!provider.is_enabled && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Aktifkan koneksi untuk memeriksa atau menyinkronkan model. Model provider ini tidak dapat digunakan selama koneksi nonaktif.")}</p>}
+                                {provider.protocol === "fal" && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Gunakan impor bertahap pada tab Model & Harga untuk mengambil schema fal. Publikasi selalu memerlukan tinjauan terpisah.")}</p>}
+                                {provider.last_error && !operation.error && <p role="alert" className="break-words text-xs leading-5 text-red-700 dark:text-red-300">{provider.last_error}</p>}
                                 {operation.error && <div role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs leading-5 text-red-700 dark:text-red-300"><p>{operation.error}</p><p>{t(provider.configuration_source === "environment" ? "Periksa konfigurasi koneksi di server, lalu coba lagi. Tidak ada permintaan generasi yang dikirim." : "Periksa URL, protokol, dan API key melalui Edit, lalu coba lagi. Tidak ada permintaan generasi yang dikirim.")}</p></div>}
                                 {operation.success && <p role="status" className="text-xs text-emerald-800 dark:text-emerald-300">{operation.success}</p>}
                             </li>

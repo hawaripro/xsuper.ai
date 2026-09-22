@@ -83,7 +83,7 @@
 .deposit-balance-value { margin-top: 5px; font-family: Manrope, "DM Sans", sans-serif; font-size: clamp(24px, 3vw, 30px); font-weight: 800; line-height: 1.4; letter-spacing: -.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .deposit-balance-value span { font-family: "DM Sans", sans-serif; font-size: 14px; font-weight: 500; letter-spacing: normal; color: var(--ui-text-mute); }
 
-.deposit-tabs { display: flex; border-bottom: 1px solid var(--ui-border); gap: 16px; }
+.deposit-tabs { display: flex; border-bottom: 1px solid var(--ui-border); gap: 16px; overflow-x: auto; }
 .deposit-tabs button { position: relative; padding: 10px 2px 13px; min-width: 0; font-size: 14px; font-weight: 600; text-align: center; color: var(--ui-text-mute); border-bottom: 2px solid transparent; transition: color 160ms, border-color 160ms; }
 .deposit-tabs button[aria-selected="true"] { border-bottom-color: var(--ui-brand-deep); color: var(--ui-brand-deep); }
 .deposit-tabs button:hover { color: var(--ui-text); }
@@ -236,7 +236,7 @@
 
 @media (max-width: 559px) {
     .deposit-page { gap: 24px; }
-    .deposit-tabs button { flex: 1; }
+    .deposit-tabs button { flex: 1 0 auto; }
     .deposit-header p, .deposit-section-heading p, .deposit-body-copy { font-size: 14px; }
     .deposit-token-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; row-gap: 0; padding: 18px; }
     .deposit-token-total { grid-column: 1; }

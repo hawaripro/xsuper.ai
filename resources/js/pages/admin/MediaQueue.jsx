@@ -77,12 +77,13 @@ export default function MediaQueue() {
     const images = queue.data?.images || [];
     const videos = queue.data?.videos || [];
     const audio = queue.data?.audio || [];
+    const model3d = queue.data?.model3d || [];
     const renderCost = (job) => {
         if (job.billing_mode === "admin") return t("Gratis admin (riwayat lama)");
         if (job.billing_mode === "tokens") return `${Number(job.tokens_reserved || 0)} ${t("token")}`;
         return job.cost_microusd == null ? "—" : formatCurrency(Number(job.cost_microusd) / 1_000_000, "USD");
     };
-    const queueRows = { images, videos, audio }[queueType];
+    const queueRows = { images, videos, audio, model3d }[queueType];
 
     return (
         <div className="ui-page space-y-5">
@@ -133,8 +134,9 @@ export default function MediaQueue() {
                     <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-white/10">
                         {[
                             ["images", "Gambar", images.length],
-                            ["videos", "Video", videos.length],
+                            ["videos", "Video / Avatar", videos.length],
                             ["audio", "Audio", audio.length],
+                            ["model3d", "3D", model3d.length],
                         ].map(([type, label, total]) => <button
                             key={type}
                             type="button"
@@ -225,6 +227,8 @@ export default function MediaQueue() {
                                         ? `${row.size || "—"} · ${row.n || 1} ${t("Gambar")}`
                                         : queueType === "audio"
                                             ? (row.mode === "speech" ? `${row.voice || "—"} · ${row.speed ?? "—"}×` : `${t("Musik / efek suara")} · ${row.duration ?? "—"} s`)
+                                            : queueType === "model3d"
+                                                ? `GLB · ${row.settings?.resolution ?? "—"} · ${t(row.previewable ? "Pratinjau tersedia" : "Unduh file asli")}`
                                             : <div>
                                                 <span>{row.aspect_ratio || "—"} · {row.duration ?? "—"} s · {row.pro_mode ? t("Pro") : t("Standard")}</span>
                                                 {row.has_reference && row.reference_url && <a className="mt-1 block underline underline-offset-2" href={row.reference_url} target="_blank" rel="noopener noreferrer">{t("Gambar referensi")}</a>}

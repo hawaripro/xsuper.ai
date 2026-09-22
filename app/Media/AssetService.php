@@ -76,7 +76,7 @@ final class AssetService
 
     public function deliver(MediaAsset $asset): StreamedResponse
     {
-        if ($asset->retention_status !== 'active') {
+        if ($asset->retention_status !== 'active' || ($asset->expires_at !== null && $asset->expires_at->isPast())) {
             abort(404);
         }
         $disk = Storage::disk($asset->storage_disk);
@@ -87,6 +87,7 @@ final class AssetService
         return $disk->response($asset->storage_path, null, [
             'Content-Type' => $asset->mime,
             'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 
@@ -96,7 +97,7 @@ final class AssetService
      */
     public function dataUri(MediaAsset $asset): string
     {
-        if ($asset->retention_status !== 'active') {
+        if (! $asset->signature_ok || $asset->retention_status !== 'active' || ($asset->expires_at !== null && $asset->expires_at->isPast())) {
             throw new InvalidArgumentException('Aset referensi tidak lagi tersedia.');
         }
         $disk = Storage::disk($asset->storage_disk);

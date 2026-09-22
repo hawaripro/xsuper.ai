@@ -173,7 +173,7 @@ final class VideoGenerationService
             $provider = $this->provider($job);
             $config = $job->generation_config;
             $payload = ['model' => $job->upstream_model_id, 'prompt' => $job->prompt];
-            if ($config['supports_aspect_ratio'] && ! $job->has_reference && $job->aspect_ratio !== 'auto') {
+            if ($config['supports_aspect_ratio'] && (! $job->has_reference || $job->mode === 'avatar') && $job->aspect_ratio !== 'auto') {
                 $payload['aspect_ratio'] = $job->aspect_ratio;
             }
             if ($config['supports_duration'] && $job->duration > 0) {
@@ -182,9 +182,11 @@ final class VideoGenerationService
             if ($provider->protocol === 'fal' && ($config['supports_pro'] ?? false)) {
                 $payload['pro_mode'] = $job->pro_mode;
             }
-            if ($job->has_reference) {
-                // Coordinator jobs carry an owned MediaAsset inlined privately; legacy jobs use the
-                // per-job reference store. Neither ever mints a public URL.
+            if ($job->mode === 'avatar') {
+                $payload['image_url'] = $this->assets->signedUrl($this->avatarReference($job, 'avatar_photo', 'image'));
+                $payload['audio_url'] = $this->assets->signedUrl($this->avatarReference($job, 'speech_audio', 'audio'));
+            } elseif ($job->has_reference) {
+                // Fal accepts a private inline image; Kinovi avatar fetches short-lived grants above.
                 $payload['image_url'] = $job->capability_revision_id !== null
                     ? $this->assets->dataUri($this->coordinatorReference($job))
                     : $this->references->dataUri($job);
@@ -490,6 +492,20 @@ final class VideoGenerationService
         return $asset;
     }
 
+    private function avatarReference(VideoJob $job, string $key, string $type): MediaAsset
+    {
+        $id = $job->settings[$key] ?? null;
+        $asset = is_string($id) && in_array($id, $job->reference_asset_ids ?? [], true) ? MediaAsset::find($id) : null;
+        if (! $asset || $asset->user_id !== $job->user_id || $asset->media_type !== $type
+            || ! $asset->signature_ok || $asset->retention_status !== 'active'
+            || ($asset->expires_at !== null && $asset->expires_at->isPast())
+            || ! Storage::disk($asset->storage_disk)->exists($asset->storage_path)) {
+            throw new AiProxyException('An avatar input is no longer available. Upload it again.', 422);
+        }
+
+        return $asset;
+    }
+
     public function payload(VideoJob $job): array
     {
         return [
@@ -500,10 +516,14 @@ final class VideoGenerationService
             // (coordinator); both are served by the same owner-gated route.
             'reference_url' => ($job->reference_path !== null || (is_array($job->reference_asset_ids) && $job->reference_asset_ids !== []))
                 ? '/api/v/'.$job->job_id.'/reference' : null,
+            'speech_audio_url' => $job->mode === 'avatar' && isset($job->settings['speech_audio'])
+                ? '/api/media/assets/'.$job->settings['speech_audio'] : null,
             'aspect_ratio' => $job->aspect_ratio, 'duration' => $job->duration,
             'status' => $job->status, 'stage' => $job->stage,
             ...self::cancellation($job),
-            'video_url' => $job->video_url, 'thumbnail_url' => $job->thumbnail_url,
+            'video_url' => $job->mode === 'avatar' && $job->video_url !== null
+                ? '/api/avatar/'.$job->job_id.'/asset' : $job->video_url,
+            'thumbnail_url' => $job->thumbnail_url,
             'error' => $job->error_message, 'error_message' => $job->error_message,
             'moderation_reason_code' => $job->moderation_reason_code,
             'billing_mode' => $job->billing_mode, 'billing_status' => $job->billing_status,

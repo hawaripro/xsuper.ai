@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\ImageJob;
+use App\Models\MediaAsset;
 use App\Models\MediaToolJob;
 use App\Models\StorageUpgradePlan;
+use App\Models\ThreeDJob;
 use App\Models\User;
 use App\Models\UserStorageUpgrade;
+use App\Models\VideoJob;
+use App\Services\GeneratedModel3dStore;
 use App\Services\StorageQuotaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -102,6 +106,73 @@ class StorageQuotaTest extends TestCase
         $this->assertTrue(Storage::disk('local')->exists('generated/images/new/0.png'));
         $this->assertDatabaseHas('image_jobs', ['id' => $adminOld->id]);
         $this->assertTrue(Storage::disk('local')->exists('generated/images/adm/0.png'));
+    }
+
+    public function test_reference_quota_counts_real_files_once_even_when_registry_and_history_share_a_path(): void
+    {
+        Storage::fake('local');
+        $member = User::factory()->create();
+        $this->completedImage($member, 'generated/images/shared/0.png', now());
+        foreach (['generated/images/shared/0.png', 'media-assets/missing.png', 'media-assets/separate.png'] as $path) {
+            MediaAsset::create([
+                'user_id' => $member->id, 'media_type' => 'image', 'role' => 'image_ref',
+                'storage_disk' => 'local', 'storage_path' => $path, 'size_bytes' => 999999,
+                'mime' => 'image/png', 'signature_ok' => true, 'retention_status' => 'active',
+            ]);
+        }
+        Storage::disk('local')->put('media-assets/separate.png', str_repeat('x', 48));
+
+        $this->assertSame(80, app(StorageQuotaService::class)->usedBytes($member));
+    }
+
+    public function test_3d_retention_removes_all_output_files_but_preserves_a_reference_while_work_is_active(): void
+    {
+        Storage::fake('local');
+        $member = User::factory()->create();
+        $asset = MediaAsset::create([
+            'user_id' => $member->id, 'media_type' => 'image', 'role' => 'image_ref',
+            'storage_disk' => 'local', 'storage_path' => 'media-assets/3d-reference.png', 'size_bytes' => 100,
+            'mime' => 'image/png', 'signature_ok' => true, 'retention_status' => 'active', 'expires_at' => now()->subMinute(),
+        ]);
+        Storage::disk('local')->put($asset->storage_path, str_repeat('i', 100));
+        $id = (string) Str::uuid();
+        $job = ThreeDJob::create([
+            'user_id' => $member->id, 'job_id' => $id, 'model' => '3d-model', 'model_label' => '3D model',
+            'operation' => 'image_to_3d', 'upstream_model_id' => 'fixture', 'routing_identity' => 'fixture',
+            'connection_fingerprint' => str_repeat('a', 64), 'generation_config' => [],
+            'price_tokens' => 60, 'dedup_key' => str_repeat('b', 64), 'payload_fingerprint' => str_repeat('c', 64),
+            'reference_asset_ids' => [$asset->id], 'settings' => [], 'status' => 'processing', 'stage' => 'rendering',
+            'billing_reference_id' => 'model3d:'.$id, 'tokens_reserved' => 60,
+        ]);
+        $service = app(StorageQuotaService::class);
+        $video = VideoJob::create([
+            'user_id' => $member->id, 'job_id' => (string) Str::uuid(), 'mode' => 'prompt',
+            'model' => 'video-model', 'prompt' => 'Active reference', 'status' => 'processing',
+            'has_reference' => true, 'reference_asset_ids' => [$asset->id],
+        ]);
+        $video->forceFill(['created_at' => now()->subDays(10)])->save();
+        $service->purge(now()->subDays(7));
+        Storage::disk('local')->assertExists($asset->storage_path);
+        $this->assertDatabaseHas('media_assets', ['id' => $asset->id]);
+
+        $this->assertDatabaseHas('video_jobs', ['id' => $video->id, 'status' => 'processing']);
+        $path = GeneratedModel3dStore::path($id);
+        Storage::disk('local')->put($path, str_repeat('g', 72));
+        Storage::disk('local')->put($path.'.part', 'interrupted');
+        $job->forceFill([
+            'status' => 'completed', 'stage' => 'completed', 'model_path' => $path,
+            'model_url' => '/api/3d/'.$id.'/asset', 'size_bytes' => 999999, 'created_at' => now()->subDays(10),
+        ])->save();
+        $video->update(['status' => 'failed']);
+        $this->assertSame(172, $service->usedBytes($member));
+        $counts = $service->purge(now()->subDays(7));
+
+        $this->assertSame(1, $counts['model3d']);
+        $this->assertSame(1, $counts['media_asset']);
+        $this->assertDatabaseMissing('three_d_jobs', ['id' => $job->id]);
+        $this->assertDatabaseMissing('media_assets', ['id' => $asset->id]);
+        Storage::disk('local')->assertMissing([$path, $path.'.part', $asset->storage_path]);
+        $this->assertSame(0, $service->usedBytes($member));
     }
 
     public function test_granting_an_upgrade_raises_the_quota(): void

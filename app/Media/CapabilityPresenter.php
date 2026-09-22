@@ -4,12 +4,12 @@ namespace App\Media;
 
 use App\Media\Enums\MediaOperation;
 use App\Models\AiModelProfile;
-use App\Services\MediaModelConfig;
+use App\Models\MediaCapabilityRevision;
 use Throwable;
 
 /**
  * Presents a model's genuinely-supported operations as frontend-facing capability payloads:
- * the resolved capability definition + default UI metadata + the source hash (for
+ * the resolved capability definition + stored/default UI metadata + the source hash (for
  * expected_capability_hash) + the token price (for expected_price_tokens). A broken or
  * unsupported operation is simply omitted, never offered as a dead control.
  */
@@ -21,7 +21,7 @@ final class CapabilityPresenter
     public function forModel(AiModelProfile $model): array
     {
         $out = [];
-        foreach (array_keys(MediaModelConfig::deriveCapabilities($model)) as $operationValue) {
+        foreach ($this->resolver->operations($model) as $operationValue) {
             $operation = MediaOperation::from($operationValue);
             try {
                 $resolved = $this->resolver->resolve($model, $operation);
@@ -29,6 +29,7 @@ final class CapabilityPresenter
                 continue;
             }
             $definition = $resolved->capability->toArray();
+            $storedUi = $resolved->revisionId === null ? [] : (MediaCapabilityRevision::find($resolved->revisionId)?->ui_metadata ?? []);
             $out[$operationValue] = [
                 'operation' => $operationValue,
                 'output_kind' => $definition['output_kind'],
@@ -37,7 +38,7 @@ final class CapabilityPresenter
                 'price_tokens' => (int) $model->token_cost,
                 'inputs' => $definition['inputs'],
                 'params' => $definition['params'],
-                'ui' => CapabilityUi::describe($resolved->capability),
+                'ui' => array_replace_recursive(CapabilityUi::describe($resolved->capability), $storedUi),
             ];
         }
 

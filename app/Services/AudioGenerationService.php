@@ -22,7 +22,7 @@ final class AudioGenerationService
     // Both leases outlive their worker's hard timeout; expired claims are never resubmitted.
     private const SUBMISSION_LEASE_SECONDS = 480;
 
-    private const POLL_LEASE_SECONDS = 300;
+    private const POLL_LEASE_SECONDS = 540;
 
     public function __construct(
         private readonly AiProviderTransport $transport,
@@ -228,9 +228,9 @@ final class AudioGenerationService
                 throw new AiProxyException('The audio provider returned an invalid status.', 502);
             }
             if ($status === 'completed') {
-                $url = $result['audio_url'] ?? null;
-                if (! is_string($url) || ! GeneratedImageStore::validResultUrl($url)) {
-                    throw new AiProxyException('The audio provider returned an invalid result URL.', 502);
+                $urls = $result['result_urls'] ?? null;
+                if (! is_array($urls) || $urls === [] || ! array_is_list($urls)) {
+                    throw new AiProxyException('The audio provider returned an invalid result collection.', 502);
                 }
                 $saving = DB::transaction(function () use ($job): ?AudioJob {
                     $locked = AudioJob::query()->lockForUpdate()->find($job->id);
@@ -243,7 +243,7 @@ final class AudioGenerationService
                 });
                 if ($saving) {
                     $job = $saving;
-                    $this->complete($job, $url);
+                    $this->complete($job, $urls);
                 }
 
                 return;
@@ -330,7 +330,7 @@ final class AudioGenerationService
                     $counts['polls']++;
                 } elseif ($action === 'failed') {
                     $counts['failed']++;
-                    Storage::disk('local')->deleteDirectory(dirname(GeneratedAudioStore::path($candidate->job_id)));
+                    Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($candidate->job_id));
                 }
             }
         });
@@ -396,7 +396,13 @@ final class AudioGenerationService
             'job_id' => $job->job_id, 'model' => $job->model, 'mode' => $job->mode,
             'prompt' => $job->prompt, 'voice' => $job->voice, 'speed' => $job->speed,
             'duration' => $job->duration, 'tempo' => $job->tempo, 'status' => $job->status, 'stage' => $job->stage,
-            'audio_url' => $job->status === 'completed' ? $job->audio_url : null, 'error' => $job->error_message,
+            'outputs' => $job->status === 'completed' ? array_map(
+                static fn (array $output, int $index): array => [
+                    'url' => '/api/audio/'.$job->job_id.'/assets/'.$index,
+                    'mime_type' => $output['mime_type'], 'size_bytes' => (int) $output['size_bytes'],
+                ], $job->outputs ?? [], array_keys($job->outputs ?? []),
+            ) : [],
+            'error' => $job->error_message,
             'billing_mode' => $job->billing_mode, 'billing_status' => $job->billing_status,
             'tokens_reserved' => $job->tokens_reserved,
             ...self::cancellation($job),
@@ -405,20 +411,19 @@ final class AudioGenerationService
         ];
     }
 
-    private function complete(AudioJob $job, string $url): void
+    private function complete(AudioJob $job, array $urls): void
     {
-        $asset = $this->audio->persist($job, $url);
-        $retained = DB::transaction(function () use ($job, $asset): bool {
+        $outputs = $this->audio->persist($job, $urls);
+        $retained = DB::transaction(function () use ($job, $outputs): bool {
             $locked = AudioJob::query()->lockForUpdate()->find($job->id);
             if (! $this->ownsClaim($locked, $job)) {
-                return $locked?->status === 'completed' && $locked->audio_path === $asset['path'];
+                return $locked?->status === 'completed' && $locked->outputs === $outputs;
             }
             $this->tokens->settle($locked->user_id, ['reference_id' => $locked->billing_reference_id], [
                 'service' => 'audio', 'model' => $locked->model, 'mode' => $locked->mode,
             ]);
             $locked->update([
-                'status' => 'completed', 'stage' => 'completed', 'audio_url' => '/api/audio/'.$locked->job_id.'/asset',
-                'audio_path' => $asset['path'], 'mime_type' => $asset['mime_type'], 'size_bytes' => $asset['size_bytes'],
+                'status' => 'completed', 'stage' => 'completed', 'outputs' => $outputs,
                 'billing_status' => 'settled', 'completed_at' => now(), 'next_poll_at' => null,
                 'processing_started_at' => null, 'processing_token' => null,
             ]);
@@ -426,7 +431,7 @@ final class AudioGenerationService
             return true;
         });
         if (! $retained) {
-            Storage::disk('local')->delete($asset['path']);
+            Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($job->job_id));
         }
     }
 
@@ -442,7 +447,7 @@ final class AudioGenerationService
             return true;
         });
         if ($terminated) {
-            Storage::disk('local')->deleteDirectory(dirname(GeneratedAudioStore::path($claim->job_id)));
+            Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($claim->job_id));
         }
     }
 

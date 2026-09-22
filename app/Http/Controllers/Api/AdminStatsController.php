@@ -131,7 +131,7 @@ class AdminStatsController extends Controller
         $generators = TokenReservation::query()
             ->where('billing_mode', 'tokens')
             ->where('status', TokenReservation::STATUS_SETTLED)
-            ->whereIn('service', ['image', 'video', 'audio'])
+            ->whereIn('service', ['image', 'video', 'audio', 'model3d'])
             ->where('amount_tokens', '>', 0)
             ->where('settled_at', '<=', $now);
         $generatorsByModel = (clone $generators)

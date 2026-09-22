@@ -94,7 +94,6 @@ function ImageStudio({ userId }) {
             model: model.id,
             operation,
             n: count,
-            idempotency_key: globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random().toString(36).slice(2),
             expected_price_tokens: unit,
             ...(capability.source_hash ? { expected_capability_hash: capability.source_hash } : {}),
             ...capabilitySubmission(capability, draft.values),

@@ -9,6 +9,8 @@ class ImageJob extends Model
     protected $hidden = [
         'asset_paths', 'provider_id', 'upstream_model_id', 'upstream_job_id',
         'connection_fingerprint', 'generation_config', 'processing_token', 'reference_asset_ids',
+        'routing_identity', 'dedup_key', 'payload_fingerprint',
+        'provider_result_urls',
     ];
 
     protected $fillable = [
@@ -20,6 +22,7 @@ class ImageJob extends Model
         'processing_token', 'poll_attempts', 'completed_at',
         'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key', 'payload_fingerprint',
         'reference_asset_ids',
+        'provider_result_urls',
     ];
 
     protected function casts(): array
@@ -31,6 +34,7 @@ class ImageJob extends Model
             'submitted_at' => 'datetime', 'next_poll_at' => 'datetime',
             'processing_started_at' => 'datetime', 'completed_at' => 'datetime',
             'capability_revision_id' => 'integer', 'price_tokens' => 'integer', 'reference_asset_ids' => 'array',
+            'provider_result_urls' => 'array',
         ];
     }
 

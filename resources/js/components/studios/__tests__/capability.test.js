@@ -55,6 +55,13 @@ describe("capabilityErrors (backend rule mirror)", () => {
 });
 
 describe("capabilityValues reconciliation", () => {
+    it("omits an unset optional seed instead of forcing deterministic output", () => {
+        const capability = { inputs: [], params: [{ name: "seed", type: "integer", min: 0, default: null, required: false }] };
+        expect(capabilitySubmission(capability, capabilityValues(capability))).toEqual({});
+        expect(capabilitySubmission(capability, capabilityValues(capability, { seed: 0 }))).toEqual({ seed: 0 });
+        expect(capabilityErrors(capability, { seed: 1.5 }).seed).toBeTruthy();
+    });
+
     it("keeps a compatible size but drops an incompatible one to the default, and empties an asset", () => {
         const kept = capabilityValues(editCapability, { size: "1792x1024", reference_image: "asset-1", prompt: "keep" });
         expect(kept.size).toBe("1792x1024");

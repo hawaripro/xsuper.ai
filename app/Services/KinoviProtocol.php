@@ -12,10 +12,9 @@ use App\Exceptions\AiProxyException;
  *
  * Every Kinovi job is asynchronous and slow (image ~60-90s, video minutes), so image,
  * video, and audio all run through the queued submit/poll pipelines rather than a
- * blocking HTTP request. Text-to-image, text-to-video, and prompt-only Suno audio are
- * supported here; models that require uploaded reference media (image-to-video,
- * edit/extend/remix, talking avatar) stay excluded from THIS curated list until each
- * integration is verified, so no member ever sees a model that cannot complete.
+ * blocking HTTP request. Curated image, video, talking-avatar and prompt-only Suno
+ * integrations are exposed only with explicit input contracts. Edit/extend/remix
+ * variants remain excluded until their integration is verified.
  */
 final class KinoviProtocol
 {
@@ -30,22 +29,23 @@ final class KinoviProtocol
         'nanobanana2' => 'image',
         'midjourney-v8' => 'image',
         'midjourney-v7-niji' => 'image',
-        // Video (text-to-video). Reference/edit/extend/avatar variants need uploaded media and
-        // are excluded so no member sees a model that cannot complete. Verified against Kinovi's
-        // createTask validator: happyhorse1.0 ("i2v mode requires exactly 1 first frame item(s)")
-        // and minimax-h3-turbo-high-dynamic/-cinematic ("Reference image is required.") are
-        // image-to-video only, and minimax-h3-turbo-text-to-video answers "Unknown model".
+        // Curated text-to-video routes; reference/edit/extend variants need separate handling.
+        // Prior createTask probes required a first frame for happyhorse1.0 and reference
+        // images for high-dynamic/cinematic; MiniMax text-to-video returned "Unknown model".
+        // HappyHorse's published t2v default conflicts with that probe. Keep these routes
+        // excluded until their distinct request contracts and account access are verified.
         'seedance2-5' => 'video',
         'seedance-20' => 'video',
         'seedance2-fast' => 'video',
         'seedance2.0-mini' => 'video',
         'wan3.0-text-to-video' => 'video',
         'wan3.0-prime-text-to-video' => 'video',
-        // Audio (prompt-only Suno). suno-music writes full songs (Kinovi returns two tracks;
-        // the first is stored as the result). suno-sounds writes short SFX/ambience clips.
+        // Audio (prompt-only Suno). Music returns two tracks stored under one billed job;
+        // suno-sounds writes short SFX/ambience clips.
         // suno-remix / suno-sample need uploaded input audio and stay excluded.
         'suno-music' => 'audio',
         'suno-sounds' => 'audio',
+        'minimax-h3-turbo-avatar-talking' => 'avatar',
     ];
 
     public const NAMES = [
@@ -65,6 +65,7 @@ final class KinoviProtocol
         'wan3.0-prime-text-to-video' => 'Wan 3.0 Prime Text-to-Video',
         'suno-music' => 'Suno Music',
         'suno-sounds' => 'Suno Sounds',
+        'minimax-h3-turbo-avatar-talking' => 'MiniMax H3 Avatar',
     ];
 
     // App image sizes map to Kinovi's aspectRatio; resolution stays the cheapest tier (1k)
@@ -151,6 +152,17 @@ final class KinoviProtocol
             ];
         }
 
+        if ($category === 'avatar') {
+            return [
+                ...$base,
+                'durations' => range(2, 15),
+                'aspect_ratios' => self::VIDEO_ASPECT_RATIOS,
+                'supports_duration' => true,
+                'supports_aspect_ratio' => true,
+                'price_unit' => 'second',
+            ];
+        }
+
         // video
         return [
             ...$base,
@@ -193,6 +205,9 @@ final class KinoviProtocol
     /** Build the createTask body for a text-to-video request. */
     public static function videoTask(array $payload): array
     {
+        if (($payload['model'] ?? null) === 'minimax-h3-turbo-avatar-talking') {
+            return self::avatarTask($payload);
+        }
         $model = $payload['model'] ?? null;
         if (! is_string($model) || (self::MODELS[$model] ?? null) !== 'video') {
             throw new AiProxyException('This Kinovi video model is not supported.', 422);
@@ -214,6 +229,32 @@ final class KinoviProtocol
         }
 
         return ['model' => $model, 'inputs' => $inputs, 'autoFix' => true];
+    }
+
+    /** Both URLs are server-minted grants, never member-controlled remote URLs. */
+    private static function avatarTask(array $payload): array
+    {
+        foreach (['image_url', 'audio_url'] as $key) {
+            if (! is_string($payload[$key] ?? null) || ! filter_var($payload[$key], FILTER_VALIDATE_URL)) {
+                throw new AiProxyException('A portrait and speech audio are required.', 422);
+            }
+        }
+        $duration = $payload['duration'] ?? 5;
+        $aspect = $payload['aspect_ratio'] ?? '16:9';
+        if (! is_int($duration) || $duration < 2 || $duration > 15 || ! in_array($aspect, self::VIDEO_ASPECT_RATIOS, true)) {
+            throw new AiProxyException('The avatar duration or aspect ratio is invalid.', 422);
+        }
+
+        return [
+            'model' => $payload['model'], 'autoFix' => false,
+            'inputs' => [
+                'imageUrls' => [$payload['image_url']], 'audioUrls' => [$payload['audio_url']],
+                'prompt' => (string) ($payload['prompt'] ?? ''),
+                'duration' => $duration, 'aspectRatio' => $aspect,
+                // Kinovi's schema binding uses megapixel values rather than its display label.
+                'outputResolution' => '0.2',
+            ],
+        ];
     }
 
     /** Build the createTask body for a prompt-only audio request (Suno). */

@@ -238,6 +238,13 @@
 .media-studio .studio-reference-preview .studio-button { padding: 7px; }
 .media-studio .studio-checkbox { display: flex; align-items: flex-start; gap: 9px; font-size: 12px; cursor: pointer; }
 .media-studio .studio-checkbox small { display: block; margin-top: 4px; color: var(--studio-muted); font-size: 10px; line-height: 1.7; }
+.media-studio .studio-asset-library { display: grid; gap: 10px; padding-block: 14px; }
+.media-studio .studio-asset-library > label { color: var(--studio-muted); font-size: 11px; }
+.media-studio .studio-asset-audio, .media-studio .studio-asset-video { flex-wrap: wrap; }
+.media-studio .studio-reference-preview :is(audio, video) { width: 100%; max-width: 100%; min-width: 0; }
+.media-studio .studio-saved-reference audio { display: block; width: 100%; margin-top: 14px; }
+.studio-avatar .studio-reference-preview img { width: 80px; height: 90px; }
+.studio-avatar .studio-video-inspector .studio-field > .studio-button { margin-top: 10px; }
 
 /* Audio: a writing desk, voice/music inspector and decoded waveform transport. */
 .media-studio .studio-audio-workbench { min-width: 0; border: 1px solid var(--studio-line); border-radius: 14px; overflow: clip; background: var(--studio-surface); }

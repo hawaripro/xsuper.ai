@@ -2,13 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\AiModelProfile;
 use App\Media\CapabilityInput;
 use App\Media\CapabilityParam;
+use App\Media\CapabilityResolver;
 use App\Media\Enums\InputRole;
 use App\Media\Enums\MediaOperation;
 use App\Media\Enums\OutputKind;
 use App\Media\MediaCapability;
+use App\Models\AiModelProfile;
 use App\Models\User;
 use InvalidArgumentException;
 
@@ -16,6 +17,15 @@ final class MediaModelConfig
 {
     public static function forModel(AiModelProfile $model): array
     {
+        if (ThreeDProtocol::supports($model)) {
+            return ThreeDProtocol::config();
+        }
+        if ($model->provider?->protocol === 'fal' && $model->category === 'image') {
+            $published = self::publishedImageConfig($model);
+            if ($published !== null) {
+                return $published;
+            }
+        }
         if ($model->provider?->protocol === 'fal') {
             return FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id)
                 ?? throw new InvalidArgumentException('This fal media model is not supported.');
@@ -57,6 +67,37 @@ final class MediaModelConfig
         ]);
     }
 
+    public static function hasCatalogImage(AiModelProfile $model): bool
+    {
+        return $model->provider?->protocol === 'fal' && $model->category === 'image'
+            && $model->capabilityRevisions()->where('status', 'published')->whereNotNull('source_schema')->exists();
+    }
+
+    private static function publishedImageConfig(AiModelProfile $model): ?array
+    {
+        $revisions = $model->capabilityRevisions()->where('status', 'published')->where('provider_bindings->adapter', 'fal_image_v1')->get();
+        if ($revisions->isEmpty()) {
+            return null;
+        }
+        $first = MediaCapability::fromArray($revisions->first()->definition);
+        $size = $first->param('size');
+        $reference = $revisions->contains('operation', 'image_edit');
+
+        return [
+            'image_path' => $model->upstream_model_id ?: $model->model_id,
+            'video_path' => null, 'video_status_path' => null,
+            'sizes' => $size?->options ?? [], 'durations' => [], 'aspect_ratios' => [],
+            'max_quantity' => 1, 'supports_size' => $size !== null, 'supports_n' => false,
+            'supports_duration' => false, 'supports_aspect_ratio' => false, 'supports_pro' => false,
+            'supports_reference_image' => $reference,
+            'reference_required' => $reference && ! $revisions->contains('operation', 'text_to_image'),
+            'reference_model' => null, 'audio_path' => null, 'audio_status_path' => null, 'audio_kind' => null,
+            'voices' => [], 'speed_min' => null, 'speed_max' => null, 'speed_default' => null,
+            'duration_min' => null, 'duration_max' => null, 'duration_default' => null, 'max_characters' => null,
+            'price_unit' => 'generation',
+        ];
+    }
+
     /**
      * Derive the effective MediaCapability per operation from existing model config,
      * for models not yet migrated to a stored revision.
@@ -65,7 +106,16 @@ final class MediaModelConfig
      */
     public static function deriveCapabilities(AiModelProfile $model): array
     {
-        $config = self::forModel($model);
+        if (ThreeDProtocol::supports($model)) {
+            return ThreeDProtocol::capabilities($model->model_id);
+        }
+        // Legacy fallback is deliberately restricted to the existing curated integrations.
+        $config = $model->provider?->protocol === 'fal'
+            ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id)
+            : self::forModel($model);
+        if ($config === null) {
+            return [];
+        }
         $public = $model->model_id;
         $prompt = new CapabilityInput('prompt', InputRole::Prompt, 'string', required: true);
         $sizeParams = ($config['supports_size'] && ($config['sizes'] ?? []) !== [])
@@ -88,6 +138,20 @@ final class MediaModelConfig
             ]),
             'video' => self::deriveVideoCapabilities($config, $public, $prompt),
             'audio' => self::deriveAudioCapabilities($config, $public, $prompt),
+            'avatar' => [
+                MediaOperation::TalkingAvatar->value => new MediaCapability(
+                    $public, MediaOperation::TalkingAvatar, OutputKind::Video, 1,
+                    [
+                        new CapabilityInput('avatar_photo', InputRole::AvatarPhoto, 'asset', required: true),
+                        new CapabilityInput('speech_audio', InputRole::SpeechAudio, 'asset', required: true),
+                        new CapabilityInput('prompt', InputRole::Prompt, 'string'),
+                    ],
+                    [
+                        new CapabilityParam('duration', 'integer', default: 5, min: 2, max: 15, unit: 's'),
+                        new CapabilityParam('aspect_ratio', 'enum', default: '16:9', options: $config['aspect_ratios']),
+                    ],
+                ),
+            ],
             default => [],
         };
     }
@@ -118,12 +182,12 @@ final class MediaModelConfig
             }
             // Tempo is prompt-level guidance the pipeline appends for any music model
             // (legacy parity), so it is part of the contract even without a native field.
-            $params[] = new CapabilityParam('tempo', 'int', min: 40, max: 200, unit: 'BPM');
+            $params[] = new CapabilityParam('tempo', 'integer', min: 40, max: 200, unit: 'BPM');
             if ($config['supports_instrumental'] ?? false) {
-                $params[] = new CapabilityParam('instrumental', 'bool', default: false, options: [false, true]);
+                $params[] = new CapabilityParam('instrumental', 'boolean', default: false, options: [false, true]);
             }
             if ($config['supports_custom_lyrics'] ?? false) {
-                $params[] = new CapabilityParam('custom', 'bool', default: false, options: [false, true]);
+                $params[] = new CapabilityParam('custom', 'boolean', default: false, options: [false, true]);
             }
 
             return [MediaOperation::Music->value => new MediaCapability($public, MediaOperation::Music, OutputKind::Audio, 1, [$prompt], $params)];
@@ -148,10 +212,10 @@ final class MediaModelConfig
         // enforces the model's own ceiling and the coordinator prices off the declared values.
         $maxQuantity = max(1, (int) ($config['max_quantity'] ?? 1));
         $count = $maxQuantity > 1
-            ? new CapabilityParam('count', 'int', default: 1, min: 1, max: $maxQuantity)
+            ? new CapabilityParam('count', 'integer', default: 1, min: 1, max: $maxQuantity)
             : null;
         $pro = ($config['supports_pro'] ?? false)
-            ? new CapabilityParam('pro', 'bool', default: false, options: [false, true])
+            ? new CapabilityParam('pro', 'boolean', default: false, options: [false, true])
             : null;
 
         return array_filter([
@@ -179,6 +243,7 @@ final class MediaModelConfig
             $id = strtolower((string) ($model['id'] ?? ''));
             $kind = match (true) {
                 isset(FalProtocol::MEDIA_MODELS[$id]) => FalProtocol::MEDIA_MODELS[$id],
+                $id === ThreeDProtocol::MODEL => 'model3d',
                 preg_match('/(?:^|\/)(?:gpt-image-|dall-e-)/', $id) === 1,
                 str_contains($id, 'gemini-') && str_contains($id, '-image') => 'image',
                 preg_match('/(?:^|\/)(?:seedance-|sora-|veo-)/', $id) === 1 => 'video',
@@ -189,7 +254,8 @@ final class MediaModelConfig
         $kind = match (strtolower($kind)) {
             'text-to-audio', 'text-to-speech' => 'audio',
             'text-to-video', 'image-to-video' => 'video',
-            'text-to-image' => 'image',
+            'text-to-image', 'image-to-image' => 'image',
+            'text-to-3d', 'image-to-3d' => 'model3d',
             default => $kind,
         };
         $model['category'] = $kind;
@@ -211,6 +277,7 @@ final class MediaModelConfig
             return false;
         }
         if ($model->provider->protocol === 'fal'
+            && ! ThreeDProtocol::supports($model) && ! self::hasCatalogImage($model)
             && (FalProtocol::MEDIA_MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
             return false;
         }
@@ -218,7 +285,8 @@ final class MediaModelConfig
             && (KinoviProtocol::MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
             return false;
         }
-        return true;
+
+        return app(CapabilityResolver::class)->operations($model) !== [];
     }
 
     public static function publicModel(AiModelProfile $model): array
@@ -227,11 +295,12 @@ final class MediaModelConfig
 
         return [
             'id' => $model->model_id, 'name' => $model->display_name,
-            'operations' => array_keys(self::deriveCapabilities($model)),
+            'operations' => app(CapabilityResolver::class)->operations($model),
             'category' => $model->category,
             'capabilities' => $model->capabilities ?? [],
             'token_cost' => $model->token_cost,
             'billing_mode' => 'tokens',
+            'price_unit' => $config['price_unit'] ?? 'generation',
             'sizes' => $config['sizes'], 'durations' => $config['durations'],
             'aspect_ratios' => $config['aspect_ratios'], 'max_quantity' => $config['max_quantity'],
             'pro' => [

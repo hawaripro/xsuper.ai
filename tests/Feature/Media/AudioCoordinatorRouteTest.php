@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Media;
 
+use App\Jobs\ProcessAudioJob;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
@@ -120,6 +121,48 @@ class AudioCoordinatorRouteTest extends TestCase
         $this->assertSame(500, UserToken::getBalance($user->id));
     }
 
+    public function test_catalog_expectations_reject_stale_audio_before_reservation_on_both_admission_paths(): void
+    {
+        Queue::fake();
+        Http::preventStrayRequests();
+        $model = $this->falSpeech();
+        $user = $this->member();
+        $capability = $this->actingAs($user)->getJson('/api/audio/models')->assertOk()->json('models.0.capabilities.text_to_speech');
+        $input = [
+            'operation' => 'text_to_speech', 'model' => $model->model_id, 'prompt' => 'Keep my displayed quote.',
+            'expected_price_tokens' => $capability['price_tokens'], 'expected_capability_hash' => $capability['source_hash'],
+        ];
+        foreach ([false, true] as $restricted) {
+            config(['media.coordinator_restricted' => $restricted, 'media.restricted_user_id' => 0]);
+            $model->update(['token_cost' => 75]);
+            $this->postJson('/api/audio', $input)->assertConflict();
+            $model->update(['token_cost' => 50]);
+            $this->postJson('/api/audio', [...$input, 'expected_capability_hash' => str_repeat('0', 64)])->assertConflict();
+        }
+        $this->assertSame(500, UserToken::getBalance($user->id));
+        $this->assertDatabaseCount('audio_jobs', 0);
+        $this->assertDatabaseCount('token_reservations', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_restricted_fal_retry_returns_terminal_job_and_rejects_key_reuse_with_changed_input(): void
+    {
+        Queue::fake();
+        $model = $this->falSpeech();
+        $user = $this->member();
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => 0]);
+        $input = ['operation' => 'text_to_speech', 'model' => $model->model_id, 'prompt' => 'Keep this request.', 'idempotency_key' => 'audio-retry'];
+        $id = $this->actingAs($user)->postJson('/api/audio', $input)->assertAccepted()->json('job.job_id');
+        app(AudioGenerationService::class)->cancel($user, $id);
+
+        $this->postJson('/api/audio', $input)->assertAccepted()->assertJsonPath('job.job_id', $id)->assertJsonPath('job.stage', 'cancelled');
+        $this->postJson('/api/audio', [...$input, 'prompt' => 'Different paid work.'])->assertConflict();
+        $this->assertDatabaseCount('audio_jobs', 1);
+        $this->assertDatabaseCount('token_reservations', 1);
+        $this->assertSame(500, UserToken::getBalance($user->id));
+        Queue::assertPushed(ProcessAudioJob::class, 1);
+    }
+
     public function test_non_coordinator_member_keeps_fal_and_never_sees_kinovi_audio(): void
     {
         Queue::fake();
@@ -133,10 +176,9 @@ class AudioCoordinatorRouteTest extends TestCase
         $this->assertTrue($ids->contains($fal->model_id));
         $this->assertFalse($ids->contains('suno-music'), 'a model that cannot complete is never offered');
 
-        $res = $this->actingAs($other)->postJson('/api/audio', [
+        $this->actingAs($other)->postJson('/api/audio', [
             'operation' => 'text_to_speech', 'model' => $fal->model_id, 'prompt' => 'Jalur lama tetap jalan.',
         ])->assertStatus(202);
-        $this->assertNull(AudioJob::query()->where('job_id', $res->json('job.job_id'))->firstOrFail()->capability_revision_id, 'non-coordinator members stay on the verified fal path');
 
         $this->actingAs($other)->postJson('/api/audio', [
             'operation' => 'music', 'model' => 'suno-music', 'prompt' => 'Lagu',

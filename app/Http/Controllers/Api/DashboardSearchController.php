@@ -44,6 +44,8 @@ class DashboardSearchController extends Controller
                 'image' => ['image_jobs', '/generate-image', 'Gambar Anda'],
                 'video' => ['video_jobs', '/video', 'Video Anda'],
                 'audio' => ['audio_jobs', '/audio', 'Audio Anda'],
+                'avatar' => ['video_jobs', '/avatar', 'Avatar Anda'],
+                'model3d' => ['three_d_jobs', '/3d', 'Model 3D Anda'],
             ] as $kind => [$table, $path, $label]) {
                 if ($access[$kind]) {
                     $this->addGroup($groups, $kind, $label, $this->media($user, $table, $kind, $path, $pattern));
@@ -71,10 +73,12 @@ class DashboardSearchController extends Controller
             'chat' => $chat,
             'history' => $chat && $user->hasPermission('chat_history'),
             'templates' => $chat,
-            'image' => $active,
+            'image' => $active && $user->hasPermission('image_generator'),
             'video' => $active && $user->hasPermission('video_generator'),
             // These pages retain permission-gated access to owned results after expiry.
             'audio' => $user->hasPermission('audio_generator'),
+            'avatar' => $user->hasPermission('video_generator'),
+            'model3d' => $user->hasPermission('image_generator'),
             'download' => $user->hasPermission('video_downloader'),
             'convert' => $user->hasPermission('media_converter'),
         ];
@@ -95,6 +99,8 @@ class DashboardSearchController extends Controller
                 ['image', 'Studio gambar', 'Buat dan tinjau gambar', '/generate-image', $access['image'], 'image generate gambar'],
                 ['video', 'Studio video', 'Buat dan tinjau video', '/video', $access['video'], 'video generator'],
                 ['audio', 'Studio audio', 'Suara, musik, dan hasil tersimpan', '/audio', $access['audio'], 'audio music musik speech voice suara'],
+                ['avatar', 'Studio avatar', 'Foto dan ucapan menjadi avatar berbicara', '/avatar', $access['avatar'], 'avatar talking portrait wajah'],
+                ['model3d', 'Studio 3D', 'Buat dan periksa model tiga dimensi', '/3d', $access['model3d'], '3d model mesh glb'],
             ]],
             ['tools', 'Alat media', [
                 ['download', 'Video Downloader', 'Unduh media yang boleh Anda gunakan', '/downloads', $access['download'], 'download unduh'],
@@ -139,7 +145,7 @@ class DashboardSearchController extends Controller
 
     private function models(User $user, array $access, string $pattern, string $needle, AiProxyService $catalog): array
     {
-        $categories = array_values(array_filter(['chat', 'image', 'video', 'audio'], fn (string $kind): bool => $access[$kind]));
+        $categories = array_values(array_filter(['chat', 'image', 'video', 'audio', 'avatar', 'model3d'], fn (string $kind): bool => $access[$kind]));
         if (! $access['active'] || $categories === []) {
             return [];
         }
@@ -160,7 +166,7 @@ class DashboardSearchController extends Controller
             'provider' => $model->provider_name,
             'category' => $model->category,
         ])->all()))->keyBy('id');
-        $paths = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio'];
+        $paths = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio', 'avatar' => '/avatar', 'model3d' => '/3d'];
         $results = [];
         foreach ($candidates as $model) {
             $public = $publicModels->get($model->model_id);
@@ -171,9 +177,7 @@ class DashboardSearchController extends Controller
                 // Native Chat deliberately retains its own model selector.
                 $results[] = $this->result('model', $model->model_id, $public['name'], 'Chat AI', '/chat');
             } else {
-                $protocols = $model->category === 'audio' ? ['fal'] : ['openai', 'fal'];
-                if ($model->token_cost <= 0 || ! in_array($model->provider?->protocol, $protocols, true)
-                    || ! MediaModelConfig::allowedFor($user, $model)) {
+                if ($model->token_cost <= 0 || ! MediaModelConfig::allowedFor($user, $model)) {
                     continue;
                 }
                 $results[] = $this->result('model', $model->model_id, $public['name'],
@@ -216,9 +220,13 @@ class DashboardSearchController extends Controller
     private function media(User $user, string $table, string $kind, string $path, string $pattern): array
     {
         $query = DB::table($table)->where('user_id', $user->id);
-        $this->match($query, ['prompt', 'model', self::JOB_ID], $pattern);
+        if ($table === 'video_jobs') {
+            $query->where('mode', $kind === 'avatar' ? '=' : '!=', 'avatar');
+        }
+        $titleColumn = $kind === 'model3d' ? 'model_label' : 'prompt';
+        $this->match($query, [$titleColumn, 'model', self::JOB_ID], $pattern);
 
-        return $query->select('job_id', 'model', 'status')->selectRaw('SUBSTR(prompt, 1, 160) as title')
+        return $query->select('job_id', 'model', 'status')->selectRaw('SUBSTR('.$titleColumn.', 1, 160) as title')
             ->orderByDesc('created_at')->orderByDesc('id')->limit(self::GROUP_LIMIT)->get()
             ->map(fn (object $row): array => $this->result($kind, $row->job_id, $row->title ?: $row->model,
                 $row->model.' · '.$row->status, $path.'?'.http_build_query(['job' => $row->job_id], '', '&', PHP_QUERY_RFC3986)))->all();

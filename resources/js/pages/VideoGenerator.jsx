@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocale } from "../contexts/LocaleContext";
 import { validationErrors } from "../components/member/MemberUI";
-import { isPending, maxQuantity, modelOptions, tokenPrice, useMediaStudio, useObjectUrl, useStudioDraft } from "../components/studios/useMediaStudio";
+import { isPending, maxQuantity, tokenPrice, useMediaStudio, useObjectUrl, useStudioDraft } from "../components/studios/useMediaStudio";
 import { StudioButton, StudioCancellation, StudioCatalog, StudioEmpty, StudioField, StudioHeader, StudioHistory, StudioIcon, StudioJobMeta, StudioNotice, StudioProgress, StudioQuote, mediaError } from "../components/studios/StudioUI";
 import { apiRequest } from "../lib/api";
+import VideoPlayer from "../components/studios/VideoPlayer";
 
 const angles = [
     { id: "closeup", label: "Close-up Detail", prompt: "Extreme close-up shot focusing on product details, texture, and craftsmanship. Macro lens feel, shallow depth of field." },
@@ -24,16 +25,11 @@ const defaults = { model: "", mode: "prompt", prompt: "", product: "", features:
 const baseTabs = [{ id: "prompt", label: "Teks ke video", icon: "prompt" }, { id: "product", label: "Produk", icon: "product" }, { id: "ugc", label: "UGC", icon: "ugc" }];
 const referenceTab = { id: "reference", label: "Gambar ke video", icon: "video" };
 
-function VideoPlayer({ job }) {
-    const { t } = useLocale();
-    const player = useRef(null);
-    const [error, setError] = useState(false);
-    useEffect(() => {
-        const element = player.current;
-        if (element && element.getAttribute("src") !== job.video_url) element.setAttribute("src", job.video_url);
-        return () => { if (element) { element.pause(); element.removeAttribute("src"); element.load(); } };
-    }, [job.video_url]);
-    return <><div className="studio-video-screen"><video ref={player} src={job.video_url} poster={job.thumbnail_url || undefined} controls playsInline preload="metadata" aria-label={`${t("Hasil video")}: ${job.prompt}`} onError={() => setError(true)} /></div>{error && <StudioNotice error>{t("Video tidak dapat diputar di browser ini. Buka atau unduh hasil aslinya.")}</StudioNotice>}<div className="studio-toolbar studio-player-links"><a className="studio-button studio-download" href={job.video_url} download><StudioIcon name="download" />{t("Unduh video")}</a><a className="studio-text-link" href={job.video_url} target="_blank" rel="noreferrer">{t("Buka asli")}</a></div></>;
+function modelOptions(model, name, reference = false) {
+    const capability = model?.capabilities?.[reference ? "image_to_video" : "text_to_video"];
+    const key = name === "durations" ? "duration" : "aspect_ratio";
+    const options = capability?.params?.find((param) => param.name === key)?.options;
+    return Array.isArray(options) ? options : [];
 }
 
 function VideoStudio({ userId }) {
@@ -47,6 +43,7 @@ function VideoStudio({ userId }) {
     const [uploading, setUploading] = useState(false);
     const referenceUrl = useObjectUrl(reference);
     const fileInput = useRef(null);
+    const uploadedReference = useRef(null);
     const selectedId = studio.requestedModel || draft.model;
     const model = studio.models.find((item) => item.id === selectedId) || null;
     const supportsReference = model?.reference_image?.supported === true;
@@ -61,7 +58,9 @@ function VideoStudio({ userId }) {
     const ratioFromImage = Boolean(reference && supportsReference && model.reference_image.aspect_ratio_from_image);
     const selectedAngles = draft.angles.split(",");
     const count = Math.max(1, Math.min(Number(draft.count) || 1, maxQuantity(model)));
-    const unit = tokenPrice(model);
+    const operation = reference && supportsReference ? "image_to_video" : "text_to_video";
+    const capability = model?.capabilities?.[operation];
+    const unit = capability?.price_tokens ?? tokenPrice(model);
     const total = unit == null ? null : unit * count * (pro ? 2 : 1);
     const errors = validationErrors(studio.submitError);
     const job = studio.activeJob;
@@ -92,7 +91,7 @@ function VideoStudio({ userId }) {
         if (mode === "ugc") { const story = stories.find((item) => item.id === draft.story); if (story) parts.push(story.prompt); }
         return parts.join(" ");
     }, [mode, draft.prompt, draft.product, draft.features, draft.angles, draft.story]);
-    const canGenerate = Boolean(model && !studio.modelLoading && !studio.modelError && !studio.submitting && !uploading && total != null && total <= 2147483647 && studio.balance != null && studio.balance >= total && ((mode === "prompt" || mode === "reference") ? draft.prompt.trim() : draft.product.trim()) && finalPrompt.length <= 4000 && (!reference || referenceReady) && (!model.reference_image?.required || reference) && (mode !== "reference" || reference) && !referenceError);
+    const canGenerate = Boolean(model && capability?.source_hash && !studio.modelLoading && !studio.modelError && !studio.submitting && !uploading && total != null && total <= 2147483647 && studio.balance != null && studio.balance >= total && ((mode === "prompt" || mode === "reference") ? draft.prompt.trim() : draft.product.trim()) && finalPrompt.length <= 4000 && (!reference || referenceReady) && (!model.reference_image?.required || reference) && (mode !== "reference" || reference) && !referenceError);
     const set = (name, value) => setDraft((current) => ({ ...current, [name]: value }));
     // Mirrors AudioGenerator.selectMode: a mode that needs a capability moves the selection to a
     // model that has it rather than leaving an unusable mode/model combination on screen.
@@ -110,6 +109,7 @@ function VideoStudio({ userId }) {
         const file = event.target.files?.[0];
         if (!file) return;
         setReferenceReady(false);
+        uploadedReference.current = null;
         setReference(null);
         const max = Number(model?.reference_image?.max_bytes) || 10485760;
         const types = model?.reference_image?.mime_types || [];
@@ -121,14 +121,14 @@ function VideoStudio({ userId }) {
         setReferenceError(null);
         setReference(file);
     };
-    const removeReference = () => { setReference(null); setReferenceReady(false); setReferenceError(null); if (fileInput.current) fileInput.current.value = ""; };
+    const removeReference = () => { uploadedReference.current = null; setReference(null); setReferenceReady(false); setReferenceError(null); if (fileInput.current) fileInput.current.value = ""; };
     const generate = async (event) => {
         event.preventDefault();
         if (!canGenerate) return;
         // Capability submission: the reference becomes a stable, ownership-checked asset id
         // instead of a raw upload, so the job records what it used and can be retried safely.
-        let referenceId = null;
-        if (reference) {
+        let referenceId = uploadedReference.current?.file === reference ? uploadedReference.current.id : null;
+        if (reference && !referenceId) {
             setUploading(true);
             try {
                 const form = new FormData();
@@ -137,6 +137,7 @@ function VideoStudio({ userId }) {
                 const data = await apiRequest("/api/media/assets", { method: "POST", body: form });
                 referenceId = data?.asset?.id;
                 if (!referenceId) throw new Error("upload failed");
+                uploadedReference.current = { file: reference, id: referenceId };
             } catch {
                 setReferenceError(t("Gambar referensi gagal diunggah. Coba lagi."));
                 setUploading(false);
@@ -147,6 +148,8 @@ function VideoStudio({ userId }) {
         studio.submit({
             operation: referenceId ? "image_to_video" : "text_to_video",
             model: model.id,
+            expected_price_tokens: unit * (pro ? 2 : 1),
+            expected_capability_hash: capability.source_hash,
             prompt: finalPrompt,
             count,
             pro,

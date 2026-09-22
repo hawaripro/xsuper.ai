@@ -2,24 +2,31 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\ImageGenerationException;
 use App\Http\Controllers\Controller;
+use App\Media\AssetService;
+use App\Media\CapabilityPresenter;
+use App\Media\CapabilityResolver;
+use App\Media\CapabilityValidator;
+use App\Media\Enums\MediaOperation;
+use App\Media\Exceptions\CapabilityValidationException;
+use App\Media\MediaActivation;
+use App\Media\MediaGenerationCoordinator;
 use App\Models\AiModelProfile;
-use App\Models\UserToken;
 use App\Models\MediaAsset;
+use App\Models\User;
+use App\Models\UserToken;
 use App\Models\VideoJob;
 use App\Services\GeneratedVideoStore;
 use App\Services\MediaModelConfig;
 use App\Services\VideoGenerationService;
 use App\Services\VideoReferenceStore;
-use App\Exceptions\ImageGenerationException;
-use App\Media\AssetService;
-use App\Media\Enums\MediaOperation;
-use App\Media\MediaActivation;
-use App\Media\MediaGenerationCoordinator;
-use Illuminate\Validation\Rule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -124,14 +131,52 @@ class VideoController extends Controller
             if (app(MediaActivation::class)->usesCoordinator($user)) {
                 $jobs = app(MediaGenerationCoordinator::class)->startVideo($user, $model, $operation, $rawInputs, 'studio-video', $options);
             } elseif ($operation === MediaOperation::TextToVideo) {
-                $jobs = $videos->create($user, [
-                    'model' => $validated['model'], 'prompt' => $validated['prompt'],
-                    'mode' => $validated['mode'] ?? 'prompt', 'count' => $count, 'pro_mode' => $pro,
-                    'cta' => $validated['cta'] ?? null,
-                    'ugc_variation' => (bool) ($validated['ugc_variation'] ?? false),
-                    'aspect_ratio' => $validated['aspect_ratio'] ?? null,
-                    'settings' => ['duration' => $validated['duration'] ?? null],
-                ]);
+                $jobs = DB::transaction(function () use ($user, $model, $operation, $rawInputs, $options, $videos, $validated, $count, $pro): array {
+                    User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                    $dedup = isset($options['idempotency_key']) ? hash('sha256', $user->id.'|studio-video|'.$options['idempotency_key']) : null;
+                    $execution = [
+                        'cta' => trim($validated['cta'] ?? ''), 'ugc_variation' => $options['ugc_variation'], 'mode' => $validated['mode'] ?? 'prompt',
+                    ];
+                    if ($dedup !== null) {
+                        $existing = VideoJob::query()->where('user_id', $user->id)->where('dedup_key', $dedup)->orderBy('id')->get();
+                        if ($existing->isNotEmpty()) {
+                            if (! app(MediaGenerationCoordinator::class)->matchesRequest($existing->first(), $operation, $model->model_id, $rawInputs, $execution)) {
+                                throw new ImageGenerationException('This request key was already used with different input.', 409);
+                            }
+
+                            return $existing->all();
+                        }
+                    }
+                    $model = AiModelProfile::query()->with('provider')->lockForUpdate()->findOrFail($model->id);
+                    $resolved = app(CapabilityResolver::class)->resolve($model, $operation);
+                    if (isset($options['expected_capability_hash']) && ! hash_equals($resolved->sourceHash, $options['expected_capability_hash'])) {
+                        throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
+                    }
+                    $cost = (int) $model->token_cost * ($pro ? 2 : 1);
+                    if (isset($options['expected_price_tokens']) && (int) $options['expected_price_tokens'] !== $cost) {
+                        throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
+                    }
+                    try {
+                        $effective = app(CapabilityValidator::class)->validate($resolved->capability, $rawInputs);
+                    } catch (CapabilityValidationException $exception) {
+                        throw new ImageGenerationException($exception->getMessage(), 422);
+                    }
+                    $fingerprint = MediaGenerationCoordinator::fingerprintPayload($operation, $model->model_id, $effective);
+                    $revision = app(CapabilityResolver::class)->ensureRevision($model, $operation, $resolved);
+                    $created = $videos->create($user, [
+                        'model' => $validated['model'], 'prompt' => $validated['prompt'],
+                        'mode' => $validated['mode'] ?? 'prompt', 'count' => $count, 'pro_mode' => $pro,
+                        'cta' => $validated['cta'] ?? null,
+                        'ugc_variation' => (bool) ($validated['ugc_variation'] ?? false),
+                        'aspect_ratio' => $validated['aspect_ratio'] ?? null,
+                        'settings' => ['duration' => $validated['duration'] ?? null],
+                    ]);
+                    foreach ($created as $job) {
+                        $job->forceFill(['dedup_key' => $dedup, 'payload_fingerprint' => $fingerprint, 'capability_revision_id' => $revision->id])->save();
+                    }
+
+                    return $created;
+                });
             } else {
                 return response()->json(['message' => 'This operation is not available for your account yet.'], 503);
             }
@@ -150,7 +195,7 @@ class VideoController extends Controller
 
     public function history(Request $request, VideoGenerationService $videos): JsonResponse
     {
-        $query = VideoJob::query()->where('user_id', $request->user()->id);
+        $query = VideoJob::query()->where('user_id', $request->user()->id)->where('mode', '!=', 'avatar');
         $active = (clone $query)->whereIn('status', ['pending', 'processing'])->latest()->get();
         $recent = (clone $query)->whereIn('status', ['completed', 'failed'])->latest()->limit(50)->get();
         $jobs = $active->concat($recent)->sortByDesc('created_at')->values();
@@ -164,10 +209,10 @@ class VideoController extends Controller
     /** Delete one finished video job, its private asset, and its reference image. */
     public function destroy(Request $request, string $jobId, VideoReferenceStore $references): JsonResponse
     {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $jobId, $references): void {
+        DB::transaction(function () use ($request, $jobId, $references): void {
             $job = VideoJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
             if (in_array($job->status, ['pending', 'processing'], true)) {
-                throw \Illuminate\Validation\ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Batalkan dulu sebelum menghapusnya.']);
+                throw ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Batalkan dulu sebelum menghapusnya.']);
             }
             $this->removeVideoAssets($job, $references);
             $job->delete();
@@ -193,10 +238,11 @@ class VideoController extends Controller
     {
         $removed = 0;
         VideoJob::query()->where('user_id', $request->user()->id)
+            ->where('mode', '!=', 'avatar')
             ->whereNotIn('status', ['pending', 'processing'])->orderBy('id')
             ->chunkById(50, function ($jobs) use (&$removed, $references): void {
                 foreach ($jobs as $job) {
-                    \Illuminate\Support\Facades\DB::transaction(function () use ($job, $references, &$removed): void {
+                    DB::transaction(function () use ($job, $references, &$removed): void {
                         $locked = VideoJob::query()->lockForUpdate()->find($job->id);
                         if (! $locked || in_array($locked->status, ['pending', 'processing'], true)) {
                             return;
@@ -270,7 +316,7 @@ class VideoController extends Controller
         $assetId = is_array($job->reference_asset_ids) ? ($job->reference_asset_ids[0] ?? null) : null;
         if (is_string($assetId)) {
             $asset = MediaAsset::find($assetId);
-            abort_if($asset === null, 404);
+            abort_if($asset === null || $asset->user_id !== $job->user_id, 404);
 
             return app(AssetService::class)->deliver($asset);
         }
@@ -286,7 +332,7 @@ class VideoController extends Controller
     public function models(Request $request): JsonResponse
     {
         $user = $request->user();
-        $capabilities = app(\App\Media\CapabilityPresenter::class);
+        $capabilities = app(CapabilityPresenter::class);
         $models = AiModelProfile::query()->with('provider')->where('category', 'video')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)

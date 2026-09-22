@@ -11,6 +11,7 @@ class AiProviderProfile extends Model
     protected $fillable = [
         'slug', 'name', 'status', 'is_enabled', 'capabilities', 'last_checked_at', 'last_error',
         'protocol', 'base_url', 'api_key', 'api_version',
+        'catalog_discovered_at', 'authenticated_at',
     ];
 
     protected $attributes = ['protocol' => 'openai', 'api_version' => '2023-06-01'];
@@ -22,6 +23,8 @@ class AiProviderProfile extends Model
             'capabilities' => 'array',
             'last_checked_at' => 'datetime',
             'api_key' => 'encrypted',
+            'catalog_discovered_at' => 'datetime',
+            'authenticated_at' => 'datetime',
         ];
     }
 
@@ -38,6 +41,13 @@ class AiProviderProfile extends Model
             'capabilities' => $this->capabilities ?? [],
             'models_count' => (int) ($this->models_count ?? $this->models()->count()),
             'last_checked_at' => $this->last_checked_at?->toISOString(),
+            'catalog_discovered_at' => $this->catalog_discovered_at?->toISOString(),
+            'authenticated_at' => $this->authenticated_at?->toISOString(),
+            'verification' => [
+                'catalog_source' => $this->protocol === 'kinovi' ? 'static_documentation' : 'remote_catalog',
+                'authenticated' => $this->authenticated_at !== null,
+                'generation_verified' => false,
+            ],
             'protocol' => $saved ? $this->protocol : 'openai',
             'base_url' => $saved ? $this->base_url : null,
             'api_version' => $this->api_version,

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\AiProxyException;
+use App\Media\FalCapabilityImporter;
 use App\Models\AiProviderProfile;
 use Generator;
 use GuzzleHttp\Handler\StreamHandler;
@@ -11,6 +12,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Psr\Http\Message\RequestInterface;
 use Throwable;
 
@@ -50,6 +52,60 @@ final class AiProviderTransport
         }
 
         return array_values(array_filter($models, 'is_array'));
+    }
+
+    /** One schema-expanded, bounded page. Public catalog access is not credential verification. */
+    public function discoverFalPage(AiProviderProfile $provider, ?string $cursor = null, int $limit = 10): array
+    {
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'fal' || $limit < 1 || $limit > 25
+            || ($cursor !== null && (strlen($cursor) > 2048 || preg_match('/^[A-Za-z0-9+\/_=\\-]+$/D', $cursor) !== 1))) {
+            throw new AiProxyException('Schema discovery requires a configured fal provider and a valid bounded page.', 422);
+        }
+        $rateKey = 'fal-discovery:'.$provider->id;
+        if (RateLimiter::tooManyAttempts($rateKey, 20)) {
+            throw new AiProxyException('Catalog discovery is rate limited. Try again shortly.', 429);
+        }
+        RateLimiter::hit($rateKey, 60);
+        $response = $this->send('GET', 'https://api.fal.ai/v1/models', $connection, timeout: 20,
+            query: array_filter(['expand' => 'openapi-3.0', 'limit' => $limit, 'cursor' => $cursor], fn ($value) => $value !== null),
+            catalogRetry: true);
+        if (strlen($response->body()) > 16 * 1024 * 1024) {
+            throw new AiProxyException('The catalog page is too large. Use a smaller page size.', 502);
+        }
+        $data = $response->json();
+        if (! is_array($data) || ! is_array($data['models'] ?? null) || ! array_is_list($data['models']) || count($data['models']) > $limit) {
+            throw new AiProxyException('The fal provider returned an invalid catalog page.', 502);
+        }
+        foreach ($data['models'] as $entry) {
+            if (! is_array($entry) || ! is_string($entry['endpoint_id'] ?? null)
+                || ! FalCapabilityImporter::validEndpoint($entry['endpoint_id']) || ! is_array($entry['metadata'] ?? null)) {
+                throw new AiProxyException('The fal provider returned an invalid model entry.', 502);
+            }
+        }
+        $next = $data['next_cursor'] ?? null;
+        if (($data['has_more'] ?? false) && (! is_string($next) || $next === '')
+            || ($next !== null && (! is_string($next) || $next === $cursor || strlen($next) > 2048 || preg_match('/^[A-Za-z0-9+\/_=\\-]+$/D', $next) !== 1))) {
+            throw new AiProxyException('The fal provider returned an invalid pagination cursor.', 502);
+        }
+
+        return ['models' => $data['models'], 'next_cursor' => $next];
+    }
+
+    /** Executed only from a reviewed, immutable image capability binding. Never retries a paid POST. */
+    public function runCatalogImage(AiProviderProfile $provider, string $endpoint, array $payload): array
+    {
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'fal' || ! FalCapabilityImporter::validEndpoint($endpoint)) {
+            throw new AiProxyException('The image capability routing is invalid.', 422);
+        }
+        $response = $this->send('POST', $connection['base_url'].'/'.$endpoint, $connection, $payload, image: true);
+        $data = $response->json();
+        if (! is_array($data) || ! is_array($data['images'] ?? null) || count($data['images']) > 10) {
+            throw new AiProxyException('The image provider returned an invalid result.', 502);
+        }
+
+        return FalProtocol::imageResponse($data);
     }
 
     /** @return array<string, mixed> */
@@ -320,7 +376,7 @@ final class AiProviderTransport
         if ($connection['protocol'] === 'kinovi') {
             $data = $this->send('GET', $connection['base_url'].'/jobs/recordInfo', $connection, timeout: 20, query: ['taskId' => $taskId])->json();
 
-            return $this->kinoviTaskState($data, 'audio_url');
+            return $this->kinoviTaskState($data, 'result_urls');
         }
         if ($connection['protocol'] !== 'fal'
             || ! in_array($path, [FalProtocol::AUDIO_SPEECH_REQUEST_PATH, FalProtocol::AUDIO_MUSIC_REQUEST_PATH], true)) {
@@ -347,13 +403,13 @@ final class AiProviderTransport
             throw new AiProxyException('The fal audio provider returned an invalid result.', 502);
         }
 
-        return ['status' => 'completed', 'audio_url' => $audioUrl];
+        return ['status' => 'completed', 'result_urls' => [$audioUrl]];
     }
 
     /**
      * Normalise a Kinovi recordInfo response into the shared async media state shape.
      *
-     * @param  'result_urls'|'video_url'|'audio_url'  $key
+     * @param  'result_urls'|'video_url'  $key
      * @return array<string, mixed>
      */
     private function kinoviTaskState(mixed $data, string $key): array
@@ -588,6 +644,7 @@ final class AiProviderTransport
         bool $stream = false,
         array $query = [],
         bool $image = false,
+        bool $catalogRetry = false,
     ): Response {
         if ($connection['protocol'] === 'fal') {
             $host = strtolower(trim((string) parse_url($url, PHP_URL_HOST), '[]'));
@@ -607,15 +664,34 @@ final class AiProviderTransport
             $connection['stream_target'] = [$host, $port, $ip];
         }
         $request = $this->request($connection, $timeout, $stream);
-        try {
-            $response = $request->send($method, $url, array_filter([
-                'json' => $json,
-                'query' => $query !== [] ? $query : null,
-            ], static fn (mixed $value): bool => $value !== null));
-        } catch (ConnectionException) {
-            throw new AiProxyException($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.', 503);
-        } catch (Throwable) {
-            throw new AiProxyException($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.', 503);
+        $attempts = $catalogRetry && $method === 'GET' ? 3 : 1;
+        for ($attempt = 0; $attempt < $attempts; $attempt++) {
+            try {
+                $response = $request->send($method, $url, array_filter([
+                    'json' => $json,
+                    'query' => $query !== [] ? $query : null,
+                ], static fn (mixed $value): bool => $value !== null));
+            } catch (ConnectionException) {
+                if ($attempt + 1 < $attempts) {
+                    usleep(250000 * (2 ** $attempt));
+
+                    continue;
+                }
+                throw new AiProxyException($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.', 503);
+            } catch (Throwable) {
+                throw new AiProxyException($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.', 503);
+            }
+            if (($response->status() === 429 || $response->serverError()) && $attempt + 1 < $attempts) {
+                $retryAfter = $response->header('Retry-After');
+                $delay = ctype_digit((string) $retryAfter) ? (int) $retryAfter : max(0, (strtotime((string) $retryAfter) ?: time()) - time());
+                if ($delay > 2) {
+                    break; // Respect long Retry-After by returning; never retry earlier than requested.
+                }
+                usleep((int) (max($delay, 0.25 * (2 ** $attempt)) * 1000000));
+
+                continue;
+            }
+            break;
         }
 
         if (! $response->successful()) {

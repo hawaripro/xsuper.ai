@@ -129,8 +129,8 @@ class MediaTokenBillingService
 
     private function validateInput(string $service, string $model, int $quantity, string $reference): void
     {
-        if (! in_array($service, ['image', 'video', 'audio'], true)) {
-            throw new InvalidArgumentException('Media service must be image, video or audio.');
+        if (! in_array($service, ['image', 'video', 'audio', 'model3d'], true)) {
+            throw new InvalidArgumentException('Media service must be image, video, audio or model3d.');
         }
         if (trim($model) === '' || mb_strlen($model) > 160) {
             throw new InvalidArgumentException('Media model must contain at most 160 characters.');
@@ -138,8 +138,8 @@ class MediaTokenBillingService
         if ($quantity <= 0) {
             throw new InvalidArgumentException('Media quantity must be positive.');
         }
-        if ($service === 'audio' && $quantity !== 1) {
-            throw new InvalidArgumentException('Audio reservations must contain exactly one generation.');
+        if (in_array($service, ['audio', 'model3d'], true) && $quantity !== 1) {
+            throw new InvalidArgumentException('Audio and 3D reservations must contain exactly one generation.');
         }
         if (trim($reference) === '' || mb_strlen($reference) > 160) {
             throw new InvalidArgumentException('Reservation reference must contain at most 160 characters.');

@@ -115,6 +115,13 @@ test('custom IDR deposit on mobile previews USD, prevents duplicate checkout, an
         await page.reload();
         await expect(page.locator('.deposit-payment').getByText('Deposit disetujui', { exact: true })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        await page.setViewportSize({ width: 320, height: 844 });
+        await page.getByRole('tab', { name: 'Saldo PAYG', exact: true }).focus();
+        await page.keyboard.press('End');
+        const storageTab = page.getByRole('tab', { name: 'Penyimpanan', exact: true });
+        await expect(storageTab).toBeFocused();
+        await expect(storageTab).toBeInViewport({ ratio: 1 });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     } finally {
         await adminSession.context.close();
     }

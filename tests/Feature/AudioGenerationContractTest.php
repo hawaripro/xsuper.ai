@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessAudioJob;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
@@ -10,6 +11,8 @@ use App\Models\UserToken;
 use App\Services\AiProviderEndpoint;
 use App\Services\AudioGenerationService;
 use App\Services\FalProtocol;
+use App\Services\GeneratedAudioStore;
+use App\Services\StorageQuotaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -58,11 +61,12 @@ class AudioGenerationContractTest extends TestCase
         $this->assertDatabaseHas('token_reservations', ['user_id' => $user->id, 'service' => 'audio', 'amount_tokens' => 50, 'status' => 'settled']);
         $this->assertCount(1, Http::recorded(fn (Request $request): bool => $request->method() === 'POST'));
         $user->update(['expires_at' => now()->subMinute()]);
-        $this->getJson('/api/audio/'.$job->job_id)->assertOk()->assertJsonPath('job.billing_status', 'settled');
-        $this->get($job->fresh()->audio_url)->assertOk()->assertHeader('Content-Type', 'audio/wav');
+        $url = $this->getJson('/api/audio/'.$job->job_id)->assertOk()->assertJsonPath('job.billing_status', 'settled')
+            ->assertJsonCount(1, 'job.outputs')->json('job.outputs.0.url');
+        $this->get($url)->assertOk()->assertHeader('Content-Type', 'audio/wav');
         $other = User::factory()->create(['is_active' => true]);
         $this->actingAs($other)->getJson('/api/audio/'.$job->job_id)->assertNotFound();
-        $this->get($job->fresh()->audio_url)->assertNotFound();
+        $this->get($url)->assertNotFound();
     }
 
     public function test_music_accepts_documented_string_audio_result_and_requested_duration(): void
@@ -112,7 +116,7 @@ class AudioGenerationContractTest extends TestCase
         $job = AudioJob::where('job_id', $id)->firstOrFail();
         $job->update(['status' => 'processing', 'stage' => 'submitting', 'processing_token' => 'replacement-worker', 'processing_started_at' => now()]);
 
-        (new \App\Jobs\ProcessAudioJob($job->id))->failed(new \RuntimeException('Obsolete queue delivery exceeded attempts.'));
+        (new ProcessAudioJob($job->id))->failed(new \RuntimeException('Obsolete queue delivery exceeded attempts.'));
 
         $this->assertSame('processing', $job->fresh()->status);
         $this->assertSame(450, UserToken::getBalance($user->id));
@@ -125,8 +129,8 @@ class AudioGenerationContractTest extends TestCase
         $id = $this->actingAs($user)->postJson('/api/audio', ['model' => $model->model_id, 'mode' => 'speech', 'prompt' => 'Recover an interrupted save.'])->assertAccepted()->json('job.job_id');
         $job = AudioJob::where('job_id', $id)->firstOrFail();
         $job->update(['status' => 'processing', 'stage' => 'saving', 'processing_token' => 'abandoned-save', 'processing_started_at' => now()->subMinutes(15)]);
-        $partial = \App\Services\GeneratedAudioStore::path($id).'.0123456789abcdef.part';
-        $unrelated = \App\Services\GeneratedAudioStore::path('unrelated-job');
+        $partial = GeneratedAudioStore::path($id, 1).'.0123456789abcdef.part';
+        $unrelated = GeneratedAudioStore::path('unrelated-job', 0);
         Storage::disk('local')->put($partial, 'partial audio bytes');
         Storage::disk('local')->put($unrelated, 'unrelated private audio');
 
@@ -138,6 +142,36 @@ class AudioGenerationContractTest extends TestCase
         Storage::disk('local')->assertMissing($partial);
         $this->assertSame('unrelated private audio', Storage::disk('local')->get($unrelated));
         Http::assertNothingSent();
+    }
+
+    public function test_generated_speech_reference_is_owned_reused_and_survives_original_deletion(): void
+    {
+        [$user, $model] = $this->fixture(FalProtocol::AUDIO_SPEECH);
+        $this->fakeProvider(FalProtocol::AUDIO_SPEECH, 'fal-ai/kokoro', ['audio' => ['url' => 'https://v3.fal.media/audio.wav']]);
+        $id = $this->actingAs($user)->postJson('/api/audio', [
+            'operation' => 'text_to_speech', 'model' => $model->model_id, 'prompt' => 'Reusable spoken reference.',
+        ])->assertAccepted()->json('job.job_id');
+        $job = AudioJob::where('job_id', $id)->firstOrFail();
+        $audio = app(AudioGenerationService::class);
+        $audio->process($job->id);
+        $this->travel(9)->seconds();
+        $audio->poll($job->id);
+        $size = app(StorageQuotaService::class)->usedBytes($user);
+        $bytes = Storage::disk('local')->get($job->fresh()->outputs[0]['path']);
+
+        $asset = $this->postJson('/api/audio/'.$id.'/reference', ['index' => 0])->assertOk()->json('asset');
+        $this->postJson('/api/audio/'.$id.'/reference', ['index' => 0])->assertOk()->assertJsonPath('asset.id', $asset['id']);
+        $this->assertDatabaseCount('media_assets', 1);
+        $this->assertSame($size * 2, app(StorageQuotaService::class)->usedBytes($user));
+        $this->assertSame(450, UserToken::getBalance($user->id));
+        $other = User::factory()->create(['is_active' => true, 'expires_at' => now()->addDay()]);
+        $this->actingAs($other)->postJson('/api/audio/'.$id.'/reference', ['index' => 0])->assertNotFound();
+        $this->get($asset['preview_url'])->assertNotFound();
+
+        $this->actingAs($user)->deleteJson('/api/audio/'.$id)->assertOk();
+        $download = $this->get($asset['preview_url'])->assertOk();
+        $this->assertSame($bytes, $download->streamedContent());
+        $this->assertSame($size, app(StorageQuotaService::class)->usedBytes($user));
     }
 
     private function fixture(string $id): array

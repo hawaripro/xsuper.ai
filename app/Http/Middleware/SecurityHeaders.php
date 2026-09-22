@@ -36,19 +36,24 @@ class SecurityHeaders
             $script = "'self' 'nonce-{$nonce}' ".$umami.' '.$cfInsights;
             $connect = "'self' https: wss:";
         }
-        $response->headers->set('Content-Security-Policy', implode('; ', [
-            "default-src 'self'",
-            "script-src {$script}",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob: https:",
-            "font-src 'self' data:",
-            "media-src 'self' blob:",
-            "connect-src {$connect}",
-            "frame-ancestors 'self'",
-            "base-uri 'self'",
-            "form-action 'self'",
-            "object-src 'none'",
-        ]));
+        // GLB's embedded textures are decoded through in-memory blob/data fetches.
+        // This does not permit blob/data scripts or additional remote resource origins.
+        $connect .= ' blob: data:';
+        if (! $response->headers->has('Content-Security-Policy')) {
+            $response->headers->set('Content-Security-Policy', implode('; ', [
+                "default-src 'self'",
+                "script-src {$script}",
+                "style-src 'self' 'unsafe-inline'",
+                "img-src 'self' data: blob: https:",
+                "font-src 'self' data:",
+                "media-src 'self' blob:",
+                "connect-src {$connect}",
+                "frame-ancestors 'self'",
+                "base-uri 'self'",
+                "form-action 'self'",
+                "object-src 'none'",
+            ]));
+        }
 
         // Control referrer information
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');

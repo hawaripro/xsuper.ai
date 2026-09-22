@@ -8,6 +8,7 @@ use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
 use App\Models\ImageJob;
+use App\Models\ThreeDJob;
 use App\Models\UsageRate;
 use App\Models\VideoJob;
 use App\Services\AiProviderEndpoint;
@@ -98,6 +99,8 @@ class AiProviderController extends Controller
                     $provider->status = 'unknown';
                     $provider->last_checked_at = null;
                     $provider->last_error = null;
+                    $provider->authenticated_at = null;
+                    $provider->catalog_discovered_at = null;
                     $provider->models()->update(['is_available' => false]);
                 }
                 $provider->save();
@@ -140,19 +143,14 @@ class AiProviderController extends Controller
 
                 $modelIds = $models->pluck('model_id');
                 $rates = UsageRate::query()->whereIn('model', $modelIds)->orderBy('id')->lockForUpdate()->get(['id']);
-                foreach ([ImageJob::class, VideoJob::class, AudioJob::class] as $jobClass) {
+                foreach ([ImageJob::class, VideoJob::class, AudioJob::class, ThreeDJob::class] as $jobClass) {
                     $busy = $jobClass::query()
-                        ->where(function ($query) use ($modelIds, $provider, $jobClass): void {
-                            $query->whereIn('model', $modelIds);
-                            if (in_array($jobClass, [VideoJob::class, AudioJob::class], true)) {
-                                $query->orWhere('provider_id', $provider->id);
-                            }
-                        })
-                        ->where(fn ($query) => $query->whereIn('status', ['pending', 'processing'])->orWhere('billing_status', 'reserved'))
+                        ->where(fn ($query) => $query->whereIn('model', $modelIds)->orWhere('provider_id', $provider->id))
+                        ->where(fn ($query) => $query->whereIn('status', ['pending', 'processing'])->orWhere('billing_status', 'reserved')->orWhereNotNull('capability_revision_id'))
                         ->orderBy('id')->lockForUpdate()->first(['id']);
                     if ($busy) {
                         throw new HttpResponseException(response()->json([
-                            'message' => 'This provider has active or unreconciled media jobs. Finish or refund those jobs before deleting.',
+                            'message' => 'This provider has active jobs or retained capability history. Disable it instead of deleting.',
                             'code' => 'provider_media_busy',
                         ], 409));
                     }
@@ -161,6 +159,8 @@ class AiProviderController extends Controller
                 // Detach historical provider links without changing media timestamps or snapshots.
                 DB::table('video_jobs')->where('provider_id', $provider->id)->update(['provider_id' => null]);
                 DB::table('audio_jobs')->where('provider_id', $provider->id)->update(['provider_id' => null]);
+                DB::table('image_jobs')->where('provider_id', $provider->id)->update(['provider_id' => null]);
+                DB::table('three_d_jobs')->where('provider_id', $provider->id)->update(['provider_id' => null]);
                 UsageRate::query()->whereKey($rates->modelKeys())->delete();
                 AiModelProfile::query()->whereKey($models->modelKeys())->delete();
                 $provider->delete();
@@ -191,7 +191,9 @@ class AiProviderController extends Controller
         $connection = Arr::only($provider->getRawOriginal(), ['base_url', 'api_key', 'protocol', 'api_version']);
         $status = 200;
         $models = [];
-        $message = 'The provider connection is ready.';
+        $message = $provider->protocol === 'kinovi'
+            ? 'Static Kinovi model documentation is available. Credentials and generation access have not been verified.'
+            : 'The provider catalog authentication is ready. Individual model generation has not been verified.';
         try {
             $models = $proxy->fetchCatalog($provider);
         } catch (AiProxyException $exception) {
@@ -205,9 +207,11 @@ class AiProviderController extends Controller
                 throw new HttpResponseException(response()->json(['message' => 'The provider connection changed. Check it again.'], 409));
             }
             $provider->fill([
-                'status' => $status === 200 ? 'healthy' : ($status === 503 ? 'unavailable' : 'error'),
+                'status' => $status === 200 ? ($provider->protocol === 'kinovi' ? 'discovered' : 'healthy') : ($status === 503 ? 'unavailable' : 'error'),
                 'last_checked_at' => now(),
                 'last_error' => $status === 200 ? null : $message,
+                'authenticated_at' => $status === 200 && $provider->protocol !== 'kinovi' ? now() : null,
+                'catalog_discovered_at' => $status === 200 ? now() : $provider->catalog_discovered_at,
             ]);
             if ($status === 200) {
                 $provider->capabilities = collect($models)->pluck('category')->unique()->values()->all();

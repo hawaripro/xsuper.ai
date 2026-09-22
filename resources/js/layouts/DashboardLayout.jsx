@@ -95,6 +95,8 @@ export default function DashboardLayout({ children }) {
         { name: 'Generate Gambar', href: '/generate-image', icon: Icons.image, tone: 'fuchsia' },
         ...(allowed('video_generator', false) ? [{ name: 'Generate Video', href: '/video', icon: Icons.video, tone: 'violet' }] : []),
         ...(allowed('audio_generator') ? [{ name: 'Audio', href: '/audio', icon: Icons.audio, tone: 'pink' }] : []),
+        ...(allowed('video_generator', false) ? [{ name: 'Avatar', href: '/avatar', icon: Icons.profile, tone: 'violet' }] : []),
+        ...(allowed('image_generator') ? [{ name: 'Studio 3D', href: '/3d', icon: Icons.cube, tone: 'cyan' }] : []),
         ...(allowed('video_downloader') ? [{ name: 'Downloads', href: '/downloads', icon: Icons.download, tone: 'blue' }] : []),
         ...(allowed('media_converter') ? [{ name: 'Converter', href: '/converter', icon: Icons.convert, tone: 'teal' }] : []),
         ...(allowed('media_converter') ? [{ name: 'Hapus Latar', href: '/remove-background', icon: Icons.image, tone: 'fuchsia' }] : []),
