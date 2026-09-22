@@ -18,9 +18,10 @@ const TYPES = [
     { key: 'reference', label: 'Unggahan referensi', icon: 'image', tone: 'amber' },
     { key: 'download', label: 'Unduhan', icon: 'download', tone: 'blue' },
     { key: 'convert', label: 'Konversi', icon: 'convert', tone: 'cyan' },
+    { key: 'rembg', label: 'Hapus Latar', icon: 'image', tone: 'teal' },
 ];
 const TYPE_LABEL = Object.fromEntries(TYPES.map(type => [type.key, type.label]));
-const PAGE_LABELS = { image: 'Buka studio gambar', video: 'Buka studio video', audio: 'Buka studio audio', reference: 'Buka studio video', download: 'Buka unduhan', convert: 'Buka konverter' };
+const PAGE_LABELS = { image: 'Buka studio gambar', video: 'Buka studio video', audio: 'Buka studio audio', reference: 'Buka studio video', download: 'Buka unduhan', convert: 'Buka konverter', rembg: 'Buka Hapus Latar' };
 
 function bytes(value, locale) {
     if (typeof value !== 'number' || value < 0) return null;

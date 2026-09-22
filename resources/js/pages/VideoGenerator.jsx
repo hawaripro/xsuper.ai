@@ -20,7 +20,8 @@ const stories = [
     { id: "friend", label: "Rekomendasi ke Teman", prompt: "Talent talking directly to camera about the product. Casual, conversational tone." },
 ];
 const defaults = { model: "", mode: "prompt", prompt: "", product: "", features: "", angles: "closeup,lifestyle", story: "problem", cta: "", ratio: "", duration: "", count: "1", pro: false, variations: false };
-const tabs = [{ id: "prompt", label: "Prompt", icon: "prompt" }, { id: "product", label: "Produk", icon: "product" }, { id: "ugc", label: "UGC", icon: "ugc" }];
+const baseTabs = [{ id: "prompt", label: "Teks ke video", icon: "prompt" }, { id: "product", label: "Produk", icon: "product" }, { id: "ugc", label: "UGC", icon: "ugc" }];
+const referenceTab = { id: "reference", label: "Gambar ke video", icon: "video" };
 
 function VideoPlayer({ job }) {
     const { t } = useLocale();
@@ -46,8 +47,9 @@ function VideoStudio({ userId }) {
     const fileInput = useRef(null);
     const selectedId = studio.requestedModel || draft.model;
     const model = studio.models.find((item) => item.id === selectedId) || null;
-    const mode = tabs.some((tab) => tab.id === draft.mode) ? draft.mode : "prompt";
     const supportsReference = model?.reference_image?.supported === true;
+    const tabs = supportsReference ? [baseTabs[0], referenceTab, baseTabs[1], baseTabs[2]] : baseTabs;
+    const mode = tabs.some((tab) => tab.id === draft.mode) ? draft.mode : "prompt";
     const supportsPro = model?.pro?.supported === true && model.pro.multiplier === 2;
     const pro = supportsPro && draft.pro;
     const ratioFromImage = Boolean(reference && supportsReference && model.reference_image.aspect_ratio_from_image);
@@ -77,14 +79,14 @@ function VideoStudio({ userId }) {
     }, [supportsReference, reference]);
 
     const finalPrompt = useMemo(() => {
-        if (mode === "prompt") return draft.prompt.trim();
+        if (mode === "prompt" || mode === "reference") return draft.prompt.trim();
         const parts = [`Create a ${mode === "ugc" ? "UGC-style" : "product"} video for "${draft.product.trim()}".`];
         if (draft.features.trim()) parts.push(`Key features: ${draft.features.trim()}.`);
         if (mode === "product") angles.forEach((angle) => { if (draft.angles.split(",").includes(angle.id)) parts.push(angle.prompt); });
         if (mode === "ugc") { const story = stories.find((item) => item.id === draft.story); if (story) parts.push(story.prompt); }
         return parts.join(" ");
     }, [mode, draft.prompt, draft.product, draft.features, draft.angles, draft.story]);
-    const canGenerate = Boolean(model && !studio.modelLoading && !studio.modelError && !studio.submitting && total != null && total <= 2147483647 && studio.balance != null && studio.balance >= total && (mode === "prompt" ? draft.prompt.trim() : draft.product.trim()) && finalPrompt.length <= 4000 && (!reference || referenceReady) && (!model.reference_image?.required || reference) && !referenceError);
+    const canGenerate = Boolean(model && !studio.modelLoading && !studio.modelError && !studio.submitting && total != null && total <= 2147483647 && studio.balance != null && studio.balance >= total && ((mode === "prompt" || mode === "reference") ? draft.prompt.trim() : draft.product.trim()) && finalPrompt.length <= 4000 && (!reference || referenceReady) && (!model.reference_image?.required || reference) && (mode !== "reference" || reference) && !referenceError);
     const set = (name, value) => setDraft((current) => ({ ...current, [name]: value }));
     const chooseReference = (event) => {
         const file = event.target.files?.[0];
@@ -105,7 +107,7 @@ function VideoStudio({ userId }) {
     const generate = (event) => {
         event.preventDefault();
         if (!canGenerate) return;
-        const payload = { prompt: finalPrompt, model: model.id, count, mode: mode === "prompt" ? "prompt" : "ab_testing", pro_mode: pro, ugc_variation: count > 1 && draft.variations, ...(mode !== "prompt" && draft.cta.trim() ? { cta: draft.cta.trim() } : {}), ...(!ratioFromImage && draft.ratio ? { aspect_ratio: draft.ratio } : {}), settings: draft.duration ? { duration: Number(draft.duration) } : {} };
+        const payload = { prompt: finalPrompt, model: model.id, count, mode: (mode === "prompt" || mode === "reference") ? "prompt" : "ab_testing", pro_mode: pro, ugc_variation: count > 1 && draft.variations, ...((mode === "product" || mode === "ugc") && draft.cta.trim() ? { cta: draft.cta.trim() } : {}), ...(!ratioFromImage && draft.ratio ? { aspect_ratio: draft.ratio } : {}), settings: draft.duration ? { duration: Number(draft.duration) } : {} };
         if (reference) {
             const body = new FormData();
             Object.entries(payload).forEach(([key, value]) => {
@@ -124,7 +126,7 @@ function VideoStudio({ userId }) {
                 <section className="studio-monitor" aria-label={t("Hasil video")}><div className="studio-toolbar studio-monitor-heading"><h2><StudioIcon name="video" className="studio-color-video" />{t("Monitor video")}</h2><span className="studio-help">{job ? [job.model, job.pro_mode ? "Pro" : "Standard"].join(" · ") : t("Hasil asli dari model")}</span></div>{studio.statusError && <StudioNotice error action={<StudioButton onClick={() => studio.loadJob(studio.activeId)} disabled={studio.statusLoading}>{t("Coba lagi")}</StudioButton>}>{t(mediaError(studio.statusError))}</StudioNotice>}{studio.submitting || isPending(job) ? <div className="studio-video-screen"><StudioProgress job={job} submitting={studio.submitting} /></div> : job?.status === "completed" && job.video_url ? <VideoPlayer key={job.job_id} job={job} /> : <div className="studio-video-screen"><StudioEmpty icon="video" title="Adegan Anda dimulai di sini" description="Hasil video akan dapat diputar, dicari posisinya, dan diunduh setelah proses selesai." /></div>}{job && <StudioJobMeta job={job} checking={studio.statusLoading} onCheck={() => studio.loadJob(job.job_id)} onCancel={setCancellation} />}{job?.has_reference && job.reference_url && <details className="studio-saved-reference"><summary>{t("Gambar referensi permintaan ini")}</summary><a href={job.reference_url} target="_blank" rel="noreferrer"><img src={job.reference_url} alt={t("Gambar referensi video tersimpan")} loading="lazy" /></a></details>}</section>
                 <section className="studio-authoring"><div className="studio-section-heading"><h2>{t("Arahan video")}</h2><StudioIcon name="prompt" className="studio-color-video" /></div><div className="studio-tabs" role="tablist" aria-label={t("Mode generator")}>{tabs.map((tab, index) => <button type="button" role="tab" id={`video-tab-${tab.id}`} aria-controls={`video-panel-${tab.id}`} aria-selected={mode === tab.id} tabIndex={mode === tab.id ? 0 : -1} disabled={studio.submitting} key={tab.id} onClick={() => set("mode", tab.id)} onKeyDown={(event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length; set("mode", tabs[next].id); document.getElementById(`video-tab-${tabs[next].id}`)?.focus(); }}><StudioIcon name={tab.icon} className={`studio-color-${tab.id}`} />{t(tab.label)}</button>)}</div>
                     <div id={`video-panel-${mode}`} role="tabpanel" aria-labelledby={`video-tab-${mode}`} className="studio-authoring-fields">
-                        {mode === "prompt" ? <StudioField id="video-prompt" label="Prompt" error={errors.prompt} hint={`${draft.prompt.length}/4000 ${t("karakter")}`}><textarea id="video-prompt" value={draft.prompt} rows={6} maxLength={4000} required disabled={studio.submitting} onChange={(event) => set("prompt", event.target.value)} aria-invalid={Boolean(errors.prompt)} aria-describedby="video-prompt-hint" placeholder={t("Jelaskan subjek, gerakan kamera, suasana, dan pencahayaan…")} /></StudioField> : <>
+                        {(mode === "prompt" || mode === "reference") ? <><StudioField id="video-prompt" label="Prompt" error={errors.prompt} hint={`${draft.prompt.length}/4000 ${t("karakter")}`}><textarea id="video-prompt" value={draft.prompt} rows={6} maxLength={4000} required disabled={studio.submitting} onChange={(event) => set("prompt", event.target.value)} aria-invalid={Boolean(errors.prompt)} aria-describedby="video-prompt-hint" placeholder={t("Jelaskan subjek, gerakan kamera, suasana, dan pencahayaan…")} /></StudioField>{mode === "reference" && <p className="studio-help">{t("Unggah gambar referensi di panel Pengaturan video; video dibuat dari gambar tersebut.")}</p>}</> : <>
                             <div className="studio-field-pair"><StudioField id="video-product" label="Nama produk"><input id="video-product" value={draft.product} maxLength={160} required disabled={studio.submitting} onChange={(event) => set("product", event.target.value)} /></StudioField><StudioField id="video-features" label="Keunggulan / Key Feature"><input id="video-features" value={draft.features} maxLength={700} disabled={studio.submitting} onChange={(event) => set("features", event.target.value)} /></StudioField></div>
                             {mode === "product" ? <fieldset className="studio-angle-fieldset"><legend>{t("Arahan sudut kamera")}</legend><p className="studio-help">{t("Pilihan ini menyusun prompt, bukan klip terpisah atau durasi adegan yang dijamin.")}</p><div className="studio-angle-list">{angles.map((angle) => <button type="button" key={angle.id} disabled={studio.submitting} aria-pressed={selectedAngles.includes(angle.id)} onClick={() => set("angles", (selectedAngles.includes(angle.id) ? selectedAngles.filter((id) => id !== angle.id) : [...selectedAngles, angle.id]).join(","))}><StudioIcon name={selectedAngles.includes(angle.id) ? "check" : "video"} /><span>{t(angle.label)}</span></button>)}</div></fieldset> : <StudioField id="video-story" label="Alur cerita UGC"><select id="video-story" value={draft.story} disabled={studio.submitting} onChange={(event) => set("story", event.target.value)}>{stories.map((story) => <option key={story.id} value={story.id}>{t(story.label)}</option>)}</select></StudioField>}
                             <StudioField id="video-cta" label="Call-to-Action (CTA) — Opsional" error={errors.cta} hint={t("CTA dikirim sebagai arahan kreatif; teks dan ucapan pada hasil bergantung pada model.")}><input id="video-cta" value={draft.cta} maxLength={500} disabled={studio.submitting} onChange={(event) => set("cta", event.target.value)} /></StudioField>

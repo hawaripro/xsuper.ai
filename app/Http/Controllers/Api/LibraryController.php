@@ -24,7 +24,7 @@ use Illuminate\Validation\Rule;
  */
 class LibraryController extends Controller
 {
-    public const TYPES = ['image', 'video', 'audio', 'reference', 'download', 'convert'];
+    public const TYPES = ['image', 'video', 'audio', 'reference', 'download', 'convert', 'rembg'];
 
     private const SOURCE_LIMIT = 300;
 
@@ -173,7 +173,7 @@ class LibraryController extends Controller
                 'duration' => $job->duration,
                 'preview_url' => '/api/media-tools/'.$job->job_id.'/asset',
                 'download_url' => '/api/media-tools/'.$job->job_id.'/asset?download=1',
-                'page_url' => ($job->kind === 'download' ? '/downloads' : '/converter').'?job='.$job->job_id,
+                'page_url' => (match ($job->kind) { 'download' => '/downloads', 'rembg' => '/remove-background', default => '/converter' }).'?job='.$job->job_id,
                 'format' => $job->format,
                 'deletable' => true,
                 'delete_url' => '/api/media-tools/'.$job->job_id,
