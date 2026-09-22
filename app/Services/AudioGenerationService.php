@@ -147,7 +147,16 @@ final class AudioGenerationService
                 $payload['voice'] = $job->voice;
                 $payload['speed'] = $job->speed;
             } else {
-                $payload['duration'] = $job->duration;
+                if ($job->duration !== null) {
+                    $payload['duration'] = $job->duration;
+                }
+                // Declared provider params the fixed columns cannot express (Suno custom
+                // lyrics / instrumental) travel with the job in `settings`.
+                foreach (['custom', 'instrumental'] as $flag) {
+                    if (is_array($job->settings) && array_key_exists($flag, $job->settings)) {
+                        $payload[$flag] = (bool) $job->settings[$flag];
+                    }
+                }
             }
             $result = $this->transport->submitAudio($provider, $payload, $job->generation_config['audio_path']);
             $taskId = $result['id'] ?? null;
@@ -461,7 +470,7 @@ final class AudioGenerationService
     private function provider(AudioJob $job): AiProviderProfile
     {
         $provider = AiProviderProfile::query()->find($job->provider_id);
-        if (! $provider || ! $provider->is_enabled || $provider->protocol !== 'fal'
+        if (! $provider || ! $provider->is_enabled || ! in_array($provider->protocol, ['fal', 'kinovi'], true)
             || ! hash_equals((string) $job->connection_fingerprint, self::fingerprint($provider))) {
             throw new AiProxyException('The audio connection changed. No request was sent to a different provider.', 503);
         }

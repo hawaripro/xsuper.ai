@@ -9,6 +9,7 @@ class AudioJob extends Model
     protected $hidden = [
         'provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint',
         'generation_config', 'provider_prompt', 'audio_path', 'processing_token',
+        'routing_identity', 'dedup_key', 'payload_fingerprint', 'reference_asset_ids',
     ];
 
     protected $fillable = [
@@ -18,6 +19,8 @@ class AudioJob extends Model
         'audio_path', 'mime_type', 'size_bytes', 'error_message', 'billing_mode',
         'billing_status', 'billing_reference_id', 'tokens_reserved', 'submitted_at',
         'next_poll_at', 'processing_started_at', 'processing_token', 'completed_at', 'poll_attempts',
+        'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key', 'payload_fingerprint',
+        'reference_asset_ids', 'settings',
     ];
 
     protected function casts(): array
@@ -31,6 +34,8 @@ class AudioJob extends Model
             'tokens_reserved' => 'integer',
             'poll_attempts' => 'integer',
             'generation_config' => 'array',
+            'capability_revision_id' => 'integer', 'price_tokens' => 'integer',
+            'reference_asset_ids' => 'array', 'settings' => 'array',
             'submitted_at' => 'datetime',
             'next_poll_at' => 'datetime',
             'processing_started_at' => 'datetime',

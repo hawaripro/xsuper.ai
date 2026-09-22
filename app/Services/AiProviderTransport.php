@@ -285,6 +285,16 @@ final class AiProviderTransport
     public function submitAudio(AiProviderProfile $provider, array $payload, string $path): array
     {
         $connection = $this->connection($provider);
+        if ($connection['protocol'] === 'kinovi') {
+            $request = KinoviProtocol::audioTask($payload);
+            $submit = $this->send('POST', $connection['base_url'].'/jobs/createTask', $connection, $request, 30);
+            $taskId = $submit->json('taskId');
+            if (! is_string($taskId) || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+                throw new AiProxyException('The Kinovi audio provider did not return a valid job reference.', 502);
+            }
+
+            return ['id' => $taskId, 'status' => 'queued'];
+        }
         if ($connection['protocol'] !== 'fal') {
             throw new AiProxyException('Audio generation is not supported by this provider.', 422);
         }
@@ -304,9 +314,16 @@ final class AiProviderTransport
     public function audioStatus(AiProviderProfile $provider, string $taskId, string $path): array
     {
         $connection = $this->connection($provider);
+        if (preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+            throw new AiProxyException('The audio status configuration is invalid.', 502);
+        }
+        if ($connection['protocol'] === 'kinovi') {
+            $data = $this->send('GET', $connection['base_url'].'/jobs/recordInfo', $connection, timeout: 20, query: ['taskId' => $taskId])->json();
+
+            return $this->kinoviTaskState($data, 'audio_url');
+        }
         if ($connection['protocol'] !== 'fal'
-            || ! in_array($path, [FalProtocol::AUDIO_SPEECH_REQUEST_PATH, FalProtocol::AUDIO_MUSIC_REQUEST_PATH], true)
-            || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+            || ! in_array($path, [FalProtocol::AUDIO_SPEECH_REQUEST_PATH, FalProtocol::AUDIO_MUSIC_REQUEST_PATH], true)) {
             throw new AiProxyException('The audio status configuration is invalid.', 502);
         }
         $url = 'https://queue.fal.run/'.MediaModelConfig::path($path, $taskId);
@@ -336,7 +353,7 @@ final class AiProviderTransport
     /**
      * Normalise a Kinovi recordInfo response into the shared async media state shape.
      *
-     * @param  'result_urls'|'video_url'  $key
+     * @param  'result_urls'|'video_url'|'audio_url'  $key
      * @return array<string, mixed>
      */
     private function kinoviTaskState(mixed $data, string $key): array

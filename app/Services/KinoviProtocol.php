@@ -10,12 +10,12 @@ use App\Exceptions\AiProxyException;
  * returns {status: waiting|generating|success|fail, output:[{url,...}]}. It is NOT
  * OpenAI-compatible, so it gets its own protocol like fal.
  *
- * Every Kinovi job is asynchronous and slow (image ~60-90s, video minutes), so both
- * image and video run through the queued submit/poll pipelines rather than a blocking
- * HTTP request. Text-to-image and text-to-video are supported here; models that require
- * uploaded reference media (image-to-video, edit/extend, talking avatar) and the Suno
- * audio models are intentionally excluded until reference-upload and a prompt-only audio
- * kind exist, so no member ever sees a model that cannot complete.
+ * Every Kinovi job is asynchronous and slow (image ~60-90s, video minutes), so image,
+ * video, and audio all run through the queued submit/poll pipelines rather than a
+ * blocking HTTP request. Text-to-image, text-to-video, and prompt-only Suno audio are
+ * supported here; models that require uploaded reference media (image-to-video,
+ * edit/extend/remix, talking avatar) stay excluded from THIS curated list until each
+ * integration is verified, so no member ever sees a model that cannot complete.
  */
 final class KinoviProtocol
 {
@@ -41,6 +41,11 @@ final class KinoviProtocol
         'seedance2.0-mini' => 'video',
         'wan3.0-text-to-video' => 'video',
         'wan3.0-prime-text-to-video' => 'video',
+        // Audio (prompt-only Suno). suno-music writes full songs (Kinovi returns two tracks;
+        // the first is stored as the result). suno-sounds writes short SFX/ambience clips.
+        // suno-remix / suno-sample need uploaded input audio and stay excluded.
+        'suno-music' => 'audio',
+        'suno-sounds' => 'audio',
     ];
 
     public const NAMES = [
@@ -58,6 +63,8 @@ final class KinoviProtocol
         'seedance2.0-mini' => 'Seedance 2.0 Mini',
         'wan3.0-text-to-video' => 'Wan 3.0 Text-to-Video',
         'wan3.0-prime-text-to-video' => 'Wan 3.0 Prime Text-to-Video',
+        'suno-music' => 'Suno Music',
+        'suno-sounds' => 'Suno Sounds',
     ];
 
     // App image sizes map to Kinovi's aspectRatio; resolution stays the cheapest tier (1k)
@@ -128,6 +135,22 @@ final class KinoviProtocol
             ];
         }
 
+        if ($category === 'audio') {
+            $music = $model === 'suno-music';
+
+            return [
+                ...$base,
+                'audio_path' => $model,
+                'audio_status_path' => $model,
+                // Both are prompt-driven composition, so the studio's "music" experience fits;
+                // Suno exposes no duration control (length follows the composition).
+                'audio_kind' => 'music',
+                'max_characters' => $music ? 2500 : 500,
+                'supports_instrumental' => $music,
+                'supports_custom_lyrics' => $music,
+            ];
+        }
+
         // video
         return [
             ...$base,
@@ -188,6 +211,27 @@ final class KinoviProtocol
         $duration = $payload['duration'] ?? null;
         if (is_numeric($duration) && (int) $duration > 0) {
             $inputs['duration'] = (int) $duration;
+        }
+
+        return ['model' => $model, 'inputs' => $inputs, 'autoFix' => true];
+    }
+
+    /** Build the createTask body for a prompt-only audio request (Suno). */
+    public static function audioTask(array $payload): array
+    {
+        $model = $payload['model'] ?? null;
+        if (! is_string($model) || (self::MODELS[$model] ?? null) !== 'audio') {
+            throw new AiProxyException('This Kinovi audio model is not supported.', 422);
+        }
+        $inputs = ['prompt' => self::prompt($payload)];
+        if ($model === 'suno-music') {
+            // custom=true means the prompt IS the lyrics; instrumental=true drops vocals.
+            if (array_key_exists('custom', $payload)) {
+                $inputs['custom'] = (bool) $payload['custom'];
+            }
+            if (array_key_exists('instrumental', $payload)) {
+                $inputs['instrumental'] = (bool) $payload['instrumental'];
+            }
         }
 
         return ['model' => $model, 'inputs' => $inputs, 'autoFix' => true];

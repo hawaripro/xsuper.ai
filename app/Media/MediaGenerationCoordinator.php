@@ -4,10 +4,12 @@ namespace App\Media;
 
 use App\Exceptions\ImageGenerationException;
 use App\Jobs\ProcessImageJob;
+use App\Jobs\ProcessAudioJob;
 use App\Jobs\ProcessVideoJob;
 use App\Media\Enums\MediaOperation;
 use App\Models\AiModelProfile;
 use App\Models\ImageJob;
+use App\Models\AudioJob;
 use App\Models\VideoJob;
 use App\Models\User;
 use App\Models\MediaAsset;
@@ -252,6 +254,105 @@ final class MediaGenerationCoordinator
         }
 
         return $jobs;
+    }
+
+    /**
+     * Capability-driven audio submission (text_to_speech, music). Mirrors startImage:
+     * resolve -> validate -> price/hash guards -> dedup -> reserve -> persist an AudioJob
+     * carrying the capability revision + routing + price -> dispatch. Tempo stays prompt-level
+     * guidance appended exactly like the studio's existing pipeline; declared provider flags
+     * the fixed columns cannot express (Suno instrumental / custom lyrics) persist in settings.
+     *
+     * @param  array<string, mixed>  $rawInputs
+     * @param  array<string, mixed>  $options
+     */
+    public function startAudio(User $user, AiModelProfile $model, MediaOperation $operation, array $rawInputs, string $entrypoint, array $options = []): AudioJob
+    {
+        $this->activation->assertNotPaused();
+        if ($model->category !== 'audio' || ! MediaModelConfig::allowedFor($user, $model)) {
+            throw new ImageGenerationException('The selected audio model is unavailable.', 503);
+        }
+        $resolved = $this->resolver->resolve($model, $operation);
+        try {
+            $validated = $this->validator->validate($resolved->capability, $rawInputs);
+        } catch (CapabilityValidationException $e) {
+            throw new ImageGenerationException((string) (array_values($e->errors())[0] ?? $e->getMessage()), 422);
+        }
+        if (! is_int($model->token_cost) || $model->token_cost < 1) {
+            throw new ImageGenerationException('Audio token pricing is unavailable.', 503);
+        }
+
+        // Reject a capability/price the member's form was built on if it changed, BEFORE any reservation.
+        $expectedPrice = $options['expected_price_tokens'] ?? null;
+        if ($expectedPrice !== null && (int) $expectedPrice !== (int) $model->token_cost) {
+            throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
+        }
+        $expectedHash = $options['expected_capability_hash'] ?? null;
+        if (is_string($expectedHash) && $expectedHash !== '' && ! hash_equals($resolved->sourceHash, $expectedHash)) {
+            throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
+        }
+
+        $config = MediaModelConfig::forModel($model);
+        $mode = $operation === MediaOperation::TextToSpeech ? 'speech' : 'music';
+        $prompt = trim((string) ($validated['inputs']['prompt'] ?? ''));
+        $maxCharacters = min(4000, (int) ($config['max_characters'] ?? 0));
+        if ($prompt === '' || mb_strlen($prompt) > $maxCharacters) {
+            throw new ImageGenerationException('Enter a prompt within this audio model character limit.', 422);
+        }
+        $tempo = isset($validated['params']['tempo']) ? (int) $validated['params']['tempo'] : null;
+        $providerPrompt = $prompt;
+        if ($tempo !== null) {
+            $providerPrompt .= "\nTempo guidance: approximately {$tempo} BPM.";
+            if (mb_strlen($providerPrompt) > $maxCharacters) {
+                throw new ImageGenerationException('Shorten the prompt to leave room for the selected tempo guidance.', 422);
+            }
+        }
+        $settings = array_intersect_key($validated['params'], array_flip(['instrumental', 'custom']));
+
+        $fingerprint = $this->fingerprintPayload($operation, $model->model_id, $validated);
+        $idempotencyKey = isset($options['idempotency_key']) && is_string($options['idempotency_key']) && trim($options['idempotency_key']) !== ''
+            ? trim($options['idempotency_key']) : null;
+        $dedup = null;
+        if ($idempotencyKey !== null) {
+            $dedup = hash('sha256', $user->id.'|'.$entrypoint.'|'.$idempotencyKey);
+            $existing = AudioJob::query()->where('user_id', $user->id)->where('dedup_key', $dedup)
+                ->whereIn('status', ['pending', 'processing'])->first();
+            if ($existing !== null) {
+                if ((string) $existing->payload_fingerprint === $fingerprint) {
+                    return $existing;
+                }
+                throw new ImageGenerationException('This request key was already used with different input.', 409);
+            }
+        }
+
+        $routing = $model->upstream_model_id ?: $model->model_id;
+        $jobId = (string) Str::uuid();
+        $job = DB::transaction(function () use ($user, $model, $operation, $resolved, $validated, $jobId, $dedup, $fingerprint, $config, $routing, $mode, $prompt, $providerPrompt, $tempo, $settings): AudioJob {
+            $revision = $this->resolver->ensureRevision($model, $operation, $resolved);
+            $reservation = $this->tokens->reserve($user, 'audio', $model->model_id, 1, "audio:{$jobId}", (int) $model->token_cost);
+
+            return AudioJob::create([
+                'user_id' => $user->id, 'job_id' => $jobId, 'model' => $model->model_id, 'mode' => $mode,
+                'prompt' => $prompt, 'provider_prompt' => $providerPrompt,
+                'voice' => $validated['params']['voice'] ?? null,
+                'speed' => isset($validated['params']['speed']) ? (float) $validated['params']['speed'] : null,
+                'duration' => isset($validated['params']['duration']) ? (int) $validated['params']['duration'] : null,
+                'tempo' => $tempo,
+                'provider_id' => $model->provider_id, 'upstream_model_id' => $routing,
+                'connection_fingerprint' => $this->fingerprint($model), 'generation_config' => $config,
+                'capability_revision_id' => $revision->id, 'routing_identity' => $routing,
+                'price_tokens' => (int) $model->token_cost, 'dedup_key' => $dedup, 'payload_fingerprint' => $fingerprint,
+                'settings' => $settings !== [] ? $settings : null,
+                'status' => 'pending', 'stage' => 'queued',
+                'billing_mode' => $reservation['billing_mode'], 'billing_reference_id' => $reservation['reference_id'],
+                'billing_status' => 'reserved',
+                'tokens_reserved' => $reservation['amount_tokens'],
+                'next_poll_at' => now()->addMinute(),
+            ]);
+        });
+        ProcessAudioJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
+
+        return $job;
     }
 
     /**

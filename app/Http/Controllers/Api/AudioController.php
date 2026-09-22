@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Exceptions\ImageGenerationException;
+use App\Media\Enums\MediaOperation;
+use App\Media\MediaActivation;
+use App\Media\MediaGenerationCoordinator;
 use App\Models\AiModelProfile;
 use App\Models\AudioJob;
 use App\Models\UserToken;
@@ -11,6 +15,7 @@ use App\Services\GeneratedAudioStore;
 use App\Services\MediaModelConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
@@ -20,10 +25,13 @@ class AudioController extends Controller
     public function models(Request $request): JsonResponse
     {
         $user = $request->user();
+        // Kinovi audio (Suno) runs only through the coordinator; while activation is
+        // restricted, a non-coordinator member never sees a model that cannot complete.
+        $protocols = app(MediaActivation::class)->usesCoordinator($user) ? ['fal', 'kinovi'] : ['fal'];
         $models = AiModelProfile::query()->with('provider')->where('category', 'audio')
             ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
             ->filter(fn (AiModelProfile $model): bool => MediaModelConfig::allowedFor($user, $model)
-                && $model->provider->protocol === 'fal' && is_int($model->token_cost)
+                && in_array($model->provider->protocol, $protocols, true) && is_int($model->token_cost)
                 && $model->token_cost > 0 && $model->token_cost <= 2_147_483_647)
             ->map(fn (AiModelProfile $model): array => MediaModelConfig::publicModel($model))->values()->all();
 
@@ -45,6 +53,16 @@ class AudioController extends Controller
 
     public function generate(Request $request, AudioGenerationService $audio): JsonResponse
     {
+        // The emergency pause covers BOTH audio paths, exactly like image and video.
+        try {
+            app(MediaActivation::class)->assertNotPaused();
+        } catch (ImageGenerationException $exception) {
+            return response()->json(['message' => $exception->getMessage()], $exception->responseStatus());
+        }
+        // Capability submissions carry an `operation`; legacy submissions stay untouched.
+        if ($request->filled('operation')) {
+            return $this->generateCapability($request, $audio);
+        }
         $input = $request->validate([
             'model' => 'required|string|max:160',
             'mode' => 'required|in:speech,music',
@@ -59,6 +77,80 @@ class AudioController extends Controller
         return response()->json([
             'job' => AudioGenerationService::payload($job),
             'balance' => UserToken::getBalance($request->user()->id),
+        ], 202);
+    }
+
+    /**
+     * Capability-driven audio (text_to_speech, music). The coordinator user gets the
+     * capability path; while activation is restricted, a non-coordinator member keeps the
+     * existing verified fal path and never reaches Kinovi-only operations.
+     */
+    private function generateCapability(Request $request, AudioGenerationService $audio): JsonResponse
+    {
+        $validated = $request->validate([
+            'operation' => ['required', Rule::in(['text_to_speech', 'music'])],
+            'model' => ['required', 'string', 'max:160', Rule::exists('ai_model_profiles', 'model_id')->where(
+                fn ($query) => $query->where('category', 'audio')->where('is_enabled', true),
+            )],
+            'prompt' => 'required|string|max:4000',
+            'voice' => 'nullable|string|max:80',
+            'speed' => 'nullable|numeric|min:0.1|max:5',
+            'duration' => 'nullable|integer|min:1|max:190',
+            'tempo' => 'nullable|integer|min:40|max:200',
+            'instrumental' => 'nullable|boolean',
+            'custom' => 'nullable|boolean',
+            'idempotency_key' => ['nullable', 'string', 'max:128'],
+            'expected_price_tokens' => ['nullable', 'integer', 'min:1'],
+            'expected_capability_hash' => ['nullable', 'string', 'max:64'],
+        ]);
+        $user = $request->user();
+        $model = AiModelProfile::query()->with('provider')->where('model_id', $validated['model'])->first();
+        if (! $model || $model->category !== 'audio' || ! MediaModelConfig::allowedFor($user, $model)) {
+            return response()->json(['message' => 'The selected audio model is unavailable.'], 503);
+        }
+        $operation = MediaOperation::from($validated['operation']);
+        $rawInputs = ['prompt' => $validated['prompt']];
+        foreach (['voice', 'speed', 'duration', 'tempo'] as $param) {
+            if (($validated[$param] ?? null) !== null) {
+                $rawInputs[$param] = $validated[$param];
+            }
+        }
+        // Booleans are declared only when chosen: a model whose contract omits them rejects
+        // unknown fields, and the default (false) never needs to travel.
+        foreach (['instrumental', 'custom'] as $flag) {
+            if ((bool) ($validated[$flag] ?? false)) {
+                $rawInputs[$flag] = true;
+            }
+        }
+        $options = array_filter([
+            'idempotency_key' => $validated['idempotency_key'] ?? null,
+            'expected_price_tokens' => $validated['expected_price_tokens'] ?? null,
+            'expected_capability_hash' => $validated['expected_capability_hash'] ?? null,
+        ], static fn ($v): bool => $v !== null);
+
+        try {
+            if (app(MediaActivation::class)->usesCoordinator($user)) {
+                $job = app(MediaGenerationCoordinator::class)->startAudio($user, $model, $operation, $rawInputs, 'studio-audio', $options);
+            } elseif ($model->provider?->protocol === 'fal') {
+                $job = $audio->create($user, array_filter([
+                    'model' => $validated['model'],
+                    'mode' => $operation === MediaOperation::TextToSpeech ? 'speech' : 'music',
+                    'prompt' => $validated['prompt'],
+                    'voice' => $validated['voice'] ?? null,
+                    'speed' => $validated['speed'] ?? null,
+                    'duration' => $validated['duration'] ?? null,
+                    'tempo' => $validated['tempo'] ?? null,
+                ], static fn ($v): bool => $v !== null));
+            } else {
+                return response()->json(['message' => 'This operation is not available for your account yet.'], 503);
+            }
+        } catch (ImageGenerationException $exception) {
+            return response()->json(['message' => $exception->getMessage(), 'balance' => UserToken::getBalance($user->id)], $exception->responseStatus());
+        }
+
+        return response()->json([
+            'job' => AudioGenerationService::payload($job),
+            'balance' => UserToken::getBalance($user->id),
         ], 202);
     }
 

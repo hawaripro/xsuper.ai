@@ -116,6 +116,15 @@ final class MediaModelConfig
             if (($config['duration_default'] ?? null) !== null) {
                 $params[] = new CapabilityParam('duration', 'number', default: $config['duration_default'], min: $config['duration_min'], max: $config['duration_max'], unit: 's');
             }
+            // Tempo is prompt-level guidance the pipeline appends for any music model
+            // (legacy parity), so it is part of the contract even without a native field.
+            $params[] = new CapabilityParam('tempo', 'int', min: 40, max: 200, unit: 'BPM');
+            if ($config['supports_instrumental'] ?? false) {
+                $params[] = new CapabilityParam('instrumental', 'bool', default: false, options: [false, true]);
+            }
+            if ($config['supports_custom_lyrics'] ?? false) {
+                $params[] = new CapabilityParam('custom', 'bool', default: false, options: [false, true]);
+            }
 
             return [MediaOperation::Music->value => new MediaCapability($public, MediaOperation::Music, OutputKind::Audio, 1, [$prompt], $params)];
         }
@@ -201,9 +210,6 @@ final class MediaModelConfig
         if (! $model->is_enabled || ! $model->is_available || ! $model->provider?->is_enabled) {
             return false;
         }
-        if ($model->category === 'audio' && $model->provider->protocol !== 'fal') {
-            return false;
-        }
         if ($model->provider->protocol === 'fal'
             && (FalProtocol::MEDIA_MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
             return false;
@@ -250,6 +256,8 @@ final class MediaModelConfig
                     'min' => $config['duration_min'], 'max' => $config['duration_max'], 'default' => $config['duration_default'],
                 ],
                 'max_characters' => $config['max_characters'],
+                'instrumental' => (bool) ($config['supports_instrumental'] ?? false),
+                'custom_lyrics' => (bool) ($config['supports_custom_lyrics'] ?? false),
             ],
         ];
     }
