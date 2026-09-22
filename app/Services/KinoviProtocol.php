@@ -30,17 +30,17 @@ final class KinoviProtocol
         'nanobanana2' => 'image',
         'midjourney-v8' => 'image',
         'midjourney-v7-niji' => 'image',
-        // Video (text-to-video). Reference/edit/extend/avatar variants need uploaded media.
+        // Video (text-to-video). Reference/edit/extend/avatar variants need uploaded media and
+        // are excluded so no member sees a model that cannot complete. Verified against Kinovi's
+        // createTask validator: happyhorse1.0 ("i2v mode requires exactly 1 first frame item(s)")
+        // and minimax-h3-turbo-high-dynamic/-cinematic ("Reference image is required.") are
+        // image-to-video only, and minimax-h3-turbo-text-to-video answers "Unknown model".
         'seedance2-5' => 'video',
         'seedance-20' => 'video',
         'seedance2-fast' => 'video',
         'seedance2.0-mini' => 'video',
         'wan3.0-text-to-video' => 'video',
         'wan3.0-prime-text-to-video' => 'video',
-        'happyhorse1.0' => 'video',
-        'minimax-h3-turbo-text-to-video' => 'video',
-        'minimax-h3-turbo-high-dynamic' => 'video',
-        'minimax-h3-turbo-cinematic' => 'video',
     ];
 
     public const NAMES = [
@@ -58,10 +58,6 @@ final class KinoviProtocol
         'seedance2.0-mini' => 'Seedance 2.0 Mini',
         'wan3.0-text-to-video' => 'Wan 3.0 Text-to-Video',
         'wan3.0-prime-text-to-video' => 'Wan 3.0 Prime Text-to-Video',
-        'happyhorse1.0' => 'HappyHorse 1.0',
-        'minimax-h3-turbo-text-to-video' => 'MiniMax H3 Turbo Text-to-Video',
-        'minimax-h3-turbo-high-dynamic' => 'MiniMax H3 Turbo High Dynamic',
-        'minimax-h3-turbo-cinematic' => 'MiniMax H3 Turbo Cinematic',
     ];
 
     // App image sizes map to Kinovi's aspectRatio; resolution stays the cheapest tier (1k)
