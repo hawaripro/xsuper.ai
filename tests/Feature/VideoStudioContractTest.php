@@ -93,6 +93,20 @@ class VideoStudioContractTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_kill_switch_stops_new_video_submissions_on_the_path_the_studio_uses(): void
+    {
+        // The studio posts the legacy payload (no `operation`). That branch never consulted the
+        // emergency pause, so MEDIA_KILL_SWITCH accepted and charged video work while "paused".
+        [$user] = $this->fixture();
+        config(['media.kill_switch' => true]);
+
+        $this->actingAs($user)->postJson('/api/v/gen', $this->input())->assertStatus(503);
+
+        $this->assertDatabaseCount('video_jobs', 0);
+        $this->assertSame(1000, UserToken::getBalance($user->id));
+        Http::assertNothingSent();
+    }
+
     private function fixture(): array
     {
         $provider = AiProviderProfile::create(['name' => 'fal', 'slug' => 'fal', 'protocol' => 'fal', 'base_url' => 'https://fal.run', 'api_key' => 'fixture-only-key', 'is_enabled' => true]);

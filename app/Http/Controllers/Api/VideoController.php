@@ -24,6 +24,14 @@ class VideoController extends Controller
 {
     public function generate(Request $request, VideoGenerationService $videos): JsonResponse
     {
+        // The emergency pause must cover BOTH video paths. Only the coordinator consulted it, so
+        // MEDIA_KILL_SWITCH silently failed to stop submissions on the legacy pipeline that the
+        // studio UI actually uses. In-flight jobs still finish: process()/poll() never call this.
+        try {
+            app(MediaActivation::class)->assertNotPaused();
+        } catch (ImageGenerationException $exception) {
+            return response()->json(['message' => $exception->getMessage()], $exception->responseStatus());
+        }
         // Capability-driven submissions (F2) carry an `operation` and route to the coordinator;
         // legacy submissions (no `operation`) keep the existing verified pipeline below untouched.
         if ($request->filled('operation')) {
