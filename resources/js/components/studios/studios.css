@@ -189,7 +189,7 @@
    (.studio-progress is 260px on its own) overflowed a box the parent clips.
    Letting the row grow past the ratio keeps the frame intact on phones. */
 .media-studio .studio-video-screen { display: grid; place-items: center; min-width: 0; min-height: 330px; aspect-ratio: 16 / 9; height: auto; padding: 0; background: #0c1420; color: #e4eaf2; }
-.media-studio .studio-video-screen video { width: 100%; height: 100%; max-height: 510px; min-width: 0; object-fit: contain; }
+.media-studio .studio-video-screen video { width: 100%; height: 100%; max-height: 510px; min-width: 0; min-height: 0; object-fit: contain; }
 @media (max-width: 560px) {
     .media-studio .studio-video-screen { aspect-ratio: auto; min-height: 210px; }
     .media-studio .studio-video-screen video { max-height: 58vw; }
