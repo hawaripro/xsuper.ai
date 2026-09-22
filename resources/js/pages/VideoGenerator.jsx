@@ -96,7 +96,12 @@ function VideoStudio({ userId }) {
     // model that has it rather than leaving an unusable mode/model combination on screen.
     const selectMode = (next) => {
         if (next === mode) return;
-        if (next === "reference" && !supportsReference && referenceModels.length) studio.selectModel(referenceModels[0].id);
+        // Prefer a model that genuinely is image-to-video (reference required) over one that
+        // merely tolerates a reference, so the tab lands on what the user actually asked for.
+        if (next === "reference" && !supportsReference && referenceModels.length) {
+            const target = referenceModels.find((item) => item.reference_image?.required === true) || referenceModels[0];
+            studio.selectModel(target.id);
+        }
         set("mode", next);
     };
     const chooseReference = (event) => {
