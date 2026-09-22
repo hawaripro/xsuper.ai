@@ -92,7 +92,7 @@ class VideoReferenceLifecycleTest extends TestCase
         $coordinator = app(MediaGenerationCoordinator::class);
         $videos = app(VideoGenerationService::class);
 
-        $job = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo,
+        [$job] = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo,
             ['prompt' => 'A quiet garden', 'aspect_ratio' => '9:16', 'duration' => 5], 'studio-video',
             ['expected_price_tokens' => 200, 'expected_capability_hash' => $this->hash($model, MediaOperation::TextToVideo)]);
 
@@ -123,7 +123,7 @@ class VideoReferenceLifecycleTest extends TestCase
         $asset = $this->reference($user);
         $videos = app(VideoGenerationService::class);
 
-        $job = app(MediaGenerationCoordinator::class)->startVideo($user, $model, MediaOperation::ImageToVideo,
+        [$job] = app(MediaGenerationCoordinator::class)->startVideo($user, $model, MediaOperation::ImageToVideo,
             ['prompt' => 'Animate it', 'reference_image' => $asset->id, 'duration' => 5], 'studio-video',
             ['expected_capability_hash' => $this->hash($model, MediaOperation::ImageToVideo)]);
 
@@ -189,8 +189,8 @@ class VideoReferenceLifecycleTest extends TestCase
         $inputs = ['prompt' => 'A quiet garden', 'aspect_ratio' => '16:9', 'duration' => 5];
         $opts = ['idempotency_key' => 'vid-act-1'];
 
-        $first = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo, $inputs, 'studio-video', $opts);
-        $retry = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo, $inputs, 'studio-video', $opts);
+        [$first] = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo, $inputs, 'studio-video', $opts);
+        [$retry] = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo, $inputs, 'studio-video', $opts);
 
         $this->assertSame($first->id, $retry->id, 'same key + same input is one job');
         $this->assertSame(800, UserToken::getBalance($user->id), 'a retry never reserves twice');

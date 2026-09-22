@@ -4,6 +4,7 @@ import { useLocale } from "../contexts/LocaleContext";
 import { validationErrors } from "../components/member/MemberUI";
 import { isPending, maxQuantity, modelOptions, tokenPrice, useMediaStudio, useObjectUrl, useStudioDraft } from "../components/studios/useMediaStudio";
 import { StudioButton, StudioCancellation, StudioCatalog, StudioEmpty, StudioField, StudioHeader, StudioHistory, StudioIcon, StudioJobMeta, StudioNotice, StudioProgress, StudioQuote, mediaError } from "../components/studios/StudioUI";
+import { apiRequest } from "../lib/api";
 
 const angles = [
     { id: "closeup", label: "Close-up Detail", prompt: "Extreme close-up shot focusing on product details, texture, and craftsmanship. Macro lens feel, shallow depth of field." },
@@ -43,6 +44,7 @@ function VideoStudio({ userId }) {
     const [referenceError, setReferenceError] = useState(null);
     const [referenceReady, setReferenceReady] = useState(false);
     const [cancellation, setCancellation] = useState(null);
+    const [uploading, setUploading] = useState(false);
     const referenceUrl = useObjectUrl(reference);
     const fileInput = useRef(null);
     const selectedId = studio.requestedModel || draft.model;
@@ -90,7 +92,7 @@ function VideoStudio({ userId }) {
         if (mode === "ugc") { const story = stories.find((item) => item.id === draft.story); if (story) parts.push(story.prompt); }
         return parts.join(" ");
     }, [mode, draft.prompt, draft.product, draft.features, draft.angles, draft.story]);
-    const canGenerate = Boolean(model && !studio.modelLoading && !studio.modelError && !studio.submitting && total != null && total <= 2147483647 && studio.balance != null && studio.balance >= total && ((mode === "prompt" || mode === "reference") ? draft.prompt.trim() : draft.product.trim()) && finalPrompt.length <= 4000 && (!reference || referenceReady) && (!model.reference_image?.required || reference) && (mode !== "reference" || reference) && !referenceError);
+    const canGenerate = Boolean(model && !studio.modelLoading && !studio.modelError && !studio.submitting && !uploading && total != null && total <= 2147483647 && studio.balance != null && studio.balance >= total && ((mode === "prompt" || mode === "reference") ? draft.prompt.trim() : draft.product.trim()) && finalPrompt.length <= 4000 && (!reference || referenceReady) && (!model.reference_image?.required || reference) && (mode !== "reference" || reference) && !referenceError);
     const set = (name, value) => setDraft((current) => ({ ...current, [name]: value }));
     // Mirrors AudioGenerator.selectMode: a mode that needs a capability moves the selection to a
     // model that has it rather than leaving an unusable mode/model combination on screen.
@@ -120,19 +122,42 @@ function VideoStudio({ userId }) {
         setReference(file);
     };
     const removeReference = () => { setReference(null); setReferenceReady(false); setReferenceError(null); if (fileInput.current) fileInput.current.value = ""; };
-    const generate = (event) => {
+    const generate = async (event) => {
         event.preventDefault();
         if (!canGenerate) return;
-        const payload = { prompt: finalPrompt, model: model.id, count, mode: (mode === "prompt" || mode === "reference") ? "prompt" : "ab_testing", pro_mode: pro, ugc_variation: count > 1 && draft.variations, ...((mode === "product" || mode === "ugc") && draft.cta.trim() ? { cta: draft.cta.trim() } : {}), ...(!ratioFromImage && draft.ratio ? { aspect_ratio: draft.ratio } : {}), settings: draft.duration ? { duration: Number(draft.duration) } : {} };
+        // Capability submission: the reference becomes a stable, ownership-checked asset id
+        // instead of a raw upload, so the job records what it used and can be retried safely.
+        let referenceId = null;
         if (reference) {
-            const body = new FormData();
-            Object.entries(payload).forEach(([key, value]) => {
-                if (key === "settings") { if (value.duration != null) body.append("settings[duration]", String(value.duration)); }
-                else body.append(key, typeof value === "boolean" ? value ? "1" : "0" : String(value));
-            });
-            body.append("reference_image", reference);
-            studio.submit(body);
-        } else studio.submit(payload);
+            setUploading(true);
+            try {
+                const form = new FormData();
+                form.append("file", reference);
+                form.append("role", "image_ref");
+                const data = await apiRequest("/api/media/assets", { method: "POST", body: form });
+                referenceId = data?.asset?.id;
+                if (!referenceId) throw new Error("upload failed");
+            } catch {
+                setReferenceError(t("Gambar referensi gagal diunggah. Coba lagi."));
+                setUploading(false);
+                return;
+            }
+            setUploading(false);
+        }
+        studio.submit({
+            operation: referenceId ? "image_to_video" : "text_to_video",
+            model: model.id,
+            prompt: finalPrompt,
+            count,
+            pro,
+            mode: (mode === "prompt" || mode === "reference") ? "prompt" : "ab_testing",
+            ugc_variation: count > 1 && draft.variations,
+            ...((mode === "product" || mode === "ugc") && draft.cta.trim() ? { cta: draft.cta.trim() } : {}),
+            // The reference frame fixes the geometry, so image_to_video declares no aspect ratio.
+            ...(!referenceId && !ratioFromImage && draft.ratio ? { aspect_ratio: draft.ratio } : {}),
+            ...(draft.duration ? { duration: Number(draft.duration) } : {}),
+            ...(referenceId ? { reference_image: referenceId } : {}),
+        });
     };
 
     return <div className="media-studio studio-video">
@@ -166,7 +191,7 @@ function VideoStudio({ userId }) {
                 {count > 1 && <label className="studio-checkbox"><input type="checkbox" checked={draft.variations} disabled={studio.submitting} onChange={(event) => set("variations", event.target.checked)} /><span>{t("Variasikan komposisi tiap video")}<small>{t("Arahan tambahan dikirim ke model untuk hasil berikutnya.")}</small></span></label>}
                 {model && unit == null && <StudioNotice error>{t("Harga token model belum tersedia. Pilih model lain atau hubungi pengelola.")}</StudioNotice>}
                 {studio.submitError && <StudioNotice error>{t(studio.submitError.status ? mediaError(studio.submitError) : "Respons belum dapat dikonfirmasi. Periksa riwayat sebelum mengirim lagi.")}</StudioNotice>}
-                <StudioQuote total={total} unit={unit} count={count} pro={pro} balance={studio.balance} /><StudioButton type="submit" primary icon="video" disabled={!canGenerate}>{t(studio.submitting ? "Mengirim permintaan…" : "Generate video")}<StudioIcon name="arrow" /></StudioButton><p className="studio-help">{t("Pembatalan hanya tersedia sebelum pengiriman video dimulai. Token dikembalikan jika permintaan ditolak atau proses gagal.")}</p>
+                <StudioQuote total={total} unit={unit} count={count} pro={pro} balance={studio.balance} /><StudioButton type="submit" primary icon="video" disabled={!canGenerate}>{t(uploading ? "Mengunggah gambar referensi…" : studio.submitting ? "Mengirim permintaan…" : "Generate video")}<StudioIcon name="arrow" /></StudioButton><p className="studio-help">{t("Pembatalan hanya tersedia sebelum pengiriman video dimulai. Token dikembalikan jika permintaan ditolak atau proses gagal.")}</p>
             </aside>
         </form>
         <StudioHistory studio={studio} kind="video" title="Riwayat video" />

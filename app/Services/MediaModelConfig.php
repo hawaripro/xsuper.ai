@@ -135,12 +135,21 @@ final class MediaModelConfig
         $duration = ($config['supports_duration'] && ($config['durations'] ?? []) !== [])
             ? new CapabilityParam('duration', 'enum', default: $config['durations'][0], options: array_values($config['durations']), unit: 's')
             : null;
+        // Quantity and Pro are model-bounded, so they belong in the contract: the validator
+        // enforces the model's own ceiling and the coordinator prices off the declared values.
+        $maxQuantity = max(1, (int) ($config['max_quantity'] ?? 1));
+        $count = $maxQuantity > 1
+            ? new CapabilityParam('count', 'int', default: 1, min: 1, max: $maxQuantity)
+            : null;
+        $pro = ($config['supports_pro'] ?? false)
+            ? new CapabilityParam('pro', 'bool', default: false, options: [false, true])
+            : null;
 
         return array_filter([
             // Text-to-video: prompt + aspect ratio + duration.
             MediaOperation::TextToVideo->value => new MediaCapability(
                 $public, MediaOperation::TextToVideo, OutputKind::Video, 1, [$prompt],
-                array_values(array_filter([$aspect, $duration])),
+                array_values(array_filter([$aspect, $duration, $count, $pro])),
             ),
             // Image-to-video is offered only when the provider accepts a reference image. The
             // reference frame fixes the geometry, so aspect ratio is not a parameter here.
@@ -148,7 +157,7 @@ final class MediaModelConfig
                 ? new MediaCapability(
                     $public, MediaOperation::ImageToVideo, OutputKind::Video, 1,
                     [$prompt, new CapabilityInput('reference_image', InputRole::ImageRef, 'asset', single: true, max: 1, required: true)],
-                    array_values(array_filter([$duration])),
+                    array_values(array_filter([$duration, $count, $pro])),
                 )
                 : null,
         ]);

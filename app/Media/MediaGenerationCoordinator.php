@@ -28,6 +28,8 @@ use Illuminate\Support\Str;
  */
 final class MediaGenerationCoordinator
 {
+    private const MAX_TOKEN_AMOUNT = 2_147_483_647;
+
     public function __construct(
         private readonly CapabilityResolver $resolver,
         private readonly CapabilityValidator $validator,
@@ -115,13 +117,19 @@ final class MediaGenerationCoordinator
 
     /**
      * Capability-driven video submission (text_to_video, image_to_video). Mirrors startImage:
-     * resolve -> validate -> price/hash guards -> own references -> dedup -> reserve -> persist a
-     * VideoJob carrying the capability revision + routing + price -> dispatch. image_to_video
+     * resolve -> validate -> price/hash guards -> own references -> dedup -> reserve -> persist the
+     * VideoJobs carrying the capability revision + routing + price -> dispatch. image_to_video
      * routes to the provider's dedicated reference model and carries no aspect ratio.
      *
+     * Quantity and Pro come from the validated capability params, so one submission can create
+     * several jobs (one reservation each) exactly like the studio's existing pipeline. CTA and
+     * UGC variation are prompt composition, not model parameters, so they arrive via $options.
+     *
      * @param  array<string, mixed>  $rawInputs
+     * @param  array<string, mixed>  $options
+     * @return VideoJob[]
      */
-    public function startVideo(User $user, AiModelProfile $model, MediaOperation $operation, array $rawInputs, string $entrypoint, array $options = []): VideoJob
+    public function startVideo(User $user, AiModelProfile $model, MediaOperation $operation, array $rawInputs, string $entrypoint, array $options = []): array
     {
         $this->activation->assertNotPaused();
         if ($model->category !== 'video' || ! MediaModelConfig::allowedFor($user, $model)) {
@@ -133,13 +141,26 @@ final class MediaGenerationCoordinator
         } catch (CapabilityValidationException $e) {
             throw new ImageGenerationException((string) (array_values($e->errors())[0] ?? $e->getMessage()), 422);
         }
-        if (! is_int($model->token_cost) || $model->token_cost < 1) {
+        $config = MediaModelConfig::forModel($model);
+        $proRequested = (bool) ($validated['params']['pro'] ?? false);
+        $pro = $proRequested && ($config['supports_pro'] ?? false);
+        if ($proRequested && ! $pro) {
+            throw new ImageGenerationException('Pro quality is not supported by this model.', 422);
+        }
+        $count = max(1, (int) ($validated['params']['count'] ?? 1));
+        $multiplier = $pro ? 2 : 1;
+        if (! is_int($model->token_cost) || $model->token_cost < 1 || $model->token_cost > intdiv(self::MAX_TOKEN_AMOUNT, $multiplier)) {
             throw new ImageGenerationException('Video token pricing is unavailable.', 503);
         }
+        $unitCost = (int) $model->token_cost * $multiplier;
+        if ($count > intdiv(self::MAX_TOKEN_AMOUNT, $unitCost)) {
+            throw new ImageGenerationException('The total token reservation exceeds the supported limit.', 422);
+        }
 
-        // Reject a capability/price the member's form was built on if it changed, BEFORE any reservation.
+        // Reject a capability/price the member's form was built on if it changed, BEFORE any
+        // reservation. The guard compares the per-video price actually charged, so Pro is covered.
         $expectedPrice = $options['expected_price_tokens'] ?? null;
-        if ($expectedPrice !== null && (int) $expectedPrice !== (int) $model->token_cost) {
+        if ($expectedPrice !== null && (int) $expectedPrice !== $unitCost) {
             throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
         }
         $expectedHash = $options['expected_capability_hash'] ?? null;
@@ -158,16 +179,15 @@ final class MediaGenerationCoordinator
         if ($idempotencyKey !== null) {
             $dedup = hash('sha256', $user->id.'|'.$entrypoint.'|'.$idempotencyKey);
             $existing = VideoJob::query()->where('user_id', $user->id)->where('dedup_key', $dedup)
-                ->whereIn('status', ['pending', 'processing'])->first();
-            if ($existing !== null) {
-                if ((string) $existing->payload_fingerprint === $fingerprint) {
-                    return $existing;
+                ->whereIn('status', ['pending', 'processing'])->orderBy('id')->get();
+            if ($existing->isNotEmpty()) {
+                if ((string) $existing->first()->payload_fingerprint === $fingerprint) {
+                    return $existing->all();
                 }
                 throw new ImageGenerationException('This request key was already used with different input.', 409);
             }
         }
 
-        $config = MediaModelConfig::forModel($model);
         $upstream = $model->upstream_model_id ?: $model->model_id;
         // image_to_video routes to the provider's dedicated reference model; text stays on the base model.
         $routing = ($operation === MediaOperation::ImageToVideo && is_string($config['reference_model'] ?? null))
@@ -176,32 +196,62 @@ final class MediaGenerationCoordinator
             ? 'auto'
             : (string) ($validated['params']['aspect_ratio'] ?? ($config['aspect_ratios'][0] ?? 'auto'));
         $duration = (int) ($validated['params']['duration'] ?? ($config['durations'][0] ?? 0));
+        // Pro is a real provider parameter, not only a price tier: the same inference/encoding
+        // values the existing pipeline sends.
+        if ($config['supports_pro'] ?? false) {
+            $config['video_parameters'] = [
+                'num_inference_steps' => $pro ? 16 : 12,
+                'video_quality' => $pro ? 'maximum' : 'high',
+            ];
+        }
 
-        $jobId = (string) Str::uuid();
-        $job = DB::transaction(function () use ($user, $model, $operation, $resolved, $validated, $jobId, $dedup, $fingerprint, $referenceAssetIds, $hasReference, $config, $routing, $aspect, $duration): VideoJob {
+        $basePrompt = trim((string) ($validated['inputs']['prompt'] ?? ''));
+        $cta = isset($options['cta']) && is_string($options['cta']) ? trim($options['cta']) : '';
+        $variation = (bool) ($options['ugc_variation'] ?? false);
+        $mode = isset($options['mode']) && is_string($options['mode']) && $options['mode'] !== '' ? $options['mode'] : 'prompt';
+
+        $jobs = DB::transaction(function () use (
+            $user, $model, $operation, $resolved, $dedup, $fingerprint, $referenceAssetIds, $hasReference,
+            $config, $routing, $aspect, $duration, $count, $pro, $unitCost, $basePrompt, $cta, $variation, $mode
+        ): array {
             $revision = $this->resolver->ensureRevision($model, $operation, $resolved);
-            $reservation = $this->tokens->reserve($user, 'video', $model->model_id, 1, "video:{$jobId}", (int) $model->token_cost);
+            $created = [];
+            for ($index = 0; $index < $count; $index++) {
+                $prompt = $basePrompt;
+                if ($cta !== '') {
+                    $prompt .= "\nCall to action: ".$cta;
+                }
+                if ($variation && $index > 0) {
+                    $prompt .= "\nCreate variation ".($index + 1).' with a distinct camera composition while preserving the same subject and message.';
+                }
+                $jobId = (string) Str::uuid();
+                $reservation = $this->tokens->reserve($user, 'video', $model->model_id, 1, "video:{$jobId}", $unitCost);
+                $created[] = VideoJob::create([
+                    'user_id' => $user->id, 'job_id' => $jobId, 'model' => $model->model_id, 'mode' => $mode,
+                    'provider_id' => $model->provider_id, 'upstream_model_id' => $routing,
+                    'connection_fingerprint' => $this->fingerprint($model), 'generation_config' => $config,
+                    'capability_revision_id' => $revision->id, 'routing_identity' => $routing,
+                    'price_tokens' => $unitCost, 'dedup_key' => $dedup, 'payload_fingerprint' => $fingerprint,
+                    'reference_asset_ids' => $referenceAssetIds !== [] ? $referenceAssetIds : null,
+                    'prompt' => $prompt,
+                    'aspect_ratio' => $aspect, 'duration' => $duration,
+                    'pro_mode' => $pro, 'has_reference' => $hasReference,
+                    'status' => 'pending', 'stage' => 'queued',
+                    'billing_reserved_microusd' => 0, 'billing_reference_id' => "video:{$jobId}",
+                    'billing_status' => 'reserved', 'billing_mode' => $reservation['billing_mode'],
+                    'tokens_used' => $reservation['amount_tokens'], 'tokens_reserved' => $reservation['amount_tokens'],
+                    'settings' => ['cta' => $cta !== '' ? $cta : null, 'ugc_variation' => $variation],
+                    'next_poll_at' => now()->addMinute(),
+                ]);
+            }
 
-            return VideoJob::create([
-                'user_id' => $user->id, 'job_id' => $jobId, 'model' => $model->model_id, 'mode' => 'prompt',
-                'provider_id' => $model->provider_id, 'upstream_model_id' => $routing,
-                'connection_fingerprint' => $this->fingerprint($model), 'generation_config' => $config,
-                'capability_revision_id' => $revision->id, 'routing_identity' => $routing,
-                'price_tokens' => (int) $model->token_cost, 'dedup_key' => $dedup, 'payload_fingerprint' => $fingerprint,
-                'reference_asset_ids' => $referenceAssetIds !== [] ? $referenceAssetIds : null,
-                'prompt' => (string) ($validated['inputs']['prompt'] ?? ''),
-                'aspect_ratio' => $aspect, 'duration' => $duration,
-                'pro_mode' => false, 'has_reference' => $hasReference,
-                'status' => 'pending', 'stage' => 'queued',
-                'billing_reserved_microusd' => 0, 'billing_reference_id' => "video:{$jobId}",
-                'billing_status' => 'reserved', 'billing_mode' => $reservation['billing_mode'],
-                'tokens_used' => $reservation['amount_tokens'], 'tokens_reserved' => $reservation['amount_tokens'],
-                'settings' => [], 'next_poll_at' => now()->addMinute(),
-            ]);
+            return $created;
         });
-        ProcessVideoJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
+        foreach ($jobs as $job) {
+            ProcessVideoJob::dispatch($job->id)->onConnection('media')->onQueue('media')->afterCommit();
+        }
 
-        return $job;
+        return $jobs;
     }
 
     /**

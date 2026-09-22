@@ -95,4 +95,37 @@ class VideoCoordinatorRouteTest extends TestCase
             'operation' => 'image_to_video', 'model' => FalProtocol::VIDEO, 'prompt' => 'Animate', 'reference_image' => 'anything', 'duration' => 5,
         ])->assertStatus(503);
     }
+
+    public function test_coordinator_keeps_quantity_pro_cta_and_ugc_variation(): void
+    {
+        Queue::fake();
+        $this->model();
+        $user = $this->member();
+
+        $res = $this->actingAs($user)->postJson('/api/v/gen', [
+            'operation' => 'text_to_video', 'model' => FalProtocol::VIDEO,
+            'prompt' => 'A quiet garden', 'aspect_ratio' => '16:9', 'duration' => 5,
+            'count' => 2, 'pro' => true, 'mode' => 'ab_testing',
+            'cta' => 'Order today', 'ugc_variation' => true,
+        ])->assertStatus(202)
+            ->assertJsonCount(2, 'jobs')
+            ->assertJsonPath('tokens_used', 800)
+            ->assertJsonPath('balance', 200);
+
+        $jobs = VideoJob::query()->orderBy('id')->get();
+        $this->assertCount(2, $jobs, 'quantity creates one job per video, like the existing studio');
+        foreach ($jobs as $job) {
+            $this->assertNotNull($job->capability_revision_id, 'every video still goes through the coordinator');
+            $this->assertTrue((bool) $job->pro_mode);
+            $this->assertSame(400, (int) $job->price_tokens, 'Pro doubles the per-video price');
+            $this->assertSame('ab_testing', $job->mode);
+            $this->assertSame(16, $job->generation_config['video_parameters']['num_inference_steps']);
+            $this->assertSame('maximum', $job->generation_config['video_parameters']['video_quality']);
+            $this->assertStringContainsString('Call to action: Order today', $job->prompt);
+            $this->assertSame('Order today', $job->settings['cta']);
+            $this->assertTrue((bool) $job->settings['ugc_variation']);
+        }
+        $this->assertStringNotContainsString('Create variation', $jobs[0]->prompt);
+        $this->assertStringContainsString('Create variation 2', $jobs[1]->prompt, 'variation only differentiates the later videos');
+    }
 }

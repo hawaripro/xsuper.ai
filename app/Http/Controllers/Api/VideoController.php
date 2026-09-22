@@ -77,6 +77,11 @@ class VideoController extends Controller
             'aspect_ratio' => ['nullable', 'string', 'max:16'],
             'duration' => ['nullable', 'integer', 'min:1', 'max:600'],
             'reference_image' => ['nullable', 'string', 'max:64'],
+            'count' => ['nullable', 'integer', 'min:1', 'max:10'],
+            'pro' => ['nullable', 'boolean'],
+            'mode' => ['nullable', Rule::in(['prompt', 'ab_testing'])],
+            'cta' => ['nullable', 'string', 'max:500'],
+            'ugc_variation' => ['nullable', 'boolean'],
             'idempotency_key' => ['nullable', 'string', 'max:128'],
             'expected_price_tokens' => ['nullable', 'integer', 'min:1'],
             'expected_capability_hash' => ['nullable', 'string', 'max:64'],
@@ -87,27 +92,43 @@ class VideoController extends Controller
             return response()->json(['message' => 'The selected video model is unavailable.'], 503);
         }
         $operation = MediaOperation::from($validated['operation']);
+        $count = (int) ($validated['count'] ?? 1);
+        $pro = (bool) ($validated['pro'] ?? false);
         $rawInputs = array_filter([
             'prompt' => $validated['prompt'],
             'aspect_ratio' => $validated['aspect_ratio'] ?? null,
             'duration' => $validated['duration'] ?? null,
             'reference_image' => $validated['reference_image'] ?? null,
         ], static fn ($v): bool => $v !== null);
+        // Declare quantity/Pro only when they carry a real choice: a model whose contract omits
+        // them rejects unknown fields, and sending the default would break those models.
+        if ($count > 1) {
+            $rawInputs['count'] = $count;
+        }
+        if ($pro) {
+            $rawInputs['pro'] = true;
+        }
         $options = array_filter([
             'idempotency_key' => $validated['idempotency_key'] ?? null,
             'expected_price_tokens' => $validated['expected_price_tokens'] ?? null,
             'expected_capability_hash' => $validated['expected_capability_hash'] ?? null,
+            'mode' => $validated['mode'] ?? null,
+            'cta' => $validated['cta'] ?? null,
         ], static fn ($v): bool => $v !== null);
+        $options['ugc_variation'] = (bool) ($validated['ugc_variation'] ?? false);
 
         try {
             if (app(MediaActivation::class)->usesCoordinator($user)) {
-                $job = app(MediaGenerationCoordinator::class)->startVideo($user, $model, $operation, $rawInputs, 'studio-video', $options);
+                $jobs = app(MediaGenerationCoordinator::class)->startVideo($user, $model, $operation, $rawInputs, 'studio-video', $options);
             } elseif ($operation === MediaOperation::TextToVideo) {
-                $job = $videos->create($user, [
-                    'model' => $validated['model'], 'prompt' => $validated['prompt'], 'mode' => 'prompt', 'count' => 1,
+                $jobs = $videos->create($user, [
+                    'model' => $validated['model'], 'prompt' => $validated['prompt'],
+                    'mode' => $validated['mode'] ?? 'prompt', 'count' => $count, 'pro_mode' => $pro,
+                    'cta' => $validated['cta'] ?? null,
+                    'ugc_variation' => (bool) ($validated['ugc_variation'] ?? false),
                     'aspect_ratio' => $validated['aspect_ratio'] ?? null,
                     'settings' => ['duration' => $validated['duration'] ?? null],
-                ])[0];
+                ]);
             } else {
                 return response()->json(['message' => 'This operation is not available for your account yet.'], 503);
             }
@@ -117,8 +138,8 @@ class VideoController extends Controller
 
         return response()->json([
             'message' => 'Video request queued for generation.',
-            'jobs' => [$videos->payload($job)],
-            'tokens_used' => $job->tokens_reserved,
+            'jobs' => array_map(fn (VideoJob $job): array => $videos->payload($job), $jobs),
+            'tokens_used' => array_sum(array_map(fn (VideoJob $job): int => $job->tokens_reserved, $jobs)),
             'balance' => UserToken::getBalance($user->id),
             'billing_mode' => 'tokens',
         ], 202);
