@@ -36,6 +36,7 @@ deploy_files.py
 /playwright-report
 /test-results
 /.tmp-chrome-announcement
+/.dev-local
 
 __pycache__/
 prompt buat katalog ai.txt

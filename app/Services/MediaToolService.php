@@ -64,30 +64,37 @@ final class MediaToolService
                 $diagnosis[] = 'missing MEDIA_'.strtoupper($binary).'_PATH';
             }
         }
-        if ($diagnosis === []) {
+        // Background removal needs only python + the rembg library; download/convert additionally
+        // need ffmpeg/ffprobe. Probe whenever python is present so a missing ffmpeg never hides
+        // rembg. The rembg import is slow on a cold numba cache, so its probe gets a wider timeout.
+        if (config('media_tools.enabled') && $paths['python']) {
             try {
                 [$available, $probe] = Cache::remember('media-tools:runtime:v2:'.hash('sha256', json_encode($paths)), 60, function () use ($paths): array {
-                    $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'check'], base_path('scripts/media'), $this->environment(), json_encode($paths, JSON_THROW_ON_ERROR), 20);
-                    $process->run();
-                    $state = json_decode($process->getOutput(), true);
+                    $mediaReady = (bool) ($paths['ffmpeg'] ?? null) && (bool) ($paths['ffprobe'] ?? null);
+                    $process = null;
+                    $state = null;
+                    if ($mediaReady) {
+                        $process = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/download.py'), 'check'], base_path('scripts/media'), $this->environment(), json_encode($paths, JSON_THROW_ON_ERROR), 20);
+                        $process->run();
+                        $state = json_decode($process->getOutput(), true);
+                    }
 
-                    // The probe needs the model directory too: rembg's numba cache
-                    // cannot be written under php-fpm's HOME, so a bare check
-                    // failed for www-data while succeeding on the CLI.
+                    // The probe needs the model directory too: rembg's numba cache cannot be written
+                    // under php-fpm's HOME, so a bare check failed for www-data while succeeding on the CLI.
                     $rembgManifest = json_encode([
                         'model_dir' => is_string(config('media_tools.rembg_model_dir')) ? config('media_tools.rembg_model_dir') : null,
                     ], JSON_THROW_ON_ERROR);
-                    $rembg = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/rembg_tool.py'), 'check'], base_path('scripts/media'), $this->environment(), $rembgManifest, 30);
+                    $rembg = new Process([$paths['python'], '-I', '-B', '-u', base_path('scripts/media/rembg_tool.py'), 'check'], base_path('scripts/media'), $this->environment(), $rembgManifest, 45);
                     $rembg->run();
                     $rembgState = json_decode($rembg->getOutput(), true);
 
                     return [[
-                        'download' => $process->isSuccessful() && ($state['download'] ?? false) === true,
-                        'convert' => $process->isSuccessful() && ($state['convert'] ?? false) === true,
+                        'download' => $process !== null && $process->isSuccessful() && ($state['download'] ?? false) === true,
+                        'convert' => $process !== null && $process->isSuccessful() && ($state['convert'] ?? false) === true,
                         'rembg' => $rembg->isSuccessful() && ($rembgState['rembg'] ?? false) === true,
                     ], [
-                        'reasons' => $state['reasons'] ?? null,
-                        'probe_exit' => $process->getExitCode(),
+                        'reasons' => is_array($state) ? ($state['reasons'] ?? null) : null,
+                        'probe_exit' => $process?->getExitCode(),
                         'rembg_exit' => $rembg->getExitCode(),
                     ]];
                 });

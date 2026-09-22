@@ -1,129 +1,158 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocale } from "../contexts/LocaleContext";
-import MediaActionDialog from "../components/MediaActionDialog";
 import { validationErrors } from "../components/member/MemberUI";
-import { isPending, tokenPrice, useMediaStudio, useStudioDraft } from "../components/studios/useMediaStudio";
-import { capabilityErrors, capabilitySubmission, capabilityValues } from "../components/studios/capability";
-import CapabilityForm from "../components/studios/CapabilityForm";
-import { StudioButton, StudioCatalog, StudioEmpty, StudioHeader, StudioHistory, StudioIcon, StudioJobMeta, StudioNotice, StudioProgress, StudioQuote, mediaError } from "../components/studios/StudioUI";
+import { isPending, maxQuantity, modelOptions, tokenPrice, useMediaStudio, useObjectUrl, useStudioDraft } from "../components/studios/useMediaStudio";
+import { StudioButton, StudioCancellation, StudioCatalog, StudioEmpty, StudioField, StudioHeader, StudioHistory, StudioIcon, StudioJobMeta, StudioNotice, StudioProgress, StudioQuote, mediaError } from "../components/studios/StudioUI";
 
-const defaults = { model: "", operation: "", values: {} };
-const operationLabels = { text_to_video: "Teks ke video", image_to_video: "Gambar ke video" };
+const angles = [
+    { id: "closeup", label: "Close-up Detail", prompt: "Extreme close-up shot focusing on product details, texture, and craftsmanship. Macro lens feel, shallow depth of field." },
+    { id: "lifestyle", label: "Lifestyle / In-Use", prompt: "Product being used naturally in an everyday setting. Authentic, relatable, warm lighting." },
+    { id: "spin", label: "360° Product Spin", prompt: "Product rotating on a clean surface, showing all angles. Smooth turntable rotation, studio lighting." },
+    { id: "cinematic", label: "Cinematic Hero Shot", prompt: "Cinematic hero shot of the product, dramatic lighting, slow reveal, premium feel." },
+    { id: "beforeafter", label: "Before & After", prompt: "A clear visual comparison showing the product before and after use, with a natural transition." },
+];
+const stories = [
+    { id: "problem", label: "Problem → Solution", prompt: "Talent shows a common problem, then introduces the product as the solution. Natural setting and delivery." },
+    { id: "impression", label: "First Impression Jujur", prompt: "Talent opens and tries the product for the first time on camera. First-impression presentation, selfie-style camera." },
+    { id: "beforeafter", label: "Before & After Rutinitas", prompt: "Talent shows their routine before the product, then after. Day-in-life style." },
+    { id: "routine", label: "Bagian dari Hari-hari", prompt: "Product integrated into a daily routine. Morning or evening ritual, cozy setting." },
+    { id: "friend", label: "Rekomendasi ke Teman", prompt: "Talent talking directly to camera about the product. Casual, conversational tone." },
+];
+const defaults = { model: "", mode: "prompt", prompt: "", product: "", features: "", angles: "closeup,lifestyle", story: "problem", cta: "", ratio: "", duration: "", count: "1", pro: false, variations: false };
+const tabs = [{ id: "prompt", label: "Prompt", icon: "prompt" }, { id: "product", label: "Produk", icon: "product" }, { id: "ugc", label: "UGC", icon: "ugc" }];
 
-function VideoResult({ job }) {
+function VideoPlayer({ job }) {
     const { t } = useLocale();
     const player = useRef(null);
-    const [failed, setFailed] = useState(false);
+    const [error, setError] = useState(false);
     useEffect(() => {
-        setFailed(false);
-        if (player.current) player.current.load();
+        const element = player.current;
+        if (element && element.getAttribute("src") !== job.video_url) element.setAttribute("src", job.video_url);
+        return () => { if (element) { element.pause(); element.removeAttribute("src"); element.load(); } };
     }, [job.video_url]);
-
-    if (!job.video_url) {
-        return <StudioEmpty icon="video" title="Ruang untuk video berikutnya" description="Tulis prompt, pilih model, lalu buat video. Hasil akan tampil di kanvas ini." />;
-    }
-    return <>
-        <div className="studio-toolbar studio-canvas-toolbar"><div><h2>{t("Hasil video")}</h2><p className="studio-help">{job.prompt || ""}</p></div></div>
-        <div className="studio-video-screen">
-            <video ref={player} src={job.video_url} poster={job.thumbnail_url || undefined} controls playsInline preload="metadata"
-                aria-label={`${t("Hasil video")}: ${job.prompt || ""}`} onError={() => setFailed(true)} />
-        </div>
-        {failed && <StudioNotice error>{t("Video tidak dapat diputar di browser ini. Buka atau unduh hasil aslinya.")}</StudioNotice>}
-        <div className="studio-toolbar studio-player-links">
-            <a className="studio-button studio-download" href={job.video_url} download><StudioIcon name="download" />{t("Unduh video")}</a>
-            <a className="studio-text-link" href={job.video_url} target="_blank" rel="noreferrer">{t("Buka asli")}</a>
-        </div>
-    </>;
+    return <><div className="studio-video-screen"><video ref={player} src={job.video_url} poster={job.thumbnail_url || undefined} controls playsInline preload="metadata" aria-label={`${t("Hasil video")}: ${job.prompt}`} onError={() => setError(true)} /></div>{error && <StudioNotice error>{t("Video tidak dapat diputar di browser ini. Buka atau unduh hasil aslinya.")}</StudioNotice>}<div className="studio-toolbar studio-player-links"><a className="studio-button studio-download" href={job.video_url} download><StudioIcon name="download" />{t("Unduh video")}</a><a className="studio-text-link" href={job.video_url} target="_blank" rel="noreferrer">{t("Buka asli")}</a></div></>;
 }
 
 function VideoStudio({ userId }) {
-    const { t } = useLocale();
+    const { t, locale } = useLocale();
     const studio = useMediaStudio("video");
     const [draft, setDraft] = useStudioDraft("video", userId, defaults);
-    const [dialog, setDialog] = useState(null);
-    const reconciled = useRef("");
-
+    const [reference, setReference] = useState(null);
+    const [referenceError, setReferenceError] = useState(null);
+    const [referenceReady, setReferenceReady] = useState(false);
+    const [cancellation, setCancellation] = useState(null);
+    const referenceUrl = useObjectUrl(reference);
+    const fileInput = useRef(null);
     const selectedId = studio.requestedModel || draft.model;
     const model = studio.models.find((item) => item.id === selectedId) || null;
-    const capabilities = model?.capabilities || {};
-    const operationKeys = Object.keys(capabilities);
-    const operation = capabilities[draft.operation] ? draft.operation : operationKeys.includes("text_to_video") ? "text_to_video" : operationKeys[0] || "";
-    const capability = capabilities[operation] || null;
+    const mode = tabs.some((tab) => tab.id === draft.mode) ? draft.mode : "prompt";
+    const supportsReference = model?.reference_image?.supported === true;
+    const supportsPro = model?.pro?.supported === true && model.pro.multiplier === 2;
+    const pro = supportsPro && draft.pro;
+    const ratioFromImage = Boolean(reference && supportsReference && model.reference_image.aspect_ratio_from_image);
+    const selectedAngles = draft.angles.split(",");
+    const count = Math.max(1, Math.min(Number(draft.count) || 1, maxQuantity(model)));
+    const unit = tokenPrice(model);
+    const total = unit == null ? null : unit * count * (pro ? 2 : 1);
+    const errors = validationErrors(studio.submitError);
+    const job = studio.activeJob;
 
-    // Pick a model when the catalog loads, then reconcile the draft once per model+operation change:
-    // compatible values survive, the rest fall back to capability defaults (an incompatible asset clears).
     useEffect(() => {
         if (!studio.models.length) return;
-        const chosen = studio.models.find((item) => item.id === (studio.requestedModel || draft.model)) || (studio.requestedModel ? null : studio.models[0]);
-        if (!chosen) return;
-        const caps = chosen.capabilities || {};
-        const opKeys = Object.keys(caps);
-        const op = caps[draft.operation] ? draft.operation : opKeys.includes("text_to_video") ? "text_to_video" : opKeys[0] || "";
-        const key = `${chosen.id}:${op}`;
-        if (reconciled.current === key && draft.model === chosen.id && draft.operation === op) return;
-        reconciled.current = key;
-        setDraft((current) => ({
-            ...current,
-            model: chosen.id,
-            operation: op,
-            values: capabilityValues(caps[op] || null, current.values),
-        }));
-    }, [studio.models, studio.requestedModel, draft.model, draft.operation, setDraft]);
-
-    // A changed price or capability (409) keeps the draft and refreshes the catalog so the next
-    // submit carries the current hash/price — never an automatic paid resubmit.
+        const next = studio.models.find((item) => item.id === (studio.requestedModel || draft.model));
+        if (studio.requestedModel && !next) return;
+        const chosen = next || studio.models[0];
+        const durations = modelOptions(chosen, "durations").map(String);
+        const ratios = modelOptions(chosen, "aspect_ratios");
+        setDraft((current) => ({ ...current, model: chosen.id, ratio: ratios.includes(current.ratio) ? current.ratio : ratios[0] || "", duration: durations.includes(current.duration) ? current.duration : durations[0] || "", count: String(Math.min(Number(current.count) || 1, maxQuantity(chosen))), pro: chosen.pro?.supported === true && current.pro }));
+    }, [studio.models, studio.requestedModel, draft.model, setDraft]);
     useEffect(() => {
-        if (studio.submitError?.status === 409) studio.loadModels();
-    }, [studio.submitError, studio.loadModels]);
+        if (!supportsReference) {
+            setReference(null);
+            setReferenceReady(false);
+            setReferenceError(null);
+            if (fileInput.current) fileInput.current.value = "";
+        }
+    }, [supportsReference, reference]);
 
-    const unit = capability?.price_tokens ?? tokenPrice(model);
-    const total = unit;
-    const clientErrors = capabilityErrors(capability, draft.values);
-    const errors = { ...clientErrors, ...validationErrors(studio.submitError) };
-    const insufficient = total != null && studio.balance != null && studio.balance < total;
-    const canSubmit = Boolean(capability && unit != null && total != null && total <= 2147483647 && !insufficient
-        && Object.keys(clientErrors).length === 0 && !studio.submitting && !studio.modelLoading && !studio.modelError);
-    const warning = t(mediaError(studio.catalog?.cancel_reason || "Pembuatan video tidak dapat dibatalkan setelah dikirim. Menutup halaman tidak menghentikan proses atau mengembalikan token."));
-    const job = studio.activeJob;
-    const busyCanvas = studio.submitting || isPending(job);
-
-    const generate = () => {
-        if (!canSubmit) return;
-        setDialog(null);
-        studio.submit({
-            model: model.id,
-            operation,
-            idempotency_key: globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random().toString(36).slice(2),
-            expected_price_tokens: unit,
-            ...(capability.source_hash ? { expected_capability_hash: capability.source_hash } : {}),
-            ...capabilitySubmission(capability, draft.values),
-        });
+    const finalPrompt = useMemo(() => {
+        if (mode === "prompt") return draft.prompt.trim();
+        const parts = [`Create a ${mode === "ugc" ? "UGC-style" : "product"} video for "${draft.product.trim()}".`];
+        if (draft.features.trim()) parts.push(`Key features: ${draft.features.trim()}.`);
+        if (mode === "product") angles.forEach((angle) => { if (draft.angles.split(",").includes(angle.id)) parts.push(angle.prompt); });
+        if (mode === "ugc") { const story = stories.find((item) => item.id === draft.story); if (story) parts.push(story.prompt); }
+        return parts.join(" ");
+    }, [mode, draft.prompt, draft.product, draft.features, draft.angles, draft.story]);
+    const canGenerate = Boolean(model && !studio.modelLoading && !studio.modelError && !studio.submitting && total != null && total <= 2147483647 && studio.balance != null && studio.balance >= total && (mode === "prompt" ? draft.prompt.trim() : draft.product.trim()) && finalPrompt.length <= 4000 && (!reference || referenceReady) && (!model.reference_image?.required || reference) && !referenceError);
+    const set = (name, value) => setDraft((current) => ({ ...current, [name]: value }));
+    const chooseReference = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        setReferenceReady(false);
+        setReference(null);
+        const max = Number(model?.reference_image?.max_bytes) || 10485760;
+        const types = model?.reference_image?.mime_types || [];
+        if (!types.includes(file.type) || file.size > max) {
+            setReferenceError(`${t("Pilih gambar JPEG, PNG, atau WebP hingga")} ${Math.round(max / 1048576)} MiB.`);
+            event.target.value = "";
+            return;
+        }
+        setReferenceError(null);
+        setReference(file);
+    };
+    const removeReference = () => { setReference(null); setReferenceReady(false); setReferenceError(null); if (fileInput.current) fileInput.current.value = ""; };
+    const generate = (event) => {
+        event.preventDefault();
+        if (!canGenerate) return;
+        const payload = { prompt: finalPrompt, model: model.id, count, mode: mode === "prompt" ? "prompt" : "ab_testing", pro_mode: pro, ugc_variation: count > 1 && draft.variations, ...(mode !== "prompt" && draft.cta.trim() ? { cta: draft.cta.trim() } : {}), ...(!ratioFromImage && draft.ratio ? { aspect_ratio: draft.ratio } : {}), settings: draft.duration ? { duration: Number(draft.duration) } : {} };
+        if (reference) {
+            const body = new FormData();
+            Object.entries(payload).forEach(([key, value]) => {
+                if (key === "settings") { if (value.duration != null) body.append("settings[duration]", String(value.duration)); }
+                else body.append(key, typeof value === "boolean" ? value ? "1" : "0" : String(value));
+            });
+            body.append("reference_image", reference);
+            studio.submit(body);
+        } else studio.submit(payload);
     };
 
     return <div className="media-studio studio-video">
-        <StudioHeader kind="video" title="Studio video" description="Dari satu gagasan ke video yang siap digunakan." balance={studio.balance} onRefresh={studio.refresh} busy={studio.modelLoading || studio.submitting} />
-        <div className="studio-image-desk">
-            <form className="studio-image-author" onSubmit={(event) => { event.preventDefault(); if (canSubmit) setDialog("confirm"); }} aria-busy={studio.submitting}>
-                <div className="studio-section-heading"><h2>{t("Arahan kreatif")}</h2><StudioIcon name="prompt" className="studio-color-video" /></div>
-                <StudioCatalog studio={studio} id="video-model" value={selectedId} error={errors.model} onChange={(id) => studio.selectModel(id)} />
-                {operationKeys.length > 1 && <fieldset className="studio-angle-fieldset"><legend>{t("Mode")}</legend><div className="studio-tabs" role="tablist">{operationKeys.map((op) => <button type="button" key={op} role="tab" aria-selected={op === operation} disabled={studio.submitting} onClick={() => setDraft((current) => ({ ...current, operation: op }))}>{t(operationLabels[op] || op)}</button>)}</div></fieldset>}
-                {capability
-                    ? <CapabilityForm capability={capability} values={draft.values} errors={errors} disabled={studio.submitting} idPrefix="video" onChange={(values) => setDraft((current) => ({ ...current, values }))} />
-                    : model ? <StudioNotice error>{t("Model ini belum menyediakan operasi video yang didukung.")}</StudioNotice> : null}
+        <StudioHeader kind="video" title="Studio video" description="Susun arahan. Tentukan kualitas. Putar hasilnya." balance={studio.balance} onRefresh={studio.refresh} busy={studio.modelLoading || studio.submitting} />
+        <form onSubmit={generate} className="studio-video-workbench" aria-busy={studio.submitting}>
+            <div className="studio-video-editing">
+                <section className="studio-monitor" aria-label={t("Hasil video")}><div className="studio-toolbar studio-monitor-heading"><h2><StudioIcon name="video" className="studio-color-video" />{t("Monitor video")}</h2><span className="studio-help">{job ? [job.model, job.pro_mode ? "Pro" : "Standard"].join(" · ") : t("Hasil asli dari model")}</span></div>{studio.statusError && <StudioNotice error action={<StudioButton onClick={() => studio.loadJob(studio.activeId)} disabled={studio.statusLoading}>{t("Coba lagi")}</StudioButton>}>{t(mediaError(studio.statusError))}</StudioNotice>}{studio.submitting || isPending(job) ? <div className="studio-video-screen"><StudioProgress job={job} submitting={studio.submitting} /></div> : job?.status === "completed" && job.video_url ? <VideoPlayer key={job.job_id} job={job} /> : <div className="studio-video-screen"><StudioEmpty icon="video" title="Adegan Anda dimulai di sini" description="Hasil video akan dapat diputar, dicari posisinya, dan diunduh setelah proses selesai." /></div>}{job && <StudioJobMeta job={job} checking={studio.statusLoading} onCheck={() => studio.loadJob(job.job_id)} onCancel={setCancellation} />}{job?.has_reference && job.reference_url && <details className="studio-saved-reference"><summary>{t("Gambar referensi permintaan ini")}</summary><a href={job.reference_url} target="_blank" rel="noreferrer"><img src={job.reference_url} alt={t("Gambar referensi video tersimpan")} loading="lazy" /></a></details>}</section>
+                <section className="studio-authoring"><div className="studio-section-heading"><h2>{t("Arahan video")}</h2><StudioIcon name="prompt" className="studio-color-video" /></div><div className="studio-tabs" role="tablist" aria-label={t("Mode generator")}>{tabs.map((tab, index) => <button type="button" role="tab" id={`video-tab-${tab.id}`} aria-controls={`video-panel-${tab.id}`} aria-selected={mode === tab.id} tabIndex={mode === tab.id ? 0 : -1} disabled={studio.submitting} key={tab.id} onClick={() => set("mode", tab.id)} onKeyDown={(event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length; set("mode", tabs[next].id); document.getElementById(`video-tab-${tabs[next].id}`)?.focus(); }}><StudioIcon name={tab.icon} className={`studio-color-${tab.id}`} />{t(tab.label)}</button>)}</div>
+                    <div id={`video-panel-${mode}`} role="tabpanel" aria-labelledby={`video-tab-${mode}`} className="studio-authoring-fields">
+                        {mode === "prompt" ? <StudioField id="video-prompt" label="Prompt" error={errors.prompt} hint={`${draft.prompt.length}/4000 ${t("karakter")}`}><textarea id="video-prompt" value={draft.prompt} rows={6} maxLength={4000} required disabled={studio.submitting} onChange={(event) => set("prompt", event.target.value)} aria-invalid={Boolean(errors.prompt)} aria-describedby="video-prompt-hint" placeholder={t("Jelaskan subjek, gerakan kamera, suasana, dan pencahayaan…")} /></StudioField> : <>
+                            <div className="studio-field-pair"><StudioField id="video-product" label="Nama produk"><input id="video-product" value={draft.product} maxLength={160} required disabled={studio.submitting} onChange={(event) => set("product", event.target.value)} /></StudioField><StudioField id="video-features" label="Keunggulan / Key Feature"><input id="video-features" value={draft.features} maxLength={700} disabled={studio.submitting} onChange={(event) => set("features", event.target.value)} /></StudioField></div>
+                            {mode === "product" ? <fieldset className="studio-angle-fieldset"><legend>{t("Arahan sudut kamera")}</legend><p className="studio-help">{t("Pilihan ini menyusun prompt, bukan klip terpisah atau durasi adegan yang dijamin.")}</p><div className="studio-angle-list">{angles.map((angle) => <button type="button" key={angle.id} disabled={studio.submitting} aria-pressed={selectedAngles.includes(angle.id)} onClick={() => set("angles", (selectedAngles.includes(angle.id) ? selectedAngles.filter((id) => id !== angle.id) : [...selectedAngles, angle.id]).join(","))}><StudioIcon name={selectedAngles.includes(angle.id) ? "check" : "video"} /><span>{t(angle.label)}</span></button>)}</div></fieldset> : <StudioField id="video-story" label="Alur cerita UGC"><select id="video-story" value={draft.story} disabled={studio.submitting} onChange={(event) => set("story", event.target.value)}>{stories.map((story) => <option key={story.id} value={story.id}>{t(story.label)}</option>)}</select></StudioField>}
+                            <StudioField id="video-cta" label="Call-to-Action (CTA) — Opsional" error={errors.cta} hint={t("CTA dikirim sebagai arahan kreatif; teks dan ucapan pada hasil bergantung pada model.")}><input id="video-cta" value={draft.cta} maxLength={500} disabled={studio.submitting} onChange={(event) => set("cta", event.target.value)} /></StudioField>
+                            <details className="studio-prompt-preview"><summary>{t("Lihat prompt yang dikirim")}</summary><p>{finalPrompt}</p><small>{finalPrompt.length}/4000 {t("karakter")}</small></details>
+                            {finalPrompt.length > 4000 && <StudioNotice error>{t("Prompt terlalu panjang. Kurangi detail hingga 4000 karakter.")}</StudioNotice>}
+                        </>}
+                    </div>
+                </section>
+            </div>
+            <aside className="studio-video-inspector"><div className="studio-section-heading"><h2><StudioIcon name="settings" className="studio-color-video" />{t("Pengaturan video")}</h2></div><StudioCatalog studio={studio} id="video-model" value={selectedId} error={errors.model} onChange={studio.selectModel} />
+                <div className="studio-pro"><div className="studio-pro-heading"><span id="video-pro-label"><StudioIcon name="pro" />Pro <small>2× {t("token")}</small></span><button type="button" className="studio-switch" role="switch" aria-checked={pro} aria-labelledby="video-pro-label" aria-describedby="video-pro-benefit" disabled={!supportsPro || studio.submitting} onClick={() => set("pro", !pro)}><span /></button></div><p id="video-pro-benefit">{t(supportsPro ? model.pro.description || "16 langkah inferensi dan encoding maksimum; Standard menggunakan 12 langkah dan encoding tinggi." : "Mode Pro tidak didukung oleh model ini.")}</p>{supportsPro && unit != null && <div className="studio-pro-prices"><span>Standard <strong>{new Intl.NumberFormat(locale).format(unit)}</strong></span><span>Pro <strong>{new Intl.NumberFormat(locale).format(unit * 2)}</strong></span><small>{t("token / video")}</small></div>}{errors.pro_mode && <p className="studio-field-error">{t(mediaError(errors.pro_mode[0] || errors.pro_mode))}</p>}</div>
+                <div className="studio-field-pair"><StudioField id="video-ratio" label="Rasio aspek" error={errors.aspect_ratio}><select id="video-ratio" value={ratioFromImage ? "reference" : draft.ratio} disabled={studio.submitting || ratioFromImage || modelOptions(model, "aspect_ratios").length < 2} onChange={(event) => set("ratio", event.target.value)}>{ratioFromImage ? <option value="reference">{t("Dari gambar")}</option> : !modelOptions(model, "aspect_ratios").length ? <option value="">{t("Otomatis")}</option> : modelOptions(model, "aspect_ratios").map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}</select></StudioField><StudioField id="video-duration" label="Durasi" error={errors["settings.duration"]}><select id="video-duration" value={draft.duration} disabled={studio.submitting || modelOptions(model, "durations").length < 2} onChange={(event) => set("duration", event.target.value)}>{!modelOptions(model, "durations").length ? <option value="">{t("Otomatis")}</option> : modelOptions(model, "durations").map((duration) => <option key={duration} value={duration}>{duration} {t("detik")}</option>)}</select></StudioField></div>
+                {supportsReference ? <div className="studio-reference"><StudioField id="video-reference" label={model.reference_image.required ? "Gambar referensi (wajib)" : "Gambar referensi (opsional)"} error={errors.reference_image} hint={`${t("JPEG, PNG, atau WebP")} · ${Math.round(Number(model.reference_image.max_bytes) / 1048576)} MiB ${t("maksimum")}`}><input ref={fileInput} id="video-reference" type="file" accept={model.reference_image.mime_types.join(",")} onChange={chooseReference} disabled={studio.submitting} aria-describedby="video-reference-hint" /></StudioField>{referenceUrl && <div className="studio-reference-preview"><img src={referenceUrl} alt={t("Pratinjau gambar referensi")} onLoad={(event) => {
+                    const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+                    if (width > 8192 || height > 8192 || width * height > 40000000) {
+                        setReferenceReady(false);
+                        setReferenceError(t("Gambar melebihi batas 8192 piksel per sisi atau 40 megapiksel. Pilih file yang lebih kecil."));
+                    } else setReferenceReady(true);
+                }} onError={() => { setReferenceReady(false); setReferenceError(t("Gambar tidak dapat dibaca. Hapus dan pilih file lain.")); }} /><div><strong>{reference.name}</strong><small>{(reference.size / 1048576).toFixed(2)} MiB</small></div><StudioButton icon="close" onClick={removeReference} disabled={studio.submitting} aria-label={t("Hapus gambar referensi")} /></div>}{referenceError && <StudioNotice error>{referenceError}</StudioNotice>}<p className="studio-help">{t("Gambar diunggah saat Generate. Pilih ulang file setelah meninggalkan halaman.")}{ratioFromImage && ` ${t("Komposisi mengikuti rasio gambar referensi.")}`}</p></div> : <p className="studio-help">{t("Model ini menerima prompt teks tanpa gambar referensi.")}</p>}
+                <StudioField id="video-count" label="Jumlah video" error={errors.count}><select id="video-count" value={count} disabled={studio.submitting || !model || maxQuantity(model) === 1} onChange={(event) => set("count", event.target.value)}>{Array.from({ length: maxQuantity(model) }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></StudioField>
+                {count > 1 && <label className="studio-checkbox"><input type="checkbox" checked={draft.variations} disabled={studio.submitting} onChange={(event) => set("variations", event.target.checked)} /><span>{t("Variasikan komposisi tiap video")}<small>{t("Arahan tambahan dikirim ke model untuk hasil berikutnya.")}</small></span></label>}
                 {model && unit == null && <StudioNotice error>{t("Harga token model belum tersedia. Pilih model lain atau hubungi pengelola.")}</StudioNotice>}
                 {studio.submitError && <StudioNotice error>{t(studio.submitError.status ? mediaError(studio.submitError) : "Respons belum dapat dikonfirmasi. Periksa riwayat sebelum mengirim lagi.")}</StudioNotice>}
-                <StudioQuote unit={unit} total={total} count={1} balance={studio.balance} />
-                <StudioButton type="submit" primary icon="video" disabled={!canSubmit}>{t(studio.submitting ? "Membuat video…" : "Generate video")}<StudioIcon name="arrow" /></StudioButton>
-            </form>
-            <section className="studio-image-stage" aria-label={t("Hasil video")}>
-                {studio.statusError && <StudioNotice error action={<StudioButton onClick={() => studio.loadJob(studio.activeId)} disabled={studio.statusLoading}>{t("Coba lagi")}</StudioButton>}>{t(mediaError(studio.statusError))}</StudioNotice>}
-                {busyCanvas ? <div className="studio-image-working"><StudioProgress job={job} submitting={studio.submitting} synchronous /><StudioButton onClick={() => setDialog("unavailable")}>{t("Tidak bisa dibatalkan")}</StudioButton></div> : <VideoResult key={job?.job_id || "empty"} job={job || {}} />}
-                {job && <StudioJobMeta job={job} checking={studio.statusLoading} onCheck={() => studio.loadJob(job.job_id)} />}
-            </section>
-        </div>
+                <StudioQuote total={total} unit={unit} count={count} pro={pro} balance={studio.balance} /><StudioButton type="submit" primary icon="video" disabled={!canGenerate}>{t(studio.submitting ? "Mengirim permintaan…" : "Generate video")}<StudioIcon name="arrow" /></StudioButton><p className="studio-help">{t("Pembatalan hanya tersedia sebelum pengiriman video dimulai. Token dikembalikan jika permintaan ditolak atau proses gagal.")}</p>
+            </aside>
+        </form>
         <StudioHistory studio={studio} kind="video" title="Riwayat video" />
-        {dialog && <MediaActionDialog title={t(dialog === "confirm" ? "Konfirmasi pembuatan video" : "Pembuatan video tidak bisa dibatalkan")} description={dialog === "unavailable" && job?.cancel_reason ? t(mediaError(job.cancel_reason)) : warning} closeLabel={t(dialog === "confirm" ? "Kembali" : "Mengerti")} confirmLabel={t("Ya, buat video")} confirmDisabled={!canSubmit} onConfirm={dialog === "confirm" ? generate : undefined} onClose={() => setDialog(null)}><dl className="space-y-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><dt>{t("Model")}</dt><dd className="font-semibold">{model?.name || selectedId}</dd></div><div className="flex flex-wrap justify-between gap-2"><dt>{t("Estimasi biaya")}</dt><dd>{total} {t("token")}</dd></div></dl></MediaActionDialog>}
+        {cancellation && <StudioCancellation key={cancellation.job_id} job={studio.jobs.find((item) => item.job_id === cancellation.job_id) || cancellation} onCancel={studio.cancel} onClose={() => setCancellation(null)} />}
     </div>;
 }
 
