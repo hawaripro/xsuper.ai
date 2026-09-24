@@ -27,6 +27,8 @@ final readonly class MediaCapability
         public array $params = [],
         /** Internal routing is deliberately excluded from toArray()/member payloads. */
         public array $providerBindings = [],
+        public array $inputSchema = [],
+        public array $outputSchema = [],
     ) {}
 
     /** @return CapabilityInput[] */
@@ -77,6 +79,10 @@ final readonly class MediaCapability
             'contract_version' => $this->contractVersion,
             'inputs' => array_map(static fn (CapabilityInput $i): array => $i->toArray(), $this->inputs),
             'params' => array_map(static fn (CapabilityParam $p): array => $p->toArray(), $this->params),
+            ...($this->contractVersion >= 2 ? [
+                'input_schema' => $this->inputSchema,
+                'output_schema' => $this->outputSchema,
+            ] : []),
         ];
     }
 
@@ -90,6 +96,8 @@ final readonly class MediaCapability
             array_map(static fn (array $i): CapabilityInput => CapabilityInput::fromArray($i), $data['inputs'] ?? []),
             array_map(static fn (array $p): CapabilityParam => CapabilityParam::fromArray($p), $data['params'] ?? []),
             $data['provider_bindings'] ?? [],
+            $data['input_schema'] ?? [],
+            $data['output_schema'] ?? [],
         );
     }
 }

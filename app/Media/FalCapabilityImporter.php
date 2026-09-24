@@ -6,7 +6,7 @@ use App\Media\Enums\InputRole;
 use App\Media\Enums\MediaOperation;
 use App\Media\Enums\OutputKind;
 
-/** Provider schemas are evidence, not executable configuration. Only the implemented Studio subset is publishable. */
+/** Versioned provider evidence normalization; historical v1 revisions retain their original semantics. */
 final class FalCapabilityImporter
 {
     private const CATEGORIES = [
@@ -18,8 +18,25 @@ final class FalCapabilityImporter
         'text-to-speech' => [MediaOperation::TextToSpeech, OutputKind::Audio],
     ];
 
-    public function normalize(array $model): array
+    public function normalize(array $model, int $contractVersion = 2): array
     {
+        if ($contractVersion === 2) {
+            $document = is_array($model['openapi'] ?? null) ? $model['openapi'] : [];
+            if (isset($document['asyncapi'], $document['x-fal-wma'])) {
+                $endpoint = (string) ($model['endpoint_id'] ?? '');
+
+                return app(FalRealtimeCapabilityImporter::class)->normalize(
+                    (string) ($model['model_public_id'] ?? $endpoint), $endpoint,
+                    (array) ($model['metadata'] ?? []), $document, self::hash($document),
+                );
+            }
+
+            return app(FalSchemaNormalizer::class)->normalize($model);
+        }
+        if ($contractVersion !== 1) {
+            return $this->result(null, null, [], ['Unsupported capability contract version.'], []);
+        }
+
         $blockers = [];
         $warnings = [];
         $endpoint = (string) ($model['endpoint_id'] ?? '');

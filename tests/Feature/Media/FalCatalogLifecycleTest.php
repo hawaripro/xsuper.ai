@@ -3,6 +3,8 @@
 namespace Tests\Feature\Media;
 
 use App\Media\CapabilityResolver;
+use App\Media\CapabilityUi;
+use App\Media\FalCapabilityImporter;
 use App\Media\Enums\MediaOperation;
 use App\Media\Exceptions\CapabilityConfigException;
 use App\Models\AiModelProfile;
@@ -86,14 +88,14 @@ class FalCatalogLifecycleTest extends TestCase
         $this->actingAs($admin)->postJson('/api/admin/ai/providers/'.$provider->id.'/discover')->assertOk();
         $model = AiModelProfile::where('provider_id', $provider->id)->firstOrFail();
         $model->update(['token_cost' => 15]);
-        $first = MediaCapabilityRevision::firstOrFail();
+        $first = $this->legacyCandidate(MediaCapabilityRevision::firstOrFail());
         $base = '/api/admin/ai/capabilities/';
         $this->postJson($base.$first->id.'/publish')->assertUnprocessable()->assertJsonStructure(['blockers']);
         $this->postJson($base.$first->id.'/publish', ['reviewed' => true])->assertOk()->assertJsonPath('revision.status', 'published');
-        $job = ImageJob::create(['user_id' => $admin->id, 'job_id' => 'old-catalog-job', 'model' => $model->model_id, 'prompt' => 'A cup', 'size' => 'square', 'quantity' => 1, 'status' => 'completed', 'capability_revision_id' => $first->id]);
+        $job = ImageJob::create(['user_id' => $admin->id, 'job_id' => '5c4a2f10-0000-4000-8000-000000000095', 'model' => $model->model_id, 'prompt' => 'A cup', 'size' => 'square', 'quantity' => 1, 'status' => 'completed', 'capability_revision_id' => $first->id]);
         $this->fakePage(FalCatalogFixture::model(sizes: ['wide']));
         $this->postJson('/api/admin/ai/providers/'.$provider->id.'/discover')->assertOk();
-        $second = MediaCapabilityRevision::orderByDesc('id')->firstOrFail();
+        $second = $this->legacyCandidate(MediaCapabilityRevision::orderByDesc('id')->firstOrFail());
         $resolver = app(CapabilityResolver::class);
         $this->assertSame($first->id, $resolver->resolve($model, MediaOperation::TextToImage)->revisionId);
         $this->postJson($base.$second->id.'/publish', ['reviewed' => true])->assertOk();
@@ -107,13 +109,12 @@ class FalCatalogLifecycleTest extends TestCase
         $resolver->resolve($model, MediaOperation::TextToImage);
     }
 
-    public function test_unknown_required_field_and_unhandled_output_prevent_reviewed_publication(): void
+    public function test_unresolved_source_reference_prevents_reviewed_publication(): void
     {
         [$admin, $provider] = $this->connection();
         $entry = FalCatalogFixture::model();
-        $entry['openapi']['components']['schemas']['Input']['required'][] = 'not_in_order';
-        $entry['openapi']['components']['schemas']['Input']['properties']['not_in_order'] = ['type' => 'object'];
-        $entry['openapi']['components']['schemas']['Output']['properties']['images']['items'] = ['type' => 'string'];
+        $entry['openapi']['components']['schemas']['Input']['required'][] = 'missing_contract';
+        $entry['openapi']['components']['schemas']['Input']['properties']['missing_contract'] = ['$ref' => '#/components/schemas/NotCaptured'];
         $this->fakePage($entry);
         $this->actingAs($admin)->postJson('/api/admin/ai/providers/'.$provider->id.'/discover')->assertOk()->assertJsonPath('counts.needs_handling', 1);
         $revision = MediaCapabilityRevision::firstOrFail();
@@ -130,7 +131,7 @@ class FalCatalogLifecycleTest extends TestCase
         $this->actingAs($admin)->postJson('/api/admin/ai/providers/'.$provider->id.'/discover')->assertOk();
         $revision = MediaCapabilityRevision::firstOrFail();
         $revision->model->update(['token_cost' => 10]);
-        $this->postJson('/api/admin/ai/capabilities/'.$revision->id.'/publish', ['reviewed' => true])
+        $this->postJson('/api/admin/ai/capabilities/'.$revision->id.'/publish', ['reviewed' => true, 'price_review' => ['token_cost' => 10, 'unit' => 'request', 'variable_configuration' => true]])
             ->assertUnprocessable()->assertJsonStructure(['blockers']);
         $this->assertSame('unknown', $provider->fresh()->status);
         $this->assertNull($revision->fresh()->published_at);
@@ -148,7 +149,7 @@ class FalCatalogLifecycleTest extends TestCase
         $this->actingAs($admin)->postJson('/api/admin/ai/providers/'.$provider->id.'/discover')->assertOk();
         $model = AiModelProfile::where('provider_id', $provider->id)->firstOrFail();
         $model->update(['token_cost' => 15]);
-        $first = MediaCapabilityRevision::firstOrFail();
+        $first = $this->legacyCandidate(MediaCapabilityRevision::firstOrFail());
         $this->postJson('/api/admin/ai/capabilities/'.$first->id.'/review', ['reviewed' => true, 'ui_metadata' => ['inputs' => ['prompt' => ['label' => 'Your scene']]]])->assertOk();
         $this->postJson('/api/admin/ai/capabilities/'.$first->id.'/publish')->assertOk();
         $catalog = $this->getJson('/api/images/models')->assertOk();
@@ -159,7 +160,7 @@ class FalCatalogLifecycleTest extends TestCase
         $job = $generation->generate($admin, $model->model_id, 'A small cup', 'auto', 1);
         $this->fakePage(FalCatalogFixture::model(sizes: ['wide']));
         $this->postJson('/api/admin/ai/providers/'.$provider->id.'/discover')->assertOk();
-        $second = MediaCapabilityRevision::orderByDesc('id')->firstOrFail();
+        $second = $this->legacyCandidate(MediaCapabilityRevision::orderByDesc('id')->firstOrFail());
         $this->postJson('/api/admin/ai/capabilities/'.$second->id.'/publish', ['reviewed' => true])->assertOk();
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=');
         $downloads = 0;
@@ -199,6 +200,20 @@ class FalCatalogLifecycleTest extends TestCase
         Storage::disk('local')->assertExists($job->asset_paths[0]['path']);
         $this->assertNull($job->provider_result_urls);
         $this->assertSame(1, Http::recorded(fn ($request) => $request->method() === 'POST' && $request->url() === 'https://fal.run/fal-ai/catalog-fixture')->count());
+    }
+
+    /** Set up an authentic legacy contract before review; published rows are never rewritten. */
+    private function legacyCandidate(MediaCapabilityRevision $revision): MediaCapabilityRevision
+    {
+        $entry = [...$revision->source_metadata, 'openapi' => $revision->source_schema, 'model_public_id' => $revision->model->model_id];
+        $normalized = app(FalCapabilityImporter::class)->normalize($entry, 1);
+        $revision->update([
+            'contract_version' => 1, 'definition' => $normalized['capability']->toArray(),
+            'provider_bindings' => $normalized['provider_bindings'], 'compatibility_report' => $normalized['report'],
+            'ui_metadata' => CapabilityUi::describe($normalized['capability']),
+        ]);
+
+        return $revision->fresh();
     }
 
     private function connection(): array

@@ -156,7 +156,7 @@ final class GeneratedModel3dStore
     }
 
     /** Container/JSON/resource validation only; original bytes are never rewritten or expanded. */
-    private function inspect(string $path): ?array
+    public function inspect(string $path): ?array
     {
         if (! is_file($path) || ($size = filesize($path)) === false || $size < 24 || $size > self::MAX_BYTES) {
             return null;

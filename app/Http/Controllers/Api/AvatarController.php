@@ -28,7 +28,7 @@ class AvatarController extends Controller
                 ->where('is_enabled', true)->where('is_available', true)->orderBy('display_name')->get()
                 ->filter(fn (AiModelProfile $model): bool => $model->token_cost > 0 && MediaModelConfig::allowedFor($user, $model))
                 ->map(fn (AiModelProfile $model): array => [
-                    ...MediaModelConfig::publicModel($model), 'capabilities' => $presenter->forModel($model),
+                    ...MediaModelConfig::publicModel($model), 'capabilities' => MediaModelConfig::legacyCapabilities($presenter->forModel($model)),
                 ])->filter(fn (array $model): bool => isset($model['capabilities']['talking_avatar']))->values()->all()
             : [];
 

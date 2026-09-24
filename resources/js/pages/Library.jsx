@@ -18,6 +18,9 @@ const TYPES = [
     { key: 'model3d', label: '3D', icon: 'cube', tone: 'cyan' },
     { key: 'audio', label: 'Audio', icon: 'audio', tone: 'pink' },
     { key: 'reference', label: 'Unggahan referensi', icon: 'image', tone: 'amber' },
+    { key: 'document', label: 'Dokumen', icon: 'download', tone: 'blue' },
+    { key: 'file', label: 'File', icon: 'download', tone: 'cyan' },
+    { key: 'artifact', label: 'Artefak', icon: 'chat', tone: 'amber' },
     { key: 'download', label: 'Unduhan', icon: 'download', tone: 'blue' },
     { key: 'convert', label: 'Konversi', icon: 'convert', tone: 'cyan' },
     { key: 'rembg', label: 'Hapus Latar', icon: 'image', tone: 'teal' },
@@ -38,6 +41,7 @@ function clock(value) {
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 function mediaKind(item) {
+    if (!item.preview_url || item.previewable === false) return null;
     const mime = item.mime_type || '';
     return mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : null;
 }

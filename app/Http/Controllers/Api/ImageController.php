@@ -10,11 +10,13 @@ use App\Models\AiModelProfile;
 use App\Models\AudioJob;
 use App\Models\ImageJob;
 use App\Models\ThreeDJob;
+use App\Models\User;
 use App\Models\UserToken;
 use App\Models\VideoJob;
 use App\Services\AudioGenerationService;
 use App\Services\ImageGenerationService;
 use App\Services\MediaModelConfig;
+use App\Services\StorageQuotaService;
 use App\Services\ThreeDGenerationService;
 use App\Services\VideoGenerationService;
 use Illuminate\Http\JsonResponse;
@@ -45,7 +47,8 @@ class ImageController extends Controller
                 && $model->token_cost > 0 && ($usesCoordinator || ! MediaModelConfig::hasCatalogImage($model)))
             ->map(function (AiModelProfile $model) use ($capabilities, $usesCoordinator): array {
                 $payload = MediaModelConfig::publicModel($model);
-                $caps = $capabilities->forModel($model);
+                // Fixed-form studio: schema contracts are offered only by the media workspace.
+                $caps = MediaModelConfig::legacyCapabilities($capabilities->forModel($model));
                 // The legacy (non-coordinator) Kinovi path runs only text-to-image; never offer an
                 // operation an account cannot execute (e.g. image_edit to a non-pilot while restricted).
                 if (! $usesCoordinator && $model->provider?->protocol === 'kinovi') {
@@ -133,10 +136,12 @@ class ImageController extends Controller
     public function destroy(Request $request, string $jobId): JsonResponse
     {
         DB::transaction(function () use ($request, $jobId): void {
+            $user = User::query()->whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
             $job = ImageJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
             if (in_array($job->status, ['pending', 'processing'], true)) {
                 throw ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
             }
+            app(StorageQuotaService::class)->assertJobUnreferenced($user, 'image:'.$job->job_id);
             $this->removeImageAssets($job);
             $job->delete();
         });
@@ -153,8 +158,12 @@ class ImageController extends Controller
             ->chunkById(50, function ($jobs) use (&$removed): void {
                 foreach ($jobs as $job) {
                     DB::transaction(function () use ($job, &$removed): void {
+                        $user = User::query()->whereKey($job->user_id)->lockForUpdate()->firstOrFail();
                         $locked = ImageJob::query()->lockForUpdate()->find($job->id);
                         if (! $locked || in_array($locked->status, ['pending', 'processing'], true)) {
+                            return;
+                        }
+                        if (app(StorageQuotaService::class)->jobIsReferenced($user, 'image:'.$locked->job_id)) {
                             return;
                         }
                         $this->removeImageAssets($locked);

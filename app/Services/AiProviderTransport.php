@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AiProviderRequestRejected;
 use App\Exceptions\AiProxyException;
 use App\Media\FalCapabilityImporter;
 use App\Models\AiProviderProfile;
@@ -10,7 +11,10 @@ use DateTimeZone;
 use Generator;
 use GuzzleHttp\Handler\CurlHandler;
 use GuzzleHttp\Handler\StreamHandler;
+use GuzzleHttp\Promise\FulfilledPromise;
+use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\LimitStream;
 use GuzzleHttp\Psr7\Stream;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -113,13 +117,250 @@ final class AiProviderTransport
         return FalProtocol::imageResponse($data);
     }
 
+    /** Official SDK parseEndpointId semantics: inference suffixes are not queue application roots. */
+    public static function falQueueRoot(string $endpoint): string
+    {
+        if (! FalCapabilityImporter::validEndpoint($endpoint)) {
+            throw new AiProxyException('The media capability routing is invalid.', 422);
+        }
+        $parts = explode('/', $endpoint);
+        $length = in_array($parts[0], ['workflows', 'comfy'], true) ? 3 : 2;
+        if (count($parts) < $length) {
+            throw new AiProxyException('The media capability routing is invalid.', 422);
+        }
+
+        return implode('/', array_slice($parts, 0, $length));
+    }
+
+    /** One paid POST only. Missing acknowledgement remains unknown acceptance, never a safe rejection. */
+    public function submitFalQueue(AiProviderProfile $provider, string $endpoint, array $payload, array $bindings = []): array
+    {
+        $connection = $this->connection($provider);
+        $this->falQueueContext($connection, [...$bindings, 'endpoint' => $endpoint]);
+        $data = $this->send('POST', $this->falBase($connection).'/'.$endpoint, $connection, $payload, 90)->json();
+        if (! is_array($data) || ! is_string($data['request_id'] ?? null)
+            || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $data['request_id']) !== 1) {
+            throw new AiProxyException('The media provider acceptance could not be confirmed.', 504);
+        }
+
+        return ['request_id' => $data['request_id']];
+    }
+
+    public function falQueueStatus(AiProviderProfile $provider, string $taskId, array $bindings): array
+    {
+        $connection = $this->connection($provider);
+        $url = $this->falQueueRequestUrl($connection, $taskId, $bindings);
+        $data = $this->send('GET', $url.'/status', $connection, timeout: 20, query: ['logs' => '0'])->json();
+        if (! is_array($data) || ! in_array($data['status'] ?? null, ['IN_QUEUE', 'IN_PROGRESS', 'COMPLETED'], true)) {
+            throw new AiProxyException('The media provider returned an invalid status.', 502);
+        }
+        if (! empty($data['error']) || ! empty($data['error_type'])) {
+            return ['status' => 'FAILED'];
+        }
+
+        return ['status' => $data['status']];
+    }
+
+    /** Preserve the complete JSON value. File discovery and private persistence belong to the output store. */
+    public function falQueueResult(AiProviderProfile $provider, string $taskId, array $bindings): mixed
+    {
+        $connection = $this->connection($provider);
+        $response = $this->send('GET', $this->falQueueRequestUrl($connection, $taskId, $bindings), $connection, timeout: 60);
+        try {
+            return json_decode($response->body(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw new AiProxyException('The media provider returned an invalid result.', 502);
+        }
+    }
+
+    /** The documented queue API acknowledges a request, not guaranteed interruption or refundable work. */
+    public function cancelFalQueue(AiProviderProfile $provider, string $taskId, array $bindings): array
+    {
+        $connection = $this->connection($provider);
+        $this->send('PUT', $this->falQueueRequestUrl($connection, $taskId, $bindings).'/cancel', $connection, timeout: 20);
+
+        return ['requested' => true, 'confirmed' => false];
+    }
+
+    /** A reviewed direct Fal contract, not a native image request or a synthetic queue task. */
+    public function runFalDirect(AiProviderProfile $provider, string $endpoint, array $payload): mixed
+    {
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'fal' || ! FalCapabilityImporter::validEndpoint($endpoint)) {
+            throw new AiProxyException('The media capability routing is invalid.', 422);
+        }
+        $response = $this->send('POST', $connection['base_url'].'/'.$endpoint, $connection, $payload, 120);
+        try {
+            return json_decode($response->body(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw new AiProxyException('The provider response could not be confirmed.', 504);
+        }
+    }
+
+    /** Official WMA bridge only. Session admission/leases/billing remain the caller's responsibility. */
+    public function postFalRealtime(AiProviderProfile $provider, string $path, array $payload): array
+    {
+        $timeout = match ($path) {
+            '/session' => 120,
+            '/session/heartbeat' => 4,
+            '/ice' => 5,
+            default => throw new AiProxyException('The realtime provider route is invalid.', 422),
+        };
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'fal') {
+            throw new AiProxyException('Realtime sessions are not supported by this provider.', 422);
+        }
+        if ($path === '/session/heartbeat') {
+            if (array_keys($payload) !== ['session_id'] || ! is_string($payload['session_id'])
+                || preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $payload['session_id']) !== 1) {
+                throw new AiProxyException('The realtime session reference is invalid.', 422);
+            }
+        } else {
+            if (! is_string($payload['app_id'] ?? null) || ! FalCapabilityImporter::validEndpoint($payload['app_id'])
+                || array_diff(array_keys($payload), $path === '/ice' ? ['app_id'] : ['app_id', 'sdp', 'type']) !== []) {
+                throw new AiProxyException('The realtime provider request is invalid.', 422);
+            }
+            if ($path === '/session' && (($payload['type'] ?? null) !== 'offer'
+                || ! is_string($payload['sdp'] ?? null) || trim($payload['sdp']) === '' || strlen($payload['sdp']) > 262144)) {
+                throw new AiProxyException('The realtime session offer is invalid.', 422);
+            }
+        }
+        $data = $this->send('POST', 'https://wma.fal.run'.$path, $connection, $payload, $timeout)->json();
+        if (! is_array($data)) {
+            throw new AiProxyException('The realtime provider returned an invalid response.', $path === '/session' ? 504 : 502);
+        }
+
+        return $data;
+    }
+
+    private function falQueueContext(array $connection, array $bindings): string
+    {
+        if ($connection['protocol'] !== 'fal' || ! is_string($bindings['endpoint'] ?? null)
+            || ($bindings['transport'] ?? 'queue') !== 'queue') {
+            throw new AiProxyException('The media capability routing is invalid.', 422);
+        }
+        $root = self::falQueueRoot($bindings['endpoint']);
+        if (isset($bindings['queue_root']) && $bindings['queue_root'] !== $root) {
+            throw new AiProxyException('The media capability queue binding is invalid.', 422);
+        }
+
+        return $root;
+    }
+
+    private function falQueueRequestUrl(array $connection, string $taskId, array $bindings): string
+    {
+        if (preg_match('/^[A-Za-z0-9._:\-]{1,255}$/D', $taskId) !== 1) {
+            throw new AiProxyException('The media provider job reference is invalid.', 422);
+        }
+
+        return $this->falBase($connection).'/'.$this->falQueueContext($connection, $bindings).'/requests/'.rawurlencode($taskId);
+    }
+
+    /**
+     * Official fal-js storage v3 single/multipart lifecycle, streaming bytes without base64.
+     * The caller retains ownership of the readable resource. API keys never reach upload URLs.
+     *
+     * @param resource $stream
+     */
+    public function uploadFalReference(AiProviderProfile $provider, mixed $stream, string $fileName, string $mime, int $sizeBytes): string
+    {
+        if (! is_resource($stream) || get_resource_type($stream) !== 'stream' || $sizeBytes < 1
+            || trim($fileName) === '' || strlen($fileName) > 255 || str_contains($fileName, '/') || str_contains($fileName, '\\')
+            || preg_match('/[\x00-\x1f\x7f]/', $fileName)
+            || preg_match('/^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/iD', $mime) !== 1) {
+            throw new AiProxyException('The reference upload is invalid.', 422);
+        }
+        $body = new Stream($stream, ['size' => $sizeBytes]);
+        try {
+            if (! $body->isReadable() || $body->tell() !== 0) {
+                throw new AiProxyException('The reference upload is invalid.', 422);
+            }
+            $connection = $this->connection($provider);
+            if ($connection['protocol'] !== 'fal') {
+                throw new AiProxyException('Reference staging is not supported by this provider.', 422);
+            }
+            $multipart = $sizeBytes > 90 * 1024 * 1024;
+            $upload = $this->send('POST', 'https://rest.fal.ai/storage/upload/'.($multipart ? 'initiate-multipart' : 'initiate'),
+                $connection, ['file_name' => $fileName, 'content_type' => $mime], timeout: 30,
+                query: ['storage_type' => 'fal-cdn-v3'], headers: ['X-Fal-Object-Lifecycle' => '{"expiration_duration_seconds":86400}'])->json();
+            $options = $this->falStorageOptions($upload['upload_url'] ?? null);
+            $this->falStorageOptions($upload['file_url'] ?? null);
+            if (! $multipart) {
+                $this->putFalReference($upload['upload_url'], $body, $mime, $sizeBytes, $options);
+            } else {
+                $parts = parse_url($upload['upload_url']);
+                $base = 'https://'.$parts['host'].$parts['path'];
+                $query = isset($parts['query']) ? '?'.$parts['query'] : '';
+                $completed = [];
+                $chunkSize = 10 * 1024 * 1024;
+                for ($offset = 0, $number = 1; $offset < $sizeBytes; $offset += $chunkSize, $number++) {
+                    $length = min($chunkSize, $sizeBytes - $offset);
+                    $part = new LimitStream($body, $length, $offset);
+                    $response = $this->putFalReference($base.'/'.$number.$query, $part, $mime, $length, $options);
+                    $etag = $response->json('etag') ?? $response->header('ETag');
+                    if (! is_string($etag) || trim($etag) === '' || strlen($etag) > 1024 || preg_match('/[\x00-\x1f\x7f]/', $etag)) {
+                        throw new AiProxyException('The reference upload part could not be confirmed.', 502);
+                    }
+                    $completed[] = ['partNumber' => $number, 'etag' => $etag];
+                }
+                $response = Http::acceptJson()->asJson()->timeout(30)->connectTimeout(10)
+                    ->withOptions([...$options, 'cookies' => false, 'auth' => null])
+                    ->post($base.'/complete'.$query, ['parts' => $completed]);
+                if (! $response->successful()) {
+                    throw new AiProxyException('The reference upload could not be completed.', 502);
+                }
+            }
+
+            return $upload['file_url'];
+        } catch (AiProxyException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            throw new AiProxyException('The reference upload failed.', 502);
+        } finally {
+            $body->detach();
+        }
+    }
+
+    private function falStorageOptions(mixed $url): array
+    {
+        if (! is_string($url) || ! GeneratedImageStore::validResultUrl($url)) {
+            throw new AiProxyException('The reference storage destination is invalid.', 502);
+        }
+        $parts = parse_url($url);
+        $host = strtolower($parts['host']);
+        if (($parts['scheme'] ?? '') !== 'https' || ($parts['port'] ?? 443) !== 443 || ($parts['path'] ?? '') === ''
+            || ! ($host === 'fal.media' || str_ends_with($host, '.fal.media') || $host === 'fal.ai' || str_ends_with($host, '.fal.ai'))) {
+            throw new AiProxyException('The reference storage destination is invalid.', 502);
+        }
+
+        return $this->endpoint->requestOptions('https://'.$host);
+    }
+
+    private function putFalReference(string $url, StreamInterface $body, string $mime, int $sizeBytes, array $options): Response
+    {
+        $handler = new CurlHandler;
+        $response = Http::withHeaders(['Content-Length' => (string) $sizeBytes])->withBody($body, $mime)
+            ->timeout(120)->connectTimeout(10)->withOptions([...$options, 'stream' => false, 'cookies' => false, 'auth' => null])
+            ->setHandler(static function (RequestInterface $request, array $options) use ($handler, $sizeBytes): PromiseInterface {
+                $options['curl'][CURLOPT_INFILESIZE] = $sizeBytes;
+
+                return $handler($request->withoutHeader('Content-Length'), $options);
+            })->send('PUT', $url);
+        if (! $response->successful()) {
+            throw new AiProxyException('The reference upload failed.', 502);
+        }
+
+        return $response;
+    }
+
     /** @return array<string, mixed> */
     public function complete(?AiProviderProfile $provider, array $payload): array
     {
+        $isCancelled = $this->cancellation($payload);
         $connection = $this->connection($provider);
         if ($connection['protocol'] === 'fal') {
             $request = FalProtocol::chatRequest($payload);
-            $response = $this->send('POST', $connection['base_url'].'/'.FalProtocol::ROUTER, $connection, $request);
+            $response = $this->send('POST', $connection['base_url'].'/'.FalProtocol::ROUTER, $connection, $request, isCancelled: $isCancelled);
             $data = $response->json();
             if (! is_array($data)) {
                 throw new AiProxyException('The fal chat provider returned an invalid response.', 502);
@@ -129,7 +370,7 @@ final class AiProviderTransport
         }
         if ($connection['protocol'] === 'anthropic') {
             $request = AnthropicProtocol::request([...$payload, 'stream' => false]);
-            $response = $this->send('POST', $connection['base_url'].'/messages', $connection, $request, 120);
+            $response = $this->send('POST', $connection['base_url'].'/messages', $connection, $request, 120, isCancelled: $isCancelled);
             $data = $response->json();
             if (! is_array($data)) {
                 throw new AiProxyException('The AI provider returned an invalid response.', 502);
@@ -139,7 +380,7 @@ final class AiProviderTransport
         }
 
         $request = $this->openAiPayload([...$payload, 'stream' => false]);
-        $response = $this->send('POST', $connection['base_url'].'/chat/completions', $connection, $request, 120);
+        $response = $this->send('POST', $connection['base_url'].'/chat/completions', $connection, $request, 120, isCancelled: $isCancelled);
         $data = $response->json();
         if (! is_array($data) || ! is_array($data['choices'] ?? null) || $data['choices'] === []) {
             throw new AiProxyException('The AI provider returned an invalid response.', 502);
@@ -163,6 +404,7 @@ final class AiProviderTransport
 
             return;
         }
+        $isCancelled = $this->cancellation($payload);
         $connection = $this->connection($provider);
         if ($connection['protocol'] === 'anthropic') {
             $request = AnthropicProtocol::request([...$payload, 'stream' => true]);
@@ -188,13 +430,33 @@ final class AiProviderTransport
             $request,
             120,
             true,
+            isCancelled: $isCancelled,
         );
         $body = $response->toPsrResponse()->getBody();
+        if ($isCancelled !== null) {
+            $source = $body;
+            $body = FnStream::decorate($source, [
+                'read' => function (int $length) use ($source, $isCancelled): string {
+                    $this->assertNotCancelled($isCancelled);
+
+                    return $source->read($length);
+                },
+                'eof' => function () use ($source, $isCancelled): bool {
+                    $this->assertNotCancelled($isCancelled);
+
+                    return $source->eof();
+                },
+            ]);
+        }
 
         try {
-            yield from $connection['protocol'] === 'anthropic'
+            $events = $connection['protocol'] === 'anthropic'
                 ? ProviderSseStream::anthropic($body)
                 : ProviderSseStream::openAi($body);
+            foreach ($events as $event) {
+                $this->assertNotCancelled($isCancelled);
+                yield $event;
+            }
         } catch (AiProxyException $exception) {
             throw $exception;
         } catch (Throwable) {
@@ -799,7 +1061,10 @@ final class AiProviderTransport
         array $query = [],
         bool $image = false,
         bool $catalogRetry = false,
+        array $headers = [],
+        ?callable $isCancelled = null,
     ): Response {
+        $this->assertNotCancelled($isCancelled);
         if ($connection['protocol'] === 'fal') {
             $host = strtolower(trim((string) parse_url($url, PHP_URL_HOST), '[]'));
             if ($this->endpoint->allowsLoopback($host)) {
@@ -807,22 +1072,34 @@ final class AiProviderTransport
                 $port = parse_url($url, PHP_URL_PORT);
                 $connection['options'] = $this->endpoint->requestOptions(parse_url($url, PHP_URL_SCHEME).'://'.$host.($port ? ':'.$port : ''));
             } else {
-                if (parse_url($url, PHP_URL_SCHEME) !== 'https' || ! in_array($host, ['fal.run', 'queue.fal.run', 'api.fal.ai'], true)) {
+                if (parse_url($url, PHP_URL_SCHEME) !== 'https' || (parse_url($url, PHP_URL_PORT) ?: 443) !== 443
+                    || parse_url($url, PHP_URL_USER) !== null || parse_url($url, PHP_URL_PASS) !== null
+                    || parse_url($url, PHP_URL_FRAGMENT) !== null
+                    || ! in_array($host, ['fal.run', 'queue.fal.run', 'api.fal.ai', 'rest.fal.ai', 'wma.fal.run'], true)) {
                     throw new AiProxyException('The fal provider destination is invalid.', 503);
                 }
                 $connection['options'] = $this->endpoint->requestOptions('https://'.$host);
             }
         }
-        if ($stream && $connection['saved']) {
+        if ($stream && $connection['saved'] && $isCancelled === null) {
             [$host, $port, $ip] = $this->pinnedStreamTarget($connection);
             $connection['stream_target'] = [$host, $port, $ip];
         }
-        $request = $this->request($connection, $timeout, $stream);
+        $request = $this->request($connection, $timeout, $stream, $isCancelled)->withHeaders($headers);
+        if ($method === 'POST') {
+            // Guzzle's cURL factory otherwise retries failed rewinds implicitly. Paid POSTs
+            // must not replay, including after a stale keep-alive connection fails.
+            $request->withOptions([
+                '_curl_retries' => 2,
+                'curl' => array_replace($connection['options']['curl'] ?? [], [CURLOPT_FRESH_CONNECT => true]),
+            ]);
+        }
         $attempts = $catalogRetry && $method === 'GET' ? 3 : 1;
         for ($attempt = 0; $attempt < $attempts; $attempt++) {
             try {
+                $this->assertNotCancelled($isCancelled);
                 $response = $request->send($method, $url, array_filter([
-                    'json' => $json,
+                    'json' => $json === [] ? new \stdClass : $json,
                     'query' => $query !== [] ? $query : null,
                 ], static fn (mixed $value): bool => $value !== null));
             } catch (ConnectionException) {
@@ -832,6 +1109,8 @@ final class AiProviderTransport
                     continue;
                 }
                 throw new AiProxyException($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.', 503);
+            } catch (AiProxyException $exception) {
+                throw $exception;
             } catch (Throwable) {
                 throw new AiProxyException($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.', 503);
             }
@@ -849,16 +1128,18 @@ final class AiProviderTransport
         }
 
         if (! $response->successful()) {
+            $response->toPsrResponse()->getBody()->close();
             if ($image && in_array($response->status(), [404, 405, 501], true)) {
-                throw new AiProxyException('Image generation is not supported by the AI provider.', 502);
+                throw new AiProviderRequestRejected('Image generation is not supported by the AI provider.', 502, $response->status());
             }
             $unavailable = $response->status() === 429 || $response->serverError();
-            throw new AiProxyException(
-                $unavailable
-                    ? ($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.')
-                    : ($image ? 'The AI image provider rejected the request.' : 'The AI provider rejected the request.'),
-                $unavailable ? 503 : 502,
-            );
+            $message = $unavailable
+                ? ($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.')
+                : ($image ? 'The AI image provider rejected the request.' : 'The AI provider rejected the request.');
+            if ($response->clientError() && ! in_array($response->status(), [408, 409, 429], true)) {
+                throw new AiProviderRequestRejected($message, 502, $response->status());
+            }
+            throw new AiProxyException($message, $unavailable ? 503 : 502);
         }
 
         return $response;
@@ -867,7 +1148,7 @@ final class AiProviderTransport
     /**
      * @param  array{protocol: string, base_url: string, key: string, version: string, options: array<string, mixed>, saved: bool, stream_target?: array{string, int, string}}  $connection
      */
-    private function request(array $connection, int $timeout, bool $stream): PendingRequest
+    private function request(array $connection, int $timeout, bool $stream, ?callable $isCancelled = null): PendingRequest
     {
         $headers = match ($connection['protocol']) {
             'anthropic' => ['x-api-key' => $connection['key'], 'anthropic-version' => $connection['version']],
@@ -881,7 +1162,11 @@ final class AiProviderTransport
             ->connectTimeout(10)
             ->withOptions([...$connection['options'], 'stream' => $stream]);
 
-        if ($stream && $connection['saved']) {
+        if ($isCancelled !== null) {
+            $request->setHandler(static function (RequestInterface $psrRequest, array $options) use ($isCancelled): PromiseInterface {
+                return new FulfilledPromise(CancellableProviderStream::send($psrRequest, $options, $isCancelled));
+            });
+        } elseif ($stream && $connection['saved']) {
             [$host, $port, $ip] = $connection['stream_target'];
             $streamHandler = new StreamHandler;
             $request->withOptions([
@@ -936,6 +1221,31 @@ final class AiProviderTransport
         }
 
         throw new AiProxyException('The AI provider is unavailable.', 503);
+    }
+
+    /** Extract the one internal callback before protocol validation/JSON serialization. */
+    private function cancellation(array &$payload): ?callable
+    {
+        $callback = $payload['_is_cancelled'] ?? null;
+        unset($payload['_is_cancelled']);
+        // JSON cannot carry object callables. Never execute a submitted PHP function/class name.
+        if ($callback !== null && (! is_callable($callback)
+            || (! is_object($callback) && ! (is_array($callback) && is_object($callback[0] ?? null))))) {
+            throw new AiProxyException('The internal cancellation option is invalid.', 422);
+        }
+        $this->assertNotCancelled($callback);
+        if ($callback !== null && ! extension_loaded('curl')) {
+            throw new AiProxyException('Interruptible provider transport is unavailable.', 503);
+        }
+
+        return $callback;
+    }
+
+    private function assertNotCancelled(?callable $isCancelled): void
+    {
+        if ($isCancelled !== null && $isCancelled()) {
+            throw new AiProxyException('The AI request was stopped.', 499);
+        }
     }
 
     private function positiveInteger(mixed $value): ?int

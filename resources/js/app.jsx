@@ -1,7 +1,7 @@
 import '../css/app.css';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LocaleProvider, useLocale } from './contexts/LocaleContext';
@@ -24,6 +24,7 @@ import VideoDownloader from './pages/VideoDownloader';
 import MediaConverter from './pages/MediaConverter';
 import RemoveBackground from './pages/RemoveBackground';
 import ErrorPage from './pages/ErrorPage';
+import GlobalMediaWorkspace from './components/studios/GlobalMediaWorkspace';
 
 // User pages
 import TemplatePrompt from './pages/TemplatePrompt';
@@ -77,9 +78,10 @@ function ProtectedRoute({ children, adminOnly = false, permission = null }) {
     }
     if (adminOnly && user.role !== 'admin') return <ErrorPage code={403} />;
 
+    // A permission list admits any one of its grants (the global media workspace serves every studio).
     if (permission && user.role !== 'admin') {
         const perms = user.permissions || {};
-        if (!perms[permission]) return <ErrorPage code={403} />;
+        if (![permission].flat().some(name => perms[name])) return <ErrorPage code={403} />;
     }
 
     return children;
@@ -100,6 +102,9 @@ function GuestRoute({ children }) {
     return children;
 }
 
+// Every permission that makes a unified media capability eligible on the server.
+const MEDIA_PERMISSIONS = ['image_generator', 'video_generator', 'audio_generator', 'chat'];
+
 function LocalizedAppRoutes() {
     const { locale } = useLocale();
     const prefix = locale === 'en' ? '/en' : '';
@@ -118,6 +123,7 @@ function LocalizedAppRoutes() {
             <Route path={path('/audio')} element={<DL permission="audio_generator"><AudioGenerator /></DL>} />
             <Route path={path('/avatar')} element={<DL permission="video_generator"><AvatarStudio /></DL>} />
             <Route path={path('/3d')} element={<DL permission="image_generator"><ThreeDStudio /></DL>} />
+            <Route path={path('/media')} element={<DL permission={MEDIA_PERMISSIONS}><GlobalMediaWorkspace /></DL>} />
             <Route path={path('/downloads')} element={<DL permission="video_downloader"><VideoDownloader /></DL>} />
             <Route path={path('/converter')} element={<DL permission="media_converter"><MediaConverter /></DL>} />
             <Route path={path('/remove-background')} element={<DL permission="media_converter"><RemoveBackground /></DL>} />
@@ -159,17 +165,13 @@ function DL({ children, adminOnly = false, permission = null }) {
     );
 }
 
-function App() {
+// A data router enables navigation blockers (unsaved chat drafts/artifacts). Routes stay declarative
+// in LocalizedAppRoutes; the single splat route keeps descendant <Routes> matching the full path.
+function App({ router }) {
     return (
         <ThemeProvider>
             <AuthProvider>
-                <BrowserRouter>
-                    <LocaleProvider>
-                        <NotificationProvider>
-                            <LocalizedAppRoutes />
-                        </NotificationProvider>
-                    </LocaleProvider>
-                </BrowserRouter>
+                <RouterProvider router={router} />
             </AuthProvider>
         </ThemeProvider>
     );
@@ -177,5 +179,9 @@ function App() {
 
 const container = document.getElementById('app');
 if (container) {
-    createRoot(container).render(createElement(App));
+    const router = createBrowserRouter([{
+        path: '*',
+        element: <LocaleProvider><NotificationProvider><LocalizedAppRoutes /></NotificationProvider></LocaleProvider>,
+    }]);
+    createRoot(container).render(createElement(App, { router }));
 }

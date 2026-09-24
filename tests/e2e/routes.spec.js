@@ -3,7 +3,7 @@ import { login, captureErrors, databaseRows } from './helpers.js';
 
 const memberRoutes = [
     '/dashboard', '/profile', '/chat', '/video', '/audio', '/downloads', '/converter', '/templates', '/library',
-    '/generate-image', '/token-usage', '/deposit', '/paket', '/referral', '/bantuan', '/notifications',
+    '/generate-image', '/media', '/token-usage', '/deposit', '/paket', '/referral', '/bantuan', '/notifications',
 ];
 const adminRoutes = [
     '/admin/overview', '/admin/users', '/admin/operations', '/admin/token-usage',

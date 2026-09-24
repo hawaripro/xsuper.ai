@@ -33,7 +33,11 @@ interface MediaProviderAdapter
     /** @param  array<string, mixed>  $request */
     public function submit(AiProviderProfile $provider, array $request): SubmitResult;
 
-    public function pollStatus(AiProviderProfile $provider, string $taskId): StatusResult;
+    /** $context is the immutable provider binding captured by the job, never a returned status URL. */
+    public function pollStatus(AiProviderProfile $provider, string $taskId, array $context = []): StatusResult;
+
+    /** @return array{requested: bool, confirmed: bool} A request acknowledgement is NOT confirmed cancellation. */
+    public function cancel(AiProviderProfile $provider, string $taskId, array $context = []): array;
 
     /**
      * Turn a provider/transport error into a safe public shape plus a sanitized

@@ -7,10 +7,13 @@ use App\Http\Controllers\Controller;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
+use App\Models\ChatOperation;
 use App\Models\ImageJob;
+use App\Models\RealtimeMediaSession;
 use App\Models\ThreeDJob;
 use App\Models\UsageRate;
 use App\Models\VideoJob;
+use App\Models\WorkspaceMediaJob;
 use App\Services\AiProviderEndpoint;
 use App\Services\AiProxyService;
 use App\Services\AuditService;
@@ -154,6 +157,17 @@ class AiProviderController extends Controller
                             'code' => 'provider_media_busy',
                         ], 409));
                     }
+                }
+                if (WorkspaceMediaJob::query()->where(fn ($query) => $query->whereIn('model', $modelIds)->orWhere('provider_id', $provider->id))
+                    ->lockForUpdate()->first(['id']) !== null
+                    || RealtimeMediaSession::query()->where(fn ($query) => $query->whereIn('model', $modelIds)->orWhere('provider_id', $provider->id))
+                        ->lockForUpdate()->first(['id']) !== null
+                    || ChatOperation::query()->where(fn ($query) => $query->whereIn('model', $modelIds)
+                        ->orWhere('context_snapshot->route->provider_id', $provider->id))->whereIn('status', ChatOperation::ACTIVE)->exists()) {
+                    throw new HttpResponseException(response()->json([
+                        'message' => 'This provider has active chat work or retained workspace media. Disable it instead of deleting.',
+                        'code' => 'provider_media_busy',
+                    ], 409));
                 }
 
                 // Detach historical provider links without changing media timestamps or snapshots.

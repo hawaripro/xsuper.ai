@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\StorageQuotaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -99,13 +100,13 @@ class AdminController extends Controller
         return response()->json(['user' => $user, 'message' => 'User berhasil diperbarui']);
     }
 
-    public function destroy(User $user)
+    public function destroy(User $user, StorageQuotaService $storage)
     {
         if ($user->id === auth()->id()) {
             return response()->json(['message' => 'Tidak dapat menghapus akun sendiri'], 422);
         }
 
-        $user->delete();
+        $storage->deleteAccount($user);
 
         return response()->json(['message' => 'User berhasil dihapus']);
     }

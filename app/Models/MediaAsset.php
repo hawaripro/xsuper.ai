@@ -13,7 +13,7 @@ class MediaAsset extends Model
 
     protected $fillable = [
         'user_id', 'media_type', 'role', 'storage_disk', 'storage_path',
-        'size_bytes', 'mime', 'signature_ok', 'metadata', 'retention_status', 'expires_at',
+        'size_bytes', 'mime', 'original_name', 'signature_ok', 'metadata', 'retention_status', 'expires_at',
     ];
 
     protected function casts(): array

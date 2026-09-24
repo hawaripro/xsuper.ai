@@ -6,11 +6,10 @@ use App\Media\Exceptions\CapabilityValidationException;
 use InvalidArgumentException;
 
 /**
- * The single backend authority that checks normalized member input against a resolved
- * MediaCapability. Enforces required + conditional-required rules, cardinality, param
- * enum/range, and rejects unknown fields. Rules are a fixed declarative vocabulary
- * (`param_equals`, `has_input`) — never evaluated as free code. Returns the sanitized
- * `{inputs, params}` set; throws CapabilityValidationException with a field=>message map.
+ * Backend authority for member input against a resolved MediaCapability. Historical v1
+ * uses the original scalar/conditional vocabulary; v2 validates the complete JSON Schema.
+ * Neither contract executes schema annotations as code. Returns the normalized
+ * `{inputs, params}` set or a consumer-facing field error map.
  */
 final class CapabilityValidator
 {
@@ -20,6 +19,13 @@ final class CapabilityValidator
      */
     public function validate(MediaCapability $capability, array $raw): array
     {
+        if ($capability->contractVersion === 2) {
+            return ['inputs' => MediaJsonSchema::normalize($capability->inputSchema, $raw), 'params' => []];
+        }
+        if ($capability->contractVersion !== 1) {
+            throw new InvalidArgumentException('Unsupported capability contract version.');
+        }
+
         $errors = [];
         $inputByKey = [];
         foreach ($capability->inputs as $input) {

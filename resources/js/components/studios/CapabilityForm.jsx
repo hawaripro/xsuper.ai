@@ -1,28 +1,43 @@
-import { useState } from "react";
+import { useCallback, useRef } from "react";
 import { StudioField } from "./StudioUI";
-import AssetUploadField from "./AssetUploadField";
+import AssetUploadField, { UploadActivityContext } from "./AssetUploadField";
+import SchemaFields from "./SchemaFields";
 import { useLocale } from "../../contexts/LocaleContext";
+
+export default function CapabilityForm({ capability, values, errors = {}, disabled = false, idPrefix = "cap", hiddenInputs = [], hiddenParams = [], onChange, onUploadStateChange }) {
+    const uploads = useRef(new Map());
+    const report = useRef(onUploadStateChange);
+    report.current = onUploadStateChange;
+    const activity = useCallback((key, state) => {
+        if (state) uploads.current.set(key, state);
+        else uploads.current.delete(key);
+        report.current?.({
+            busy: [...uploads.current.values()].some((entry) => entry.busy),
+            failed: [...uploads.current.values()].some((entry) => entry.failed),
+        });
+    }, []);
+    if (!capability) return null;
+    return <UploadActivityContext.Provider value={activity}>
+        {capability.contract_version === 2 && capability.input_schema
+            ? <SchemaFields schema={capability.input_schema} values={values} errors={errors} disabled={disabled} onChange={onChange} />
+            : <LegacyCapabilityForm {...{ capability, values, errors, disabled, idPrefix, hiddenInputs, hiddenParams, onChange }} />}
+    </UploadActivityContext.Provider>;
+}
 
 // Renders a resolved capability's declared inputs + params as labelled, correctly-typed
 // controls, in the order the backend ui_metadata specifies. Values and errors are controlled
-// by the parent studio; there is no per-model logic here — every field comes from the contract.
-export default function CapabilityForm({ capability, values, errors = {}, disabled = false, idPrefix = "cap", onChange }) {
+// by the parent studio, which decides which errors are visible yet; there is no per-model logic
+// here — every field comes from the contract. hiddenInputs/hiddenParams are fields the parent
+// renders itself: native quantity and Pro as execution controls, a studio's own authoring fields.
+function LegacyCapabilityForm({ capability, values, errors = {}, disabled = false, idPrefix = "cap", hiddenInputs = [], hiddenParams = [], onChange }) {
     const { t } = useLocale();
-    const [touched, setTouched] = useState({ hash: null, fields: {} });
     if (!capability) return null;
 
     const ui = capability.ui || { inputs: {}, params: {}, order: [] };
     const inputByKey = Object.fromEntries((capability.inputs || []).map((input) => [input.key, input]));
     const paramByName = Object.fromEntries((capability.params || []).map((param) => [param.name, param]));
-    const set = (key, value) => {
-        setTouched((current) => ({ hash: capability.source_hash, fields: { ...(current.hash === capability.source_hash ? current.fields : {}), [key]: true } }));
-        onChange({ ...values, [key]: value });
-    };
-    const fieldError = (key) => {
-        const value = values[key];
-        const edited = touched.hash === capability.source_hash && touched.fields[key];
-        return edited || (value !== undefined && value !== null && value !== "") ? errors[key] : undefined;
-    };
+    const set = (key, value) => onChange({ ...values, [key]: value });
+    const fieldError = (key) => errors[key];
     const order = ui.order?.length
         ? ui.order
         : [...(capability.inputs || []).map((i) => `input:${i.key}`), ...(capability.params || []).map((p) => `param:${p.name}`)];
@@ -92,8 +107,8 @@ export default function CapabilityForm({ capability, values, errors = {}, disabl
         const kind = token.slice(0, separator);
         const key = token.slice(separator + 1);
         const id = `${idPrefix}-${key}`;
-        if (kind === "input" && inputByKey[key]) return renderInput(inputByKey[key], ui.inputs?.[key] || {}, id);
-        if (kind === "param" && paramByName[key]) return renderParam(paramByName[key], ui.params?.[key] || {}, id);
+        if (kind === "input" && inputByKey[key] && !hiddenInputs.includes(key)) return renderInput(inputByKey[key], ui.inputs?.[key] || {}, id);
+        if (kind === "param" && paramByName[key] && !hiddenParams.includes(key)) return renderParam(paramByName[key], ui.params?.[key] || {}, id);
         return null;
     })}</>;
 }

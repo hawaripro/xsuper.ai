@@ -19,4 +19,24 @@ enum MediaOperation: string
     case Music = 'music';
     case TextTo3d = 'text_to_3d';
     case ImageTo3d = 'image_to_3d';
+    case Model3dToModel3d = 'model3d_to_model3d';
+    case VideoToVideo = 'video_to_video';
+    case VideoToAudio = 'video_to_audio';
+    case VideoToText = 'video_to_text';
+    case AudioToAudio = 'audio_to_audio';
+    case AudioToText = 'audio_to_text';
+    case SpeechToText = 'speech_to_text';
+    case SpeechToSpeech = 'speech_to_speech';
+    case TextToAudio = 'text_to_audio';
+    case ImageToText = 'image_to_text';
+    case ImageToJson = 'image_to_json';
+    case TextToJson = 'text_to_json';
+    case TextToText = 'text_to_text';
+    case Vision = 'vision';
+    case LanguageModel = 'language_model';
+    case StructuredData = 'structured_data';
+    case Training = 'training';
+    case Workflow = 'workflow';
+    case Inference = 'inference';
+    case RealtimeVideo = 'realtime_video';
 }

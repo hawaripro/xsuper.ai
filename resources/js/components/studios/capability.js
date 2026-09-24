@@ -1,3 +1,5 @@
+import { schemaDefault, schemaErrors } from "./schema";
+
 // Frontend mirror of the backend MediaCapability contract. The studio renders inputs/params
 // and previews validation from the SAME declarative rules the server enforces (required,
 // required_when: param_equals | has_input, enum options, numeric range). The backend remains
@@ -20,11 +22,14 @@ export const fieldRequired = (field, values) => Boolean(field?.required) || eval
 
 // Reconcile a draft when the capability changes: keep a still-valid previous value, else fall
 // back to the param default (or first option) / an empty input.
-export function capabilityValues(capability, previous = {}) {
+export function capabilityValues(capability, previous) {
+    if (capability?.contract_version === 2 && capability.input_schema) return schemaDefault(capability.input_schema, previous);
+    previous ??= {};
     const values = {};
     for (const input of capability?.inputs ?? []) {
         const prev = previous[input.key];
-        values[input.key] = typeof prev === "string" ? prev : input.type === "asset" && !input.single ? [] : "";
+        values[input.key] = input.type === "asset" && !input.single
+            ? Array.isArray(prev) ? [...prev] : [] : typeof prev === "string" ? prev : "";
     }
     for (const param of capability?.params ?? []) {
         const prev = previous[param.name];
@@ -47,6 +52,7 @@ export function capabilityValues(capability, previous = {}) {
 // Client-side preview of the backend validation. Returns a { key: rawMessage } map; callers
 // pass the message through StudioField, which localizes it (same path as server errors).
 export function capabilityErrors(capability, values) {
+    if (capability?.contract_version === 2 && capability.input_schema) return schemaErrors(capability.input_schema, values);
     const errors = {};
     for (const param of capability?.params ?? []) {
         const value = values[param.name];
@@ -80,6 +86,7 @@ export function capabilityErrors(capability, values) {
 // Build the request field map from capability values. Keys align with the backend field names
 // (prompt, size, …), so the result spreads straight into the flat request body.
 export function capabilitySubmission(capability, values) {
+    if (capability?.contract_version === 2 && capability.input_schema) return values;
     const body = {};
     for (const input of capability?.inputs ?? []) {
         const value = values[input.key];

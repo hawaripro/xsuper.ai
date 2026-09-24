@@ -12,6 +12,8 @@ final readonly class StatusResult
         public MediaState $state,
         public ?array $resultUrls = null,
         public ?string $publicError = null,
+        /** Complete provider JSON. Provider URLs must be replaced before member presentation. */
+        public mixed $resultData = null,
     ) {}
 
     public static function processing(): self
@@ -20,9 +22,9 @@ final readonly class StatusResult
     }
 
     /** @param  string[]  $resultUrls */
-    public static function completed(array $resultUrls): self
+    public static function completed(array $resultUrls, mixed $resultData = null): self
     {
-        return new self(MediaState::Completed, resultUrls: array_values($resultUrls));
+        return new self(MediaState::Completed, resultUrls: array_values($resultUrls), resultData: $resultData);
     }
 
     public static function failed(?string $publicError = null): self

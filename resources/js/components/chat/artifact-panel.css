@@ -1,0 +1,103 @@
+.artifact-panel,
+.artifact-save-dialog {
+    color: var(--cw-text, #202024);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    min-width: 0;
+    color-scheme: light;
+    scrollbar-color: var(--cw-border-strong, #cacace) transparent;
+    scrollbar-width: thin;
+}
+
+.cw-dark .artifact-panel,
+.cw-dark .artifact-save-dialog { color-scheme: dark; }
+.artifact-panel { display: flex; flex-direction: column; gap: 0.875rem; width: 100%; }
+.artifact-panel ::selection,
+.artifact-save-dialog ::selection { background: var(--cw-accent-soft, #fee8e8); color: var(--cw-text, #202024); }
+.artifact-panel :is(button, input, textarea, select):focus-visible,
+.artifact-save-dialog :is(button, input, textarea, select):focus-visible,
+.artifact-table-scroll:focus-visible,
+.artifact-source:focus-visible { outline: 2px solid var(--cw-accent, #dc2626); outline-offset: 3px; }
+.artifact-panel :is(h3, h4, p),
+.artifact-save-dialog :is(h2, p) { margin: 0; }
+.artifact-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.625rem; min-width: 0; }
+.artifact-heading :is(h2, h3) { font-size: 1rem; line-height: 1.4; font-weight: 650; overflow-wrap: anywhere; }
+.artifact-heading h2 { font-size: 1.125rem; }
+.artifact-muted,
+.artifact-filename,
+.artifact-preview-safety { color: var(--cw-text-2, #646469); font-size: 0.75rem; overflow-wrap: anywhere; }
+.artifact-filename { margin-top: -0.5rem !important; }
+.artifact-version { flex-shrink: 0; color: var(--cw-text-2, #646469); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.artifact-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 0.625rem; padding: 1.5rem 0; color: var(--cw-text-2, #646469); }
+.artifact-empty > svg { width: 1.625rem; height: 1.625rem; }
+.artifact-empty h4 { color: var(--cw-text, #202024); font-size: 0.875rem; }
+.artifact-list { display: flex; flex-direction: column; list-style: none; margin: 0; padding: 0; }
+.artifact-list li + li { border-top: 1px solid var(--cw-border, #e6e6e8); }
+.artifact-list button { display: flex; align-items: flex-start; gap: 0.75rem; width: 100%; min-height: 3.75rem; padding: 0.875rem 0.5rem; border: 0; border-radius: 0.5rem; background: transparent; color: inherit; cursor: pointer; text-align: start; }
+.artifact-list button:hover { background: var(--cw-hover, #f3f3f4); }
+.artifact-list button > svg { flex-shrink: 0; margin-top: 0.125rem; color: var(--cw-text-2, #646469); }
+.artifact-list button span { display: flex; flex-direction: column; min-width: 0; gap: 0.2rem; }
+.artifact-list strong { font-size: 0.8125rem; font-weight: 600; overflow-wrap: anywhere; }
+.artifact-list small { color: var(--cw-text-2, #646469); font-size: 0.6875rem; overflow-wrap: anywhere; }
+.artifact-button,
+.artifact-back,
+.artifact-icon-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.45rem 0.625rem; border: 1px solid var(--cw-border-strong, #d4d4d8); border-radius: 0.5rem; background: var(--cw-surface, #fff); color: var(--cw-text, #202024); font: inherit; font-size: 0.75rem; font-weight: 550; cursor: pointer; text-align: center; line-height: 1.35; }
+.artifact-button > svg,
+.artifact-back > svg { flex-shrink: 0; width: 1rem; height: 1rem; }
+.artifact-button:hover:not(:disabled),
+.artifact-icon-button:hover:not(:disabled) { background: var(--cw-hover, #f3f3f4); border-color: var(--cw-text-2, #646469); }
+.artifact-button:disabled,
+.artifact-back:disabled,
+.artifact-icon-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.artifact-button.artifact-primary { background: var(--cw-accent, #dc2626); border-color: var(--cw-accent, #dc2626); color: #fff; }
+.artifact-button.artifact-primary:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+.artifact-back { justify-content: flex-start; align-self: flex-start; padding-inline: 0; border: 0; background: transparent; color: var(--cw-text-2, #646469); }
+.artifact-back:hover:not(:disabled) { color: var(--cw-text, #202024); text-decoration: underline; text-underline-offset: 0.2em; }
+.artifact-icon-button { padding: 0.5rem; width: 2.5rem; flex-shrink: 0; border: 0; background: transparent; }
+.artifact-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.artifact-field { display: flex; flex-direction: column; gap: 0.375rem; font-size: 0.75rem; font-weight: 550; min-width: 0; }
+.artifact-field :is(input, select, textarea) { min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid var(--cw-border-strong, #d4d4d8); border-radius: 0.5rem; background: var(--cw-surface, #fff); color: var(--cw-text, #202024); caret-color: var(--cw-accent, #dc2626); font: inherit; font-weight: 400; padding: 0.625rem; }
+.artifact-field select { min-height: 2.5rem; text-overflow: ellipsis; }
+.artifact-field :is(input, textarea)::placeholder { color: var(--cw-text-2, #646469); }
+.artifact-field :is(input, select, textarea):disabled { opacity: 0.65; }
+.artifact-view-tabs { display: flex; border-bottom: 1px solid var(--cw-border, #e6e6e8); gap: 0.25rem; }
+.artifact-view-tabs button { flex: 1; min-width: 0; min-height: 2.5rem; padding: 0.4rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--cw-text-2, #646469); font: inherit; font-size: 0.75rem; cursor: pointer; }
+.artifact-view-tabs button[aria-selected="true"] { border-bottom-color: var(--cw-accent, #dc2626); color: var(--cw-text, #202024); font-weight: 650; }
+.artifact-view-tabs button:hover:not(:disabled) { background: var(--cw-hover, #f3f3f4); }
+.artifact-view { display: flex; flex-direction: column; gap: 0.875rem; min-width: 0; overflow: hidden; }
+.artifact-field .artifact-editor { min-height: 17rem; max-height: 60dvh; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; line-height: 1.65; tab-size: 4; }
+.artifact-source { margin: 0; max-height: 26rem; overflow: auto; padding: 0.875rem; background: var(--cw-surface-2, #f6f6f7); border-radius: 0.5rem; color: var(--cw-text, #202024); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; line-height: 1.65; text-align: start; tab-size: 4; }
+.artifact-source code { font: inherit; }
+.artifact-source-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.artifact-save-status { color: var(--cw-text-2, #646469); font-size: 0.75rem; }
+.artifact-save-status.artifact-unsaved { color: var(--cw-accent-text, #b91c1c); font-weight: 550; }
+.artifact-error,
+.artifact-conflict { padding: 0.875rem; border-radius: 0.5rem; background: var(--cw-accent-soft, #fff1f2); color: var(--cw-accent-text, #9f1239); overflow-wrap: anywhere; }
+.artifact-error { display: flex; flex-direction: column; gap: 0.625rem; }
+.artifact-error .artifact-button { align-self: flex-start; }
+.artifact-conflict { display: flex; flex-direction: column; gap: 0.75rem; }
+.artifact-conflict h4 { font-size: 0.875rem; font-weight: 650; }
+.artifact-conflict summary { cursor: pointer; padding-block: 0.25rem; font-size: 0.75rem; }
+.artifact-conflict .artifact-source { margin-top: 0.5rem; max-height: 16rem; }
+.artifact-notice { font-size: 0.75rem; color: var(--cw-text-2, #646469); overflow-wrap: anywhere; }
+.artifact-html-preview { display: block; width: 100%; min-height: 22rem; border: 1px solid var(--cw-border, #e6e6e8); border-radius: 0.5rem; background: #fff; color-scheme: light; }
+.artifact-svg-preview { display: block; width: 100%; max-height: 28rem; object-fit: contain; background: var(--cw-surface-2, #f6f6f7); }
+.artifact-markdown { min-width: 0; overflow-wrap: anywhere; }
+.artifact-markdown :is(pre, table) { max-width: 100%; overflow: auto; }
+.artifact-markdown img { max-width: 100%; height: auto; }
+.artifact-table-scroll { max-width: 100%; max-height: 28rem; overflow: auto; }
+.artifact-table-scroll table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.artifact-table-scroll :is(th, td) { padding: 0.5rem 0.625rem; border: 1px solid var(--cw-border, #e6e6e8); text-align: start; vertical-align: top; overflow-wrap: anywhere; min-width: 5rem; max-width: 16rem; white-space: pre-wrap; }
+.artifact-table-scroll th { background: var(--cw-surface-2, #f6f6f7); font-weight: 600; }
+.artifact-save-dialog { box-sizing: border-box; width: min(38rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; padding: 1.5rem; border: 0; border-radius: 1rem; background: var(--cw-surface, #fff); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.25); overflow: auto; }
+.artifact-save-dialog::backdrop { background: rgba(15, 15, 20, 0.5); }
+.artifact-save-dialog form { display: flex; flex-direction: column; gap: 1rem; }
+.artifact-save-dialog .artifact-field .artifact-editor { min-height: 12rem; max-height: 35dvh; }
+@media (max-width: 480px) {
+    .artifact-save-dialog { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); padding: 1rem; border-radius: 0.75rem; }
+    .artifact-actions .artifact-button { min-height: 2.75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .artifact-panel *, .artifact-save-dialog * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}

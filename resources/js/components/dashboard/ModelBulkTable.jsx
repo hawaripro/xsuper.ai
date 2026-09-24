@@ -8,8 +8,9 @@ import CatalogRevisionPanel, { capabilityStatuses, CapabilityStatus } from "./Ca
 import { LoadingState, ErrorState } from "./AsyncState";
 
 const pageSizeOptions = [25, 50, 100];
-const mediaCategories = ["image", "video", "audio", "avatar", "model3d"];
-const isUnpriced = (model) => mediaCategories.includes(model.category)
+const mediaCategories = ["image", "video", "audio", "avatar", "model3d", "other"];
+const isMediaModel = (model) => model.schema_managed || mediaCategories.includes(model.category);
+const isUnpriced = (model) => isMediaModel(model)
     ? !Number(model.token_cost)
     : !Number(model.rates?.input_tokens?.price_usd) && !Number(model.rates?.output_tokens?.price_usd);
 const integer = (value, min, max) => value !== "" && Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max;
@@ -34,6 +35,9 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const [pageSize, setPageSize] = useState(25);
     const [massField, setMassField] = useState("token_cost");
     const [massValue, setMassValue] = useState("");
+    const [catalogOpen, setCatalogOpen] = useState(false);
+    const [catalogRevisions, setCatalogRevisions] = useState({});
+    const [catalogAcknowledged, setCatalogAcknowledged] = useState(false);
     const [confirmation, setConfirmation] = useState(null);
     const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState({ error: "", success: "" });
@@ -44,7 +48,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const searchInput = useRef(null);
     const server = !!pagination;
     const locked = busy || disabled || loading || !!error;
-    const scopedModels = useMemo(() => mediaOnly ? models.filter((model) => mediaCategories.includes(model.category)) : models, [models, mediaOnly]);
+    const scopedModels = useMemo(() => mediaOnly ? models.filter(isMediaModel) : models, [models, mediaOnly]);
     // Only keep off-page rows with an explicit selection or unsaved edits.
     const byId = useMemo(() => {
         const next = new Map(server ? [...retainedModels.current].filter(([id]) => selected.includes(id) || drafts[id]) : []);
@@ -75,6 +79,9 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
     const dirtyIds = Object.keys(drafts).map(Number).filter((id) => byId.has(id));
     const selectedDirty = dirtyIds.filter((id) => selection.has(id));
     const selectedOffPage = selected.filter((id) => !pageRows.some((model) => model.id === id)).length;
+    const catalogRows = selected.map((id) => byId.get(id)).filter(Boolean);
+    const catalogCandidate = (model) => model.capability_summary?.find((revision) => revision.id === catalogRevisions[model.id])
+        || model.capability_summary?.find((revision) => revision.contract_version === 2 && !revision.previously_published && revision.status !== "disabled" && revision.compatible);
 
     useEffect(() => { setPage(1); }, [search, activeProvider, categoryFilter, publicationFilter, priceFilter, selectedOnly, pageSize]);
     useEffect(() => { if (!server) setSelected((current) => current.every((id) => byId.has(id)) ? current : current.filter((id) => byId.has(id))); }, [byId, server]);
@@ -96,10 +103,12 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
         setDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
         setRowErrors((current) => ({ ...current, [id]: { ...current[id], [key]: undefined } }));
         setStatus({ error: "", success: "" });
+        setCatalogAcknowledged(false);
     };
     const setSelection = (ids) => {
         if (ids.length > 200) { setStatus({ error: t("Pilih maksimal 200 baris dalam satu operasi."), success: "" }); return; }
         setSelected(ids);
+        setCatalogAcknowledged(false);
     };
     const togglePage = () => setSelection(allPageSelected ? selected.filter((id) => !pageRows.some((model) => model.id === id)) : [...new Set([...selected, ...pageRows.map((model) => model.id)])]);
     const selectExplicit = () => {
@@ -119,6 +128,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             selected.forEach((id) => { next[id] = { ...next[id], [massField]: value }; });
             return next;
         });
+        setCatalogAcknowledged(false);
         setStatus({ error: "", success: t("Perubahan diterapkan ke draf pilihan. Simpan untuk menerapkannya; revisi capability tidak dipublikasikan.") });
     };
     const prepareSave = (ids) => {
@@ -167,6 +177,27 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             needsReview: false,
         });
     };
+    const prepareCatalog = (action) => {
+        if (!catalogAcknowledged || locked || !selected.length || selected.length > 50) return;
+        const errors = {};
+        const providerIds = new Set(catalogRows.map((model) => model.provider_id));
+        const items = catalogRows.map((model) => {
+            const revision = catalogCandidate(model);
+            const price = drafts[model.id]?.token_cost ?? "";
+            if (Number(model.token_cost) > 0) errors[model.id] = { token_cost: "Harga positif yang ada dilindungi. Tinjau revisi satu per satu tanpa mengubah tarif." };
+            else if (model.capability_summary?.some((entry) => entry.previously_published) || !revision || revision.contract_version !== 2 || !revision.compatible || revision.status === "disabled") errors[model.id] = { row: "Pilih kandidat v2 kompatibel pada model baru yang belum pernah dipublikasikan." };
+            else if (!integer(price, 1, 2147483647)) errors[model.id] = { token_cost: "Masukkan harga jual token positif per permintaan." };
+            else if (Object.keys(drafts[model.id] || {}).some((key) => key !== "token_cost")) errors[model.id] = { row: "Simpan atau buang perubahan selain harga sebelum tinjauan massal." };
+            return { model_id: model.id, revision_id: revision?.id, token_cost: Number(price), price_unit: "request",
+                ...(revision?.execution?.transport === "realtime" ? { max_session_seconds: revision.execution.max_session_seconds } : {}) };
+        });
+        setRowErrors(errors);
+        if (catalogRows.length !== selected.length || providerIds.size !== 1 || ![...providerIds][0] || Object.keys(errors).length) {
+            setStatus({ error: t("Periksa pilihan: maksimal 50 model baru dari satu provider, tanpa harga positif dan dengan kandidat kompatibel."), success: "" });
+            return;
+        }
+        setConfirmation({ type: "catalog", action, providerId: [...providerIds][0], ids: [...selected], items });
+    };
     const mutate = async () => {
         if (!confirmation || mutationInFlight.current || disabled || confirmation.needsReview) return;
         const operation = confirmation;
@@ -175,9 +206,11 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
         setStatus({ error: "", success: "" });
         if (operation.type === "delete") setConfirmation((current) => ({ ...current, error: "" }));
         try {
-            await apiRequest("/api/admin/ai/models/bulk", {
-                method: operation.type === "delete" ? "DELETE" : "PATCH",
-                body: operation.type === "delete" ? { ids: operation.ids, expected_count: operation.ids.length, delete_usage_rates: true } : { items: operation.items },
+            await apiRequest(operation.type === "catalog" ? `/api/admin/ai/providers/${operation.providerId}/catalog-bulk` : "/api/admin/ai/models/bulk", {
+                method: operation.type === "catalog" ? "POST" : operation.type === "delete" ? "DELETE" : "PATCH",
+                body: operation.type === "catalog"
+                    ? { items: operation.items, expected_count: operation.items.length, action: operation.action, reviewed: true, confirm: true }
+                    : operation.type === "delete" ? { ids: operation.ids, expected_count: operation.ids.length, delete_usage_rates: true } : { items: operation.items },
             });
             setDrafts((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !operation.ids.includes(Number(id)))));
             setRowErrors((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !operation.ids.includes(Number(id)))));
@@ -185,7 +218,13 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                 setSelected((current) => current.filter((id) => !operation.ids.includes(id)));
                 setExpanded((current) => current.filter((id) => !operation.ids.includes(id)));
             }
-            setStatus({ error: "", success: `${operation.ids.length} ${t(operation.type === "delete" ? "baris dihapus. Riwayat penggunaan dipertahankan." : "baris tersimpan.")}` });
+            setStatus({ error: "", success: `${operation.ids.length} ${t(operation.type === "catalog" ? operation.action === "publish" ? "model diberi harga, ditinjau, dan dipublikasikan." : "model diberi harga dan ditinjau; belum dipublikasikan." : operation.type === "delete" ? "baris dihapus. Riwayat penggunaan dipertahankan." : "baris tersimpan.")}` });
+            if (operation.type === "catalog") {
+                operation.ids.forEach((id) => retainedModels.current.delete(id));
+                setSelected((current) => current.filter((id) => !operation.ids.includes(id)));
+                setCatalogOpen(false);
+                setCatalogAcknowledged(false);
+            }
             try {
                 await onRefresh();
             } catch {
@@ -195,17 +234,19 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             setConfirmation(null);
         } catch (error) {
             if (operation.type === "delete") {
-                const mediaBusy = error.status === 409 && error.details?.message === "Selected models have active or unreconciled media jobs. Finish or refund those jobs before deleting.";
-                const needsReview = (error.status === 409 && !mediaBusy) || error.status === 404;
-                const message = t(mediaBusy
-                    ? "Model masih memiliki pekerjaan media aktif atau kredit yang dicadangkan. Selesaikan pekerjaan atau rekonsiliasi tagihannya sebelum menghapus."
-                    : needsReview
+                const busyMessage = error.status === 409 ? {
+                    "Selected models have active jobs or retained capability history. Disable them instead of deleting.": "Model masih memiliki pekerjaan aktif, kredit yang dicadangkan, atau riwayat capability yang dipertahankan. Nonaktifkan model alih-alih menghapusnya.",
+                    "Selected models have active chat operations. Stop them before deleting, or disable these models instead.": "Model masih memiliki operasi chat aktif. Hentikan operasi tersebut atau nonaktifkan model alih-alih menghapusnya.",
+                }[error.details?.message] : undefined;
+                const needsReview = (error.status === 409 && !busyMessage) || error.status === 404;
+                const message = t(busyMessage
+                    || (needsReview
                       ? "Pilihan model berubah. Tutup dialog, muat ulang katalog, lalu konfirmasi ulang."
                       : [401, 419].includes(error.status)
                         ? "Sesi Anda telah berakhir. Masuk kembali sebelum menghapus."
                         : error.status === 403
                           ? "Anda tidak memiliki izin untuk menghapus model."
-                          : "Penghapusan model belum dikonfirmasi. Pilihan dan draf tetap tersedia; muat ulang katalog sebelum mencoba lagi.");
+                          : "Penghapusan model belum dikonfirmasi. Pilihan dan draf tetap tersedia; muat ulang katalog sebelum mencoba lagi."));
                 setConfirmation((current) => ({ ...current, error: message, needsReview }));
                 setStatus({ error: message, success: "" });
             } else {
@@ -214,7 +255,8 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                     const match = key.match(/^items\.(\d+)(?:\.(.+))?$/);
                     if (match && operation.ids[Number(match[1])] != null) {
                         const id = operation.ids[Number(match[1])];
-                        errors[id] = { ...errors[id], [match[2] || "row"]: messages };
+                        const field = ["revision_id", "model_id"].includes(match[2]) ? "row" : match[2] || "row";
+                        errors[id] = { ...errors[id], [field]: messages };
                     }
                 });
                 setRowErrors(errors);
@@ -227,8 +269,8 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
         }
     };
     const fieldError = (id, key) => rowErrors[id]?.[key] && <span className="mt-1 block max-w-56 whitespace-normal text-xs text-red-600 dark:text-red-300">{t([rowErrors[id][key]].flat()[0])}</span>;
-    const tableInput = "ui-input min-h-9 w-24 px-2";
-    const numericInput = "ui-input min-h-9 w-24 px-2 text-right tabular-nums";
+    const tableInput = "ui-input min-h-9 min-w-28 w-28 px-2";
+    const numericInput = "ui-input min-h-9 min-w-32 w-32 px-2 text-right tabular-nums";
 
     return <div className="min-w-0 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-50" aria-busy={busy || loading}>
         <div className="flex flex-wrap gap-3 border-b border-slate-200 p-4 dark:border-white/10">
@@ -289,6 +331,35 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             </label>
             <button className="ui-btn-secondary" type="button" disabled={locked} onClick={applyMass}>{t("Terapkan ke draf")} ({selected.length})</button>
         </div>}
+        {catalogOpen && selected.length > 0 && <section className="space-y-4 border-b border-slate-200 p-4 dark:border-white/10" aria-labelledby="catalog-bulk-heading">
+            <h3 id="catalog-bulk-heading" className="text-sm font-semibold">{t("Harga dan publikasi kandidat terpilih")}</h3>
+            <p className="max-w-prose text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Hanya model baru tanpa harga positif. Isi harga token pada baris tabel atau gunakan draf massal. Harga per permintaan mencakup seluruh konfigurasi dan semua hasil; jumlah, durasi, resolusi, atau pelatihan dapat mengubah biaya provider. Tarif USD API tidak diubah.")}</p>
+            <ul className="max-h-64 space-y-3 overflow-y-auto">
+                {catalogRows.map((model) => {
+                    const candidate = catalogCandidate(model);
+                    const candidates = (model.capability_summary || []).filter((entry) => entry.contract_version === 2 && !entry.previously_published && entry.status !== "disabled");
+                    return <li key={model.id} className="flex flex-wrap items-end gap-3 border-b border-slate-100 pb-3 last:border-0 dark:border-white/5">
+                        <label className="min-w-52 flex-1 text-xs font-medium"><span className="block break-all">{model.display_name || model.model_id}</span>
+                            <select className="ui-input mt-1 min-h-10" value={candidate?.id ?? ""} disabled={locked || Number(model.token_cost) > 0} onChange={(event) => { setCatalogRevisions((current) => ({ ...current, [model.id]: Number(event.target.value) })); setCatalogAcknowledged(false); }}>
+                                <option value="">{t("Pilih kandidat v2")}</option>
+                                {candidates.map((entry) => <option key={entry.id} value={entry.id}>{entry.operation} · r{entry.revision} · {t(entry.compatible ? "Lulus kompatibilitas" : "Perlu penanganan")}</option>)}
+                            </select>
+                        </label>
+                        <span className="pb-3 text-xs tabular-nums">{Number(model.token_cost) > 0 ? t("Harga yang ada dilindungi") : `${drafts[model.id]?.token_cost || "—"} ${t("token / permintaan")}`}</span>
+                        {candidate?.execution?.transport === "realtime" && <span className="pb-3 text-xs font-medium">{t("Satu sesi, maksimal")} {candidate.execution.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</span>}
+                        <button type="button" className="ui-btn-secondary min-h-10" disabled={locked} onClick={(event) => { reviewTrigger.current = event.currentTarget; setReviewModel(model.id); }}>{t("Tinjau capability")}</button>
+                    </li>;
+                })}
+            </ul>
+            <label className="block max-w-72 text-xs font-medium">{t("Unit harga jual")}<select className="ui-input mt-1 min-h-10" value="request" disabled><option value="request">{t("Satu permintaan lengkap")}</option></select></label>
+            <label className="flex max-w-prose items-start gap-2 text-sm leading-6"><input type="checkbox" className="mt-1" checked={catalogAcknowledged} disabled={locked} onChange={(event) => setCatalogAcknowledged(event.target.checked)} />{t("Saya telah meninjau schema, harga jual, unit, dan risiko biaya konfigurasi untuk setiap kandidat terpilih. Tidak ada pengujian generasi berbayar.")}</label>
+            {selected.length > 50 && <p role="alert" className="text-sm text-amber-800 dark:text-amber-200">{t("Tinjauan publikasi dibatasi 50 model. Kurangi pilihan sebelum melanjutkan.")}</p>}
+            <div className="flex flex-wrap gap-2">
+                <button type="button" className="ui-btn-secondary" disabled={locked || !catalogAcknowledged || selected.length > 50} onClick={() => prepareCatalog("review")}>{t("Simpan harga dan tinjauan")}</button>
+                <button type="button" className="ui-btn-primary" disabled={locked || !catalogAcknowledged || selected.length > 50} onClick={() => prepareCatalog("publish")}>{t("Tinjau dan publikasikan pilihan")}</button>
+                <button type="button" className="ui-btn-secondary" disabled={locked} onClick={() => setCatalogOpen(false)}>{t("Tutup tinjauan")}</button>
+            </div>
+        </section>}
         {(status.error || status.success) && <p role={status.error ? "alert" : "status"} className={`px-4 py-3 text-sm ${status.error ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{status.error || status.success}</p>}
         {loading && <div className="p-4"><LoadingState label={t("Memuat model…")} /></div>}
         {error && <div className="p-4"><ErrorState message={error} onRetry={onRefresh} /></div>}
@@ -302,11 +373,12 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                 <tbody>{pageRows.map((model) => {
                     const draft = drafts[model.id] || {};
                     const row = { ...model, ...draft };
-                    const isMedia = mediaCategories.includes(row.category);
+                    const isMedia = isMediaModel(row);
                     const isExpanded = expanded.includes(model.id);
                     const generationReadOnly = !!model.generation_config_readonly;
                     const config = (!generationReadOnly && draft.configDraft) || generationConfigDraft(model.generation_config);
-                    const costLabel = model.generation_config?.price_unit === "second" ? "Token per detik" : model.category === "audio" ? "Token per pekerjaan" : "Token per hasil";
+                    const unit = model.catalog_price_unit || model.generation_config?.price_unit;
+                    const costLabel = unit === "request" ? "Token per permintaan" : unit === "second" ? "Token per detik" : model.category === "audio" ? "Token per pekerjaan" : "Token per hasil";
                     const errors = rowErrors[model.id] || {};
                     return <Fragment key={model.id}>
                         <tr className={`border-t border-slate-200 align-top dark:border-white/10 ${selection.has(model.id) ? "bg-red-50/60 dark:bg-red-500/5" : ""}`}>
@@ -328,7 +400,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                             <td className="p-3">{isMedia
                                 ? <><input className={numericInput} aria-label={`${t(costLabel)} ${model.model_id}`} type="number" min="1" max="2147483647" step="1" value={row.token_cost ?? ""} placeholder={t("Belum diatur")} disabled={locked} aria-invalid={!!errors.token_cost} onChange={(event) => patch(model.id, "token_cost", event.target.value)} /><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(costLabel)}</span>{fieldError(model.id, "token_cost")}</>
                                 : <span className="block text-slate-400 dark:text-slate-500" title={t("Model chat ditagih per token masukan/keluaran (lihat tarif USD/1M di bawah nama model), bukan per hasil.")}>{t("Per token")}</span>}</td>
-                            <td className="p-3"><input className="ui-input min-h-9 w-16 px-2 text-right tabular-nums" aria-label={`${t("Urutan")} ${model.model_id}`} type="number" min="0" max="65535" step="1" value={row.sort_order ?? 0} disabled={locked} aria-invalid={!!errors.sort_order} onChange={(event) => patch(model.id, "sort_order", event.target.value)} />{fieldError(model.id, "sort_order")}</td>
+                            <td className="p-3"><input className="ui-input min-h-9 min-w-20 w-20 px-2 text-right tabular-nums" aria-label={`${t("Urutan")} ${model.model_id}`} type="number" min="0" max="65535" step="1" value={row.sort_order ?? 0} disabled={locked} aria-invalid={!!errors.sort_order} onChange={(event) => patch(model.id, "sort_order", event.target.value)} />{fieldError(model.id, "sort_order")}</td>
                             <td className="min-w-36 p-3"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`${t("Aktifkan profil")} ${model.model_id}`} checked={!!row.is_enabled} disabled={locked} onChange={(event) => patch(model.id, "is_enabled", event.target.checked)} />{t(row.is_enabled ? "Aktif" : "Nonaktif")}</label><span className="mt-1 block text-slate-500 dark:text-slate-400">{t(model.is_available ? "Tersedia di upstream" : "Belum tersedia di upstream")}</span></td>
                             <td className="min-w-48 max-w-64 p-3">
                                 {model.capability_summary?.length ? <ul className="space-y-3">{model.capability_summary.map((revision) => <li key={revision.id} className="space-y-1"><code className="block break-all text-xs">{revision.operation} · r{revision.revision}</code><CapabilityStatus status={revision.status} />{revision.is_active && <span className="ml-1 text-xs font-semibold">{t("Aktif")}</span>}{revision.blocker_count > 0 && <span className="block text-xs text-amber-800 dark:text-amber-200">{revision.blocker_count} {t("penghalang publikasi")}</span>}</li>)}</ul> : <span className="text-slate-600 dark:text-slate-400">{t(isMedia ? "Konfigurasi kurasi; belum ada revisi impor" : "Tidak memakai revisi media")}</span>}
@@ -343,7 +415,9 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                         </tr>
                         {isMedia && isExpanded && <tr className="border-t border-slate-200 dark:border-white/10"><td colSpan={8} className="p-4"><div className="max-w-3xl">
                             {generationReadOnly && <p className="mb-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Konfigurasi efektif mengikuti adapter dan capability aktif. Ubah revisi melalui tinjauan capability; label, harga, dan aktivasi profil tetap dapat diedit.")}</p>}
-                            <GenerationConfigFields category={row.category} value={config} onChange={(value) => patch(model.id, "configDraft", value)} disabled={locked || generationReadOnly} readOnly={generationReadOnly} protocol={model.provider?.protocol} errors={generationReadOnly ? undefined : Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith("generation_config.")).map(([key, value]) => [key.slice(18), value]))} />
+                            {model.schema_managed
+                                ? <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Seluruh kontrol mengikuti schema revisi. Buka Tinjau capability untuk melihat input, output, batasan, dan bukti sumber; formulir native tidak menggambarkan kontrak ini.")}</p>
+                                : <GenerationConfigFields category={row.category} value={config} onChange={(value) => patch(model.id, "configDraft", value)} disabled={locked || generationReadOnly} readOnly={generationReadOnly} protocol={model.provider?.protocol} errors={generationReadOnly ? undefined : Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith("generation_config.")).map(([key, value]) => [key.slice(18), value]))} />}
                             {!generationReadOnly && fieldError(model.id, "generation_config")}
                         </div></td></tr>}
                     </Fragment>;
@@ -360,6 +434,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
         <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
             <p className="text-xs tabular-nums">{selected.length} {t("dipilih")} ({selectedOffPage} {t("di luar halaman ini")}) · {dirtyIds.length} {t("draf berubah")}</p>
             <div className="flex flex-wrap gap-2">
+                {!!selected.length && catalogRows.some((model) => model.schema_managed) && <button type="button" className="ui-btn-secondary" disabled={locked} aria-expanded={catalogOpen} onClick={() => { setCatalogOpen(!catalogOpen); setCatalogAcknowledged(false); }}>{t("Tinjau harga dan publikasi")} ({selected.length})</button>}
                 {!!selected.length && <button type="button" className="ui-btn-secondary" disabled={locked} onClick={() => setSelected([])}>{t("Batalkan pilihan")}</button>}
                 {!!dirtyIds.length && <button type="button" className="ui-btn-secondary" disabled={locked} onClick={() => { setDrafts({}); setRowErrors({}); }}>{t("Buang draf")}</button>}
                 <button type="button" className="ui-btn-secondary text-red-700 dark:text-red-300" disabled={locked || !selected.length} onClick={(event) => prepareDeletion(selected, event)}>{t("Hapus pilihan")} ({selected.length})</button>
@@ -368,6 +443,17 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             </div>
         </div>
         {confirmation?.type === "save" && <BulkConfirmDialog title={t("Simpan perubahan model?")} count={confirmation.ids.length} rows={confirmation.ids.map((id) => ({ id, label: byId.get(id)?.model_id || String(id) }))} description={t("Seluruh baris ini disimpan dalam satu transaksi. Jika satu baris tidak valid, tidak ada perubahan yang disimpan. Publikasi tidak mengubah ketersediaan upstream.")} busy={busy} onCancel={() => { if (!mutationInFlight.current) setConfirmation(null); }} onConfirm={mutate} />}
+        {confirmation?.type === "catalog" && <MediaActionDialog
+            title={t(confirmation.action === "publish" ? "Publikasikan kandidat terpilih?" : "Simpan harga dan tinjauan?")}
+            description={t("Seluruh pilihan diproses atomik. Harga positif yang sudah ada, tarif USD API, identitas, label, dan riwayat tidak diubah. Publikasi memerlukan koneksi terautentikasi; kompatibilitas schema bukan bukti generasi berhasil.")}
+            closeLabel={t("Batal")} confirmLabel={t(confirmation.action === "publish" ? "Tinjau dan publikasikan pilihan" : "Simpan harga dan tinjauan")}
+            busyLabel={t("Memproses…")} busy={busy} confirmDisabled={disabled}
+            onConfirm={mutate} onClose={() => { if (!mutationInFlight.current) setConfirmation(null); }}
+        >
+            <ul className="max-h-56 space-y-2 overflow-y-auto text-sm">
+                {confirmation.items.map((item) => <li className="break-words" key={item.model_id}><strong>{byId.get(item.model_id)?.display_name || item.model_id}</strong><span className="block text-xs">{t("Revisi")} #{item.revision_id} · {item.token_cost} {t("token / permintaan")}</span>{item.max_session_seconds && <span className="block text-xs">{t("Satu sesi, maksimal")} {item.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</span>}</li>)}
+            </ul>
+        </MediaActionDialog>}
         {confirmation?.type === "delete" && <MediaActionDialog
             title={`${t(confirmation.ids.length === 1 ? "Hapus model?" : "Hapus model terpilih?")} (${confirmation.ids.length})`}
             description={t("Hanya model dengan ID di bawah dan tarif PAYG-nya yang dihapus. Riwayat penggunaan, tagihan, dan hasil generasi tetap disimpan. Pekerjaan media aktif atau kredit yang dicadangkan akan membatalkan seluruh penghapusan.")}

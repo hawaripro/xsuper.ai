@@ -8,6 +8,7 @@ use App\Jobs\ProcessImageJob;
 use App\Jobs\ProcessVideoJob;
 use App\Media\Enums\InputRole;
 use App\Media\Enums\MediaOperation;
+use App\Media\Exceptions\CapabilityConfigException;
 use App\Media\Exceptions\CapabilityValidationException;
 use App\Models\AiModelProfile;
 use App\Models\AudioJob;
@@ -69,7 +70,7 @@ final class MediaGenerationCoordinator
             if ($model->category !== 'image' || ! MediaModelConfig::allowedFor($user, $model)) {
                 throw new ImageGenerationException('The selected image model is unavailable.', 503);
             }
-            $resolved = $this->resolver->resolve($model, $operation);
+            $resolved = $this->resolveNative($model, $operation);
             $expectedHash = $options['expected_capability_hash'] ?? null;
             if (is_string($expectedHash) && $expectedHash !== '' && ! hash_equals($resolved->sourceHash, $expectedHash)) {
                 throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
@@ -166,7 +167,7 @@ final class MediaGenerationCoordinator
             if ($avatar && ($options['rights_confirmed'] ?? false) !== true) {
                 throw new ImageGenerationException('Confirm that you have permission to use this photo and voice.', 422);
             }
-            $resolved = $this->resolver->resolve($model, $operation);
+            $resolved = $this->resolveNative($model, $operation);
             $expectedHash = $options['expected_capability_hash'] ?? null;
             if (is_string($expectedHash) && $expectedHash !== '' && ! hash_equals($resolved->sourceHash, $expectedHash)) {
                 throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
@@ -298,7 +299,7 @@ final class MediaGenerationCoordinator
             if ($model->category !== 'audio' || ! MediaModelConfig::allowedFor($user, $model)) {
                 throw new ImageGenerationException('The selected audio model is unavailable.', 503);
             }
-            $resolved = $this->resolver->resolve($model, $operation);
+            $resolved = $this->resolveNative($model, $operation);
             $expectedHash = $options['expected_capability_hash'] ?? null;
             if (is_string($expectedHash) && $expectedHash !== '' && ! hash_equals($resolved->sourceHash, $expectedHash)) {
                 throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
@@ -392,7 +393,8 @@ final class MediaGenerationCoordinator
                 continue;
             }
             foreach (is_array($value) ? $value : [$value] as $assetId) {
-                $asset = MediaAsset::find($assetId);
+                // Asset ids are uuid columns: PostgreSQL errors on any other literal, so a malformed id is simply unknown.
+                $asset = is_string($assetId) && Str::isUuid($assetId) ? MediaAsset::find($assetId) : null;
                 if ($asset === null) {
                     throw new ImageGenerationException('A referenced asset could not be found.', 422);
                 }
@@ -465,6 +467,19 @@ final class MediaGenerationCoordinator
             && trim((string) ($job->settings['cta'] ?? '')) === ($execution['cta'] ?? '')
             && (bool) ($job->settings['ugc_variation'] ?? false) === (bool) ($execution['ugc_variation'] ?? false)
         );
+    }
+
+    /**
+     * Fixed-form studio entrypoints execute only version-1 contracts; a schema contract or a
+     * disabled operation is a member-facing availability error, never a server fault.
+     */
+    private function resolveNative(AiModelProfile $model, MediaOperation $operation): ResolvedCapability
+    {
+        try {
+            return $this->resolver->resolve($model, $operation);
+        } catch (CapabilityConfigException) {
+            throw new ImageGenerationException('This model operation is unavailable in this studio. Open it from the media workspace.', 503);
+        }
     }
 
     private function fingerprint(AiModelProfile $model): string

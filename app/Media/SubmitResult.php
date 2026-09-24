@@ -13,12 +13,14 @@ final readonly class SubmitResult
         public ?string $taskId = null,
         public ?array $resultUrls = null,
         public ?string $publicError = null,
+        /** Complete provider JSON, including native base64 images and non-file fields. Internal only. */
+        public mixed $resultData = null,
     ) {}
 
     /** @param  string[]  $resultUrls */
-    public static function immediate(array $resultUrls): self
+    public static function immediate(array $resultUrls, mixed $resultData = null): self
     {
-        return new self(SubmitOutcome::Immediate, resultUrls: array_values($resultUrls));
+        return new self(SubmitOutcome::Immediate, resultUrls: array_values($resultUrls), resultData: $resultData);
     }
 
     public static function accepted(string $taskId): self

@@ -44,12 +44,12 @@ test('saved history opens from a chat deep link and deletes only the member conv
     const otherMessages = (await forbiddenRead.json()).messages || [];
     expect(otherMessages).toEqual([]);
     await other.context.close();
-    const conversation = page.locator('.cw-conv').filter({ hasText: 'QA saved conversation' }).first();
+    const conversation = page.locator('.cwp-history-row').filter({ hasText: 'QA saved conversation' }).first();
     await expect(conversation).toBeVisible();
     const deletion = page.waitForResponse(response => response.url().endsWith('/api/c/h/qa-member-history') && response.request().method() === 'DELETE');
-    page.on('dialog', dialog => dialog.accept());
-    await conversation.hover();
-    await conversation.getByRole('button', { name: /Delete conversation|Hapus percakapan/ }).click();
+    await conversation.locator('summary').click();
+    await conversation.getByRole('button', { name: /^(Delete|Hapus)$/ }).click();
+    await page.getByRole('dialog').getByRole('button', { name: /Delete conversation|Hapus percakapan/ }).click();
     expect((await deletion).status()).toBe(200);
     expect(databaseRows('chat_history', { conversation_id: 'qa-member-history' })).toHaveLength(0);
     await page.reload();

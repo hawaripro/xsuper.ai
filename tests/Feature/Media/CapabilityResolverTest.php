@@ -5,7 +5,9 @@ namespace Tests\Feature\Media;
 use App\Media\CapabilityResolver;
 use App\Media\Enums\InputRole;
 use App\Media\Enums\MediaOperation;
+use App\Media\Enums\OutputKind;
 use App\Media\Exceptions\CapabilityConfigException;
+use App\Media\MediaCapability;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\MediaCapabilityRevision;
@@ -85,5 +87,49 @@ class CapabilityResolverTest extends TestCase
 
         $this->assertSame($rev1->id, $rev2->id);
         $this->assertSame(1, MediaCapabilityRevision::where('ai_model_profile_id', $model->id)->count());
+    }
+
+    private function publishedSchemaModel(string $boundEndpoint = 'acme/studio/edit'): AiModelProfile
+    {
+        $provider = AiProviderProfile::create([
+            'slug' => 'fal', 'name' => 'Fal', 'protocol' => 'fal',
+            'base_url' => 'https://fal.run', 'api_key' => 'k', 'is_enabled' => true,
+        ]);
+        $model = AiModelProfile::create([
+            'provider_id' => $provider->id, 'model_id' => 'acme/studio-edit', 'upstream_model_id' => 'acme/studio/edit',
+            'display_name' => 'Studio Edit', 'category' => 'image', 'is_enabled' => true, 'is_available' => true, 'token_cost' => 12,
+        ]);
+        $input = ['type' => 'object', 'required' => ['prompt'], 'properties' => ['prompt' => ['type' => 'string']]];
+        $capability = new MediaCapability($model->model_id, MediaOperation::ImageEdit, OutputKind::Image, 2, inputSchema: $input, outputSchema: ['type' => 'object']);
+        MediaCapabilityRevision::create([
+            'ai_model_profile_id' => $model->id, 'operation' => 'image_edit', 'contract_version' => 2, 'revision' => 1,
+            'status' => 'published', 'definition' => $capability->toArray(), 'source_hash' => 'h', 'source_schema' => ['openapi' => '3.0.4'],
+            'provider_bindings' => ['adapter' => 'fal_schema_v2', 'endpoint' => $boundEndpoint, 'transport' => 'queue',
+                'queue_root' => 'acme/studio', 'request_schema' => $input, 'output_schema' => ['type' => 'object'], 'constants' => []],
+        ]);
+
+        return $model;
+    }
+
+    public function test_schema_contract_is_only_resolved_for_the_unified_workspace(): void
+    {
+        $model = $this->publishedSchemaModel();
+        $resolver = app(CapabilityResolver::class);
+
+        $resolved = $resolver->resolve($model, MediaOperation::ImageEdit, schemaContracts: true);
+        $this->assertSame(2, $resolved->capability->contractVersion);
+        $this->assertSame(['prompt'], $resolved->capability->inputSchema['required']);
+
+        // A fixed-form legacy studio must never execute (or fall back beneath) a schema contract.
+        $this->expectException(CapabilityConfigException::class);
+        $resolver->resolve($model, MediaOperation::ImageEdit);
+    }
+
+    public function test_schema_contract_bound_to_another_endpoint_fails_closed(): void
+    {
+        $model = $this->publishedSchemaModel('acme/other/model');
+
+        $this->expectException(CapabilityConfigException::class);
+        app(CapabilityResolver::class)->resolve($model, MediaOperation::ImageEdit, schemaContracts: true);
     }
 }

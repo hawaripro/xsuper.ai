@@ -13,6 +13,7 @@ use App\Models\ImageJob;
 use App\Models\MediaAsset;
 use App\Models\User;
 use App\Models\UserToken;
+use App\Services\AiProviderEndpoint;
 use App\Services\ImageGenerationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -22,10 +23,10 @@ use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * F1b image_edit (reference) pipeline: an owned private reference asset is minted into a
- * short-lived cookie-independent provider-fetch grant that the adapter passes as uploadedUrls,
- * and the job persists the stable asset id (never a signed URL). All provider calls are
- * Http::fake (mock) — NOT live Kinovi.
+ * F1b image_edit (reference) pipeline: an owned private reference asset is streamed through
+ * Kinovi's own upload lifecycle at submission, the provider receives only the file Kinovi
+ * stored, and the job persists the stable asset id (never a URL). Provider fetch grants stay
+ * time-limited. All provider calls are Http::fake (mock) — NOT live Kinovi.
  */
 class ImageReferenceLifecycleTest extends TestCase
 {
@@ -65,18 +66,33 @@ class ImageReferenceLifecycleTest extends TestCase
         return $bytes;
     }
 
-    public function test_image_edit_lifecycle_mints_grant_and_persists_stable_asset_id(): void
+    public function test_image_edit_stages_the_reference_through_kinovi_upload_and_persists_stable_asset_id(): void
     {
         Storage::fake('local');
-        Http::fake([
-            'https://kinovi.ai/api/v1/jobs/createTask' => Http::response(['taskId' => 'edit_task']),
-            'https://kinovi.ai/api/v1/jobs/recordInfo*' => Http::response(['status' => 'success', 'output' => [['url' => 'https://static.seedance2-pro.com/x.png']]]),
-            'https://static.seedance2-pro.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
-        ]);
+        $this->app->instance(AiProviderEndpoint::class, new class extends AiProviderEndpoint
+        {
+            protected function resolveAddresses(string $host): array
+            {
+                return ['93.184.216.34'];
+            }
+        });
         $model = $this->model();
         $user = User::factory()->create();
         UserToken::topup($user->id, 100);
         $asset = $this->reference($user);
+        $upload = 'https://storage.example.test/inputs/ref.jpg?X-Amz-Signature=upload-secret';
+        $stored = 'https://media.example.test/inputs/ref.jpg';
+        Http::fake([
+            'https://kinovi.ai/api/v1/uploads*' => Http::sequence()
+                ->push(['uploadUrl' => $upload, 'url' => $stored, 'path' => 'inputs/ref.jpg', 'method' => 'PUT', 'contentType' => 'image/jpeg',
+                    'expiresIn' => 900, 'confirmUrl' => '/api/v1/uploads?path=inputs%2Fref.jpg', 'assetTtlSeconds' => 86400])
+                ->push(['path' => 'inputs/ref.jpg', 'url' => $stored, 'size' => $asset->size_bytes, 'contentType' => 'image/jpeg',
+                    'uploadedAt' => gmdate('Y-m-d\TH:i:s\Z'), 'expiresAt' => gmdate('Y-m-d\TH:i:s\Z', time() + 86400), 'assetTtlSeconds' => 86400]),
+            $upload => Http::response('', 200),
+            'https://kinovi.ai/api/v1/jobs/createTask' => Http::response(['taskId' => 'edit_task']),
+            'https://kinovi.ai/api/v1/jobs/recordInfo*' => Http::response(['status' => 'success', 'output' => [['url' => 'https://static.seedance2-pro.com/x.png']]]),
+            'https://static.seedance2-pro.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        ]);
         $svc = app(ImageGenerationService::class);
 
         $job = $svc->generate($user, 'kinovi-ai/gpt-image-2', 'make it a watercolor', '1024x1024', 1, [
@@ -91,17 +107,10 @@ class ImageReferenceLifecycleTest extends TestCase
 
         $svc->process($job->id);
 
-        // The provider received a grant URL (signed media.asset.deliver for this asset), never a raw path.
-        Http::assertSent(function ($request) use ($asset): bool {
-            if (! str_contains($request->url(), '/jobs/createTask')) {
-                return false;
-            }
-            $uploaded = data_get($request->data(), 'inputs.uploadedUrls');
-
-            return is_array($uploaded) && count($uploaded) === 1
-                && str_contains($uploaded[0], 'signature=')
-                && str_contains($uploaded[0], $asset->id);
-        });
+        // The reference bytes went through Kinovi's upload, and the provider received only the stored file.
+        Http::assertSent(fn ($request): bool => $request->method() === 'PUT' && $request->url() === $upload);
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), '/jobs/createTask')
+            && data_get($request->data(), 'inputs.uploadedUrls') === [$stored]);
 
         $this->travel(10)->seconds();
         $svc->poll($job->id);
@@ -110,6 +119,43 @@ class ImageReferenceLifecycleTest extends TestCase
         $this->assertSame('completed', $job->status);
         $this->assertSame('settled', $job->billing_status);
         $this->assertSame(90, UserToken::getBalance($user->id), 'settled once, not double-charged');
+    }
+
+    public function test_the_reference_upload_happens_before_the_job_is_marked_as_submitting(): void
+    {
+        Storage::fake('local');
+        $this->app->instance(AiProviderEndpoint::class, new class extends AiProviderEndpoint
+        {
+            protected function resolveAddresses(string $host): array
+            {
+                return ['93.184.216.34'];
+            }
+        });
+        $model = $this->model();
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        $asset = $this->reference($user);
+        $svc = app(ImageGenerationService::class);
+        $job = $svc->generate($user, 'kinovi-ai/gpt-image-2', 'make it a watercolor', '1024x1024', 1, [
+            'operation' => 'image_edit', 'reference_image' => $asset->id,
+            'expected_price_tokens' => 10, 'expected_capability_hash' => $this->editHash($model),
+        ]);
+        $seen = null;
+        Http::fake([
+            'https://kinovi.ai/api/v1/uploads*' => function () use ($job, &$seen) {
+                $seen = [$job->fresh()->stage, $job->fresh()->submitted_at];
+
+                return Http::response('', 503);
+            },
+            'https://kinovi.ai/api/v1/jobs/createTask' => Http::response(['taskId' => 'never']),
+        ]);
+        $svc->process($job->id);
+
+        $this->assertSame(['preparing', null], $seen, 'uploading a reference is not a paid submission');
+        $job->refresh();
+        $this->assertSame(['failed', 'released'], [$job->status, $job->billing_status]);
+        $this->assertSame(100, UserToken::getBalance($user->id));
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/jobs/createTask'));
     }
 
     public function test_missing_required_reference_is_rejected_before_reserve(): void

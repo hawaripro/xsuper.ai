@@ -141,6 +141,9 @@ MEDIA_NODE_PATH=/usr/bin/node
 MEDIA_KILL_SWITCH=false
 MEDIA_COORDINATOR_RESTRICTED=false
 
+# Sesi video realtime berharga eksplisit; boleh dipendekkan, tidak melebihi 60 detik.
+REALTIME_MEDIA_MAX_SESSION_SECONDS=60
+
 # Provider AI
 AI_PROXY_URL=
 AI_PROXY_KEY=
@@ -284,6 +287,8 @@ sudo systemctl enable --now xsuper-queue xsuper-media xsuper-reverb
 sudo crontab -u ultrax -e
 * * * * * cd /home/ultrax/apps/xsuper && /usr/bin/php artisan schedule:run >> /dev/null 2>&1
 ```
+Scheduler juga menjalankan `media:reconcile-workspace` dan `media:reconcile-realtime` setiap menit. Yang pertama memulihkan antrean/polling/penyimpanan tanpa mengulang pengiriman berbayar; yang kedua menutup lease realtime kedaluwarsa dan merekonsiliasi admission yang terputus. Jangan menggantinya dengan loop pengiriman ulang atau refund otomatis: penerimaan provider yang belum pasti tetap ditahan.
+
 
 ## 12. Google OAuth
 Authorized redirect URI: `https://xsuper.dev/auth/google/callback`
@@ -310,19 +315,49 @@ sudo systemctl restart php8.4-fpm xsuper-queue xsuper-media xsuper-reverb
 ```
 Pastikan `git status` bersih sebelum pull. Kalau ada perubahan lokal di server, itu tanda ada sesuatu yang belum masuk repo — commit ke repo, jangan dibiarkan sebagai diff server.
 
+## Persiapan workspace chat dan media global
+
+Bagian ini adalah prosedur saat deployment disetujui, bukan pernyataan bahwa perubahan lokal sudah terpasang di production.
+
+- Jalankan `composer install` dari lockfile: validator kontrak v2 membutuhkan dependency runtime `opis/json-schema`.
+- Backup database sebelum migrasi. Tujuh migrasi — enam `2026_09_23_120000`–`120040` (workspace/lampiran chat, operasi streaming, artefak dan revisinya, admission/job media global, nama asli aset, sesi realtime) dan `2026_09_25_000001` (kolom `image_jobs.batch_key` untuk permintaan beberapa gambar) — hanya menambah; riwayat `chat_history` serta job native tetap digunakan. Jangan menjalankan `migrate:fresh` di database pengguna.
+- Pastikan worker antrean `media` dan scheduler berjalan. Panggilan media generik memakai job tahan-restart; sesi realtime memakai lease terbatas, bukan job polling.
+- Discovery katalog bukan publikasi. Untuk membuat kandidat v2 dari skema yang sudah tersimpan, gunakan command offline berikut sebagai pemilik aplikasi; `PROVIDER_ID` dan `ADMIN_ID` adalah ID database yang sebenarnya:
+
+```bash
+sudo -H -u ultrax php artisan media:renormalize-catalog \
+  --provider=PROVIDER_ID --actor=ADMIN_ID --limit=100 \
+  --report=storage/logs/media-contract-coverage.ndjson
+```
+
+Lanjutkan batch dengan `--after=<next_after>` dari ringkasan sampai `next_after` bernilai `null`. Command ini tidak menghubungi provider, menetapkan harga, mengaktifkan model, atau memublikasikan kandidat. Tinjau blockers per endpoint; jangan mengarang input untuk sumber yang tidak mempunyai kontrak request.
+
+Setiap kali importer/normalizer kontrak berubah (termasuk pada deploy pertama cabang ini), jalankan ulang command di atas untuk semua provider Fal. Kontrak yang sudah terbit tidak berubah sendiri: command hanya membuat revisi kandidat baru, dan pekerjaan lama tetap memakai revisinya. Publikasi bulk hanya untuk model baru tanpa harga positif. Untuk model yang sudah berharga (contoh: revisi Director yang field berkasnya kini menerima tautan HTTPS publik), buka **Katalog AI → provider → Tinjau capability**, pilih revisi baru, centang persetujuan harga dan unit yang berlaku, lalu **Publikasikan revisi**. Harga tidak berubah.
+
+Admin memilih kandidat, meninjau tarif/unit serta biaya konfigurasi variabel, lalu mengonfirmasi publikasi lewat katalog. Model baru tanpa harga tetap tidak tersedia untuk member; harga positif yang sudah ada tidak ditimpa. Kontrak v2 dijalankan lewat `/media` dan workspace studio bersama, bukan endpoint formulir legacy v1. Credential/provider bindings tidak dikirim ke browser.
+
+Realtime Director memerlukan dukungan WebRTC/data channel di browser dan akses ke layanan WMA provider. Tarif sesi dan batas waktunya harus ditinjau sebelum publikasi; `REALTIME_MEDIA_MAX_SESSION_SECONDS` hanya dapat memperpendek plafon 60 detik. Menutup koneksi tidak membuktikan refund; sesi yang penerimaannya belum pasti tidak dikirim ulang. Rekaman opsional menyimpan byte stream yang benar-benar diterima dan tetap memakai kuota akun.
+
+Chat memakai capability server untuk lampiran, tools, stop, dan model. Web search, code interpreter, dan revisi artefak dengan AI tidak diaktifkan tanpa executor yang nyata. Voice mengikuti dukungan serta izin browser. Artefak teks memiliki revisi immutable, HTML dipreview dalam sandbox tanpa script, dan hasil biner asli diunduh melalui endpoint milik pengguna.
+
 ## Checklist verifikasi setelah deploy
 - `https://xsuper.dev/up` → 200.
 - Halaman login render (bundel `app-*.js` terbaru terpakai).
 - `systemctl is-active php8.4-fpm xsuper-queue xsuper-media xsuper-reverb` → semua `active`.
 - Jalankan satu job (mis. Hapus Latar) lalu `tail storage/logs/laravel.log` → tidak ada `Pusher error`.
-- Studio gambar: model `gpt-image-2` memunculkan mode **Edit dengan referensi**.
-- Studio video: model image-to-video memunculkan tab **Gambar ke video**.
+- Studio gambar/video/audio/avatar/3D: operasi, input, tarif, dan hasil mengikuti capability model; uji operasi native yang sebelumnya tersedia serta satu kandidat v2 yang sudah ditinjau. Fitur studio lama tetap ada: video (Teks/Gambar ke video, Produk dengan sudut kamera, UGC dengan alur cerita, CTA, Jumlah video, variasi, Pro 2×), gambar (dialog konfirmasi, variasi, Bandingkan, zoom), audio (Voiceover/Musik, pilihan suara dan bahasa, lirik sendiri/instrumental/tempo, pilih track), avatar (izin wajah dan suara, aturan penggunaan), serta riwayat (hapus per baris dan Bersihkan riwayat untuk gambar/video).
+- Chat: buka riwayat lama, kirim/stop respons, pindah percakapan dengan draft/lampiran, simpan notes, lalu simpan dan unduh revisi artefak.
 - Library: tab **Hapus Latar** berisi hasil.
+- `/media`: model tanpa harga/publikasi/izin tidak ditawarkan; download hasil tetap privat dan kegagalan penyimpanan tidak memicu generasi baru.
+- `php artisan schedule:list`: rekonsiliasi workspace dan realtime tercantum; batas sesi serta tarif realtime ditampilkan sebelum Start.
 
 ## Catatan penting
 - **Caddy `admin off`** → `systemctl reload caddy` SELALU gagal (`localhost:2019 connection refused`). Gunakan `caddy validate` lalu `systemctl restart caddy`.
 - **Reverb `/apps/*`** wajib di-proxy (lihat komentar di Caddyfile), kalau tidak update realtime mati.
-- **Aktivasi coordinator**: `MEDIA_COORDINATOR_RESTRICTED=true` membatasi jalur capability coordinator hanya ke `MEDIA_COORDINATOR_USER_ID` (satu user pilot); user lain jatuh ke jalur lama dan kapabilitas `image_edit` dipangkas sehingga **"Edit dengan referensi" tidak muncul**. Untuk membuka ke semua user: `MEDIA_COORDINATOR_RESTRICTED=false`.
+- **Aktivasi coordinator — PRASYARAT DEPLOY (keputusan pemilik produk, 25 Sep 2026)**: cabang ini dideploy dengan `MEDIA_COORDINATOR_RESTRICTED=false`, sehingga semua member memakai jalur coordinator lewat workspace global (kelima studio tidak lagi memakai jalur lama). Keputusan diambil karena server belum punya member sungguhan (masih uji). Setelah mengubah `.env`, jalankan `php artisan config:cache` lalu restart `xsuper-media` dan `xsuper-queue`, dan pastikan nilai efektifnya `false` di proses web maupun worker. Jika dibiarkan `true`, workspace menolak semua user selain `MEDIA_COORDINATOR_USER_ID` (studio menampilkan "restricted"). Permintaan beberapa gambar native berjalan sebagai beberapa job (satu gambar per job) dan ditampilkan sebagai satu set variasi.
+- **Hasil media yang menunggu tinjauan**: job workspace yang sudah diterima provider tetapi hasilnya tidak dapat diambil dalam 6 jam, atau yang koneksi providernya berubah (fingerprint berbeda), berpindah ke `status=uncertain`, `stage=result_uncertain`. Token tetap dicadangkan (tidak dikembalikan, tidak ditagih) dan tidak ada generasi baru. Menyimpan ulang API key yang sama tidak mengubah fingerprint. **Belum ada layar admin** untuk job workspace (`/admin/media/queue` hanya memuat job native dan tidak memfilter `uncertain`); rekonsiliasi `workspace_media_jobs` berstatus `uncertain` (`submission_uncertain` maupun `result_uncertain`) saat ini hanya lewat kueri database manual.
+- **Stream chat workspace**: batas 120 detik adalah batas DIAM (tanpa byte masuk), bukan batas total; jawaban panjang yang terus mengalir tidak dipotong.
+- **Kolasi PostgreSQL**: migrasi `2026_09_23_120001` memasang ulang `COLLATE public.xsuper_unicode_ci` pada `chat_history.model`, `chat_history.content`, dan `usage_logs.model` setelah `->change()`. Setelah migrasi, periksa `information_schema.columns.collation_name` untuk ketiga kolom itu (harus `xsuper_unicode_ci`). Diverifikasi di profil tes PostgreSQL 18 lokal.
 - **`MEDIA_KILL_SWITCH=true`** menghentikan SEMUA pengiriman job media baru (job berjalan tetap selesai).
 - **Mail**: `MAIL_MAILER=resend` membutuhkan `resend/resend-php` (sudah menjadi dependency repo) dan `RESEND_API_KEY`.
 - **API key**: prefix `xsuper-`; key lama `ultrai-` tidak berlaku.

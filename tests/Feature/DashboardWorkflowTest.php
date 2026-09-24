@@ -154,6 +154,31 @@ class DashboardWorkflowTest extends TestCase
         $this->assertFalse($recent->contains(fn ($item) => $item['title'] === 'Not mine'));
     }
 
+    public function test_dashboard_and_search_use_renamed_titles_and_never_list_deleted_conversations(): void
+    {
+        $member = User::factory()->create();
+        foreach (['renamed' => 'Original quarterly question', 'kept' => 'Kept quarterly question', 'deleted' => 'Deleted quarterly question'] as $conversationId => $content) {
+            DB::table('chat_history')->insert([
+                'user_id' => $member->id, 'conversation_id' => $conversationId, 'role' => 'user',
+                'content' => $content, 'model' => 'chat-alpha', 'created_at' => now(),
+            ]);
+        }
+        $this->actingAs($member)->patchJson('/api/c/h/renamed', ['title' => 'Sales forecast'])->assertOk();
+        $this->deleteJson('/api/c/h/deleted')->assertOk();
+        // A late write under the tombstone must not resurrect the deleted conversation.
+        DB::table('chat_history')->insert([
+            'user_id' => $member->id, 'conversation_id' => 'deleted', 'role' => 'assistant',
+            'content' => 'Late quarterly reply', 'model' => 'chat-alpha', 'created_at' => now(),
+        ]);
+
+        $dashboard = $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('activity.conversation_count', 2);
+        $this->assertEqualsCanonicalizing(['Sales forecast', 'Kept quarterly question'], array_column($dashboard->json('activity.recent'), 'title'));
+        $searchTitles = fn (string $query): array => array_column(
+            collect($this->getJson('/api/dashboard/search?q='.$query)->assertOk()->json('groups'))->firstWhere('id', 'conversations')['results'] ?? [], 'title');
+        $this->assertSame(['Sales forecast'], $searchTitles('forecast'));
+        $this->assertEqualsCanonicalizing(['Sales forecast', 'Kept quarterly question'], $searchTitles('quarterly'));
+    }
+
     public function test_disabling_the_last_curated_model_does_not_republish_upstream_fallbacks(): void
     {
         Http::fake(['*' => Http::response(['data' => [

@@ -11,6 +11,7 @@ use App\Models\UserDevice;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -182,30 +183,41 @@ class DashboardController extends Controller
 
     private function conversationSummary(int $userId): array
     {
-        $conversations = DB::table('chat_history')
-            ->where('user_id', $userId)
-            ->select(
-                'conversation_id',
-                DB::raw('MAX(created_at) as last_message'),
-                DB::raw("(SELECT content FROM chat_history ch2 WHERE ch2.user_id = chat_history.user_id AND ch2.conversation_id = chat_history.conversation_id AND ch2.role = 'user' ORDER BY ch2.created_at ASC LIMIT 1) as title"),
-                DB::raw('(SELECT model FROM chat_history ch3 WHERE ch3.user_id = chat_history.user_id AND ch3.conversation_id = chat_history.conversation_id AND ch3.model IS NOT NULL ORDER BY ch3.created_at DESC LIMIT 1) as model'),
-            )
-            ->groupBy('user_id', 'conversation_id')
-            ->orderByDesc('last_message')
-            ->get();
+        $history = DB::table('chat_history')->where('user_id', $userId)->where('conversation_id', '<>', '')
+            ->select('conversation_id')->selectRaw('MAX(created_at) as last_message')->groupBy('conversation_id');
+        // Chat metadata owns renamed titles; its tombstone hides a deleted conversation even if a stray message survives.
+        $conversations = DB::query()->fromSub($history, 'history')
+            ->leftJoin('chat_conversations as metadata', function (JoinClause $join) use ($userId): void {
+                $join->on('metadata.conversation_key', '=', 'history.conversation_id')->where('metadata.user_id', '=', $userId);
+            })
+            ->whereNull('metadata.deleted_at');
+        $count = (clone $conversations)->count();
 
         $recent = $conversations
-            ->take(8)
-            ->map(fn (object $conversation): array => [
-                'id' => $conversation->conversation_id,
-                'type' => 'conversation',
-                'title' => $conversation->title ? mb_substr($conversation->title, 0, 50) : 'New Chat',
-                'model' => $conversation->model,
-                'occurred_at' => $this->timestamp($conversation->last_message),
-            ])
+            ->select('history.conversation_id', 'history.last_message', 'metadata.title as metadata_title', 'metadata.title_is_custom')
+            ->selectSub(DB::table('chat_history as first_message')->selectRaw('SUBSTR(first_message.content, 1, 160)')
+                ->where('first_message.user_id', $userId)->whereColumn('first_message.conversation_id', 'history.conversation_id')
+                ->where('first_message.role', 'user')->orderBy('first_message.created_at')->orderBy('first_message.id')->limit(1), 'first_message')
+            ->selectSub(DB::table('chat_history as latest_message')->select('latest_message.model')
+                ->where('latest_message.user_id', $userId)->whereColumn('latest_message.conversation_id', 'history.conversation_id')
+                ->whereNotNull('latest_message.model')->orderByDesc('latest_message.created_at')->orderByDesc('latest_message.id')->limit(1), 'model')
+            ->orderByDesc('history.last_message')->orderBy('history.conversation_id')
+            ->limit(8)
+            ->get()
+            ->map(function (object $conversation): array {
+                $title = $conversation->title_is_custom ? (string) $conversation->metadata_title : trim((string) $conversation->first_message);
+
+                return [
+                    'id' => $conversation->conversation_id,
+                    'type' => 'conversation',
+                    'title' => $title !== '' ? mb_substr($title, 0, 50) : 'New Chat',
+                    'model' => $conversation->model,
+                    'occurred_at' => $this->timestamp($conversation->last_message),
+                ];
+            })
             ->values();
 
-        return ['count' => $conversations->count(), 'recent' => $recent];
+        return ['count' => $count, 'recent' => $recent];
     }
 
     private function services(): array
@@ -229,7 +241,8 @@ class DashboardController extends Controller
     private function actions(User $user): array
     {
         $actions = [];
-        $hasAccess = (bool) $user->is_active && ! $user->isExpired();
+        // Same rule as EnsureActive/CheckExpiry: only an explicit false is inactive (an unloaded column is null).
+        $hasAccess = $user->is_active !== false && ! $user->isExpired();
 
         if ($hasAccess && $user->hasPermission('chat')) {
             $actions[] = ['key' => 'chat', 'label' => 'Chat AI', 'href' => '/chat'];

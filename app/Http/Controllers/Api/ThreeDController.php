@@ -13,9 +13,11 @@ use App\Media\MediaActivation;
 use App\Media\MediaGenerationCoordinator;
 use App\Models\AiModelProfile;
 use App\Models\ThreeDJob;
+use App\Models\User;
 use App\Models\UserToken;
 use App\Services\GeneratedModel3dStore;
 use App\Services\MediaModelConfig;
+use App\Services\StorageQuotaService;
 use App\Services\ThreeDGenerationService;
 use App\Services\ThreeDProtocol;
 use Illuminate\Http\JsonResponse;
@@ -46,7 +48,7 @@ class ThreeDController extends Controller
                     }
                 })
                 ->map(function (AiModelProfile $model) use ($presenter): array {
-                    return [...MediaModelConfig::publicModel($model), 'capabilities' => $presenter->forModel($model),
+                    return [...MediaModelConfig::publicModel($model), 'capabilities' => MediaModelConfig::legacyCapabilities($presenter->forModel($model)),
                         'format' => 'glb', 'fixed_settings' => ThreeDProtocol::FIXED_PARAMS];
                 })->filter(fn (array $model): bool => isset($model['capabilities']['image_to_3d']))->values()->all();
         }
@@ -124,10 +126,14 @@ class ThreeDController extends Controller
             if (! $request->user()->isAdmin()) {
                 $query->where('user_id', $request->user()->id);
             }
+            $ownerId = (clone $query)->value('user_id');
+            abort_if($ownerId === null, 404);
+            $user = User::query()->whereKey($ownerId)->lockForUpdate()->firstOrFail();
             $job = $query->lockForUpdate()->firstOrFail();
             if (in_array($job->status, ['pending', 'processing'], true)) {
                 throw ValidationException::withMessages(['job' => 'Wait for this generation to finish before deleting it.']);
             }
+            app(StorageQuotaService::class)->assertJobUnreferenced($user, 'model3d:'.$job->job_id);
             $directory = dirname(GeneratedModel3dStore::path($job->job_id));
             $disk = Storage::disk('local');
             if ($disk->exists($directory) && ! $disk->deleteDirectory($directory)) {

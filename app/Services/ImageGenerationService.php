@@ -7,6 +7,7 @@ use App\Exceptions\ImageGenerationException;
 use App\Jobs\PollImageJob;
 use App\Jobs\ProcessImageJob;
 use App\Media\CapabilityResolver;
+use App\Media\Contracts\StagesProviderReferences;
 use App\Media\Enums\MediaOperation;
 use App\Media\Enums\MediaState;
 use App\Media\Enums\OutputKind;
@@ -32,6 +33,8 @@ class ImageGenerationService
     private const POLL_DELAY_SECONDS = 8;
 
     private const POLL_LEASE_SECONDS = 300;
+
+    private const UNCERTAIN_MESSAGE = 'The image provider did not confirm that it accepted this request. Reserved tokens stay reserved and the request will not be submitted again.';
 
     public function __construct(
         private readonly AiProxyService $proxy,
@@ -215,6 +218,8 @@ class ImageGenerationService
         ImageJob::query()
             ->where('status', 'processing')
             ->where('billing_status', 'reserved')
+            // Unknown provider acceptance is never refunded or resubmitted merely because time passed.
+            ->where('stage', '!=', 'submission_uncertain')
             ->where('updated_at', '<=', $staleBefore)
             ->orderBy('id')
             ->chunkById(100, function ($jobs) use (&$reconciled, $staleBefore): void {
@@ -228,7 +233,19 @@ class ImageGenerationService
                         if ($locked->processing_started_at !== null && $locked->processing_started_at->gt(now()->subSeconds(self::POLL_LEASE_SECONDS))) {
                             return false;
                         }
-                        if (! empty($locked->provider_result_urls) && ($locked->submitted_at ?? $locked->created_at)->gte(now()->subMinutes(30))) {
+                        if ($locked->stage === 'submission_uncertain') {
+                            return false;
+                        }
+                        if ($locked->stage === 'submitting') {
+                            // The claim expired mid-submission, so the paid request may have been accepted.
+                            // The claim token stays: a still-running worker can record its authoritative outcome.
+                            $locked->update(['stage' => 'submission_uncertain', 'error_message' => self::UNCERTAIN_MESSAGE,
+                                'processing_started_at' => null, 'next_poll_at' => null]);
+
+                            return true;
+                        }
+                        if ((! empty($locked->provider_result_urls) || ! empty($locked->provider_result_data))
+                            && ($locked->submitted_at ?? $locked->created_at)->gte(now()->subMinutes(30))) {
                             // The provider already completed. Recover only private output storage, never submit again.
                             $locked->update(['stage' => 'rendering', 'processing_started_at' => null, 'processing_token' => null, 'next_poll_at' => now()]);
                             DB::afterCommit(fn () => $this->queuePoll($locked->id));
@@ -250,7 +267,7 @@ class ImageGenerationService
                         $locked->update([
                             'status' => 'failed', 'stage' => 'failed',
                             'result_urls' => null,
-                            'provider_result_urls' => null,
+                            'provider_result_urls' => null, 'provider_result_data' => null,
                             'error_message' => 'Image generation timed out.',
                             'billing_status' => 'released',
                         ]);
@@ -292,7 +309,8 @@ class ImageGenerationService
                 return null;
             }
             $job->update([
-                'status' => 'processing', 'stage' => 'submitting', 'processing_started_at' => now(),
+                // Preparation (request building, reference uploads) has no paid side effect; see the submitting mark below.
+                'status' => 'processing', 'stage' => 'preparing', 'processing_started_at' => now(),
                 'processing_token' => (string) Str::uuid(), 'next_poll_at' => null,
             ]);
 
@@ -313,12 +331,41 @@ class ImageGenerationService
             $request = $adapter->buildRequest($capability, [
                 'inputs' => $inputs,
                 'params' => $hasSize ? ['size' => $job->size] : [],
+                'owner_id' => $job->user_id, 'generation_config' => $job->generation_config,
             ], (string) $job->upstream_model_id);
+        } catch (Throwable) {
+            // Nothing has been sent upstream, so the request cannot have been charged by the provider.
+            $this->failClaim($job, 'The saved image connection or inputs are no longer available. No generation was submitted and reserved tokens have been returned.');
+
+            return;
+        }
+        if ($adapter instanceof StagesProviderReferences) {
+            try {
+                $request = $adapter->stageReferences($provider, $request);
+            } catch (Throwable) {
+                $this->failClaim($job, 'The reference file could not be staged. No generation was submitted and reserved tokens have been returned.');
+
+                return;
+            }
+        }
+        // Only now can a paid request be accepted: a claim that expires from here on is an unknown acceptance.
+        $job = DB::transaction(function () use ($job): ?ImageJob {
+            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
+            if (! $this->ownsClaim($locked, $job)) {
+                return null;
+            }
+            $locked->update(['stage' => 'submitting', 'processing_started_at' => now()]);
+
+            return $locked;
+        });
+        if (! $job) {
+            return;
+        }
+        try {
             $submit = $adapter->submit($provider, $request);
         } catch (Throwable) {
-            // Acceptance is unknown: never refund or resubmit on an unexpected submit error;
-            // free the lease and let bounded stale-reservation reconciliation resolve it.
-            $this->releaseClaimForReconcile($job);
+            // Acceptance is unknown after an unexpected submit error: keep the reservation, never resubmit.
+            $this->markUncertain($job);
 
             return;
         }
@@ -329,13 +376,19 @@ class ImageGenerationService
             return;
         }
         if ($submit->outcome === SubmitOutcome::Uncertain) {
-            // Submit timeout / unknown acceptance: do NOT refund or resubmit; reconcile later.
-            $this->releaseClaimForReconcile($job);
+            // Timeouts and successful HTTP responses without a usable acknowledgement alike.
+            $this->markUncertain($job);
 
             return;
         }
         if ($submit->outcome === SubmitOutcome::Immediate) {
-            $saving = $this->claimForSaving($job, $submit->resultUrls ?? []);
+            if (($submit->resultUrls ?? []) === [] && empty($submit->resultData['data'])) {
+                // A successful response without any usable image must be neither settled nor refunded.
+                $this->markUncertain($job);
+
+                return;
+            }
+            $saving = $this->claimForSaving($job, $submit->resultUrls ?? [], $submit->resultData);
             if ($saving) {
                 try {
                     $this->finalize($saving, $submit->resultUrls ?? []);
@@ -343,6 +396,12 @@ class ImageGenerationService
                     $this->revertSavingToRendering($saving);
                 }
             }
+
+            return;
+        }
+        if (! is_string($submit->taskId) || $submit->taskId === '') {
+            // An acceptance without a task handle cannot be polled, so acceptance remains unknown.
+            $this->markUncertain($job);
 
             return;
         }
@@ -354,7 +413,7 @@ class ImageGenerationService
             }
             $locked->update([
                 'upstream_job_id' => $submit->taskId, 'submitted_at' => now(), 'stage' => 'rendering',
-                'processing_started_at' => null, 'processing_token' => null,
+                'processing_started_at' => null, 'processing_token' => null, 'error_message' => null,
                 'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
             ]);
 
@@ -370,7 +429,7 @@ class ImageGenerationService
         $job = DB::transaction(function () use ($id): ?ImageJob {
             $job = ImageJob::query()->lockForUpdate()->find($id);
             if (! $job || $job->status !== 'processing' || ! in_array($job->stage, ['rendering', 'saving'], true)
-                || (! $job->upstream_job_id && empty($job->provider_result_urls))
+                || (! $job->upstream_job_id && empty($job->provider_result_urls) && empty($job->provider_result_data))
                 || ($job->next_poll_at !== null && $job->next_poll_at->isFuture())
                 || ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subSeconds(self::POLL_LEASE_SECONDS)))) {
                 return null;
@@ -390,8 +449,8 @@ class ImageGenerationService
 
             return;
         }
-        if (! empty($job->provider_result_urls)) {
-            $status = StatusResult::completed($job->provider_result_urls);
+        if (! empty($job->provider_result_urls) || ! empty($job->provider_result_data)) {
+            $status = StatusResult::completed($job->provider_result_urls ?? [], $job->provider_result_data);
         } else {
             try {
                 $provider = $this->provider($job);
@@ -401,7 +460,7 @@ class ImageGenerationService
                 return;
             }
             try {
-                $status = $this->adapters->for($provider->protocol)->pollStatus($provider, (string) $job->upstream_job_id);
+                $status = $this->adapters->for($provider->protocol)->pollStatus($provider, (string) $job->upstream_job_id, $this->capabilityForJob($job)->providerBindings);
             } catch (Throwable) {
                 $this->rescheduleClaim($job);
 
@@ -415,12 +474,12 @@ class ImageGenerationService
         }
         if ($status->state === MediaState::Completed) {
             $urls = $status->resultUrls ?? [];
-            if ($urls === []) {
+            if ($urls === [] && empty($status->resultData['data'])) {
                 $this->rescheduleClaim($job);
 
                 return;
             }
-            $saving = $this->claimForSaving($job, $urls);
+            $saving = $this->claimForSaving($job, $urls, $status->resultData);
             if ($saving) {
                 try {
                     $this->finalize($saving, $urls);
@@ -474,7 +533,7 @@ class ImageGenerationService
 
     private function complete(ImageJob $job, array $urls): void
     {
-        $items = array_map(static fn (string $url): array => ['url' => $url], array_values($urls));
+        $items = $job->provider_result_data['data'] ?? array_map(static fn (string $url): array => ['url' => $url], array_values($urls));
         $stored = $this->images->persist($job, $items);
         $assets = $job->asset_paths;
         $retained = DB::transaction(function () use ($job, $stored, $assets): bool {
@@ -488,7 +547,7 @@ class ImageGenerationService
             $locked->update([
                 'status' => 'completed', 'stage' => 'completed', 'result_urls' => $stored, 'asset_paths' => $assets,
                 'error_message' => null, 'billing_status' => 'settled', 'completed_at' => now(),
-                'provider_result_urls' => null,
+                'provider_result_urls' => null, 'provider_result_data' => null,
                 'next_poll_at' => null, 'processing_started_at' => null, 'processing_token' => null,
             ]);
 
@@ -506,34 +565,33 @@ class ImageGenerationService
         $this->complete($job, $urls);
     }
 
-    private function claimForSaving(ImageJob $job, array $resultUrls): ?ImageJob
+    private function claimForSaving(ImageJob $job, array $resultUrls, mixed $resultData = null): ?ImageJob
     {
-        return DB::transaction(function () use ($job, $resultUrls): ?ImageJob {
+        return DB::transaction(function () use ($job, $resultUrls, $resultData): ?ImageJob {
             $locked = ImageJob::query()->lockForUpdate()->find($job->id);
             if (! $this->ownsClaim($locked, $job)) {
                 return null;
             }
             $locked->update([
-                'stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null,
-                'provider_result_urls' => $resultUrls, 'submitted_at' => $locked->submitted_at ?? now(),
+                'stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null, 'error_message' => null,
+                'provider_result_urls' => $resultUrls, 'provider_result_data' => is_array($resultData) ? $resultData : null,
+                'submitted_at' => $locked->submitted_at ?? now(),
             ]);
 
             return $locked;
         });
     }
 
-    private function releaseClaimForReconcile(ImageJob $job): void
+    /** Unknown provider acceptance keeps the reservation; it is never refunded or resubmitted automatically. */
+    private function markUncertain(ImageJob $claim): void
     {
-        // Keep the reservation; free the lease so bounded stale-reservation reconciliation acts.
-        DB::transaction(function () use ($job): void {
-            $locked = ImageJob::query()->lockForUpdate()->find($job->id);
-            if (! $this->ownsClaim($locked, $job)) {
+        DB::transaction(function () use ($claim): void {
+            $locked = ImageJob::query()->lockForUpdate()->find($claim->id);
+            if (! $this->ownsClaim($locked, $claim)) {
                 return;
             }
-            $locked->update([
-                'stage' => 'submitting', 'processing_started_at' => null, 'processing_token' => null,
-                'next_poll_at' => now()->addSeconds(self::POLL_DELAY_SECONDS),
-            ]);
+            $locked->update(['stage' => 'submission_uncertain', 'error_message' => self::UNCERTAIN_MESSAGE,
+                'processing_started_at' => null, 'processing_token' => null, 'next_poll_at' => null]);
         });
     }
 
@@ -608,7 +666,7 @@ class ImageGenerationService
         ], 'Image generation did not complete');
         $job->update([
             'status' => 'failed', 'stage' => 'failed', 'error_message' => $message, 'result_urls' => null,
-            'provider_result_urls' => null,
+            'provider_result_urls' => null, 'provider_result_data' => null,
             'billing_status' => 'released', 'next_poll_at' => null, 'processing_started_at' => null,
             'processing_token' => null, 'completed_at' => now(),
         ]);
@@ -616,7 +674,9 @@ class ImageGenerationService
 
     private function ownsClaim(?ImageJob $current, ImageJob $claim): bool
     {
-        return $current !== null && $current->status === 'processing' && $current->stage === $claim->stage
+        // A submission that reconciliation marked uncertain may still record its own late, authoritative outcome.
+        return $current !== null && $current->status === 'processing'
+            && ($current->stage === $claim->stage || ($claim->stage === 'submitting' && $current->stage === 'submission_uncertain'))
             && is_string($current->processing_token) && is_string($claim->processing_token)
             && hash_equals($current->processing_token, $claim->processing_token);
     }

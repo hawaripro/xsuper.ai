@@ -7,10 +7,7 @@ use App\Http\Controllers\Api\ExternalApiController;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use Generator;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Symfony\Component\HttpFoundation\StreamedResponse;
-use Throwable;
 
 class AiProxyService
 {
@@ -119,7 +116,9 @@ class AiProxyService
      */
     public function chatCompletion(array $messages, string $model, array $options = [], ?int $defaultOutputLimit = null): array
     {
-        [$provider, $upstreamModel] = $this->routeModel($model);
+        $route = $options['_route_snapshot'] ?? null;
+        unset($options['_route_snapshot']);
+        [$provider, $upstreamModel] = $this->routeModel($model, $route);
         $options = $this->withOutputLimit($options, $provider, $model, $defaultOutputLimit);
         $result = $this->transport->complete($provider, [
             ...$options,
@@ -133,7 +132,9 @@ class AiProxyService
 
     public function streamChatCompletion(array $messages, string $model, array $options = [], ?int $defaultOutputLimit = null): Generator
     {
-        [$provider, $upstreamModel] = $this->routeModel($model);
+        $route = $options['_route_snapshot'] ?? null;
+        unset($options['_route_snapshot']);
+        [$provider, $upstreamModel] = $this->routeModel($model, $route);
         $options = $this->withOutputLimit($options, $provider, $model, $defaultOutputLimit);
         $buffers = [];
         foreach ($this->transport->stream($provider, [
@@ -190,54 +191,6 @@ class AiProxyService
         }
     }
 
-    /**
-     * Send chat completion with streaming (SSE)
-     * Returns a StreamedResponse for direct use in controllers
-     */
-    public function chatCompletionStream(array $messages, string $model, ?\Closure $onChunk = null): StreamedResponse
-    {
-        return new StreamedResponse(function () use ($messages, $model, $onChunk): void {
-            $fullResponse = '';
-            $usage = null;
-            try {
-                foreach ($this->streamChatCompletion($messages, $model) as $event) {
-                    $delta = (array) ($event['choices'][0]['delta'] ?? []);
-                    $content = $delta['content'] ?? $delta['refusal'] ?? null;
-                    if (is_string($content)) {
-                        $fullResponse .= $content;
-                    }
-                    if (is_array($event['usage'] ?? null)) {
-                        $usage = $event['usage'];
-                    }
-                    echo 'data: '.json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n";
-                    if (ob_get_level() > 0) {
-                        ob_flush();
-                    }
-                    flush();
-                }
-                if ($onChunk && $fullResponse !== '') {
-                    $onChunk($fullResponse, $usage);
-                }
-                echo "data: [DONE]\n\n";
-            } catch (Throwable $exception) {
-                $status = $exception instanceof AiProxyException ? $exception->responseStatus() : 502;
-                Log::warning('AI stream failed', ['status' => $status]);
-                $message = $exception instanceof AiProxyException
-                    ? $exception->getMessage()
-                    : 'The AI provider is unavailable. Please try again later.';
-                echo 'data: '.json_encode(['error' => ['message' => $message, 'type' => 'upstream_error']], JSON_THROW_ON_ERROR)."\n\n";
-            }
-            if (ob_get_level() > 0) {
-                ob_flush();
-            }
-            flush();
-        }, 200, [
-            'Content-Type' => 'text/event-stream',
-            'Cache-Control' => 'no-cache',
-            'Connection' => 'keep-alive',
-            'X-Accel-Buffering' => 'no',
-        ]);
-    }
 
     /**
      * Check if AI proxy is reachable
@@ -288,7 +241,7 @@ class AiProxyService
         return $this->getAllModelsFiltered()[0]['id'] ?? null;
     }
 
-    private function routeModel(string $model): array
+    private function routeModel(string $model, ?array $snapshot = null): array
     {
         if ($this->sanitizeModels([['id' => $model]]) === []) {
             throw new AiProxyException('The selected model is unavailable.', 403);
@@ -297,6 +250,15 @@ class AiProxyService
         if ($profile) {
             if (! $profile->is_enabled || ! $profile->is_available || ! $profile->provider?->is_enabled) {
                 throw new AiProxyException('The selected model is unavailable.', 403);
+            }
+            if ($snapshot !== null) {
+                $provider = AiProviderProfile::query()->find($snapshot['provider_id']);
+                $protocol = $provider?->base_url !== null ? $provider->protocol : 'openai';
+                if (! $provider?->is_enabled || $protocol !== $snapshot['protocol']) {
+                    throw new AiProxyException('The original provider route is no longer available.', 409);
+                }
+
+                return [$provider, $snapshot['upstream_model_id']];
             }
 
             return [$profile->provider, $profile->upstream_model_id ?: $profile->model_id];
@@ -367,12 +329,7 @@ class AiProxyService
         }
 
         $model = MediaModelConfig::catalogModel($model);
-        $category = is_string($model['category'] ?? null) ? strtolower(trim($model['category'])) : 'chat';
-        $category = match ($category) {
-            'image', 'images', 'canva' => 'image',
-            'video', 'audio', 'embedding', 'embeddings' => rtrim($category, 's'),
-            default => 'chat',
-        };
+        $category = MediaModelConfig::catalogCategory(is_string($model['category'] ?? null) ? $model['category'] : 'other');
         $provider = $model['provider'] ?? $model['owned_by'] ?? null;
         $name = is_string($model['name'] ?? null) ? $model['name'] : $id;
         $context = filter_var($model['context_length'] ?? $model['context_window'] ?? null, FILTER_VALIDATE_INT);

@@ -92,6 +92,7 @@ export default function DashboardLayout({ children }) {
     const userNav = [
         { name: 'Overview', href: '/dashboard', icon: Icons.dashboard, tone: 'red' },
         ...(hasChat ? [{ name: 'Chat', href: '/chat', icon: Icons.chat, tone: 'emerald' }] : []),
+        ...(allowed('image_generator') || allowed('video_generator', false) || allowed('audio_generator') || hasChat ? [{ name: 'Studio Media', href: '/media', icon: Icons.model, tone: 'indigo' }] : []),
         { name: 'Generate Gambar', href: '/generate-image', icon: Icons.image, tone: 'fuchsia' },
         ...(allowed('video_generator', false) ? [{ name: 'Generate Video', href: '/video', icon: Icons.video, tone: 'violet' }] : []),
         ...(allowed('audio_generator') ? [{ name: 'Audio', href: '/audio', icon: Icons.audio, tone: 'pink' }] : []),

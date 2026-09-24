@@ -13,6 +13,7 @@
         "laravel/socialite": "^5.27",
         "laravel/tinker": "^3.0",
         "nesbot/carbon": "3.x-dev as 3.11.5",
+        "opis/json-schema": "^2.6",
         "resend/resend-php": "^1.15"
     },
     "require-dev": {

@@ -2,15 +2,16 @@
 
 namespace App\Media\Adapters;
 
+use App\Exceptions\AiProviderRequestRejected;
 use App\Exceptions\AiProxyException;
 use App\Media\AdapterSupport;
 use App\Media\Contracts\MediaProviderAdapter;
+use App\Media\Contracts\StagesProviderReferences;
 use App\Media\MediaCapability;
+use App\Media\MediaReferenceStager;
 use App\Media\StatusResult;
 use App\Media\SubmitResult;
 use App\Models\AiProviderProfile;
-use App\Media\AssetService;
-use App\Models\MediaAsset;
 use App\Services\AiProviderTransport;
 use Throwable;
 
@@ -19,9 +20,9 @@ use Throwable;
  * (createTask/recordInfo) rather than re-implementing the protocol. Async + polling only;
  * Kinovi offers no member-facing cancel or trustworthy webhook, so those are not declared.
  */
-final class KinoviAdapter implements MediaProviderAdapter
+final class KinoviAdapter implements MediaProviderAdapter, StagesProviderReferences
 {
-    public function __construct(private readonly AiProviderTransport $transport, private readonly AssetService $assets) {}
+    public function __construct(private readonly AiProviderTransport $transport, private readonly MediaReferenceStager $references) {}
 
     public function support(): AdapterSupport
     {
@@ -35,21 +36,27 @@ final class KinoviAdapter implements MediaProviderAdapter
             'prompt' => $inputs['inputs']['prompt'] ?? '',
             'size' => $inputs['params']['size'] ?? '1024x1024',
         ];
-        // Reference assets are minted into fresh, short-lived, cookie-independent provider-fetch
-        // grants at request time — a signed URL is never persisted on the job.
+        // Keep only owned IDs until submission can stream them through Kinovi's upload lifecycle.
         $refs = $inputs['inputs']['reference_image'] ?? null;
         if ($refs !== null) {
-            $urls = [];
-            foreach (is_array($refs) ? $refs : [$refs] as $assetId) {
-                $asset = MediaAsset::find($assetId);
-                if ($asset !== null) {
-                    $urls[] = $this->assets->signedUrl($asset);
-                }
-            }
-            if ($urls !== []) {
-                $request['uploadedUrls'] = $urls;
-            }
+            $request['_reference_assets'] = is_array($refs) ? array_values($refs) : [$refs];
+            $request['_owner_id'] = isset($inputs['owner_id']) ? (int) $inputs['owner_id'] : null;
         }
+
+        return $request;
+    }
+
+    /** Streams each owned reference through Kinovi's upload lifecycle; the request then carries only stored URLs. */
+    public function stageReferences(AiProviderProfile $provider, array $request): array
+    {
+        $urls = [];
+        foreach ($request['_reference_assets'] ?? [] as $id) {
+            $urls[] = $this->references->stage($provider, $id, $request['_owner_id'] ?? null);
+        }
+        if ($urls !== []) {
+            $request['uploadedUrls'] = $urls;
+        }
+        unset($request['_reference_assets'], $request['_owner_id']);
 
         return $request;
     }
@@ -57,13 +64,16 @@ final class KinoviAdapter implements MediaProviderAdapter
     public function submit(AiProviderProfile $provider, array $request): SubmitResult
     {
         try {
+            $request = $this->stageReferences($provider, $request);
+        } catch (Throwable) {
+            return SubmitResult::rejected('The reference file could not be staged. No generation was submitted.');
+        }
+        try {
             $result = $this->transport->submitImage($provider, $request, (string) ($request['model'] ?? ''));
         } catch (AiProxyException $e) {
-            // send() maps upstream 429/5xx/connection to 503 (unavailable => uncertain) and
-            // 4xx rejections to 502 (definitive). Only 503/504 leave acceptance unknown.
-            return in_array($e->responseStatus(), [503, 504], true)
-                ? SubmitResult::uncertain()
-                : SubmitResult::rejected($e->getMessage());
+            return $e instanceof AiProviderRequestRejected || $e->responseStatus() === 422
+                ? SubmitResult::rejected($e->getMessage())
+                : SubmitResult::uncertain();
         }
 
         $taskId = $result['id'] ?? null;
@@ -71,7 +81,7 @@ final class KinoviAdapter implements MediaProviderAdapter
         return is_string($taskId) && $taskId !== '' ? SubmitResult::accepted($taskId) : SubmitResult::uncertain();
     }
 
-    public function pollStatus(AiProviderProfile $provider, string $taskId): StatusResult
+    public function pollStatus(AiProviderProfile $provider, string $taskId, array $context = []): StatusResult
     {
         $result = $this->transport->imageStatus($provider, $taskId, '');
 
@@ -80,6 +90,11 @@ final class KinoviAdapter implements MediaProviderAdapter
             'failed' => StatusResult::failed(),
             default => StatusResult::processing(),
         };
+    }
+
+    public function cancel(AiProviderProfile $provider, string $taskId, array $context = []): array
+    {
+        return ['requested' => false, 'confirmed' => false];
     }
 
     public function normalizeError(Throwable $error): array

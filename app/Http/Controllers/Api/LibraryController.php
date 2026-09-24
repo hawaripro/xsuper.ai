@@ -3,18 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Media\AssetService;
 use App\Models\AudioJob;
+use App\Models\ChatArtifact;
 use App\Models\ImageJob;
 use App\Models\MediaAsset;
 use App\Models\MediaToolJob;
+use App\Models\RealtimeMediaSession;
 use App\Models\ThreeDJob;
 use App\Models\User;
 use App\Models\VideoJob;
+use App\Models\WorkspaceMediaJob;
 use App\Services\GeneratedAudioStore;
 use App\Services\GeneratedModel3dStore;
 use App\Services\GeneratedVideoStore;
 use App\Services\StorageQuotaService;
 use App\Services\VideoReferenceStore;
+use App\Services\WorkspaceMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -27,9 +32,12 @@ use Illuminate\Validation\Rule;
  */
 class LibraryController extends Controller
 {
-    public const TYPES = ['image', 'video', 'avatar', 'audio', 'model3d', 'reference', 'download', 'convert', 'rembg'];
+    public const TYPES = ['image', 'video', 'avatar', 'audio', 'model3d', 'reference', 'document', 'file', 'artifact', 'download', 'convert', 'rembg'];
 
     private const SOURCE_LIMIT = 300;
+
+    /** Studio that can reuse an uploaded file; documents, generic files and realtime recordings have none. */
+    private const ASSET_PAGES = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio', 'model3d' => '/3d'];
 
     public function index(Request $request, VideoReferenceStore $references, StorageQuotaService $storage): JsonResponse
     {
@@ -50,6 +58,8 @@ class LibraryController extends Controller
             ...$this->models3d($user),
             ...$this->references($user),
             ...$this->tools($user),
+            ...$this->workspaceOutputs($user, $storage),
+            ...$this->artifacts($user),
         ])->sortByDesc('created_at')->values();
 
         $counts = ['all' => $items->count()];
@@ -147,20 +157,37 @@ class LibraryController extends Controller
 
     private function references(User $user): array
     {
+        $service = app(AssetService::class);
+        $referenced = app(StorageQuotaService::class)->referencedAssetIds($user);
+        $recordings = [];
+        foreach (RealtimeMediaSession::query()->where('user_id', $user->id)->pluck('recording_asset_ids') as $ids) {
+            foreach ($ids ?? [] as $id) {
+                $recordings[$id] = true;
+            }
+        }
+
         return MediaAsset::query()->where('user_id', $user->id)->where('retention_status', 'active')
+            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->latest()->limit(self::SOURCE_LIMIT)->get()
             ->filter(fn (MediaAsset $asset): bool => Storage::disk($asset->storage_disk)->exists($asset->storage_path))
-            ->map(fn (MediaAsset $asset): array => $this->item('reference', $asset->id,
-                match ($asset->role) {
-                    'avatar_photo' => 'Foto avatar', 'speech_audio' => 'Audio ucapan',
-                    default => 'Referensi tersimpan',
-                }, [
-                    'mime_type' => $asset->mime, 'size_bytes' => $asset->size_bytes,
-                    'preview_url' => '/api/media/assets/'.$asset->id, 'download_url' => '/api/media/assets/'.$asset->id,
-                    'page_url' => in_array($asset->role, ['avatar_photo', 'speech_audio'], true) ? '/avatar' : '/generate-image',
-                    'deletable' => true, 'delete_url' => '/api/media/assets/'.$asset->id,
+            ->map(function (MediaAsset $asset) use ($service, $referenced, $recordings): array {
+                $dto = $service->present($asset);
+                // A saved realtime recording is the member's generated video, not a reusable upload.
+                $recording = isset($recordings[$asset->id]) && $asset->media_type === 'video';
+                $type = $recording ? 'video' : (in_array($asset->media_type, ['document', 'file', 'model3d'], true) ? $asset->media_type : 'reference');
+
+                return $this->item($type, $asset->id, $dto['original_name'], [
+                    'mime_type' => $asset->mime, 'size_bytes' => $asset->size_bytes, 'kind' => $asset->media_type,
+                    'previewable' => $dto['previewable'], 'preview_url' => $dto['preview_url'], 'download_url' => $dto['download_url'],
+                    'page_url' => match (true) {
+                        $recording => null,
+                        in_array($asset->role, ['avatar_photo', 'speech_audio'], true) => '/avatar',
+                        default => self::ASSET_PAGES[$asset->media_type] ?? null,
+                    },
+                    'deletable' => ! isset($referenced[$asset->id]), 'delete_url' => '/api/media/assets/'.$asset->id,
                     'created_at' => $asset->created_at,
-                ]))->values()->all();
+                ]);
+            })->values()->all();
     }
 
     private function audio(User $user): array
@@ -233,6 +260,50 @@ class LibraryController extends Controller
                 'delete_url' => '/api/media-tools/'.$job->job_id,
                 'created_at' => $job->completed_at ?? $job->created_at,
             ]))->all();
+    }
+
+    private function workspaceOutputs(User $user, StorageQuotaService $storage): array
+    {
+        $items = [];
+        $service = app(WorkspaceMediaService::class);
+        WorkspaceMediaJob::query()->where('user_id', $user->id)->whereNotNull('asset_paths')
+            ->latest('id')->limit(self::SOURCE_LIMIT)->get()->each(function (WorkspaceMediaJob $job) use ($user, $storage, $service, &$items): void {
+                $dto = $service->payload($job);
+                $canDelete = in_array($job->status, ['completed', 'failed', 'cancelled'], true)
+                    && ! $storage->jobIsReferenced($user, $dto['id']);
+                foreach ($dto['outputs'] ?? [] as $output) {
+                    $type = match (true) {
+                        $output['kind'] === 'video' && $job->operation === 'talking_avatar' => 'avatar',
+                        in_array($output['kind'], ['image', 'video', 'audio', 'model3d', 'document'], true) => $output['kind'],
+                        default => 'file',
+                    };
+                    $items[] = $this->item($type, 'workspace:'.$dto['id'].':'.$output['id'], $output['name'], [
+                        'mime_type' => $output['mime'], 'size_bytes' => $output['bytes'] ?? null, 'kind' => $output['kind'],
+                        'previewable' => $output['previewable'], 'preview_url' => $output['url'] ?? null,
+                        'download_url' => $output['download_url'], 'page_url' => '/media?job='.rawurlencode($dto['id']),
+                        'deletable' => $canDelete, 'delete_url' => '/api/media/workspace/jobs/'.rawurlencode($dto['id']),
+                        'model' => $job->model, 'created_at' => $job->completed_at ?? $job->created_at,
+                    ]);
+                }
+            });
+
+        return $items;
+    }
+
+    private function artifacts(User $user): array
+    {
+        return ChatArtifact::query()->where('user_id', $user->id)->with('currentRevision')
+            ->latest()->limit(self::SOURCE_LIMIT)->get()
+            ->filter(fn (ChatArtifact $artifact): bool => $artifact->currentRevision !== null
+                && ($artifact->currentRevision->generated_job_id !== null || ($artifact->currentRevision->storage_path !== null
+                    && Storage::disk($artifact->currentRevision->storage_disk)->exists($artifact->currentRevision->storage_path))))
+            ->map(fn (ChatArtifact $artifact): array => $this->item('artifact', $artifact->id, $artifact->title, [
+                'mime_type' => $artifact->currentRevision->mime, 'size_bytes' => $artifact->currentRevision->content_bytes,
+                'kind' => $artifact->kind, 'previewable' => false,
+                'download_url' => '/api/c/artifacts/'.$artifact->id.'/download?revision='.$artifact->current_revision_id,
+                'page_url' => '/chat?conversation='.rawurlencode($artifact->conversation_id).'&artifact='.$artifact->id,
+                'created_at' => $artifact->updated_at,
+            ]))->values()->all();
     }
 
     private function item(string $type, string $id, string $title, array $fields): array

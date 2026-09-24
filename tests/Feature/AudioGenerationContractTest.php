@@ -114,7 +114,7 @@ class AudioGenerationContractTest extends TestCase
         [$user, $model] = $this->fixture(FalProtocol::AUDIO_SPEECH);
         $id = $this->actingAs($user)->postJson('/api/audio', ['model' => $model->model_id, 'mode' => 'speech', 'prompt' => 'Keep this live request.'])->assertAccepted()->json('job.job_id');
         $job = AudioJob::where('job_id', $id)->firstOrFail();
-        $job->update(['status' => 'processing', 'stage' => 'submitting', 'processing_token' => 'replacement-worker', 'processing_started_at' => now()]);
+        $job->update(['status' => 'processing', 'stage' => 'submitting', 'processing_token' => '5c4a2f10-0000-4000-8000-000000000117', 'processing_started_at' => now()]);
 
         (new ProcessAudioJob($job->id))->failed(new \RuntimeException('Obsolete queue delivery exceeded attempts.'));
 
@@ -128,7 +128,7 @@ class AudioGenerationContractTest extends TestCase
         [$user, $model] = $this->fixture(FalProtocol::AUDIO_SPEECH);
         $id = $this->actingAs($user)->postJson('/api/audio', ['model' => $model->model_id, 'mode' => 'speech', 'prompt' => 'Recover an interrupted save.'])->assertAccepted()->json('job.job_id');
         $job = AudioJob::where('job_id', $id)->firstOrFail();
-        $job->update(['status' => 'processing', 'stage' => 'saving', 'processing_token' => 'abandoned-save', 'processing_started_at' => now()->subMinutes(15)]);
+        $job->update(['status' => 'processing', 'stage' => 'saving', 'processing_token' => '5c4a2f10-0000-4000-8000-000000000131', 'processing_started_at' => now()->subMinutes(15)]);
         $partial = GeneratedAudioStore::path($id, 1).'.0123456789abcdef.part';
         $unrelated = GeneratedAudioStore::path('unrelated-job', 0);
         Storage::disk('local')->put($partial, 'partial audio bytes');

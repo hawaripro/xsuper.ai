@@ -16,4 +16,9 @@ enum InputRole: string
     case AvatarPhoto = 'avatar_photo';
     case SpeechAudio = 'speech_audio';
     case ReferenceVideo = 'reference_video';
+    case Document = 'document';
+    case GenericFile = 'file';
+    case ModelReference = 'model_reference';
+    case AudioReference = 'audio_reference';
+    case MaskImage = 'mask_image';
 }

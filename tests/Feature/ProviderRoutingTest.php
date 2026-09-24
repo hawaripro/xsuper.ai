@@ -121,7 +121,7 @@ class ProviderRoutingTest extends TestCase
         $this->assertDatabaseHas('usage_logs', ['user_id' => $user->id, 'model' => 'public-stream', 'prompt_tokens' => 11, 'completion_tokens' => 3]);
     }
 
-    public function test_incomplete_stream_reports_error_without_saving_partial_assistant(): void
+    public function test_incomplete_stream_reports_error_and_preserves_partial_as_failed(): void
     {
         $provider = $this->provider('openai');
         $this->model($provider, 'public-partial', 'private-partial');
@@ -133,7 +133,12 @@ class ProviderRoutingTest extends TestCase
         ])->assertOk();
         $stream = $response->streamedContent();
         $this->assertStringContainsString('"error"', $stream);
-        $this->assertDatabaseMissing('chat_history', ['conversation_id' => 'incomplete-stream', 'role' => 'assistant']);
+        $this->assertDatabaseHas('chat_history', [
+            'conversation_id' => 'incomplete-stream', 'role' => 'assistant',
+            'content' => 'Incomplete answer', 'status' => 'failed',
+        ]);
+        $this->assertDatabaseMissing('chat_history', ['conversation_id' => 'incomplete-stream', 'role' => 'assistant', 'status' => 'completed']);
+        $this->assertDatabaseMissing('usage_logs', ['user_id' => $user->id, 'model' => 'public-partial']);
     }
 
     public function test_disabling_provider_removes_models_and_denies_send_without_upstream_request(): void

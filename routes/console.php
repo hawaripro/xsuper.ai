@@ -31,6 +31,8 @@ Artisan::command('audio:reconcile', function (AudioGenerationService $audio) {
 
 Schedule::command('audio:reconcile')->everyMinute()->withoutOverlapping();
 Schedule::command('model3d:reconcile')->everyMinute()->withoutOverlapping();
+Schedule::command('media:reconcile-workspace')->everyMinute()->withoutOverlapping();
+Schedule::command('media:reconcile-realtime')->everyMinute()->withoutOverlapping();
 
 Artisan::command('media-tools:reconcile', function (MediaToolService $tools) {
     $this->info('Reconciled media tools: '.json_encode($tools->reconcile(), JSON_THROW_ON_ERROR));

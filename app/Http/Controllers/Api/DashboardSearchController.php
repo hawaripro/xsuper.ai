@@ -7,9 +7,10 @@ use App\Models\AiModelProfile;
 use App\Models\PromptTemplate;
 use App\Models\User;
 use App\Services\AiProxyService;
-use App\Services\MediaModelConfig;
+use App\Services\WorkspaceMediaService;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,7 @@ class DashboardSearchController extends Controller
     // job_id is a native uuid on PostgreSQL, which has no LOWER(uuid); the cast is portable to SQLite.
     private const JOB_ID = 'CAST(job_id AS TEXT)';
 
-    public function show(Request $request, AiProxyService $catalog): JsonResponse
+    public function show(Request $request, AiProxyService $catalog, WorkspaceMediaService $workspace): JsonResponse
     {
         $validated = $request->validate(['q' => ['nullable', 'string', 'max:120']]);
         $user = $request->user();
@@ -36,7 +37,7 @@ class DashboardSearchController extends Controller
         if ($query !== '') {
             // Bound parameters and an explicit escape work on PostgreSQL and SQLite.
             $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $needle).'%';
-            $this->addGroup($groups, 'models', 'Model AI', $this->models($user, $access, $pattern, $needle, $catalog));
+            $this->addGroup($groups, 'models', 'Model AI', $this->models($user, $access, $pattern, $needle, $catalog, $workspace));
             if ($access['history']) {
                 $this->addGroup($groups, 'conversations', 'Riwayat chat', $this->conversations($user, $pattern));
             }
@@ -65,7 +66,8 @@ class DashboardSearchController extends Controller
 
     private function access(User $user): array
     {
-        $active = $user->isAdmin() || ($user->is_active && ! $user->isExpired());
+        // Same rule as EnsureActive/CheckExpiry: only an explicit false is inactive (an unloaded column is null).
+        $active = $user->isAdmin() || ($user->is_active !== false && ! $user->isExpired());
         $chat = $active && $user->hasPermission('chat');
 
         return [
@@ -143,14 +145,18 @@ class DashboardSearchController extends Controller
         return $groups;
     }
 
-    private function models(User $user, array $access, string $pattern, string $needle, AiProxyService $catalog): array
+    private function models(User $user, array $access, string $pattern, string $needle, AiProxyService $catalog, WorkspaceMediaService $workspace): array
     {
         $categories = array_values(array_filter(['chat', 'image', 'video', 'audio', 'avatar', 'model3d'], fn (string $kind): bool => $access[$kind]));
+        if ($access['image'] || $access['video'] || $access['audio']) {
+            // Catalog operations such as vision, transcription or training; the workspace applies their exact permission.
+            $categories[] = 'other';
+        }
         if (! $access['active'] || $categories === []) {
             return [];
         }
         $models = AiModelProfile::query()
-            ->with('provider:id,protocol,is_enabled')
+            ->with('provider')
             ->where('is_enabled', true)->where('is_available', true)
             ->whereHas('provider', fn (EloquentBuilder $provider) => $provider->where('is_enabled', true))
             ->whereIn('category', $categories);
@@ -159,14 +165,14 @@ class DashboardSearchController extends Controller
         $candidates = $models
             ->orderByRaw('CASE WHEN LOWER(model_id) = ? THEN 0 WHEN LOWER(display_name) = ? THEN 1 ELSE 2 END', [$needle, $needle])
             ->orderBy('sort_order')->orderBy('id')->limit(60)
-            ->get(['id', 'provider_id', 'model_id', 'upstream_model_id', 'display_name', 'provider_name', 'category', 'token_cost', 'is_enabled', 'is_available']);
+            ->get();
         $publicModels = collect($catalog->filterModelsForTiers($candidates->map(fn (AiModelProfile $model): array => [
             'id' => $model->model_id,
             'name' => $model->display_name ?: $model->model_id,
             'provider' => $model->provider_name,
             'category' => $model->category,
         ])->all()))->keyBy('id');
-        $paths = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio', 'avatar' => '/avatar', 'model3d' => '/3d'];
+        $paths = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio', 'model3d' => '/3d'];
         $results = [];
         foreach ($candidates as $model) {
             $public = $publicModels->get($model->model_id);
@@ -177,12 +183,19 @@ class DashboardSearchController extends Controller
                 // Native Chat deliberately retains its own model selector.
                 $results[] = $this->result('model', $model->model_id, $public['name'], 'Chat AI', '/chat');
             } else {
-                if ($model->token_cost <= 0 || ! MediaModelConfig::allowedFor($user, $model)) {
+                // The same eligibility as the unified studio: published contract, reviewed price, entitlement.
+                $kinds = $workspace->eligibleOutputKinds($user, $model);
+                if ($kinds === []) {
                     continue;
                 }
+                $path = match (true) {
+                    $model->category === 'avatar' => '/avatar',
+                    isset($paths[$model->category]) && $kinds === [$model->category] => $paths[$model->category],
+                    default => '/media',
+                };
                 $results[] = $this->result('model', $model->model_id, $public['name'],
-                    ucfirst($model->category),
-                    $paths[$model->category].'?'.http_build_query(['model' => $model->model_id], '', '&', PHP_QUERY_RFC3986));
+                    $model->category === 'other' ? 'Media' : ucfirst($model->category),
+                    $path.'?'.http_build_query(['model' => $model->model_id], '', '&', PHP_QUERY_RFC3986));
             }
             if (count($results) === self::GROUP_LIMIT) {
                 break;
@@ -194,27 +207,39 @@ class DashboardSearchController extends Controller
 
     private function conversations(User $user, string $pattern): array
     {
-        $rows = DB::table('chat_history as history')->where('history.user_id', $user->id)
-            ->where('history.conversation_id', '<>', '')
-            ->whereExists(function (Builder $query) use ($pattern): void {
-                $query->selectRaw('1')->from('chat_history as matching')
-                    ->whereColumn('matching.user_id', 'history.user_id')
-                    ->whereColumn('matching.conversation_id', 'history.conversation_id');
-                $this->match($query, ['matching.content', 'matching.model'], $pattern);
+        $history = DB::table('chat_history')->where('user_id', $user->id)->where('conversation_id', '<>', '')
+            ->select('conversation_id')->selectRaw('MAX(created_at) as last_message')->groupBy('conversation_id');
+        // Chat metadata owns renamed titles; its tombstone hides a deleted conversation even if a stray message survives.
+        $rows = DB::query()->fromSub($history, 'history')
+            ->leftJoin('chat_conversations as metadata', function (JoinClause $join) use ($user): void {
+                $join->on('metadata.conversation_key', '=', 'history.conversation_id')->where('metadata.user_id', '=', $user->id);
             })
-            ->select('history.conversation_id')
-            ->selectRaw('MAX(history.created_at) as last_message')
+            ->whereNull('metadata.deleted_at')
+            ->where(function (Builder $matching) use ($user, $pattern): void {
+                $matching->where(function (Builder $title) use ($pattern): void {
+                    $title->where('metadata.title_is_custom', true);
+                    $this->match($title, ['metadata.title'], $pattern);
+                })->orWhereExists(function (Builder $query) use ($user, $pattern): void {
+                    $query->selectRaw('1')->from('chat_history as matching')
+                        ->where('matching.user_id', $user->id)
+                        ->whereColumn('matching.conversation_id', 'history.conversation_id');
+                    $this->match($query, ['matching.content', 'matching.model'], $pattern);
+                });
+            })
+            ->select('history.conversation_id', 'metadata.title as metadata_title', 'metadata.title_is_custom')
             ->selectSub(DB::table('chat_history as first_message')
                 ->selectRaw('SUBSTR(first_message.content, 1, 160)')
-                ->whereColumn('first_message.user_id', 'history.user_id')
+                ->where('first_message.user_id', $user->id)
                 ->whereColumn('first_message.conversation_id', 'history.conversation_id')
-                ->where('first_message.role', 'user')->orderBy('first_message.created_at')->orderBy('first_message.id')->limit(1), 'title')
-            ->groupBy('history.user_id', 'history.conversation_id')
-            ->orderByDesc('last_message')->orderBy('history.conversation_id')->limit(self::GROUP_LIMIT)->get();
+                ->where('first_message.role', 'user')->orderBy('first_message.created_at')->orderBy('first_message.id')->limit(1), 'first_message')
+            ->orderByDesc('history.last_message')->orderBy('history.conversation_id')->limit(self::GROUP_LIMIT)->get();
 
-        return $rows->map(fn (object $row): array => $this->result('conversation', $row->conversation_id,
-            $row->title ?: 'Percakapan tanpa judul', 'Riwayat chat',
-            '/chat?'.http_build_query(['conversation' => $row->conversation_id], '', '&', PHP_QUERY_RFC3986)))->all();
+        return $rows->map(function (object $row): array {
+            $title = $row->title_is_custom ? (string) $row->metadata_title : (string) $row->first_message;
+
+            return $this->result('conversation', $row->conversation_id, trim($title) !== '' ? $title : 'Percakapan tanpa judul', 'Riwayat chat',
+                '/chat?'.http_build_query(['conversation' => $row->conversation_id], '', '&', PHP_QUERY_RFC3986));
+        })->all();
     }
 
     private function media(User $user, string $table, string $kind, string $path, string $pattern): array

@@ -45,10 +45,13 @@ function JsonDisclosure({ title, value }) {
 }
 
 const actions = {
+    review: ["Tinjau revisi", "Simpan tinjauan revisi?", "Simpan tinjauan teknis tanpa mengaktifkan model. Harga yang sudah ada tidak diubah."],
     publish: ["Publikasikan revisi", "Publikasikan revisi ini?", "Saya telah meninjau schema, definisi, dan laporan kompatibilitas. Publikasi memilih revisi ini untuk permintaan baru; label dan harga kurasi tidak berubah."],
     disable: ["Nonaktifkan revisi", "Nonaktifkan revisi ini?", "Revisi ini tidak lagi dipilih untuk permintaan baru. Riwayat dan revisi yang digunakan pekerjaan lama tetap disimpan."],
     rollback: ["Pulihkan revisi", "Pulihkan revisi ini?", "Pilih kembali revisi yang pernah dipublikasikan ini untuk permintaan baru. Revisi pekerjaan lama, label, dan harga tidak diubah."],
 };
+
+const priceUnits = { request: "permintaan", generation: "generasi", second: "detik" };
 
 export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabled = false }) {
     const { t } = useLocale();
@@ -56,6 +59,7 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
     const [selectedId, setSelectedId] = useState(null);
     const [confirmation, setConfirmation] = useState(null);
     const [mutation, setMutation] = useState({ busy: false, error: "", blockers: [], success: "" });
+    const [priceAcknowledged, setPriceAcknowledged] = useState(false);
     const request = useRef(0);
     const inFlight = useRef(false);
     const heading = useRef(null);
@@ -84,6 +88,21 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
     const report = revision?.compatibility_report || {};
     const blockers = Array.isArray(report.blockers) ? report.blockers : [];
     const warnings = Array.isArray(report.warnings) ? report.warnings : [];
+    // Documented-direct contracts already surface their evidence warnings in the compatibility report.
+    const supplementWarnings = (Array.isArray(revision?.source_metadata?.source_evidence?.warnings) ? revision.source_metadata.source_evidence.warnings : [])
+        .filter((warning) => !warnings.includes(warning));
+    const sale = state.data?.model || {};
+    const account = state.data?.account_verification || {};
+    const priceReviewed = revision?.price_review?.token_cost === sale.token_cost && revision?.price_review?.unit === sale.price_unit
+        && (revision?.execution?.transport !== "realtime" || revision.price_review?.max_session_seconds >= revision.execution.max_session_seconds);
+    // Pricing is curation: an active or previously published v2 revision is re-reviewed after tariff or session-cap drift.
+    const needsPriceReview = revision?.contract_version === 2 && revision.status !== "disabled" && !priceReviewed;
+    const confirmAction = (action) => {
+        setMutation({ busy: false, error: "", blockers: [], success: "" });
+        setConfirmation({ action, revision, priceReview: ["review", "publish"].includes(action) && priceAcknowledged && revision.contract_version === 2
+            ? { token_cost: sale.token_cost, unit: sale.price_unit, variable_configuration: true,
+                ...(revision.execution?.transport === "realtime" ? { max_session_seconds: revision.execution.max_session_seconds } : {}) } : null });
+    };
     const locked = disabled || state.loading || mutation.busy || !!state.error;
     const performAction = async () => {
         if (!confirmation || locked || inFlight.current) return;
@@ -92,9 +111,10 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
         try {
             await apiRequest(`/api/admin/ai/capabilities/${confirmation.revision.id}/${confirmation.action}`, {
                 method: "POST",
-                body: { reviewed: true },
+                body: { reviewed: true, ...(confirmation.priceReview ? { price_review: confirmation.priceReview } : {}) },
             });
             setConfirmation(null);
+            setPriceAcknowledged(false);
             setMutation({ busy: false, error: "", blockers: [], success: t("Status revisi diperbarui. Pekerjaan lama tetap memakai revisinya.") });
             await load();
             await onRefresh();
@@ -115,8 +135,8 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
         </div>
         {state.loading && !state.data ? <LoadingState label={t("Memuat revisi capability…")} /> : state.error ? <ErrorState message={state.error} onRetry={() => load()} /> : !state.data?.revisions.length ? <EmptyState title={t("Belum ada revisi capability")} description={t("Revisi muncul setelah impor schema yang didukung. Model kurasi existing tetap memakai konfigurasi efektifnya.")} /> : <>
             <label className="block max-w-xl text-sm font-medium">{t("Operasi dan revisi")}
-                <select className="ui-input mt-1 min-h-11" value={selectedId ?? ""} disabled={locked} onChange={(event) => { setSelectedId(Number(event.target.value)); setMutation({ busy: false, error: "", blockers: [], success: "" }); }}>
-                    {state.data.revisions.map((entry) => <option key={entry.id} value={entry.id}>{entry.operation} · r{entry.revision} · {t(capabilityStatuses[entry.status]?.[1] || entry.status)}{state.data.active_revision_ids.includes(entry.id) ? ` · ${t("Aktif")}` : ""}</option>)}
+                <select className="ui-input mt-1 min-h-11" value={selectedId ?? ""} disabled={locked} onChange={(event) => { setSelectedId(Number(event.target.value)); setPriceAcknowledged(false); setMutation({ busy: false, error: "", blockers: [], success: "" }); }}>
+                    {state.data.revisions.map((entry) => <option key={entry.id} value={entry.id}>{entry.operation} · v{entry.contract_version} / r{entry.revision} · {t(capabilityStatuses[entry.status]?.[1] || entry.status)}{state.data.active_revision_ids.includes(entry.id) ? ` · ${t("Aktif")}` : ""}</option>)}
                 </select>
             </label>
             {revision && <div className="min-w-0 space-y-4" key={revision.id}>
@@ -125,19 +145,38 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
                     <div><dt className="font-semibold">{t("ID publik")}</dt><dd className="mt-1 break-all font-mono">{model.model_id}</dd></div>
                     <div><dt className="font-semibold">{t("ID upstream")}</dt><dd className="mt-1 break-all font-mono">{model.upstream_model_id || "—"}</dd></div>
                     <div className="sm:col-span-2"><dt className="font-semibold">{t("Hash schema sumber")}</dt><dd className="mt-1 break-all font-mono">{revision.source_hash || "—"}</dd></div>
+                    <div><dt className="font-semibold">{t("Bukti schema")}</dt><dd className="mt-1">{t(revision.source_evidence === "documented_supplement" ? "Dipulihkan dari dokumentasi resmi" : revision.source_evidence === "captured" ? "Sumber tersimpan" : "Sumber belum tersedia")} · {t(revision.compatible ? "Lulus kompatibilitas" : "Perlu penanganan")}</dd></div>
+                    <div><dt className="font-semibold">{t("Verifikasi akun provider")}</dt><dd className="mt-1">{t(account.authenticated && account.healthy ? "Koneksi terautentikasi" : "Koneksi belum diverifikasi")}</dd></div>
+                    <div><dt className="font-semibold">{t("Harga jual saat ini")}</dt><dd className="mt-1 tabular-nums">{Number(sale.token_cost) > 0 ? `${sale.token_cost} token / ${t(priceUnits[sale.price_unit] || sale.price_unit)}` : t("Belum berharga")}</dd></div>
+                    <div><dt className="font-semibold">{t("Tinjauan harga revisi")}</dt><dd className="mt-1">{t(priceReviewed ? "Harga dan unit ditinjau" : "Belum ditinjau")}</dd></div>
                 </dl>
+                <p className="max-w-prose text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Sumber tersimpan, kompatibilitas, tinjauan harga, publikasi, dan autentikasi akun adalah status berbeda. Halaman ini tidak membuktikan bahwa generasi berbayar pada model telah berhasil.")}</p>
+                {revision.source_evidence === "documented_supplement" && <div className="space-y-2 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                    <p className="max-w-prose">{t("Ekspor schema provider tidak tersedia atau tidak lengkap. Kontrak ini dipulihkan dari dokumentasi publik resmi; sumber, transport, dan schema asli tercatat pada bukti sumber.")}</p>
+                    <Blockers items={supplementWarnings} />
+                </div>}
+                {revision.execution?.transport === "realtime" && <p className="text-sm font-medium">{t("Satu sesi, maksimal")} {revision.execution.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</p>}
+                {needsPriceReview && <div className="space-y-3">
+                    <p className="max-w-prose text-sm leading-6 text-amber-900 dark:text-amber-200">{t("Jumlah hasil, durasi, resolusi, dan konfigurasi dapat mengubah biaya upstream. Tinjau harga jual beserta unitnya; biaya provider bukan harga jual otomatis. Tarif positif yang ada tidak akan ditimpa.")}</p>
+                    {Number(sale.token_cost) > 0
+                        ? <label className="flex max-w-prose items-start gap-2 text-sm leading-6"><input type="checkbox" className="mt-1" checked={priceAcknowledged} disabled={locked} onChange={(event) => setPriceAcknowledged(event.target.checked)} />{t("Saya menyetujui harga dan unit saat ini untuk revisi ini, termasuk risiko biaya konfigurasi.")}</label>
+                        : <p className="text-sm leading-6">{t("Masukkan harga melalui tinjauan massal model baru atau editor model terlebih dahulu. Model belum dapat dipublikasikan.")}</p>}
+                </div>}
                 {!!blockers.length && <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-amber-900 dark:text-amber-200"><h4 className="text-sm font-semibold">{t("Penghalang publikasi")}</h4><Blockers items={blockers} /><p className="text-sm leading-6">{t("Perbaiki mapping atau dukungan adapter yang disebutkan, lalu impor ulang schema. Mengubah harga atau mengaktifkan profil tidak melewati penghalang ini.")}</p></div>}
                 {!!warnings.length && <div className="space-y-2 text-slate-700 dark:text-slate-300"><h4 className="text-sm font-semibold">{t("Catatan kompatibilitas")}</h4><Blockers items={warnings} /></div>}
                 <div className="min-w-0">
                     <JsonDisclosure title="Schema sumber" value={revision.source_schema} />
+                    <JsonDisclosure title="Bukti sumber" value={revision.source_metadata} />
                     <JsonDisclosure title="Definisi ternormalisasi" value={revision.definition} />
                     <JsonDisclosure title="Laporan kompatibilitas" value={revision.compatibility_report} />
                     <JsonDisclosure title="Metadata UI kurasi" value={revision.ui_metadata} />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {!active && !revision.previously_published && <button type="button" className="ui-btn-primary min-h-11" disabled={locked || blockers.length > 0} onClick={() => { setMutation({ busy: false, error: "", blockers: [], success: "" }); setConfirmation({ action: "publish", revision }); }}>{t(actions.publish[0])}</button>}
-                    {!active && revision.previously_published && <button type="button" className="ui-btn-primary min-h-11" disabled={locked || blockers.length > 0} onClick={() => { setMutation({ busy: false, error: "", blockers: [], success: "" }); setConfirmation({ action: "rollback", revision }); }}>{t(actions.rollback[0])}</button>}
-                    {revision.status !== "disabled" && <button type="button" className="ui-btn-secondary min-h-11" disabled={locked} onClick={() => { setMutation({ busy: false, error: "", blockers: [], success: "" }); setConfirmation({ action: "disable", revision }); }}>{t(actions.disable[0])}</button>}
+                    {!active && !revision.previously_published && revision.status !== "disabled" && <button type="button" className="ui-btn-secondary min-h-11" disabled={locked || blockers.length > 0} onClick={() => confirmAction("review")}>{t(actions.review[0])}</button>}
+                    {!active && !revision.previously_published && revision.status !== "disabled" && <button type="button" className="ui-btn-primary min-h-11" disabled={locked || blockers.length > 0 || !sale.available || !account.enabled || !account.authenticated || !account.healthy || !(Number(sale.token_cost) > 0) || (needsPriceReview && !priceAcknowledged)} onClick={() => confirmAction("publish")}>{t(actions.publish[0])}</button>}
+                    {(active || revision.previously_published) && needsPriceReview && <button type="button" className="ui-btn-secondary min-h-11" disabled={locked || blockers.length > 0 || !priceAcknowledged} onClick={() => confirmAction("review")}>{t("Tinjau ulang harga")}</button>}
+                    {!active && revision.previously_published && <button type="button" className="ui-btn-primary min-h-11" disabled={locked || blockers.length > 0 || needsPriceReview} onClick={() => confirmAction("rollback")}>{t(actions.rollback[0])}</button>}
+                    {revision.status !== "disabled" && <button type="button" className="ui-btn-secondary min-h-11" disabled={locked} onClick={() => confirmAction("disable")}>{t(actions.disable[0])}</button>}
                 </div>
             </div>}
         </>}
@@ -145,6 +184,8 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
         {!confirmation && mutation.error && <div role="alert" className="space-y-2 text-sm text-red-700 dark:text-red-300"><p>{mutation.error}</p><Blockers items={mutation.blockers} /></div>}
         {confirmation && <MediaActionDialog title={t(actions[confirmation.action][1])} description={t(actions[confirmation.action][2])} closeLabel={t("Batal")} confirmLabel={t(actions[confirmation.action][0])} busyLabel={t("Memproses…")} busy={mutation.busy} confirmDisabled={disabled || mutation.blockers.length > 0} error={mutation.error} onConfirm={performAction} onClose={() => { if (!inFlight.current) setConfirmation(null); }}>
             <p className="break-all text-sm font-semibold">{model.display_name || model.model_id} · {confirmation.revision.operation} · r{confirmation.revision.revision}</p>
+            {confirmation.priceReview && <p className="mt-3 text-sm tabular-nums">{t("Harga jual saat ini")}: {confirmation.priceReview.token_cost} token / {t(priceUnits[confirmation.priceReview.unit] || confirmation.priceReview.unit)}. {t("Harga positif tetap dipertahankan.")}</p>}
+            {confirmation.priceReview?.max_session_seconds && <p className="mt-2 text-sm">{t("Satu sesi, maksimal")} {confirmation.priceReview.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</p>}
             {!!mutation.blockers.length && <div className="mt-3 space-y-2 text-red-700 dark:text-red-300"><h4 className="text-sm font-semibold">{t("Penghalang publikasi")}</h4><Blockers items={mutation.blockers} /><p className="text-sm">{t("Tutup dialog dan perbaiki penghalang sebelum mencoba lagi.")}</p></div>}
         </MediaActionDialog>}
     </section>;

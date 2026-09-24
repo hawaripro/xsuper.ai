@@ -1,0 +1,490 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Documented direct contract for perceptron/isaac-01/openai/v1/chat/completions",
+    "version": "1.0.0",
+    "description": "Documentation-derived OpenAPI, not a Fal-published schema. It encodes only the direct, non-streaming OpenAI-compatible call documented on Fal's model page, typed with Perceptron's Isaac 0.1 Chat Completions reference. x-workspace-fal-documentation records provenance and evidence boundaries.",
+    "x-fal-metadata": {
+      "endpointId": "perceptron/isaac-01/openai/v1/chat/completions",
+      "category": "vision",
+      "thumbnailUrl": "https://v3b.fal.media/files/b/0a9f9393/01OerP6Vq_d2OHQIUjuKL_uSp1vDzZ.png",
+      "playgroundUrl": "https://fal.ai/models/perceptron/isaac-01/openai/v1/chat/completions",
+      "documentationUrl": "https://fal.ai/models/perceptron/isaac-01/openai/v1/chat/completions/api",
+      "about": "Openai V1 Chat Completions"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://fal.run"
+    }
+  ],
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ],
+  "x-workspace-transport": "direct",
+  "x-workspace-fal-documentation": {
+    "version": 1,
+    "kind": "documentation_derived",
+    "endpoint_id": "perceptron/isaac-01/openai/v1/chat/completions",
+    "request": {
+      "method": "POST",
+      "url": "https://fal.run/perceptron/isaac-01/openai/v1/chat/completions",
+      "headers": {
+        "Authorization": "Key <FAL_KEY>",
+        "Content-Type": "application/json"
+      },
+      "constants": {
+        "model": "perceptron",
+        "stream": false
+      }
+    },
+    "fal_documented": [
+      "OpenAI-compatible endpoint: OpenAI SDK base_url https://fal.run/perceptron/isaac-01/openai/v1 with default header Authorization: Key <FAL_KEY>.",
+      "Direct HTTP call: POST https://fal.run/perceptron/isaac-01/openai/v1/chat/completions with Authorization: Key <FAL_KEY> and Content-Type: application/json.",
+      "Request model \"perceptron\" with two OpenAI-style user messages whose content arrays hold an image part {type: \"image_url\", image_url: {url}} and a text part {type: \"text\", text}.",
+      "Category vision."
+    ],
+    "provider_documented": [
+      "Message roles system, user and assistant; content is a string or an array of parts; user parts include text and image_url, system and assistant parts are text.",
+      "Image URLs may be HTTP(S) or base64 data URLs in PNG, JPEG or WebP format.",
+      "Isaac 0.1 has an 8K-token context and triggers grounding with <hint>BOX</hint>, <hint>POINT</hint> or <hint>POLYGON</hint> system messages.",
+      "With stream false the response is one JSON chat completion whose answer is choices[].message.content, with optional usage token counts."
+    ],
+    "not_exposed": [
+      "response_style and extra_body: the two Fal examples place them differently and their values are undocumented.",
+      "Perceptron-hosted options: temperature, max_completion_tokens, n, top_p, top_k, frequency_penalty, presence_penalty, regex, response_format, stream_options and vision_config.",
+      "Video URL, video frame and uploaded file ID parts: Isaac 0.1 is documented for images, and file IDs belong to Perceptron's own file API.",
+      "Queue submission (Fal's generated subscribe examples send {}) and streaming responses."
+    ],
+    "local_bounds": {
+      "messages_max_items": 16,
+      "parts_max_items": 4,
+      "text_max_length": 32768,
+      "note": "Local safety bounds; neither Fal nor Perceptron publishes these limits."
+    },
+    "provenance": [
+      {
+        "url": "https://fal.ai/models/perceptron/isaac-01/openai/v1/chat/completions",
+        "publisher": "fal",
+        "document": "Isaac 0.1 [OpenAI Compatible Endpoint] model page (raw HTML)",
+        "retrieved_at": "2026-09-22T23:32:29Z",
+        "result": "ok",
+        "supports": "OpenAI Python SDK recipe: base_url https://fal.run/perceptron/isaac-01/openai/v1, default header Authorization: Key <FAL_KEY>, model \"perceptron\", one user message with an image_url part and one user message with a text part, and extra_body={\"response_style\": \"box\"}. cURL example: POST https://fal.run/perceptron/isaac-01/openai/v1/chat/completions with Authorization: Key $FAL_KEY, Content-Type: application/json and a literal nested \"extra_body\" object."
+      },
+      {
+        "url": "https://raw.githubusercontent.com/openai/openai-python/main/src/openai/_base_client.py",
+        "publisher": "openai/openai-python",
+        "document": "OpenAI Python SDK request builder",
+        "retrieved_at": "2026-09-22T23:53:26Z",
+        "result": "ok",
+        "supports": "extra_body becomes extra_json and is merged into the top level of the JSON request body, so Fal's Python recipe sends response_style as a top-level field."
+      },
+      {
+        "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=perceptron/isaac-01/openai/v1/chat/completions",
+        "publisher": "fal",
+        "document": "Queue OpenAPI export",
+        "retrieved_at": "2026-09-22T23:50:44Z",
+        "result": "incomplete",
+        "snapshot": "resources/media/fal/isaac-01.queue-incomplete.json",
+        "supports": "Identical to the captured catalog export (source hash 210013d29c62a8de66bb64926cf6332d2990d5168fafedee5d548230ee4bf668). The request references the undefined component Isaac01OpenaiV1ChatCompletionsInput and the output component Isaac01OpenaiV1ChatCompletionsOutput is empty."
+      },
+      {
+        "url": "https://fal.ai/models/perceptron/isaac-01/openai/v1/chat/completions/llms.txt",
+        "publisher": "fal",
+        "document": "Endpoint llms.txt",
+        "retrieved_at": "2026-09-22T23:31:40Z",
+        "result": "incomplete",
+        "supports": "Names the endpoint https://fal.run/perceptron/isaac-01/openai/v1/chat/completions and category vision, but its input and output schema sections are empty and its generated examples send {}."
+      },
+      {
+        "url": "https://docs.perceptron.inc/isaac-0.1/api-reference/endpoint/chat-completions.md",
+        "publisher": "perceptron",
+        "document": "Isaac 0.1 Chat Completions reference",
+        "retrieved_at": "2026-09-22T23:34:53Z",
+        "result": "ok",
+        "supports": "For Perceptron's own host (POST https://api.perceptron.inc/v1/chat/completions, Bearer key, model isaac-0.1): roles system, user and assistant; string or part-array content; text and image_url parts; HTTP(S) or base64 data image URLs in PNG, JPEG or WebP; 8K-token context; <hint>BOX</hint>, <hint>POINT</hint> and <hint>POLYGON</hint> grounding system messages; stream defaults to false."
+      },
+      {
+        "url": "https://docs.perceptron.inc/api-reference/openapi.json",
+        "publisher": "perceptron",
+        "document": "Perceptron API OpenAPI 3.1.0",
+        "retrieved_at": "2026-09-22T23:35:47Z",
+        "result": "ok",
+        "supports": "CreateChatCompletionRequest, CreateChatCompletionResponse, ChatChoice, ChatCompletionResponseMessage and CompletionUsage schemas shared by all Perceptron-hosted models."
+      },
+      {
+        "url": "https://docs.perceptron.inc/isaac-0.1/index.md",
+        "publisher": "perceptron",
+        "document": "Isaac 0.1 quickstart",
+        "retrieved_at": "2026-09-22T23:34:54Z",
+        "result": "ok",
+        "supports": "OpenAI SDK usage reads the answer from response.choices[0].message.content; supported image formats JPEG, PNG and WebP."
+      }
+    ],
+    "warnings": [
+      "Documentation-derived contract: Fal's Queue export for this endpoint references an undefined input component and an empty output component, so no Fal-published machine schema exists. Fields come from the OpenAI recipe on Fal's model page, typed with Perceptron's Isaac 0.1 reference.",
+      "Fal documents one direct, non-streaming POST to https://fal.run/perceptron/isaac-01/openai/v1/chat/completions with model \"perceptron\". Fal's generated Queue schema and subscribe examples carry no request payload and streaming is undocumented, so only the direct call is used and stream is fixed to false.",
+      "Fal's Python example passes extra_body={\"response_style\": \"box\"}, which the OpenAI SDK sends as a top-level response_style field, but Fal's cURL example nests a literal extra_body object. The placement conflicts and the accepted values are undocumented, so neither field is sent.",
+      "System and assistant roles, string content, PNG/JPEG/WebP image formats, the 8K-token context and the response envelope come from Perceptron's documentation for its own API host and are unverified on Fal's wrapper. Provider-only options such as temperature and max_completion_tokens are not exposed.",
+      "Up to 16 messages, 4 parts per message and 32,768 characters per text are local safety bounds, not published limits.",
+      "Recovered from public documentation only; no inference request was sent."
+    ]
+  },
+  "paths": {
+    "/perceptron/isaac-01/openai/v1/chat/completions": {
+      "post": {
+        "operationId": "createIsaacChatCompletion",
+        "summary": "Create a non-streaming chat completion",
+        "description": "Synchronous call documented on Fal's model page; the request is not submitted to Fal's queue.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IsaacChatCompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One chat completion.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IsaacChatCompletionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Fal key sent as Key <FAL_KEY>."
+      }
+    },
+    "schemas": {
+      "IsaacChatCompletionRequest": {
+        "type": "object",
+        "title": "Isaac 0.1 chat completion",
+        "required": [
+          "model",
+          "messages",
+          "stream"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string",
+            "const": "perceptron",
+            "default": "perceptron",
+            "description": "Request model name from Fal's documented recipe. It is not Perceptron's hosted model ID and does not change the endpoint."
+          },
+          "messages": {
+            "type": "array",
+            "title": "Messages",
+            "description": "Conversation in order. Fal's example sends one user message with an image and one with a question.",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/components/schemas/IsaacMessage"
+            }
+          },
+          "stream": {
+            "type": "boolean",
+            "const": false,
+            "default": false,
+            "description": "Requests one JSON response. Streaming is not documented for this Fal endpoint."
+          }
+        }
+      },
+      "IsaacMessage": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/IsaacUserMessage"
+          },
+          {
+            "$ref": "#/components/schemas/IsaacSystemMessage"
+          },
+          {
+            "$ref": "#/components/schemas/IsaacAssistantMessage"
+          }
+        ]
+      },
+      "IsaacUserMessage": {
+        "type": "object",
+        "title": "User",
+        "required": [
+          "role",
+          "content"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "const": "user"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IsaacUserParts"
+              },
+              {
+                "$ref": "#/components/schemas/IsaacText"
+              }
+            ]
+          }
+        }
+      },
+      "IsaacSystemMessage": {
+        "type": "object",
+        "title": "System",
+        "description": "Instructions for the model. Perceptron documents <hint>BOX</hint>, <hint>POINT</hint> and <hint>POLYGON</hint> for grounded output on Isaac 0.1.",
+        "required": [
+          "role",
+          "content"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "const": "system"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IsaacText"
+              },
+              {
+                "$ref": "#/components/schemas/IsaacTextParts"
+              }
+            ]
+          }
+        }
+      },
+      "IsaacAssistantMessage": {
+        "type": "object",
+        "title": "Assistant",
+        "description": "An earlier model reply in a multi-turn conversation.",
+        "required": [
+          "role",
+          "content"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "const": "assistant"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IsaacText"
+              },
+              {
+                "$ref": "#/components/schemas/IsaacTextParts"
+              }
+            ]
+          }
+        }
+      },
+      "IsaacText": {
+        "type": "string",
+        "title": "Text",
+        "minLength": 1,
+        "maxLength": 32768
+      },
+      "IsaacUserParts": {
+        "type": "array",
+        "title": "Images and text",
+        "minItems": 1,
+        "maxItems": 4,
+        "items": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/IsaacImagePart"
+            },
+            {
+              "$ref": "#/components/schemas/IsaacTextPart"
+            }
+          ]
+        }
+      },
+      "IsaacTextParts": {
+        "type": "array",
+        "title": "Text parts",
+        "minItems": 1,
+        "maxItems": 4,
+        "items": {
+          "$ref": "#/components/schemas/IsaacTextPart"
+        }
+      },
+      "IsaacTextPart": {
+        "type": "object",
+        "title": "Text",
+        "required": [
+          "type",
+          "text"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text"
+          },
+          "text": {
+            "$ref": "#/components/schemas/IsaacText"
+          }
+        }
+      },
+      "IsaacImagePart": {
+        "type": "object",
+        "title": "Image",
+        "required": [
+          "type",
+          "image_url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "image_url"
+          },
+          "image_url": {
+            "type": "object",
+            "title": "Image",
+            "required": [
+              "url"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "url": {
+                "type": "string",
+                "title": "Image",
+                "description": "PNG, JPEG or WebP image.",
+                "minLength": 1,
+                "x-workspace-asset": {
+                  "kind": "image",
+                  "role": "image_ref"
+                }
+              }
+            }
+          }
+        }
+      },
+      "IsaacChatCompletionResponse": {
+        "type": "object",
+        "title": "Chat completion",
+        "description": "Non-streaming OpenAI chat completion; the answer is choices[0].message.content. Perceptron requires id, object, created and model on its own host; they are optional here because Fal's wrapper response is undocumented.",
+        "required": [
+          "choices"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string"
+          },
+          "created": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/IsaacChoice"
+            }
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IsaacUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "IsaacChoice": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "message": {
+            "$ref": "#/components/schemas/IsaacResponseMessage"
+          },
+          "finish_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "IsaacResponseMessage": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "Answer"
+          }
+        }
+      },
+      "IsaacUsage": {
+        "type": "object",
+        "required": [
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens"
+        ],
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

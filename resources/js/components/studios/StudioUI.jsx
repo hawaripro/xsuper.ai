@@ -1,12 +1,9 @@
-import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import MediaActionDialog from "../MediaActionDialog";
-import { errorMessage, formatLocalDate, formatUsdMicros } from "../member/MemberUI";
+import { errorMessage } from "../member/MemberUI";
 import { useLocale } from "../../contexts/LocaleContext";
-import { isPending } from "./useMediaStudio";
 import "./studios.css";
 
-const stageLabels = { pending: "Menunggu antrean", queued: "Menunggu antrean", submitting: "Mengirim permintaan", processing: "Sedang diproses", generating: "Sedang diproses", rendering: "Sedang diproses", saving: "Menyimpan hasil", completed: "Selesai", rejected: "Prompt ditolak", failed: "Proses gagal", cancelled: "Dibatalkan" };
+const stageLabels = { pending: "Menunggu antrean", queued: "Menunggu antrean", preparing: "Menyiapkan input", submitting: "Mengirim permintaan", processing: "Sedang diproses", generating: "Sedang diproses", rendering: "Sedang diproses", saving: "Menyimpan hasil", save_failed: "Hasil belum tersimpan", uncertain: "Penerimaan belum terkonfirmasi", submission_uncertain: "Penerimaan belum terkonfirmasi", result_uncertain: "Hasil menunggu tinjauan", cancel_requested: "Pembatalan diminta", completed: "Selesai", rejected: "Prompt ditolak", failed: "Proses gagal", cancelled: "Dibatalkan" };
 const mediaErrors = {
     "The selected image model is unavailable.": "Model gambar yang dipilih tidak tersedia.",
     "The selected image options are not supported by this model.": "Pilihan gambar ini tidak didukung oleh model.",
@@ -93,74 +90,14 @@ export function StudioEmpty({ icon, title, description }) {
 export function StudioStatus({ job }) {
     const { t } = useLocale();
     const stage = job?.stage || job?.status;
-    return <span className={`studio-status studio-status-${["cancelled", "rejected"].includes(stage) ? stage : job?.status || "pending"}`}>{t(stageLabels[stage] || "Status belum tersedia")}</span>;
+    return <span className={`studio-status studio-status-${["cancelled", "rejected"].includes(stage) ? stage : job?.status || "pending"}`}>{t(stageLabels[stage] || stage || "Status belum tersedia")}</span>;
 }
 export function StudioProgress({ job, submitting = false, synchronous = false }) {
     const { t } = useLocale();
     return <div className="studio-progress" role="status"><span className="studio-spinner" aria-hidden="true" /><strong>{t(submitting ? "Mengirim permintaan…" : stageLabels[job?.stage || job?.status] || "Sedang diproses")}</strong><p>{t(synchronous ? "Menunggu hasil dari model. Jangan kirim ulang permintaan yang sama." : "Diproses di server, meskipun halaman ditutup.")}</p><small>{t("Status diperbarui dari server. Tidak ada perkiraan persentase.")}</small></div>;
 }
-export function StudioBilling({ job }) {
-    const { t, locale } = useLocale();
-    if (!job) return null;
-    if (job.billing_mode === "admin") return <p className="studio-help">{t("Gratis admin (riwayat lama)")}</p>;
-    const cost = job.billing_mode === "tokens" && job.tokens_reserved != null
-        ? `${new Intl.NumberFormat(locale).format(Number(job.tokens_reserved))} ${t("token")}`
-        : (job.cost_microusd ?? job.billing_reserved_microusd) != null ? formatUsdMicros(job.cost_microusd ?? job.billing_reserved_microusd) : null;
-    return cost && <p className="studio-billing"><StudioIcon name="tokens" />{cost}<span>·</span>{t(({ reserved: "Dicadangkan", settled: "Dibebankan", released: "Dikembalikan" })[job.billing_status] || "Status tagihan belum tersedia")}</p>;
-}
 export function StudioQuote({ total, unit, count = 1, pro = false, balance }) {
     const { t, locale, localizedPath } = useLocale();
     const format = (value) => new Intl.NumberFormat(locale).format(value);
     return <div className="studio-quote"><div><span>{t("Estimasi total")}</span><strong>{total == null ? "—" : format(total)} <small>{t("token")}</small></strong></div>{unit != null && <p>{format(unit)} × {count}{pro ? " × 2 (Pro)" : ""}</p>}{total != null && balance != null && balance < total && <StudioNotice error>{t("Saldo token tidak cukup untuk jumlah ini.")} <Link to={localizedPath("/deposit")}>{t("Isi saldo")}</Link></StudioNotice>}<p>{t("Token dicadangkan saat dikirim. Permintaan yang gagal dikembalikan sesuai status tagihan.")}</p></div>;
-}
-export function StudioCatalog({ studio, id, value, onChange, models = studio.models, error }) {
-    const { t } = useLocale();
-    const chosen = models.find((model) => model.id === value);
-    return <><StudioField id={id} label="Model" error={error}><select id={id} value={chosen ? value : ""} onChange={(event) => onChange(event.target.value)} disabled={studio.submitting || studio.modelLoading || !models.length} aria-invalid={Boolean(error)}><option value="" disabled>{t(studio.modelLoading ? "Memuat…" : "Pilih model")}</option>{models.map((model) => <option key={model.id} value={model.id}>{model.name || model.id}</option>)}</select>{chosen && <p className="studio-help">{[chosen.id].filter(Boolean).join(" · ")}</p>}</StudioField>{studio.modelError && <StudioNotice error action={<StudioButton onClick={studio.loadModels} disabled={studio.modelLoading}>{t("Coba lagi")}</StudioButton>}>{t(mediaError(studio.modelError))}</StudioNotice>}</>;
-}
-export function StudioHistory({ studio, kind, title }) {
-    const { t, locale } = useLocale();
-    const [pendingDelete, setPendingDelete] = useState(null);
-    const deletable = typeof studio.remove === "function";
-    const finishedCount = studio.jobs.filter((job) => !isPending(job)).length;
-
-    const confirmDelete = async () => {
-        const ok = pendingDelete === "all" ? (await studio.clear()) !== null : await studio.remove(pendingDelete.job_id);
-        if (ok !== false) setPendingDelete(null);
-    };
-
-    return <section className="studio-history" aria-label={t(title)}><div className="studio-section-heading"><h2><StudioIcon name="history" />{t(title)}</h2><div className="studio-history-tools"><StudioButton onClick={studio.loadHistory} disabled={studio.historyLoading} icon="refresh">{t("Perbarui riwayat")}</StudioButton>{deletable && studio.clear && finishedCount > 0 && <StudioButton className="studio-danger" onClick={() => setPendingDelete("all")} disabled={Boolean(studio.deleting)} icon="close">{t("Bersihkan riwayat")}</StudioButton>}</div></div>{studio.historyError && <StudioNotice error>{t("Riwayat belum dapat diperbarui. Periksa kembali sebelum mengirim permintaan baru.")}</StudioNotice>}{studio.deleteError && !pendingDelete && <StudioNotice error>{t(errorMessage(studio.deleteError.error, "Riwayat tidak dapat dihapus."))}</StudioNotice>}{studio.historyLoading && !studio.jobs.length ? <p className="studio-loading" role="status">{t("Memuat riwayat…")}</p> : !studio.jobs.length ? <StudioEmpty icon="history" title="Belum ada riwayat" description="Permintaan dan hasil pada akun Anda akan muncul di sini." /> : <div className="studio-history-list">{studio.jobs.map((job) => <div className="studio-history-row" key={job.job_id}><button className="studio-history-item" type="button" aria-pressed={studio.activeId === job.job_id} onClick={() => studio.selectJob(job)}><span className={`studio-history-thumb studio-color-${kind}`}>{kind === "image" && job.result_urls?.[0] ? <img src={job.result_urls[0]} alt="" loading="lazy" /> : kind === "video" && job.thumbnail_url ? <img src={job.thumbnail_url} alt="" loading="lazy" /> : <StudioIcon name={kind === "audio" ? job.mode === "speech" ? "voice" : "music" : kind} />}</span><span className="studio-history-copy"><strong>{job.prompt || job.model_label || t(kind === "model3d" ? "Model 3D" : kind === "avatar" ? "Avatar" : "Prompt tidak tersedia")}</strong><small>{job.model} · {formatLocalDate(job.created_at, { locale })}{job.pro_mode ? " · Pro" : ""}</small></span><StudioStatus job={job} /></button>{deletable && !isPending(job) && <button type="button" className="studio-history-delete" aria-label={`${t("Hapus dari riwayat")}: ${job.prompt || job.job_id}`} title={t("Hapus dari riwayat")} disabled={Boolean(studio.deleting)} onClick={() => setPendingDelete(job)}><StudioIcon name="close" /></button>}</div>)}</div>}{pendingDelete && <MediaActionDialog
-        title={t(pendingDelete === "all" ? "Bersihkan riwayat?" : "Hapus dari riwayat?")}
-        description={t(pendingDelete === "all" ? "Semua pekerjaan yang sudah selesai atau gagal beserta file hasilnya akan dihapus permanen. Pekerjaan yang sedang berjalan tetap dipertahankan." : "Pekerjaan ini beserta file hasilnya akan dihapus permanen dari akun Anda.")}
-        closeLabel={t("Batal")} confirmLabel={t(pendingDelete === "all" ? "Hapus semua" : "Hapus")} busyLabel={t("Menghapus…")}
-        busy={Boolean(studio.deleting)} error={studio.deleteError ? t(errorMessage(studio.deleteError.error, "Riwayat tidak dapat dihapus.")) : null}
-        onConfirm={confirmDelete} onClose={() => { if (!studio.deleting) setPendingDelete(null); }} />}</section>;
-}
-export function StudioJobMeta({ job, onCheck, checking, onCancel }) {
-    const { t, locale } = useLocale();
-    if (!job) return null;
-    return <div className="studio-job-meta"><div className="studio-toolbar"><StudioStatus job={job} /><time dateTime={job.created_at}>{formatLocalDate(job.created_at, { locale })}</time></div><p className="studio-result-prompt">{job.prompt}</p><p className="studio-help">{[job.model, job.size, job.aspect_ratio, job.duration ? `${job.duration} ${t("detik")}` : null, job.pro_mode ? "Pro" : null].filter(Boolean).join(" · ")}</p><StudioBilling job={job} />{job.error && <StudioNotice error={job.stage !== "cancelled"}>{t(mediaError(job.error))}</StudioNotice>}{job.status === "completed" && !(job.video_url || job.outputs?.length || job.model_url || job.result_urls?.length) && <StudioNotice>{t("Proses selesai, tetapi hasil belum tersedia. Periksa status kembali.")}</StudioNotice>}<div className="studio-toolbar"><StudioButton icon="refresh" onClick={onCheck} disabled={checking}>{t(checking ? "Memeriksa…" : "Periksa status")}</StudioButton>{onCancel && isPending(job) && <StudioButton onClick={() => onCancel(job)}>{t(job.can_cancel ? "Batalkan permintaan" : "Tidak bisa dibatalkan")}</StudioButton>}</div>{job.improved_prompt && job.improved_prompt !== job.prompt && <details><summary>{t("Lihat prompt hasil peninjauan lama")}</summary><p className="studio-result-prompt">{job.improved_prompt}</p></details>}</div>;
-}
-export function StudioCancellation({ job, onCancel, onClose }) {
-    const { t } = useLocale();
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState(null);
-    const [refusal, setRefusal] = useState(null);
-    const lock = useRef(false);
-    const unavailable = job.can_cancel !== true || Boolean(refusal);
-    const cancel = async () => {
-        if (lock.current || unavailable) return;
-        lock.current = true;
-        setBusy(true);
-        setError(null);
-        try {
-            const data = await onCancel(job.job_id);
-            if (data?.job?.stage === "cancelled" || data?.job?.status === "cancelled") onClose();
-            else setRefusal(data?.job || {});
-        } catch (requestError) {
-            if (requestError.status === 409) setRefusal(requestError.details?.job || { cancel_reason: requestError.details?.message });
-            else setError(t("Pembatalan belum terkonfirmasi. Perbarui riwayat sebelum mencoba lagi."));
-        } finally { lock.current = false; setBusy(false); }
-    };
-    return <MediaActionDialog title={t(unavailable ? "Permintaan tidak bisa dibatalkan" : "Batalkan permintaan ini?")} description={unavailable ? t(mediaError(refusal?.cancel_reason || job.cancel_reason || "Pengiriman sudah dimulai. Menutup halaman tidak membatalkan proses atau mengembalikan token.")) : t("Pembatalan hanya tersedia sebelum pengiriman ke penyedia dimulai. Token dikembalikan setelah pembatalan dikonfirmasi server.")} closeLabel={t(unavailable ? "Mengerti" : "Lanjutkan proses")} confirmLabel={t("Ya, batalkan")} busyLabel={t("Membatalkan…")} busy={busy} error={error} onClose={onClose} onConfirm={unavailable ? undefined : cancel}><StudioStatus job={job} /></MediaActionDialog>;
 }

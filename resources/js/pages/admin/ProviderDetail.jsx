@@ -9,7 +9,7 @@ import { LoadingState, ErrorState } from "../../components/dashboard/AsyncState"
 import MediaActionDialog from "../../components/MediaActionDialog";
 import { capabilityStatuses } from "../../components/dashboard/CatalogRevisionPanel";
 
-const mediaCategories = ["image", "video", "audio", "avatar", "model3d"];
+const mediaCategories = ["image", "video", "audio", "avatar", "model3d", "other"];
 const count = (value) => new Intl.NumberFormat("id-ID").format(Number(value || 0));
 
 const healthTone = {
@@ -532,9 +532,16 @@ export default function ProviderDetail() {
                         {discovery.started && <p role="status" className="text-sm text-slate-700 dark:text-slate-300">{t("Halaman terakhir")}: {count(discovery.discovered)} {t("ditemukan")}, {count(discovery.imported)} {t("diimpor")}. {t(discovery.nextCursor ? "Masih ada halaman berikutnya. Lanjutkan saat siap." : "Impor mencapai halaman terakhir. Tinjau revisi sebelum publikasi.")}</p>}
                         {discovery.nextCursor && <details><summary className="cursor-pointer text-xs font-semibold">{t("Cursor halaman berikutnya")}</summary><code className="mt-2 block break-all text-xs">{discovery.nextCursor}</code></details>}
                         {discovery.error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{discovery.error}</p>}
+                        <p className="max-w-prose text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Pilih model baru tanpa harga, isi draf biaya token, lalu gunakan Tinjau harga dan publikasi. Maksimal 50 kandidat per konfirmasi; harga positif dan tarif API yang sudah ada tidak ditimpa.")}</p>
+                        <details className="text-xs leading-6"><summary className="cursor-pointer font-semibold">{t("Normalisasi ulang schema tersimpan tanpa jaringan")}</summary>
+                            <p className="mt-2">{t("Perintah administrator berikut membuat kandidat v2, bukan publikasi. Setiap model dilaporkan; gunakan next_after dari ringkasan untuk melanjutkan. Schema kosong hanya dipulihkan dari dokumentasi resmi yang tercatat; selain itu temukan ulang dari sumber.")}</p>
+                            <code className="mt-2 block break-all rounded bg-slate-100 p-2 dark:bg-white/5">php artisan media:renormalize-catalog --provider={provider.id} --actor=ADMIN_ID --after=0 --limit=100</code>
+                        </details>
                         </> : <button type="button" className="ui-btn-secondary min-h-11" onClick={() => setTab("connection")}>{t("Buka koneksi provider")}</button>}
                         <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
                             {Object.entries(capabilityStatuses).map(([status, [, statusLabel]]) => <div key={status} className="flex items-center gap-2"><dt>{t(statusLabel)}</dt><dd className="font-semibold tabular-nums">{count(counts[status])}</dd></div>)}
+                            <div className="flex items-center gap-2"><dt>{t("Schema kompatibel")}</dt><dd className="font-semibold tabular-nums">{count(counts.compatible)}</dd></div>
+                            <div className="flex items-center gap-2"><dt>{t("Harga positif")}</dt><dd className="font-semibold tabular-nums">{count(counts.priced)}</dd></div>
                         </dl>
                     </div>
                     <ModelBulkTable

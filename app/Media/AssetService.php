@@ -5,14 +5,17 @@ namespace App\Media;
 use App\Media\Enums\InputRole;
 use App\Models\MediaAsset;
 use App\Models\User;
+use App\Services\StorageQuotaService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 /**
  * Controlled media asset service. Validates size + allowed type + content signature
@@ -25,41 +28,137 @@ final class AssetService
 {
     private const MAX_BYTES = ['image' => 15_728_640, 'audio' => 31_457_280, 'video' => 104_857_600];
 
-    private const ALLOWED_MIME = [
-        'image' => ['image/jpeg', 'image/png', 'image/webp'],
-        'audio' => ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/webm'],
-        'video' => ['video/mp4', 'video/webm'],
-    ];
-
-    private const ROLE_MEDIA = [
-        'image_ref' => 'image', 'init_frame' => 'image', 'end_frame' => 'image', 'avatar_photo' => 'image',
-        'speech_audio' => 'audio', 'reference_video' => 'video',
-    ];
-
     public function store(User $user, UploadedFile $file, InputRole $role): MediaAsset
     {
-        $mediaType = self::ROLE_MEDIA[$role->value] ?? throw new InvalidArgumentException('Peran ini tidak menerima unggahan aset.');
-        if (! $file->isValid()) {
-            throw new InvalidArgumentException('Berkas unggahan tidak valid.');
-        }
-        $size = (int) ($file->getSize() ?: 0);
-        if ($size <= 0 || $size > self::MAX_BYTES[$mediaType]) {
-            throw new InvalidArgumentException('Ukuran berkas melebihi batas yang diizinkan.');
-        }
-        $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath());
-        if (! in_array($mime, self::ALLOWED_MIME[$mediaType], true)) {
-            throw new InvalidArgumentException('Jenis berkas tidak didukung untuk peran ini.');
-        }
+        return $this->storeMany($user, [$file], $role)[0];
+    }
 
-        $id = (string) Str::uuid();
-        $path = "media-assets/{$id}.".$this->extensionFor($mime);
-        Storage::disk('local')->put($path, (string) file_get_contents($file->getRealPath()));
+    /** Atomic multi-upload; quota admission is serialized with every other owned writer. */
+    public function storeMany(User $user, array $files, InputRole $role): array
+    {
+        if ($files === [] || count($files) > 20) {
+            throw new InvalidArgumentException('Upload between one and twenty files at a time.');
+        }
+        $files = array_values($files);
+        $policy = app(AssetUploadPolicy::class);
+        $inspected = [];
+        foreach ($files as $file) {
+            if (! $file instanceof UploadedFile) {
+                throw new InvalidArgumentException('The uploaded file is invalid.');
+            }
+            $inspected[] = $policy->inspect($file, $role->value);
+        }
+        $written = [];
+        try {
+            return DB::transaction(function () use ($user, $files, $role, $inspected, &$written): array {
+                $owner = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                app(StorageQuotaService::class)->assertCanStore($owner, array_sum(array_column($inspected, 'size')));
+                $result = [];
+                foreach ($files as $index => $file) {
+                    $info = $inspected[$index];
+                    $id = (string) Str::uuid();
+                    $path = "media-assets/{$id}.".$info['extension'];
+                    $stream = fopen($file->getRealPath(), 'rb');
+                    if ($stream === false) {
+                        throw new \RuntimeException('The uploaded file could not be read.');
+                    }
+                    $written[] = $path;
+                    try {
+                        if (! Storage::disk('local')->put($path, $stream, ['visibility' => 'private'])) {
+                            throw new \RuntimeException('The uploaded file could not be stored.');
+                        }
+                    } finally {
+                        fclose($stream);
+                    }
+                    $asset = new MediaAsset([
+                        'user_id' => $owner->id, 'media_type' => $info['kind'], 'role' => $role->value,
+                        'storage_disk' => 'local', 'storage_path' => $path, 'size_bytes' => $info['size'],
+                        'mime' => $info['mime'], 'original_name' => $info['original_name'],
+                        'signature_ok' => true, 'retention_status' => 'active', 'metadata' => $info['metadata'],
+                    ]);
+                    $asset->id = $id;
+                    $asset->save();
+                    $result[] = $asset;
+                }
 
-        return MediaAsset::create([
-            'id' => $id, 'user_id' => $user->id, 'media_type' => $mediaType, 'role' => $role->value,
-            'storage_disk' => 'local', 'storage_path' => $path, 'size_bytes' => $size, 'mime' => $mime,
-            'signature_ok' => true, 'retention_status' => 'active',
-        ]);
+                return $result;
+            });
+        } catch (Throwable $exception) {
+            foreach ($written as $path) {
+                Storage::disk('local')->delete($path);
+            }
+            throw $exception;
+        }
+    }
+
+    public function policy(): array
+    {
+        return app(AssetUploadPolicy::class)->policy();
+    }
+
+    public function present(MediaAsset $asset): array
+    {
+        $previewable = in_array($asset->media_type, ['image', 'audio', 'video'], true)
+            && ($asset->metadata['previewable'] ?? true);
+        $url = '/api/media/assets/'.$asset->id;
+
+        return [
+            'id' => $asset->id, 'media_type' => $asset->media_type, 'kind' => $asset->media_type,
+            'role' => $asset->role, 'original_name' => $this->filename($asset),
+            'size_bytes' => $asset->size_bytes, 'mime' => $asset->mime, 'previewable' => $previewable,
+            'preview_url' => $previewable ? $url : null, 'download_url' => $url.'?download=1',
+            'created_at' => $asset->created_at?->toISOString(), 'policy' => $this->policy()['roles'][$asset->role] ?? null,
+        ];
+    }
+
+    public function assertUsable(MediaAsset $asset): void
+    {
+        if (! $asset->signature_ok || $asset->retention_status !== 'active'
+            || ($asset->expires_at !== null && $asset->expires_at->isPast())
+            || ! Storage::disk($asset->storage_disk)->exists($asset->storage_path)) {
+            throw new InvalidArgumentException('This reference is no longer available. Upload it again.');
+        }
+    }
+
+    public function assertSourceConstraints(MediaAsset $asset, array $constraints): void
+    {
+        $this->assertUsable($asset);
+        foreach (['max_file_size', 'max_pixels'] as $key) {
+            $annotated = $constraints['x-fal'][$key] ?? null;
+            if (is_numeric($annotated)) {
+                $constraints[$key] = is_numeric($constraints[$key] ?? null)
+                    ? min((float) $constraints[$key], (float) $annotated) : $annotated;
+            }
+        }
+        $size = Storage::disk($asset->storage_disk)->size($asset->storage_path);
+        if (is_numeric($constraints['max_file_size'] ?? null) && $size > (float) $constraints['max_file_size']) {
+            throw new InvalidArgumentException('The file exceeds this model input size limit.');
+        }
+        if (is_numeric($constraints['max_pixels'] ?? null)) {
+            $pixels = $asset->metadata['pixels'] ?? null;
+            if ($pixels === null && $asset->media_type === 'image') {
+                $stream = Storage::disk($asset->storage_disk)->readStream($asset->storage_path);
+                try {
+                    $bytes = is_resource($stream) ? stream_get_contents($stream, self::MAX_BYTES['image'] + 1) : false;
+                    $dimensions = is_string($bytes) && strlen($bytes) <= self::MAX_BYTES['image'] ? @getimagesizefromstring($bytes) : false;
+                    $pixels = is_array($dimensions) ? $dimensions[0] * $dimensions[1] : null;
+                } finally {
+                    if (is_resource($stream)) {
+                        fclose($stream);
+                    }
+                }
+            }
+            if ($pixels === null || $pixels > (float) $constraints['max_pixels']) {
+                throw new InvalidArgumentException('The image exceeds this model input pixel limit or cannot be inspected.');
+            }
+        }
+    }
+
+    private function filename(MediaAsset $asset): string
+    {
+        return app(AssetUploadPolicy::class)->safeName(
+            $asset->original_name ?: 'asset-'.$asset->id.'.'.pathinfo($asset->storage_path, PATHINFO_EXTENSION),
+        );
     }
 
     public function assertOwner(User $user, MediaAsset $asset): void
@@ -75,21 +174,23 @@ final class AssetService
         return URL::temporarySignedRoute('media.asset.deliver', now()->addSeconds($ttlSeconds), ['asset' => $asset->id]);
     }
 
-    public function deliver(MediaAsset $asset): StreamedResponse
+    public function deliver(MediaAsset $asset, bool $download = false): StreamedResponse
     {
-        if ($asset->retention_status !== 'active' || ($asset->expires_at !== null && $asset->expires_at->isPast())) {
+        try {
+            $this->assertUsable($asset);
+        } catch (InvalidArgumentException) {
             abort(404);
         }
-        $disk = Storage::disk($asset->storage_disk);
-        if (! $disk->exists($asset->storage_path)) {
-            abort(404);
-        }
+        $previewable = in_array($asset->media_type, ['image', 'audio', 'video'], true)
+            && ($asset->metadata['previewable'] ?? true);
 
-        return $disk->response($asset->storage_path, null, [
+        return Storage::disk($asset->storage_disk)->response($asset->storage_path, $this->filename($asset), [
             'Content-Type' => $asset->mime,
             'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+            'Cross-Origin-Resource-Policy' => 'same-origin',
             'Cache-Control' => 'private, no-store',
-        ]);
+        ], $download || ! $previewable ? 'attachment' : 'inline');
     }
 
     /**
@@ -98,13 +199,11 @@ final class AssetService
      */
     public function dataUri(MediaAsset $asset): string
     {
-        if (! $asset->signature_ok || $asset->retention_status !== 'active' || ($asset->expires_at !== null && $asset->expires_at->isPast())) {
-            throw new InvalidArgumentException('Aset referensi tidak lagi tersedia.');
+        $this->assertUsable($asset);
+        if ($asset->size_bytes > self::MAX_BYTES['audio']) {
+            throw new InvalidArgumentException('This file is too large for inline transport. Use the streamed upload transport.');
         }
         $disk = Storage::disk($asset->storage_disk);
-        if (! $disk->exists($asset->storage_path)) {
-            throw new InvalidArgumentException('Berkas aset referensi tidak ditemukan.');
-        }
 
         return 'data:'.$asset->mime.';base64,'.base64_encode((string) $disk->get($asset->storage_path));
     }
@@ -161,15 +260,5 @@ final class AssetService
             }
             fclose($stream);
         }
-    }
-
-    private function extensionFor(string $mime): string
-    {
-        return match ($mime) {
-            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp',
-            'audio/mpeg' => 'mp3', 'audio/wav', 'audio/x-wav' => 'wav', 'audio/mp4' => 'm4a', 'audio/webm' => 'weba',
-            'video/mp4' => 'mp4', 'video/webm' => 'webm',
-            default => 'bin',
-        };
     }
 }

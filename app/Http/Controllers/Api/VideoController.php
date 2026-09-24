@@ -9,6 +9,7 @@ use App\Media\CapabilityPresenter;
 use App\Media\CapabilityResolver;
 use App\Media\CapabilityValidator;
 use App\Media\Enums\MediaOperation;
+use App\Media\Exceptions\CapabilityConfigException;
 use App\Media\Exceptions\CapabilityValidationException;
 use App\Media\MediaActivation;
 use App\Media\MediaGenerationCoordinator;
@@ -19,6 +20,7 @@ use App\Models\UserToken;
 use App\Models\VideoJob;
 use App\Services\GeneratedVideoStore;
 use App\Services\MediaModelConfig;
+use App\Services\StorageQuotaService;
 use App\Services\VideoGenerationService;
 use App\Services\VideoReferenceStore;
 use Illuminate\Http\JsonResponse;
@@ -148,7 +150,11 @@ class VideoController extends Controller
                         }
                     }
                     $model = AiModelProfile::query()->with('provider')->lockForUpdate()->findOrFail($model->id);
-                    $resolved = app(CapabilityResolver::class)->resolve($model, $operation);
+                    try {
+                        $resolved = app(CapabilityResolver::class)->resolve($model, $operation);
+                    } catch (CapabilityConfigException) {
+                        throw new ImageGenerationException('This model operation is unavailable in this studio. Open it from the media workspace.', 503);
+                    }
                     if (isset($options['expected_capability_hash']) && ! hash_equals($resolved->sourceHash, $options['expected_capability_hash'])) {
                         throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
                     }
@@ -210,10 +216,12 @@ class VideoController extends Controller
     public function destroy(Request $request, string $jobId, VideoReferenceStore $references): JsonResponse
     {
         DB::transaction(function () use ($request, $jobId, $references): void {
+            $user = User::query()->whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
             $job = VideoJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
             if (in_array($job->status, ['pending', 'processing'], true)) {
                 throw ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Batalkan dulu sebelum menghapusnya.']);
             }
+            app(StorageQuotaService::class)->assertJobUnreferenced($user, 'video:'.$job->job_id);
             $this->removeVideoAssets($job, $references);
             $job->delete();
         });
@@ -224,13 +232,30 @@ class VideoController extends Controller
     /** Delete only the uploaded reference image, keeping the video job itself. */
     public function destroyReference(Request $request, string $jobId, VideoReferenceStore $references): JsonResponse
     {
-        $job = VideoJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->firstOrFail();
-        $reference = $references->existingPath($job);
-        if ($reference !== null) {
-            $references->delete($reference);
-        }
+        $deleted = DB::transaction(function () use ($request, $jobId, $references): int {
+            $user = User::query()->whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
+            $job = VideoJob::query()->where('user_id', $user->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
+            if (in_array($job->status, ['pending', 'processing'], true)) {
+                throw ValidationException::withMessages(['job' => 'The reference is in use by an active job. Wait for it to finish.']);
+            }
+            if (! empty($job->reference_asset_ids)) {
+                throw ValidationException::withMessages(['job' => 'This reference is a reusable uploaded asset. Manage it in Library.']);
+            }
+            $reference = $references->existingPath($job);
+            if ($reference === null) {
+                return 0;
+            }
+            if (MediaAsset::query()->where('user_id', $user->id)->where('storage_disk', 'local')
+                ->where('storage_path', $reference)->where('retention_status', 'active')->exists()) {
+                throw ValidationException::withMessages(['job' => 'This reference is retained in Library. Remove that reference first.']);
+            }
+            abort_unless($references->delete($reference), 503, 'The reference could not be deleted. Try again.');
+            $job->update(['has_reference' => false]);
 
-        return response()->json(['deleted_count' => $reference !== null ? 1 : 0]);
+            return 1;
+        });
+
+        return response()->json(['deleted_count' => $deleted]);
     }
 
     /** Clear every finished video job; queued and running work stays untouched. */
@@ -243,8 +268,12 @@ class VideoController extends Controller
             ->chunkById(50, function ($jobs) use (&$removed, $references): void {
                 foreach ($jobs as $job) {
                     DB::transaction(function () use ($job, $references, &$removed): void {
+                        $user = User::query()->whereKey($job->user_id)->lockForUpdate()->firstOrFail();
                         $locked = VideoJob::query()->lockForUpdate()->find($job->id);
                         if (! $locked || in_array($locked->status, ['pending', 'processing'], true)) {
+                            return;
+                        }
+                        if (app(StorageQuotaService::class)->jobIsReferenced($user, 'video:'.$locked->job_id)) {
                             return;
                         }
                         $this->removeVideoAssets($locked, $references);
@@ -264,7 +293,7 @@ class VideoController extends Controller
             Storage::disk('local')->delete($asset);
         }
         $reference = $references->existingPath($job);
-        if ($reference !== null) {
+        if ($reference !== null && empty($job->reference_asset_ids)) {
             $references->delete($reference);
         }
     }
@@ -339,7 +368,7 @@ class VideoController extends Controller
                 && in_array($model->provider->protocol, ['openai', 'fal', 'kinovi'], true) && $model->token_cost > 0)
             ->map(function (AiModelProfile $model) use ($capabilities): array {
                 $payload = MediaModelConfig::publicModel($model);
-                $payload['capabilities'] = $capabilities->forModel($model);
+                $payload['capabilities'] = MediaModelConfig::legacyCapabilities($capabilities->forModel($model));
 
                 return $payload;
             })->values()->all();

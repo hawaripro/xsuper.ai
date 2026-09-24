@@ -10,11 +10,16 @@ use App\Media\Enums\MediaOperation;
 use App\Media\Enums\OutputKind;
 use App\Media\MediaCapability;
 use App\Models\AiModelProfile;
+use App\Models\MediaCapabilityRevision;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 final class MediaModelConfig
 {
+    /** Implemented schema-contract adapters: queue/direct Fal schema execution and bounded WMA realtime. */
+    private const SCHEMA_ADAPTERS = ['fal_schema_v2', 'fal_wma_v1'];
+
     public static function forModel(AiModelProfile $model): array
     {
         if (ThreeDProtocol::supports($model)) {
@@ -67,10 +72,128 @@ final class MediaModelConfig
         ]);
     }
 
+    /**
+     * Unified-workspace execution config for one operation: the native/v1 config, or a neutral
+     * config for a published schema contract carrying its explicitly reviewed billing unit.
+     */
+    public static function forOperation(AiModelProfile $model, string $operation): array
+    {
+        $revision = self::publishedSchemaRevisions($model)->firstWhere('operation', $operation);
+        if ($revision === null) {
+            return self::forModel($model);
+        }
+        $unit = $revision->curation_overrides['pricing']['unit'] ?? 'request';
+        // A per-second tariff kept through a technical upgrade retains its native duration choices.
+        $native = $unit === 'second' ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
+
+        return [
+            'schema_driven' => true, 'price_unit' => $unit,
+            'max_session_seconds' => $revision->executionMetadata()['max_session_seconds'] ?? null,
+            'image_path' => null, 'video_path' => null, 'video_status_path' => null,
+            'sizes' => [], 'durations' => $native['durations'] ?? [], 'aspect_ratios' => [], 'max_quantity' => 1,
+            'supports_size' => false, 'supports_n' => false, 'supports_duration' => false,
+            'supports_aspect_ratio' => false, 'supports_pro' => false, 'supports_reference_image' => false,
+            'reference_required' => false, 'reference_model' => null,
+            'audio_path' => null, 'audio_status_path' => null, 'audio_kind' => null, 'voices' => [],
+            'speed_min' => null, 'speed_max' => null, 'speed_default' => null,
+            'duration_min' => $native['duration_min'] ?? null, 'duration_max' => $native['duration_max'] ?? null,
+            'duration_default' => $native['duration_default'] ?? null, 'max_characters' => null,
+        ];
+    }
+
+    /** A historical v1 source-backed image contract; schema contracts never enter the legacy image path. */
     public static function hasCatalogImage(AiModelProfile $model): bool
     {
         return $model->provider?->protocol === 'fal' && $model->category === 'image'
-            && $model->capabilityRevisions()->where('status', 'published')->whereNotNull('source_schema')->exists();
+            && $model->capabilityRevisions()->where('status', 'published')->where('contract_version', 1)
+                ->where('provider_bindings->adapter', 'fal_image_v1')->whereNotNull('source_schema')->exists();
+    }
+
+    /**
+     * Active source-backed schema contracts with an implemented adapter, newest first. Table
+     * summaries reuse their lazily selected columns; no source JSON is loaded otherwise.
+     *
+     * @return Collection<int, MediaCapabilityRevision>
+     */
+    private static function publishedSchemaRevisions(AiModelProfile $model): Collection
+    {
+        if ($model->provider?->protocol !== 'fal') {
+            return collect();
+        }
+        if ($model->relationLoaded('capabilityRevisions')) {
+            return $model->capabilityRevisions->filter(fn (MediaCapabilityRevision $revision): bool => $revision->status === 'published'
+                && $revision->contract_version === 2 && (bool) ($revision->source_backed ?? is_array($revision->source_schema))
+                && in_array($revision->adapter ?? ($revision->provider_bindings['adapter'] ?? null), self::SCHEMA_ADAPTERS, true))
+                ->sortByDesc('id')->values();
+        }
+
+        return $model->capabilityRevisions()->where('status', 'published')->where('contract_version', 2)
+            ->whereIn('provider_bindings->adapter', self::SCHEMA_ADAPTERS)->whereNotNull('source_schema')->orderByDesc('id')
+            ->get(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'status', 'curation_overrides', 'provider_bindings->max_session_seconds as session_seconds']);
+    }
+
+    /** Existing positive tariffs keep their current billing unit during technical upgrades. */
+    public static function catalogPriceUnit(AiModelProfile $model): string
+    {
+        if ($model->provider?->protocol !== 'fal') {
+            $native = $model->provider?->protocol === 'kinovi'
+                ? KinoviProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
+
+            return $native['price_unit'] ?? 'generation';
+        }
+        $published = self::publishedSchemaRevisions($model)->first();
+        if ($published !== null) {
+            return $published->curation_overrides['pricing']['unit'] ?? 'request';
+        }
+        $reviewed = null;
+        if ($model->relationLoaded('capabilityRevisions')) {
+            foreach ($model->capabilityRevisions as $revision) {
+                if ($revision->contract_version === 2 && $revision->reviewed_at !== null
+                    && isset($revision->curation_overrides['pricing']['unit'])
+                    && ($reviewed === null || $revision->id > $reviewed->id)) {
+                    $reviewed = $revision;
+                }
+            }
+        } else {
+            $reviewed = $model->capabilityRevisions()->where('contract_version', 2)->whereNotNull('reviewed_at')
+                ->whereNotNull('curation_overrides->pricing->unit')->orderByDesc('id')->first(['curation_overrides']);
+        }
+        if ($reviewed !== null) {
+            return $reviewed->curation_overrides['pricing']['unit'];
+        }
+        if ($model->token_cost > 0) {
+            if (ThreeDProtocol::supports($model)) {
+                return ThreeDProtocol::config()['price_unit'] ?? 'generation';
+            }
+            $native = $model->provider?->protocol === 'fal' ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
+            if ($native !== null) {
+                return $native['price_unit'] ?? 'generation';
+            }
+            $legacyPublished = $model->relationLoaded('capabilityRevisions')
+                ? $model->capabilityRevisions->contains(fn ($revision) => $revision->contract_version === 1 && $revision->published_at !== null)
+                : $model->capabilityRevisions()->where('contract_version', 1)->whereNotNull('published_at')->exists();
+            if ($legacyPublished) {
+                return 'generation';
+            }
+        }
+
+        return 'request';
+    }
+
+    public static function catalogCategory(string $category): string
+    {
+        $category = strtolower(str_replace('_', '-', trim($category)));
+
+        return match (true) {
+            in_array($category, ['chat', 'llm', 'text-generation'], true) => 'chat',
+            in_array($category, ['embedding', 'embeddings'], true) => 'embedding',
+            in_array($category, ['avatar', 'talking-avatar'], true) => 'avatar',
+            in_array($category, ['model3d', '3d', '3d-to-3d', 'text-to-3d', 'image-to-3d'], true), str_ends_with($category, '-to-3d') => 'model3d',
+            in_array($category, ['image', 'images', 'canva', 'image-edit', 'image-upscaling', 'image-restoration', 'background-removal', 'image-segmentation'], true), str_ends_with($category, '-to-image') => 'image',
+            in_array($category, ['video', 'video-edit', 'video-upscaling'], true), str_ends_with($category, '-to-video') => 'video',
+            in_array($category, ['audio', 'speech', 'music', 'text-to-speech'], true), str_ends_with($category, '-to-audio') => 'audio',
+            default => 'other',
+        };
     }
 
     private static function publishedImageConfig(AiModelProfile $model): ?array
@@ -272,19 +395,15 @@ final class MediaModelConfig
                 default => 'chat',
             };
         }
-        $kind = match (strtolower($kind)) {
-            'text-to-audio', 'text-to-speech' => 'audio',
-            'text-to-video', 'image-to-video' => 'video',
-            'text-to-image', 'image-to-image' => 'image',
-            'text-to-3d', 'image-to-3d' => 'model3d',
-            default => $kind,
-        };
+        $kind = self::catalogCategory($kind);
         $model['category'] = $kind;
         if (! isset($model['output_modalities'])) {
             $model['output_modalities'] = match ($kind) {
                 'image', 'images' => ['image'],
                 'video', 'avatar' => ['video'],
                 'audio' => ['audio'],
+                'model3d' => ['model3d'],
+                'other' => ['data'],
                 default => ['text'],
             };
         }
@@ -292,22 +411,77 @@ final class MediaModelConfig
         return $model;
     }
 
+    /** Fixed-form studios: native whitelists and historical v1 contracts only, never schema contracts. */
     public static function allowedFor(User $user, AiModelProfile $model): bool
     {
-        if (! $model->is_enabled || ! $model->is_available || ! $model->provider?->is_enabled) {
-            return false;
+        return self::activeProfile($model) && self::nativelyEligible($model) && self::legacyOperations($model) !== [];
+    }
+
+    /**
+     * Operations a member may start from the unified media workspace: v1 operations of a
+     * natively eligible model plus published schema contracts whose explicitly reviewed tariff
+     * still matches, on an enabled, authenticated and healthy provider.
+     *
+     * @return list<string>
+     */
+    public static function workspaceOperations(User $user, AiModelProfile $model): array
+    {
+        if (! self::activeProfile($model)) {
+            return [];
         }
-        if ($model->provider->protocol === 'fal'
-            && ! ThreeDProtocol::supports($model) && ! self::hasCatalogImage($model)
-            && (FalProtocol::MEDIA_MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
-            return false;
-        }
-        if ($model->provider->protocol === 'kinovi'
-            && (KinoviProtocol::MODELS[$model->upstream_model_id ?: $model->model_id] ?? null) !== $model->category) {
-            return false;
+        $operations = self::nativelyEligible($model) ? self::legacyOperations($model) : [];
+        if ($model->provider->authenticated_at !== null && $model->provider->status === 'healthy') {
+            foreach (self::publishedSchemaRevisions($model) as $revision) {
+                if ($revision->hasReviewedPrice($model->token_cost)) {
+                    $operations[] = $revision->operation;
+                }
+            }
         }
 
-        return app(CapabilityResolver::class)->operations($model) !== [];
+        return array_values(array_unique($operations));
+    }
+
+    /**
+     * Operations the fixed-form studios can execute. An operation whose active revision is a
+     * schema contract belongs to the unified workspace alone.
+     *
+     * @return list<string>
+     */
+    public static function legacyOperations(AiModelProfile $model): array
+    {
+        $schema = MediaCapabilityRevision::query()->where('ai_model_profile_id', $model->id)
+            ->where('status', 'published')->where('contract_version', '!=', 1)->pluck('operation')->all();
+
+        return array_values(array_diff(app(CapabilityResolver::class)->operations($model), $schema));
+    }
+
+    /**
+     * Fixed-form studios render only version-1 capability payloads.
+     *
+     * @param  array<string, array<string, mixed>>  $capabilities
+     * @return array<string, array<string, mixed>>
+     */
+    public static function legacyCapabilities(array $capabilities): array
+    {
+        return array_filter($capabilities, static fn (array $capability): bool => ($capability['contract_version'] ?? null) === 1);
+    }
+
+    private static function activeProfile(AiModelProfile $model): bool
+    {
+        return $model->is_enabled && $model->is_available && $model->provider?->is_enabled;
+    }
+
+    /** Existing curated integrations: native Fal/Kinovi whitelists, Trellis, or a historical v1 catalog image. */
+    private static function nativelyEligible(AiModelProfile $model): bool
+    {
+        $routing = $model->upstream_model_id ?: $model->model_id;
+
+        return match ($model->provider?->protocol) {
+            'fal' => ThreeDProtocol::supports($model) || self::hasCatalogImage($model)
+                || (FalProtocol::MEDIA_MODELS[$routing] ?? null) === $model->category,
+            'kinovi' => (KinoviProtocol::MODELS[$routing] ?? null) === $model->category,
+            default => true,
+        };
     }
 
     public static function publicModel(AiModelProfile $model): array
@@ -316,7 +490,7 @@ final class MediaModelConfig
 
         return [
             'id' => $model->model_id, 'name' => $model->display_name,
-            'operations' => app(CapabilityResolver::class)->operations($model),
+            'operations' => self::legacyOperations($model),
             'category' => $model->category,
             'capabilities' => $model->capabilities ?? [],
             'token_cost' => $model->token_cost,

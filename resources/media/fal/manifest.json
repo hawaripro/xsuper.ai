@@ -1,0 +1,288 @@
+{
+  "version": 1,
+  "description": "Public official documentation supplements for exact Fal endpoint identities whose exported contract is missing or known to be incomplete. FalSupplementalContracts::enrich() replaces only such sources for the exact endpoint IDs under supplements, keeps the original source under source_evidence.original, and never aliases another endpoint. Entries under unresolved have no recovered executable contract and must stay blocked.",
+  "supplements": {
+    "minimax/h3-max/director": {
+      "contract": "minimax-h3-max-director.asyncapi.json",
+      "source_kind": "official_machine_readable",
+      "known_incomplete": [],
+      "documentation": {
+        "provenance": [
+          {
+            "url": "https://fal.ai/api/apps/fal-ai/minimax-h3-max-director/asyncapi.json",
+            "publisher": "fal",
+            "document": "H3 Max Director realtime client AsyncAPI 3.1.0",
+            "retrieved_at": "2026-09-22T23:33:07Z",
+            "result": "ok",
+            "snapshot": "resources/media/fal/minimax-h3-max-director.asyncapi.json",
+            "supports": "Stored verbatim: x-fal-wma profile 0.1 (configured-session/1, versioned-input/1, /prompt_version sequence, replay never), control-channel client and server message schemas, and x-fal-media receive tracks (24 fps video, audio). Published under Fal's internal schema slug fal-ai/minimax-h3-max-director."
+          },
+          {
+            "url": "https://fal.ai/models/minimax/h3-max/director/llms.txt",
+            "publisher": "fal",
+            "document": "H3 Max Director endpoint documentation",
+            "retrieved_at": "2026-09-22T23:31:42Z",
+            "result": "ok",
+            "supports": "Selects WMA/WebRTC through fal.realtime.open(wma(\"minimax/h3-max/director\")), forbids fal.run, fal.subscribe and the Queue API, links the AsyncAPI contract and describes configure, configured and prompt updates. Pricing on that date: $0.04 per second of video (promotional until Sep 30), $0.08 list, each session billed for at least 60 seconds of runtime."
+          },
+          {
+            "url": "https://fal.ai/docs/documentation/development/wma.md",
+            "publisher": "fal",
+            "document": "WMA documentation",
+            "retrieved_at": "2026-09-22T23:35:19Z",
+            "result": "ok",
+            "supports": "Bridge POST https://wma.fal.run/session with Authorization: Key <FAL_KEY> and {app_id, sdp, type: \"offer\"} returns {session_id, sdp, type: \"answer\"}; the offer must contain all ICE candidates (no trickle ICE); POST https://wma.fal.run/session/heartbeat {session_id} every 5 seconds; sessions are not resumable."
+          },
+          {
+            "url": "https://raw.githubusercontent.com/fal-ai/fal-js/main/libs/client/src/realtime/wma.ts",
+            "publisher": "fal-ai/fal-js",
+            "document": "Official WMA client source",
+            "retrieved_at": "2026-09-22T23:36:03Z",
+            "result": "ok",
+            "supports": "wma(endpointId) keeps the endpoint identity as its default endpoint and sends it as app_id to https://wma.fal.run/session; heartbeats go to /session/heartbeat."
+          },
+          {
+            "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=minimax/h3-max/director",
+            "publisher": "fal",
+            "document": "Queue OpenAPI export",
+            "retrieved_at": "2026-09-22T23:31:23Z",
+            "result": "http_404",
+            "supports": "Returned HTTP 404; the captured catalog export reported expansion_failed (source hash 08f40daf6cdfe1ac3a4b794ab572ff9d865be4ccdfcda1014c99454f90a0f003)."
+          },
+          {
+            "url": "https://fal.ai/api/apps/fal-ai/minimax-h3-max-director/openapi.json",
+            "publisher": "fal",
+            "document": "Session OpenAPI linked by x-fal-openapi (operation start_session_start_session_post)",
+            "retrieved_at": "2026-09-22T23:33:54Z",
+            "result": "http_405",
+            "supports": "Unavailable; nothing is taken from it."
+          }
+        ],
+        "warnings": [
+          "The session OpenAPI linked by the AsyncAPI (x-fal-openapi ./openapi.json, operation start_session_start_session_post) returned HTTP 405. The bridge request, answer and heartbeat formats come from Fal's WMA documentation and the official fal-js WMA client instead.",
+          "The AsyncAPI is published under Fal's internal schema slug fal-ai/minimax-h3-max-director. Sessions use the endpoint identity minimax/h3-max/director as app_id; the slug is provenance only.",
+          "Fal documents this endpoint only as a WMA/WebRTC session and forbids fal.run, fal.subscribe and the Queue API. Output is live media tracks and data-channel events, not a downloadable file.",
+          "Fal marks WMA as experimental. Its general WMA page still says first-party clients are unreleased, while the newer endpoint page prescribes @fal-ai/client@alpha.",
+          "Fal bills each session for at least 60 seconds of runtime at a per-second video rate; review the per-session price against that minimum.",
+          "Recovered from public documentation only; no session was started."
+        ]
+      }
+    },
+    "perceptron/isaac-01/openai/v1/chat/completions": {
+      "contract": "isaac-01.documented-direct.openapi.json",
+      "source_kind": "documentation_derived",
+      "known_incomplete": [
+        "isaac-01.queue-incomplete.json"
+      ],
+      "documentation": "embedded"
+    }
+  },
+  "unresolved": {
+    "fal-ai/controlfoley": {
+      "captured_error": {
+        "code": "expansion_failed",
+        "message": "OpenAPI schema not available for this endpoint"
+      },
+      "captured_source_hash": "08f40daf6cdfe1ac3a4b794ab572ff9d865be4ccdfcda1014c99454f90a0f003",
+      "reason": "Fal's Platform Models API lists this exact endpoint as active but returns expansion_failed for its OpenAPI; every public schema and documentation page returns HTTP 404. No request, response or transport contract has been published.",
+      "evidence": [
+        {
+          "url": "https://api.fal.ai/v1/models?endpoint_id=fal-ai%2Fcontrolfoley&expand=openapi-3.0",
+          "checked_at": "2026-09-22T23:34:05Z",
+          "result": "ok: metadata.status active, openapi expansion_failed"
+        },
+        {
+          "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=fal-ai%2Fcontrolfoley",
+          "checked_at": "2026-09-22T23:31:21Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/controlfoley",
+          "checked_at": "2026-09-22T23:32:09Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/controlfoley/llms.txt",
+          "checked_at": "2026-09-22T23:31:33Z",
+          "result": "http_404"
+        }
+      ],
+      "note": "The Platform API describes a video-to-audio sound-effect model; that description establishes no field names or output shape."
+    },
+    "fal-ai/stable-cascade": {
+      "captured_error": {
+        "code": "expansion_failed",
+        "message": "OpenAPI schema not available for this endpoint"
+      },
+      "captured_source_hash": "08f40daf6cdfe1ac3a4b794ab572ff9d865be4ccdfcda1014c99454f90a0f003",
+      "reason": "Fal's Platform Models API lists this exact endpoint as active but returns expansion_failed for its OpenAPI; every public schema and documentation page returns HTTP 404. No request, response or transport contract has been published.",
+      "evidence": [
+        {
+          "url": "https://api.fal.ai/v1/models?endpoint_id=fal-ai%2Fstable-cascade&expand=openapi-3.0",
+          "checked_at": "2026-09-22T23:34:05Z",
+          "result": "ok: metadata.status active, openapi expansion_failed"
+        },
+        {
+          "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=fal-ai%2Fstable-cascade",
+          "checked_at": "2026-09-22T23:31:21Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/stable-cascade",
+          "checked_at": "2026-09-22T23:32:09Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/stable-cascade/llms.txt",
+          "checked_at": "2026-09-22T23:32:09Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/stable-cascade/api",
+          "checked_at": "2026-09-22T23:31:34Z",
+          "result": "http_404"
+        }
+      ],
+      "note": "Search indexes still show older Stable Cascade pages, but the current URLs return 404; a category does not establish a prompt field or image output."
+    },
+    "fal-ai/invisible-watermark": {
+      "captured_error": {
+        "code": "expansion_failed",
+        "message": "OpenAPI schema not available for this endpoint"
+      },
+      "captured_source_hash": "08f40daf6cdfe1ac3a4b794ab572ff9d865be4ccdfcda1014c99454f90a0f003",
+      "reason": "Fal's Platform Models API lists this exact endpoint as active but returns expansion_failed for its OpenAPI; every public schema and documentation page returns HTTP 404. No request, response or transport contract has been published.",
+      "evidence": [
+        {
+          "url": "https://api.fal.ai/v1/models?endpoint_id=fal-ai%2Finvisible-watermark&expand=openapi-3.0",
+          "checked_at": "2026-09-22T23:34:05Z",
+          "result": "ok: metadata.status active, openapi expansion_failed"
+        },
+        {
+          "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=fal-ai%2Finvisible-watermark",
+          "checked_at": "2026-09-22T23:31:22Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/invisible-watermark",
+          "checked_at": "2026-09-22T23:32:09Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/invisible-watermark/llms.txt",
+          "checked_at": "2026-09-22T23:32:09Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/invisible-watermark/api",
+          "checked_at": "2026-09-22T23:31:34Z",
+          "result": "http_404"
+        }
+      ],
+      "note": "Watermark payload, algorithm and output representation are unpublished; similarly named libraries are not evidence."
+    },
+    "fal-ai/stable-cascade/sote-diffusion": {
+      "captured_error": {
+        "code": "expansion_failed",
+        "message": "OpenAPI schema not available for this endpoint"
+      },
+      "captured_source_hash": "08f40daf6cdfe1ac3a4b794ab572ff9d865be4ccdfcda1014c99454f90a0f003",
+      "reason": "Fal's Platform Models API lists this exact endpoint as active but returns expansion_failed for its OpenAPI; every public schema and documentation page returns HTTP 404. No request, response or transport contract has been published.",
+      "evidence": [
+        {
+          "url": "https://api.fal.ai/v1/models?endpoint_id=fal-ai%2Fstable-cascade%2Fsote-diffusion&expand=openapi-3.0",
+          "checked_at": "2026-09-22T23:34:05Z",
+          "result": "ok: metadata.status active, openapi expansion_failed"
+        },
+        {
+          "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=fal-ai%2Fstable-cascade%2Fsote-diffusion",
+          "checked_at": "2026-09-22T23:31:22Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/stable-cascade/sote-diffusion",
+          "checked_at": "2026-09-22T23:32:09Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/stable-cascade/sote-diffusion/llms.txt",
+          "checked_at": "2026-09-22T23:32:09Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/stable-cascade/sote-diffusion/api",
+          "checked_at": "2026-09-22T23:31:34Z",
+          "result": "http_404"
+        }
+      ],
+      "note": "The parent fal-ai/stable-cascade contract is also missing and would not establish this nested endpoint's schema."
+    },
+    "fal-ai/decart/lucy-5b/image-to-video": {
+      "captured_error": {
+        "code": "expansion_failed",
+        "message": "Failed to fetch OpenAPI schema"
+      },
+      "captured_source_hash": "2181cb5afde5dd44724e10fba4321db7c70b7130df3d6e41dde34c44e0cef09c",
+      "reason": "The exact identity has no public contract. Its model page redirects to decart/lucy-5b/image-to-video, a different endpoint identity that Fal marks \"This endpoint is deprecated. This model is no longer supported.\" The redirect does not prove that the original route still executes, so the redirected schema is not borrowed.",
+      "evidence": [
+        {
+          "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=fal-ai/decart/lucy-5b/image-to-video",
+          "checked_at": "2026-09-22T23:31:22Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/decart/lucy-5b/image-to-video/llms.txt",
+          "checked_at": "2026-09-22T23:31:41Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/decart/lucy-5b/image-to-video",
+          "checked_at": "2026-09-22T23:33:07Z",
+          "result": "redirect: https://fal.ai/models/decart/lucy-5b/image-to-video, marked deprecated and no longer supported"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/decart/lucy-5b/image-to-video/api",
+          "checked_at": "2026-09-22T23:31:45Z",
+          "result": "redirect: https://fal.ai/models/decart/lucy-edit/pro, a different video-editing model; rejected"
+        },
+        {
+          "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=decart/lucy-5b/image-to-video",
+          "checked_at": "2026-09-22T23:34:53Z",
+          "result": "ok: contract of the redirected identity only; not used for the original identity"
+        }
+      ],
+      "note": "Do not alias to decart/lucy-5b/image-to-video or decart/lucy-edit/pro."
+    },
+    "fal-ai/hunyuan-video-img2vid-lora": {
+      "captured_error": {
+        "code": "expansion_failed",
+        "message": "OpenAPI schema not available for this endpoint"
+      },
+      "captured_source_hash": "08f40daf6cdfe1ac3a4b794ab572ff9d865be4ccdfcda1014c99454f90a0f003",
+      "reason": "Every exact public source returns HTTP 404. Request fields, LoRA format, output structure and transport are unpublished.",
+      "evidence": [
+        {
+          "url": "https://fal.ai/api/openapi/queue/openapi.json?endpoint_id=fal-ai/hunyuan-video-img2vid-lora",
+          "checked_at": "2026-09-22T23:31:22Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/hunyuan-video-img2vid-lora",
+          "checked_at": "2026-09-22T23:33:07Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/hunyuan-video-img2vid-lora/api",
+          "checked_at": "2026-09-22T23:31:41Z",
+          "result": "http_404"
+        },
+        {
+          "url": "https://fal.ai/models/fal-ai/hunyuan-video-img2vid-lora/llms.txt",
+          "checked_at": "2026-09-22T23:31:41Z",
+          "result": "http_404"
+        }
+      ],
+      "note": "Do not borrow schemas from fal-ai/hunyuan-video-image-to-video, text-to-video or other LoRA endpoints."
+    }
+  }
+}

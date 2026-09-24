@@ -2,18 +2,16 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ModelViewerElement } from "@google/model-viewer";
 import { useLocale } from "../../contexts/LocaleContext";
 import { StudioButton, StudioIcon } from "./StudioUI";
+import { readOwnedMedia, selfContainedGlb } from "./mediaOutput";
 import "./model3d.css";
 
-// This component is imported only for a selected, server-approved self-contained GLB.
-// The documented URL hook also covers Three's optional Draco/KTX2 file loaders;
-// no decoder scripts, remote textures, or arbitrary same-origin paths are allowed.
+// Only internally created, self-contained blobs and inert embedded resources are
+// passed to Three. Optional decoders and external mesh/texture URLs are denied.
 ModelViewerElement.mapURLs((value) => {
     const url = new URL(value, window.location.origin);
-    const ownedModel = url.origin === window.location.origin && !url.username && !url.password
-        && /^\/api\/3d\/[^/]+\/asset$/.test(url.pathname);
     const embeddedBlob = url.protocol === "blob:" && url.origin === window.location.origin;
     const embeddedData = /^data:(?:image\/(?:png|jpeg|webp)|application\/(?:octet-stream|gltf-buffer));base64,/i.test(value);
-    if (ownedModel || embeddedBlob || embeddedData) return value;
+    if (embeddedBlob || embeddedData) return value;
     throw new Error("The 3D preview cannot load external resources or optional decoders.");
 });
 // Do not keep previously selected private models resident in the shared viewer cache.
@@ -46,6 +44,8 @@ export default function Model3dViewer({ src, alt }) {
         const viewer = viewerRef.current;
         if (!viewer) return;
         const loaded = () => setState("ready");
+        const controller = new AbortController();
+        let blobUrl;
         const failed = () => setState("error");
         const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
         const updateMotion = () => { viewer.interpolationDecay = motion.matches ? 0 : 50; };
@@ -60,8 +60,15 @@ export default function Model3dViewer({ src, alt }) {
         ModelViewerElement.dracoDecoderLocation = "";
         ModelViewerElement.ktx2TranscoderLocation = "";
         ModelViewerElement.lottieLoaderLocation = "";
-        viewer.src = src;
+        readOwnedMedia(src, 128 * 1024 * 1024, controller.signal).then((bytes) => {
+            if (controller.signal.aborted) return;
+            if (!selfContainedGlb(bytes)) throw new Error("External model resources are not allowed.");
+            blobUrl = URL.createObjectURL(new Blob([bytes], { type: "model/gltf-binary" }));
+            viewer.src = blobUrl;
+        }).catch((error) => { if (error.name !== "AbortError" && !controller.signal.aborted) setState("error"); });
         return () => {
+            controller.abort();
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
             viewer.removeEventListener("load", loaded);
             viewer.removeEventListener("error", failed);
             motion.removeEventListener("change", updateMotion);

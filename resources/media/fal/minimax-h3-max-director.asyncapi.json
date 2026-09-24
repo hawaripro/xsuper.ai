@@ -1,0 +1,3430 @@
+{
+  "x-fal-wma": {
+    "requiredFeatures": [
+      "configured-session/1",
+      "versioned-input/1"
+    ],
+    "perspective": "client",
+    "profileVersion": "0.1",
+    "configuredSession": {
+      "ready": {
+        "$ref": "#/channels/control/messages/server.configured"
+      },
+      "setup": {
+        "$ref": "#/channels/control/messages/client.configure"
+      },
+      "replay": "never"
+    },
+    "sequence": {
+      "increment": 1,
+      "field": "/prompt_version",
+      "initial": 1,
+      "scope": "session"
+    },
+    "errors": {
+      "message": {
+        "$ref": "#/channels/control/messages/server.error"
+      },
+      "descriptionField": "/error",
+      "diagnostic": [
+        "invalid_message",
+        "not_configured",
+        "immutable_settings"
+      ],
+      "codeField": "/code",
+      "inputFailure": [
+        "stale_prompt_version"
+      ],
+      "uncorrelatedInput": "diagnostic",
+      "unknownCode": "diagnostic",
+      "sessionFailure": [
+        "configuration_timeout",
+        "initialization_timeout",
+        "invalid_initial_image",
+        "invalid_initial_audio",
+        "invalid_initial_script",
+        "invalid_input",
+        "balance_unavailable",
+        "content_policy",
+        "generation_timeout",
+        "generation_failed"
+      ]
+    },
+    "ended": {
+      "$ref": "#/channels/control/messages/server.stream_exhausted"
+    },
+    "versionedInput": {
+      "inputField": "/prompt",
+      "message": {
+        "$ref": "#/channels/control/messages/client.prompt"
+      },
+      "pending": {
+        "$ref": "#/channels/control/messages/server.prompt_pending"
+      },
+      "payloadTemplate": {
+        "type": "prompt"
+      },
+      "rejected": {
+        "$ref": "#/channels/control/messages/server.prompt_rejected"
+      },
+      "applied": {
+        "$ref": "#/channels/control/messages/server.prompt_applied"
+      },
+      "policy": "replace-pending"
+    }
+  },
+  "defaultContentType": "application/json",
+  "asyncapi": "3.1.0",
+  "channels": {
+    "control": {
+      "address": "fal",
+      "servers": [
+        {
+          "$ref": "#/servers/session"
+        }
+      ],
+      "messages": {
+        "server.deadline_missed": {
+          "$ref": "#/components/messages/server.deadline_missed"
+        },
+        "client.stop": {
+          "$ref": "#/components/messages/client.stop"
+        },
+        "server.session_info": {
+          "$ref": "#/components/messages/server.session_info"
+        },
+        "server.stream_exhausted": {
+          "$ref": "#/components/messages/server.stream_exhausted"
+        },
+        "server.session_metrics": {
+          "$ref": "#/components/messages/server.session_metrics"
+        },
+        "server.audio_pending": {
+          "$ref": "#/components/messages/server.audio_pending"
+        },
+        "server.audio_exhausted": {
+          "$ref": "#/components/messages/server.audio_exhausted"
+        },
+        "client.ping": {
+          "$ref": "#/components/messages/client.ping"
+        },
+        "client.prompt": {
+          "$ref": "#/components/messages/client.prompt"
+        },
+        "server.prompt_rejected": {
+          "$ref": "#/components/messages/server.prompt_rejected"
+        },
+        "server.pong": {
+          "$ref": "#/components/messages/server.pong"
+        },
+        "server.chunk": {
+          "$ref": "#/components/messages/server.chunk"
+        },
+        "server.prompt_applied": {
+          "$ref": "#/components/messages/server.prompt_applied"
+        },
+        "server.error": {
+          "$ref": "#/components/messages/server.error"
+        },
+        "server.configured": {
+          "$ref": "#/components/messages/server.configured"
+        },
+        "server.audio_applied": {
+          "$ref": "#/components/messages/server.audio_applied"
+        },
+        "server.prompt_pending": {
+          "$ref": "#/components/messages/server.prompt_pending"
+        },
+        "server.chunk_metrics": {
+          "$ref": "#/components/messages/server.chunk_metrics"
+        },
+        "client.configure": {
+          "$ref": "#/components/messages/client.configure"
+        },
+        "server.audio_rejected": {
+          "$ref": "#/components/messages/server.audio_rejected"
+        }
+      }
+    }
+  },
+  "servers": {
+    "session": {
+      "protocol": "webrtc",
+      "description": "Runtime-assigned WebRTC peer negotiated over HTTP.",
+      "host": "{sessionHost}",
+      "variables": {
+        "sessionHost": {
+          "default": "runtime-assigned.invalid",
+          "description": "Logical peer supplied by the OpenAPI session negotiation."
+        }
+      },
+      "x-fal-negotiated-by": "start_session_start_session_post"
+    }
+  },
+  "x-fal-openapi": {
+    "operationId": "start_session_start_session_post",
+    "url": "./openapi.json"
+  },
+  "info": {
+    "description": "Client contract for the WebRTC session created by the linked OpenAPI operation.",
+    "title": "MiniMaxH3MaxDirector realtime client API",
+    "version": "1.0.0"
+  },
+  "operations": {
+    "sendControl": {
+      "channel": {
+        "$ref": "#/channels/control"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/control/messages/client.configure"
+        },
+        {
+          "$ref": "#/channels/control/messages/client.ping"
+        },
+        {
+          "$ref": "#/channels/control/messages/client.prompt"
+        },
+        {
+          "$ref": "#/channels/control/messages/client.stop"
+        }
+      ],
+      "action": "send"
+    },
+    "receiveEvents": {
+      "channel": {
+        "$ref": "#/channels/control"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/control/messages/server.audio_applied"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.audio_exhausted"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.audio_pending"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.audio_rejected"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.chunk"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.chunk_metrics"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.configured"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.deadline_missed"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.error"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.pong"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.prompt_applied"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.prompt_pending"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.prompt_rejected"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.session_info"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.session_metrics"
+        },
+        {
+          "$ref": "#/channels/control/messages/server.stream_exhausted"
+        }
+      ],
+      "action": "receive"
+    }
+  },
+  "components": {
+    "schemas": {
+      "MiniMaxH3MaxDirectorServerAudioRejectedMessage": {
+        "required": [
+          "type",
+          "prompt_version",
+          "reason",
+          "error"
+        ],
+        "title": "AudioRejectedMessage",
+        "type": "object",
+        "properties": {
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string",
+            "enum": [
+              "invalid_audio",
+              "content_policy",
+              "preparation_failed",
+              "queue_full",
+              "stale_prompt_version"
+            ]
+          },
+          "type": {
+            "default": "audio_rejected",
+            "const": "audio_rejected",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerPromptPendingMessage": {
+        "required": [
+          "type",
+          "prompt_version"
+        ],
+        "title": "PromptPendingMessage",
+        "type": "object",
+        "properties": {
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "type": {
+            "default": "prompt_pending",
+            "const": "prompt_pending",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerPromptAppliedMessage": {
+        "required": [
+          "type",
+          "prompt_version"
+        ],
+        "description": "A direction (or script) is admitted; the script fields report scripts.\n\n``script_origin_chunk_index`` is the first chunk generated under the\nscript when that is already fixed (a replacement binds to the next\nundispatched chunk); an appended script reports ``None`` until it starts.",
+        "title": "PromptAppliedMessage",
+        "type": "object",
+        "properties": {
+          "script_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "replace",
+                  "append"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Script Mode"
+          },
+          "script_origin_chunk_index": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Script Origin Chunk Index"
+          },
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "script_beats": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Script Beats"
+          },
+          "script_queued": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Script Queued"
+          },
+          "type": {
+            "default": "prompt_applied",
+            "const": "prompt_applied",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerDispatchAccounting": {
+        "required": [
+          "wall_ms",
+          "classified_ms",
+          "overhead_ms",
+          "phases_ms"
+        ],
+        "title": "DispatchAccounting",
+        "type": "object",
+        "properties": {
+          "phases_ms": {
+            "title": "Phases Ms",
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "overhead_ms": {
+            "minimum": 0,
+            "title": "Overhead Ms",
+            "type": "number"
+          },
+          "wall_ms": {
+            "minimum": 0,
+            "title": "Wall Ms",
+            "type": "number"
+          },
+          "classified_ms": {
+            "minimum": 0,
+            "title": "Classified Ms",
+            "type": "number"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerAudioPendingMessage": {
+        "required": [
+          "type",
+          "prompt_version",
+          "behavior"
+        ],
+        "title": "AudioPendingMessage",
+        "type": "object",
+        "properties": {
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "behavior": {
+            "title": "Behavior",
+            "type": "string",
+            "enum": [
+              "replace",
+              "queue"
+            ]
+          },
+          "type": {
+            "default": "audio_pending",
+            "const": "audio_pending",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerSessionMetricsMessage": {
+        "required": [
+          "type",
+          "units",
+          "session_wall_ms",
+          "history_size",
+          "history_limit",
+          "phases",
+          "gauges"
+        ],
+        "title": "SessionMetricsMessage",
+        "type": "object",
+        "properties": {
+          "session_wall_ms": {
+            "minimum": 0,
+            "title": "Session Wall Ms",
+            "type": "number"
+          },
+          "units": {
+            "const": "ms",
+            "title": "Units",
+            "type": "string"
+          },
+          "history_limit": {
+            "minimum": 1,
+            "title": "History Limit",
+            "type": "integer"
+          },
+          "type": {
+            "default": "session_metrics",
+            "const": "session_metrics",
+            "title": "Type",
+            "type": "string"
+          },
+          "gauges": {
+            "title": "Gauges",
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "final": {
+            "default": false,
+            "title": "Final",
+            "type": "boolean"
+          },
+          "phases": {
+            "title": "Phases",
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerSessionMetricSummary"
+            }
+          },
+          "history_size": {
+            "minimum": 0,
+            "title": "History Size",
+            "type": "integer"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerChunkMessage": {
+        "required": [
+          "type",
+          "chunk_index",
+          "prompt_version",
+          "generation_seconds",
+          "playback_seconds",
+          "requested_duration_seconds",
+          "generated_frame_count",
+          "trimmed_context_frames",
+          "next_generation_estimate_seconds",
+          "route",
+          "buffer_depth_seconds",
+          "buffer_depth_chunks",
+          "scheduling_lead_ms",
+          "scheduling_slack_ms",
+          "dispatch"
+        ],
+        "title": "ChunkMessage",
+        "type": "object",
+        "properties": {
+          "generated_frame_count": {
+            "title": "Generated Frame Count",
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "hard_cut": {
+            "default": false,
+            "title": "Hard Cut",
+            "type": "boolean"
+          },
+          "presented_frame_count": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Presented Frame Count"
+          },
+          "native_playable_frame_count": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Native Playable Frame Count"
+          },
+          "script_offset_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Script Offset Seconds"
+          },
+          "script_end_keyframe": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Script End Keyframe"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string",
+            "enum": [
+              "gorgonea",
+              "betelgeuse",
+              "regulus",
+              "unknown"
+            ]
+          },
+          "type": {
+            "default": "chunk",
+            "const": "chunk",
+            "title": "Type",
+            "type": "string"
+          },
+          "next_generation_estimate_seconds": {
+            "minimum": 0,
+            "title": "Next Generation Estimate Seconds",
+            "type": "number"
+          },
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "scheduling_lead_ms": {
+            "title": "Scheduling Lead Ms",
+            "type": "number"
+          },
+          "requested_duration_seconds": {
+            "minimum": 5,
+            "title": "Requested Duration Seconds",
+            "type": "integer",
+            "maximum": 15
+          },
+          "buffer_depth_chunks": {
+            "minimum": 0,
+            "title": "Buffer Depth Chunks",
+            "type": "integer"
+          },
+          "dispatch": {
+            "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerDispatchAccounting"
+          },
+          "scheduling_slack_ms": {
+            "title": "Scheduling Slack Ms",
+            "type": "number"
+          },
+          "playback_seconds": {
+            "title": "Playback Seconds",
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "script_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Script Version"
+          },
+          "generation_seconds": {
+            "minimum": 0,
+            "title": "Generation Seconds",
+            "type": "number"
+          },
+          "trimmed_context_frames": {
+            "minimum": 0,
+            "title": "Trimmed Context Frames",
+            "type": "integer"
+          },
+          "buffer_depth_seconds": {
+            "minimum": 0,
+            "title": "Buffer Depth Seconds",
+            "type": "number"
+          },
+          "chunk_index": {
+            "minimum": 0,
+            "title": "Chunk Index",
+            "type": "integer"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerAudioAppliedMessage": {
+        "required": [
+          "type",
+          "prompt_version",
+          "behavior",
+          "source",
+          "duration_seconds",
+          "transcribed",
+          "queued_sources",
+          "remaining_seconds"
+        ],
+        "description": "An audio update was accepted; it conditions the next eligible chunk.\n\n``starts_at_chunk_index`` is the first chunk that can carry it (the next\nundispatched chunk for ``replace``; for ``queue`` the chunk where the\npreceding sources end, if already known).",
+        "title": "AudioAppliedMessage",
+        "type": "object",
+        "properties": {
+          "remaining_seconds": {
+            "minimum": 0,
+            "title": "Remaining Seconds",
+            "type": "number"
+          },
+          "behavior": {
+            "title": "Behavior",
+            "type": "string",
+            "enum": [
+              "replace",
+              "queue"
+            ]
+          },
+          "type": {
+            "default": "audio_applied",
+            "const": "audio_applied",
+            "title": "Type",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "title": "Duration Seconds",
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "queued_sources": {
+            "minimum": 0,
+            "title": "Queued Sources",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "transcribed": {
+            "title": "Transcribed",
+            "type": "boolean"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerConfiguredMessage": {
+        "required": [
+          "type",
+          "prompt_version",
+          "enable_safety_checker"
+        ],
+        "title": "ConfiguredMessage",
+        "type": "object",
+        "properties": {
+          "has_initial_image": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Has Initial Image"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "enum": [
+                  "480p",
+                  "544p",
+                  "640p",
+                  "704p",
+                  "768p"
+                ],
+                "type": "string"
+              },
+              {
+                "enum": [
+                  "480p",
+                  "768p",
+                  "1080p"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resolution"
+          },
+          "acceleration": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "regular"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Acceleration"
+          },
+          "audio_bitrate": {
+            "anyOf": [
+              {
+                "enum": [
+                  96000,
+                  128000,
+                  192000
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Audio Bitrate"
+          },
+          "type": {
+            "default": "configured",
+            "const": "configured",
+            "title": "Type",
+            "type": "string"
+          },
+          "has_initial_audio": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Has Initial Audio"
+          },
+          "chunk_duration": {
+            "anyOf": [
+              {
+                "minimum": 5,
+                "type": "integer",
+                "maximum": 15
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Chunk Duration"
+          },
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer",
+                "maximum": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Memory"
+          },
+          "enable_safety_checker": {
+            "title": "Enable Safety Checker",
+            "type": "boolean"
+          },
+          "aspect_ratio": {
+            "anyOf": [
+              {
+                "enum": [
+                  "16:9",
+                  "9:16",
+                  "1:1"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Aspect Ratio"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerAudioExhaustedMessage": {
+        "required": [
+          "type",
+          "chunk_index",
+          "silent_seconds"
+        ],
+        "description": "Accepted audio ran out inside this chunk; the rest is silence.\n\nLater chunks continue without audio conditioning (checkpoint continuation\non the same family) until new audio is accepted.",
+        "title": "AudioExhaustedMessage",
+        "type": "object",
+        "properties": {
+          "source_version": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Version"
+          },
+          "silent_seconds": {
+            "minimum": 0,
+            "title": "Silent Seconds",
+            "type": "number"
+          },
+          "type": {
+            "default": "audio_exhausted",
+            "const": "audio_exhausted",
+            "title": "Type",
+            "type": "string"
+          },
+          "chunk_index": {
+            "minimum": 0,
+            "title": "Chunk Index",
+            "type": "integer"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorClientConfigureMessage": {
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "prompt_version",
+          "prompt"
+        ],
+        "title": "ConfigureMessage",
+        "type": "object",
+        "properties": {
+          "protocol_version": {
+            "default": 1,
+            "const": 1,
+            "title": "Protocol Version",
+            "type": "integer",
+            "x-fal-ui": {
+              "hidden": true
+            }
+          },
+          "audio_bitrate": {
+            "anyOf": [
+              {
+                "enum": [
+                  96000,
+                  128000,
+                  192000
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "examples": [
+              192000
+            ],
+            "description": "Session audio target in bits/s: 96000, 128000, or 192000. Explicit values use Opus audio mode on direct WebRTC; LiveKit uses its native mode with the same bitrate target. Null preserves transport defaults (WebRTC: 96000, voip). Immutable; reconnect to compare.",
+            "title": "Audio Bitrate",
+            "x-fal-ui": {
+              "advanced": true,
+              "order": 80
+            }
+          },
+          "resolution": {
+            "enum": [
+              "480p",
+              "768p",
+              "1080p"
+            ],
+            "default": "768p",
+            "title": "Resolution",
+            "type": "string",
+            "x-fal-ui": {
+              "order": 10
+            }
+          },
+          "script": {
+            "anyOf": [
+              {
+                "maxItems": 64,
+                "items": {
+                  "$ref": "#/components/schemas/MiniMaxH3MaxDirectorClientScriptBeat"
+                },
+                "type": "array",
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional upfront script: beats at whole-second offsets from the first generated video. `prompt` stays the series premise; a beat prompt directs from its offset on. Cannot be combined with `end_image_url` or `audio_url` (place them in the script).",
+            "title": "Script"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Seed",
+            "x-fal-ui": {
+              "advanced": true,
+              "order": 90
+            }
+          },
+          "type": {
+            "const": "configure",
+            "title": "Type",
+            "type": "string",
+            "x-fal-ui": {
+              "hidden": true
+            }
+          },
+          "prompt": {
+            "title": "Prompt",
+            "examples": [
+              "A continuous original live-action stream following a group of friends as they explore a new city."
+            ],
+            "minLength": 1,
+            "maxLength": 50000,
+            "type": "string",
+            "x-fal-ui": {
+              "field": "textarea",
+              "order": 0
+            }
+          },
+          "audio_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional startup soundtrack. The stream's audio is pinned to this recording from the first chunk as FL2VA target audio, not a Ref2VA reference: every chunk is conditioned on the next window of it (plus the regenerated seam) until it ends, and the source PCM itself is what plays. Live `prompt` messages can replace or queue more audio at any time.",
+            "title": "Target audio",
+            "x-fal-ui": {
+              "field": "audio",
+              "order": 60
+            }
+          },
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer",
+            "x-fal-ui": {
+              "hidden": true
+            }
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "URL of the image to use as the exact first frame. The opening prompt expansion also sees this image, so the first segment's prompt is grounded in it.",
+            "title": "First frame",
+            "x-fal-ui": {
+              "field": "image",
+              "order": 30
+            }
+          },
+          "memory": {
+            "x-fal-ui": {
+              "advanced": true,
+              "order": 70
+            },
+            "default": 12,
+            "minimum": 1,
+            "description": "Number of prior segment prompts retained as context for future prompt expansion.",
+            "title": "Memory",
+            "type": "integer",
+            "maximum": 50
+          },
+          "end_image_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "One-shot exact final frame for the first chunk. Director jointly plans that arrival and the following checkpoint continuation.",
+            "title": "Last frame",
+            "x-fal-ui": {
+              "field": "image",
+              "order": 50
+            }
+          },
+          "aspect_ratio": {
+            "enum": [
+              "16:9",
+              "9:16",
+              "1:1"
+            ],
+            "default": "16:9",
+            "title": "Aspect Ratio",
+            "type": "string",
+            "x-fal-ui": {
+              "order": 20
+            }
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerPongMessage": {
+        "required": [
+          "type",
+          "client_ts"
+        ],
+        "title": "PongMessage",
+        "type": "object",
+        "properties": {
+          "client_ts": {
+            "title": "Client Ts",
+            "type": "number"
+          },
+          "type": {
+            "default": "pong",
+            "const": "pong",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerSessionMetricSummary": {
+        "required": [
+          "count",
+          "total_ms",
+          "p50_ms",
+          "p95_ms",
+          "max_ms"
+        ],
+        "title": "SessionMetricSummary",
+        "type": "object",
+        "properties": {
+          "count": {
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "total_ms": {
+            "minimum": 0,
+            "title": "Total Ms",
+            "type": "number"
+          },
+          "p95_ms": {
+            "minimum": 0,
+            "title": "P95 Ms",
+            "type": "number"
+          },
+          "p50_ms": {
+            "minimum": 0,
+            "title": "P50 Ms",
+            "type": "number"
+          },
+          "max_ms": {
+            "minimum": 0,
+            "title": "Max Ms",
+            "type": "number"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorClientScriptBeat": {
+        "additionalProperties": false,
+        "required": [
+          "offset"
+        ],
+        "description": "A direction on the associated video's clock, never the stream clock.",
+        "title": "ScriptBeat",
+        "type": "object",
+        "properties": {
+          "audio_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Audio that starts playing exactly at this offset as FL2VA target audio; overlapping sources are mixed. The source PCM itself plays.",
+            "title": "Audio Url"
+          },
+          "offset": {
+            "minimum": 0,
+            "description": "Whole seconds from the start of the first video generated under this script. Text and audio placed here start at this second; an end image here is the exact final frame at this second.",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "end_image_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Exact final frame of the chunk that ends at this offset. Offsets of successive end images must be at least three seconds apart.",
+            "title": "End Image Url"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "maxLength": 50000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Direction that starts at this offset and persists until the next text beat; it also appears as a timed span inside the chunk.",
+            "title": "Prompt"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerErrorMessage": {
+        "required": [
+          "type",
+          "code",
+          "error"
+        ],
+        "title": "ErrorMessage",
+        "type": "object",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string",
+            "enum": [
+              "balance_unavailable",
+              "content_policy",
+              "configuration_timeout",
+              "generation_failed",
+              "generation_timeout",
+              "immutable_settings",
+              "initialization_timeout",
+              "invalid_initial_image",
+              "invalid_initial_audio",
+              "invalid_initial_script",
+              "invalid_input",
+              "invalid_message",
+              "not_configured",
+              "stale_prompt_version"
+            ]
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prompt Version"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          },
+          "type": {
+            "default": "error",
+            "const": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerDeadlineMissedMessage": {
+        "required": [
+          "type",
+          "chunk_index",
+          "late_by_seconds",
+          "behavior"
+        ],
+        "title": "DeadlineMissedMessage",
+        "type": "object",
+        "properties": {
+          "late_by_seconds": {
+            "minimum": 0,
+            "title": "Late By Seconds",
+            "type": "number"
+          },
+          "behavior": {
+            "const": "freeze_video_and_silence_audio_until_ready",
+            "title": "Behavior",
+            "type": "string"
+          },
+          "type": {
+            "default": "deadline_missed",
+            "const": "deadline_missed",
+            "title": "Type",
+            "type": "string"
+          },
+          "chunk_index": {
+            "minimum": 0,
+            "title": "Chunk Index",
+            "type": "integer"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorClientPingMessage": {
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "ts"
+        ],
+        "title": "PingMessage",
+        "type": "object",
+        "properties": {
+          "ts": {
+            "title": "Ts",
+            "type": "number"
+          },
+          "type": {
+            "const": "ping",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerPromptRejectedMessage": {
+        "required": [
+          "type",
+          "prompt_version",
+          "reason"
+        ],
+        "title": "PromptRejectedMessage",
+        "type": "object",
+        "properties": {
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string",
+            "enum": [
+              "content_policy",
+              "preparation_failed",
+              "stale_prompt_version",
+              "invalid_script",
+              "infeasible_timing",
+              "invalid_audio",
+              "invalid_image",
+              "queue_full"
+            ]
+          },
+          "type": {
+            "default": "prompt_rejected",
+            "const": "prompt_rejected",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorClientStopMessage": {
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "title": "StopMessage",
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "stop",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorClientPromptMessage": {
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "prompt_version"
+        ],
+        "title": "PromptMessage",
+        "type": "object",
+        "properties": {
+          "audio_behavior": {
+            "enum": [
+              "replace",
+              "queue"
+            ],
+            "default": "replace",
+            "description": "'replace' cuts to this audio at the next chunk; 'queue' appends it.",
+            "title": "Audio Behavior",
+            "type": "string",
+            "x-fal-ui": {
+              "advanced": true,
+              "order": 40
+            }
+          },
+          "replan": {
+            "default": true,
+            "description": "When a prompt is included: true (default) busts the planned prompt queue so the new direction applies at the next undispatched chunk; false appends the direction after the already-planned chunks.",
+            "title": "Replan",
+            "type": "boolean",
+            "x-fal-ui": {
+              "advanced": true,
+              "order": 50
+            }
+          },
+          "script_mode": {
+            "default": "replace",
+            "description": "'replace' cuts to the script at the next chunk; 'append' queues it.",
+            "title": "Script Mode",
+            "type": "string",
+            "enum": [
+              "replace",
+              "append"
+            ]
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "maxLength": 50000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prompt",
+            "x-fal-ui": {
+              "field": "textarea",
+              "order": 10
+            }
+          },
+          "audio_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "FL2VA target audio for future chunks; this is not a Ref2VA reference. With `audio_behavior` 'replace' (default) it starts at the next undispatched chunk and drops any queued audio; with 'queue' it plays after every previously accepted source ends, sample-exact.",
+            "title": "Target audio",
+            "x-fal-ui": {
+              "field": "audio",
+              "order": 30
+            }
+          },
+          "prompt_version": {
+            "minimum": 1,
+            "title": "Prompt Version",
+            "type": "integer",
+            "x-fal-ui": {
+              "hidden": true
+            }
+          },
+          "type": {
+            "const": "prompt",
+            "title": "Type",
+            "type": "string",
+            "x-fal-ui": {
+              "hidden": true
+            }
+          },
+          "script": {
+            "anyOf": [
+              {
+                "maxItems": 64,
+                "items": {
+                  "$ref": "#/components/schemas/MiniMaxH3MaxDirectorClientScriptBeat"
+                },
+                "type": "array",
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A new script: beats at whole-second offsets from the first video generated under it. Exclusive with prompt/end_image_url/audio_url. With `script_mode` 'replace' (default) it replaces the pending and current direction at the next undispatched chunk; 'append' starts at the chunk boundary after the running script's last text beat is represented and its audio tails have finished (queued behind earlier appended scripts). Beats without a prompt keep the current text direction.",
+            "title": "Script"
+          },
+          "end_image_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last frame",
+            "x-fal-ui": {
+              "field": "image",
+              "order": 20
+            }
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerStreamExhaustedMessage": {
+        "required": [
+          "type",
+          "chunks",
+          "reason"
+        ],
+        "title": "StreamExhaustedMessage",
+        "type": "object",
+        "properties": {
+          "chunks": {
+            "minimum": 0,
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string",
+            "enum": [
+              "stopped",
+              "session_limit"
+            ]
+          },
+          "type": {
+            "default": "stream_exhausted",
+            "const": "stream_exhausted",
+            "title": "Type",
+            "type": "string"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerChunkMetricsMessage": {
+        "required": [
+          "type",
+          "chunk_index",
+          "units",
+          "route",
+          "phases_ms",
+          "gauges"
+        ],
+        "title": "ChunkMetricsMessage",
+        "type": "object",
+        "properties": {
+          "chunk_consumable_ready_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Chunk Consumable Ready Ms"
+          },
+          "units": {
+            "const": "ms",
+            "title": "Units",
+            "type": "string"
+          },
+          "phases_ms": {
+            "title": "Phases Ms",
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "type": {
+            "default": "chunk_metrics",
+            "const": "chunk_metrics",
+            "title": "Type",
+            "type": "string"
+          },
+          "gauges": {
+            "title": "Gauges",
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "route": {
+            "title": "Route",
+            "type": "string",
+            "enum": [
+              "gorgonea",
+              "betelgeuse",
+              "regulus",
+              "unknown"
+            ]
+          },
+          "chunk_consumable_interval_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Chunk Consumable Interval Ms"
+          },
+          "chunk_index": {
+            "minimum": 0,
+            "title": "Chunk Index",
+            "type": "integer"
+          }
+        }
+      },
+      "MiniMaxH3MaxDirectorServerSessionInfoMessage": {
+        "required": [
+          "type"
+        ],
+        "title": "SessionInfoMessage",
+        "type": "object",
+        "properties": {
+          "protocol_version": {
+            "default": 1,
+            "const": 1,
+            "title": "Protocol Version",
+            "type": "integer"
+          },
+          "prompt_deck_size": {
+            "default": 6,
+            "const": 6,
+            "title": "Prompt Deck Size",
+            "type": "integer"
+          },
+          "default_memory": {
+            "default": 12,
+            "const": 12,
+            "title": "Default Memory",
+            "type": "integer"
+          },
+          "type": {
+            "default": "session_info",
+            "const": "session_info",
+            "title": "Type",
+            "type": "string"
+          },
+          "resolutions": {
+            "default": [
+              "480p",
+              "768p",
+              "1080p"
+            ],
+            "items": {
+              "enum": [
+                "480p",
+                "768p",
+                "1080p"
+              ],
+              "type": "string"
+            },
+            "title": "Resolutions",
+            "type": "array"
+          },
+          "one_session_per_machine": {
+            "default": true,
+            "const": true,
+            "title": "One Session Per Machine",
+            "type": "boolean"
+          },
+          "client_message_types": {
+            "default": [
+              "configure",
+              "ping",
+              "prompt",
+              "stop"
+            ],
+            "items": {
+              "enum": [
+                "configure",
+                "ping",
+                "prompt",
+                "stop"
+              ],
+              "type": "string"
+            },
+            "title": "Client Message Types",
+            "type": "array"
+          },
+          "default_acceleration": {
+            "default": "regular",
+            "const": "regular",
+            "title": "Default Acceleration",
+            "type": "string"
+          },
+          "audio_sample_rate": {
+            "default": 48000,
+            "const": 48000,
+            "title": "Audio Sample Rate",
+            "type": "integer"
+          },
+          "script_max_pending": {
+            "default": 4,
+            "const": 4,
+            "title": "Script Max Pending",
+            "type": "integer"
+          },
+          "script_min_opening_chunk_seconds": {
+            "default": 5,
+            "const": 5,
+            "title": "Script Min Opening Chunk Seconds",
+            "type": "integer"
+          },
+          "script_min_chunk_seconds": {
+            "default": 3,
+            "const": 3,
+            "title": "Script Min Chunk Seconds",
+            "type": "integer"
+          },
+          "script_max_queued": {
+            "default": 4,
+            "const": 4,
+            "title": "Script Max Queued",
+            "type": "integer"
+          },
+          "max_chunk_duration": {
+            "default": 15,
+            "const": 15,
+            "title": "Max Chunk Duration",
+            "type": "integer"
+          },
+          "script_session_max_decoded_audio_bytes": {
+            "default": 335544320,
+            "title": "Script Session Max Decoded Audio Bytes",
+            "type": "integer"
+          },
+          "default_audio_bitrate": {
+            "anyOf": [
+              {
+                "enum": [
+                  96000,
+                  128000,
+                  192000
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Default Audio Bitrate"
+          },
+          "min_memory": {
+            "default": 1,
+            "const": 1,
+            "title": "Min Memory",
+            "type": "integer"
+          },
+          "script_max_end_images": {
+            "default": 16,
+            "const": 16,
+            "title": "Script Max End Images",
+            "type": "integer"
+          },
+          "script_max_audio_beats": {
+            "default": 8,
+            "const": 8,
+            "title": "Script Max Audio Beats",
+            "type": "integer"
+          },
+          "max_session_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Session Seconds"
+          },
+          "script_modes": {
+            "default": [
+              "replace",
+              "append"
+            ],
+            "items": {
+              "enum": [
+                "replace",
+                "append"
+              ],
+              "type": "string"
+            },
+            "title": "Script Modes",
+            "type": "array"
+          },
+          "fps": {
+            "default": 24,
+            "const": 24,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "aspect_ratios": {
+            "default": [
+              "16:9",
+              "9:16",
+              "1:1"
+            ],
+            "items": {
+              "enum": [
+                "16:9",
+                "9:16",
+                "1:1"
+              ],
+              "type": "string"
+            },
+            "title": "Aspect Ratios",
+            "type": "array"
+          },
+          "max_memory": {
+            "default": 50,
+            "const": 50,
+            "title": "Max Memory",
+            "type": "integer"
+          },
+          "script_max_beats": {
+            "default": 64,
+            "const": 64,
+            "title": "Script Max Beats",
+            "type": "integer"
+          },
+          "controller_machine_type": {
+            "default": "XL",
+            "const": "XL",
+            "title": "Controller Machine Type",
+            "type": "string"
+          },
+          "server_message_types": {
+            "default": [
+              "audio_applied",
+              "audio_exhausted",
+              "audio_pending",
+              "audio_rejected",
+              "chunk",
+              "chunk_metrics",
+              "configured",
+              "deadline_missed",
+              "error",
+              "pong",
+              "prompt_applied",
+              "prompt_pending",
+              "prompt_rejected",
+              "session_info",
+              "session_metrics",
+              "stream_exhausted"
+            ],
+            "items": {
+              "enum": [
+                "audio_applied",
+                "audio_exhausted",
+                "audio_pending",
+                "audio_rejected",
+                "chunk",
+                "chunk_metrics",
+                "configured",
+                "deadline_missed",
+                "error",
+                "pong",
+                "prompt_applied",
+                "prompt_pending",
+                "prompt_rejected",
+                "session_info",
+                "session_metrics",
+                "stream_exhausted"
+              ],
+              "type": "string"
+            },
+            "title": "Server Message Types",
+            "type": "array"
+          },
+          "continuation_playback_seconds": {
+            "default": 8.5,
+            "title": "Continuation Playback Seconds",
+            "type": "number"
+          },
+          "audio_conditioning": {
+            "default": true,
+            "const": true,
+            "title": "Audio Conditioning",
+            "type": "boolean"
+          },
+          "min_chunk_duration": {
+            "default": 5,
+            "const": 5,
+            "title": "Min Chunk Duration",
+            "type": "integer"
+          },
+          "accelerations": {
+            "default": [
+              "none",
+              "regular"
+            ],
+            "items": {
+              "enum": [
+                "none",
+                "regular"
+              ],
+              "type": "string"
+            },
+            "title": "Accelerations",
+            "type": "array"
+          },
+          "prompt_context_segments": {
+            "default": 12,
+            "const": 12,
+            "title": "Prompt Context Segments",
+            "type": "integer"
+          },
+          "continuation_context_frames": {
+            "default": 39,
+            "const": 39,
+            "title": "Continuation Context Frames",
+            "type": "integer"
+          },
+          "audio_behaviors": {
+            "default": [
+              "replace",
+              "queue"
+            ],
+            "items": {
+              "enum": [
+                "replace",
+                "queue"
+              ],
+              "type": "string"
+            },
+            "title": "Audio Behaviors",
+            "type": "array"
+          },
+          "opening_reserved": {
+            "default": false,
+            "title": "Opening Reserved",
+            "type": "boolean"
+          },
+          "backend_selection": {
+            "default": "minimax-h3-turbo-balancer",
+            "const": "minimax-h3-turbo-balancer",
+            "title": "Backend Selection",
+            "type": "string"
+          },
+          "session_limit_scope": {
+            "default": "configured",
+            "title": "Session Limit Scope",
+            "type": "string",
+            "enum": [
+              "configured",
+              "effective"
+            ]
+          },
+          "script_min_end_image_spacing_seconds": {
+            "default": 3,
+            "const": 3,
+            "title": "Script Min End Image Spacing Seconds",
+            "type": "integer"
+          },
+          "default_chunk_duration": {
+            "default": 10,
+            "const": 10,
+            "title": "Default Chunk Duration",
+            "type": "integer"
+          },
+          "audio_bitrates": {
+            "default": [
+              96000,
+              128000,
+              192000
+            ],
+            "items": {
+              "enum": [
+                96000,
+                128000,
+                192000
+              ],
+              "type": "integer"
+            },
+            "title": "Audio Bitrates",
+            "type": "array"
+          },
+          "chunk_seconds": {
+            "default": 10,
+            "const": 10,
+            "title": "Chunk Seconds",
+            "type": "integer"
+          },
+          "script_max_decoded_audio_bytes": {
+            "default": 67108864,
+            "title": "Script Max Decoded Audio Bytes",
+            "type": "integer"
+          },
+          "app": {
+            "default": "minimax-h3-max-director",
+            "const": "minimax-h3-max-director",
+            "title": "App",
+            "type": "string"
+          },
+          "conditioning_audio_sample_rate": {
+            "default": 32000,
+            "const": 32000,
+            "title": "Conditioning Audio Sample Rate",
+            "type": "integer"
+          },
+          "max_audio_source_seconds": {
+            "default": 600,
+            "title": "Max Audio Source Seconds",
+            "type": "number"
+          },
+          "prompt_expander": {
+            "default": "fast",
+            "const": "fast",
+            "title": "Prompt Expander",
+            "type": "string"
+          },
+          "scripts": {
+            "default": true,
+            "const": true,
+            "title": "Scripts",
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "messages": {
+      "server.deadline_missed": {
+        "title": "Server deadline_missed message",
+        "name": "deadline_missed",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerDeadlineMissedMessage"
+        }
+      },
+      "client.stop": {
+        "title": "Client stop message",
+        "name": "stop",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorClientStopMessage"
+        }
+      },
+      "server.session_info": {
+        "title": "Server session_info message",
+        "name": "session_info",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerSessionInfoMessage"
+        }
+      },
+      "server.stream_exhausted": {
+        "title": "Server stream_exhausted message",
+        "name": "stream_exhausted",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerStreamExhaustedMessage"
+        }
+      },
+      "server.session_metrics": {
+        "title": "Server session_metrics message",
+        "name": "session_metrics",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerSessionMetricsMessage"
+        }
+      },
+      "server.audio_pending": {
+        "title": "Server audio_pending message",
+        "name": "audio_pending",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerAudioPendingMessage"
+        }
+      },
+      "server.audio_exhausted": {
+        "title": "Server audio_exhausted message",
+        "name": "audio_exhausted",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerAudioExhaustedMessage"
+        }
+      },
+      "client.ping": {
+        "title": "Client ping message",
+        "name": "ping",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorClientPingMessage"
+        }
+      },
+      "client.prompt": {
+        "correlationId": {
+          "location": "$message.payload#/prompt_version"
+        },
+        "examples": [
+          {
+            "payload": {
+              "script_mode": "replace",
+              "replan": true,
+              "prompt_version": 2,
+              "audio_behavior": "replace",
+              "type": "prompt",
+              "prompt": "They follow a narrow path down to the harbor."
+            },
+            "name": "follow-the-path",
+            "summary": "Send a new direction after configuration is acknowledged"
+          }
+        ],
+        "title": "Client prompt message",
+        "name": "prompt",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorClientPromptMessage"
+        }
+      },
+      "server.prompt_rejected": {
+        "correlationId": {
+          "location": "$message.payload#/prompt_version"
+        },
+        "title": "Server prompt_rejected message",
+        "name": "prompt_rejected",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerPromptRejectedMessage"
+        }
+      },
+      "server.pong": {
+        "title": "Server pong message",
+        "name": "pong",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerPongMessage"
+        }
+      },
+      "server.chunk": {
+        "title": "Server chunk message",
+        "name": "chunk",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerChunkMessage"
+        }
+      },
+      "server.prompt_applied": {
+        "correlationId": {
+          "location": "$message.payload#/prompt_version"
+        },
+        "title": "Server prompt_applied message",
+        "name": "prompt_applied",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerPromptAppliedMessage"
+        }
+      },
+      "server.error": {
+        "correlationId": {
+          "location": "$message.payload#/prompt_version"
+        },
+        "title": "Server error message",
+        "name": "error",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerErrorMessage"
+        }
+      },
+      "server.configured": {
+        "correlationId": {
+          "location": "$message.payload#/prompt_version"
+        },
+        "title": "Server configured message",
+        "name": "configured",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerConfiguredMessage"
+        }
+      },
+      "server.audio_applied": {
+        "title": "Server audio_applied message",
+        "name": "audio_applied",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerAudioAppliedMessage"
+        }
+      },
+      "server.prompt_pending": {
+        "correlationId": {
+          "location": "$message.payload#/prompt_version"
+        },
+        "title": "Server prompt_pending message",
+        "name": "prompt_pending",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerPromptPendingMessage"
+        }
+      },
+      "server.chunk_metrics": {
+        "title": "Server chunk_metrics message",
+        "name": "chunk_metrics",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerChunkMetricsMessage"
+        }
+      },
+      "client.configure": {
+        "correlationId": {
+          "location": "$message.payload#/prompt_version"
+        },
+        "examples": [
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Three roommates hiding an absurd invention as their landlord enters.",
+              "category": "Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-sitcom.webp",
+              "tags": [
+                "Live action"
+              ],
+              "order": 0
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous original live-action American sitcom produced in 1994, following the same ensemble of adult roommates, coworkers, neighbors, and rivals. Preserve appearances, apartment and workplace layouts, relationships, jobs, secrets, running jokes, and unresolved storylines. Advance through dialogue, entrances, misunderstandings, escalating attempts to hide mistakes, reversals, and warm character payoffs. Avoid references to existing sitcoms or actors.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Direct a Live Sitcom",
+            "summary": "Drop a fixed ensemble into audience-created misunderstandings."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "News anchors reporting calmly as an impossible event unfolds behind them.",
+              "category": "News Satire",
+              "thumbnail_url": "https://fal.ai/images/director-examples/daily-synthetic.webp",
+              "tags": [
+                "Broadcast"
+              ],
+              "order": 1
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous satirical news network covering an entirely fictional world. Preserve the recurring anchors, correspondents, studio, cities, political institutions, and consequences of earlier reports. Move through breaking news, field reports, weather, interviews, sports, entertainment, and fake commercials while treating increasingly absurd events with total broadcast seriousness. Clearly remain fictional and avoid impersonating real outlets or people.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Absurd Breaking News",
+            "summary": "Turn audience prompts into an escalating fictional breaking-news broadcast."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A shipwreck survivor approaching an island where gravity bends upward.",
+              "category": "Adventure",
+              "thumbnail_url": "https://fal.ai/images/director-examples/weird-islands.webp",
+              "tags": [
+                "Game"
+              ],
+              "order": 2
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless cinematic adventure following the same shipwreck survivor across a chain of strange islands, each governed by one memorable impossible rule. Preserve the survivor's appearance, supplies, injuries, discoveries, companions, map, and goal of escape. Let every decision reveal a new creature, society, landscape, hazard, or clue connecting the islands. Keep the wonder high and violence non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Islands With Impossible Rules",
+            "summary": "Help a shipwreck survivor navigate islands with impossible rules."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Colorful original race vehicles choosing between jungle and ice tracks.",
+              "category": "Competition",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-race-show.webp",
+              "tags": [
+                "Reality TV"
+              ],
+              "order": 3
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous interactive race show with a fixed roster of original racers, vehicles, teams, personalities, standings, rivalries, and season history. The course travels seamlessly through wildly different but connected environments with shortcuts, obstacles, pit decisions, weather, and tactical surprises. Preserve race position and vehicle damage from scene to scene. Keep collisions exciting, readable, and non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Around-the-World Race",
+            "summary": "Send recurring racers through an ever-changing world-spanning course."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A pink-haired magical girl accidentally throwing her wand at a trash monster.",
+              "category": "Anime",
+              "thumbnail_url": "https://fal.ai/images/director-examples/miracle-sparkle-mimi.webp",
+              "tags": [
+                "Anime"
+              ],
+              "order": 4
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous fictional late-1990s Japanese magical-girl anime starring the same earnest pink-haired heroine and a rotating cast of harmless absurd monsters. Preserve character designs, friendships, powers, reused transformation footage, hand-painted backgrounds, chunky outlines, faded VHS color, and analog broadcast artifacts. Build every episode toward spectacular heroism, then introduce precise visual comedy when something mundane goes wrong.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Magical Girl Mishaps",
+            "summary": "A heroic magical-girl broadcast whose transformations keep going wrong."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Anime news anchors reporting on a giant friendly creature in a city.",
+              "category": "News Satire",
+              "thumbnail_url": "https://fal.ai/images/director-examples/anime-news-network.webp",
+              "tags": [
+                "Anime"
+              ],
+              "order": 5
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous original Japanese anime-style news network rendered entirely as polished 2D cel animation. Every shot, person, location, transition, field report, and on-screen element must remain visibly anime-style—never live action or photorealistic. Follow a fixed team of anime anchors, correspondents, analysts, and weather presenters. Preserve their character designs, personalities, newsroom relationships, studio, and the evolving fictional world they cover. Choose among fictional headlines and report them through desk segments, field reports, interviews, weather, culture, and sports with energetic anime storytelling. Clearly label the world as fictional and avoid real-person impersonation.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Anime Breaking News",
+            "summary": "Cover the day's fictional headlines as a continuous anime broadcast."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "An anime adventuring party descending through a spiral of nested fantasy worlds.",
+              "category": "Fantasy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/isekai-dnd.webp",
+              "tags": [
+                "Anime"
+              ],
+              "order": 6
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless original anime tabletop adventure with a persistent hero party and a fractal spiral structure. Preserve the party, abilities, inventory, relationships, quest history, and visual design. Seamlessly zoom into tiny details that become new worlds or zoom out to reveal cosmic scales. Every action succeeds enough to advance the quest but immediately creates an unexpected complication.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Infinite Anime Quest",
+            "summary": "Direct a spiraling anime quest where every detail can become a world."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A solemn television chef stirring a colorful pot with a remote control.",
+              "category": "Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/cooking-chaos.webp",
+              "tags": [
+                "Reality TV"
+              ],
+              "order": 7
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless deadpan cooking show where the same highly trained host treats ridiculous audience-selected ingredients, tools, and constraints with complete culinary seriousness. Preserve the host, kitchen, assistants, current dish, and accumulated mess. Invent safe edible substitutes for any unsafe suggestion, explain each absurd technique confidently, and drive every episode toward an unexpectedly beautiful final plate.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Impossible Cooking Orders",
+            "summary": "Make a painfully serious chef obey ridiculous cooking instructions."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "An archivist holding a glowing umbrella on a rain-soaked lantern street.",
+              "category": "Mystery",
+              "thumbnail_url": "https://fal.ai/images/director-examples/monsoon-archive.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 8
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless cinematic mystery set in Rainport, a fictional Southeast Asian port city where monsoon rain carries fragments of human memory. Follow the same small Archive team as strange objects lead them through canals, wet markets, rooftop shrines, ferries, and neon shophouses. Preserve the cast, geography, clues, relationships, amber-and-indigo visual language, and warm suspenseful tone as each choice reveals or complicates the current case.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Rain Memory Mystery",
+            "summary": "Investigate memories carried by the rain in a neon port city."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A serious lineup of expressive dogs gathered around one tennis ball.",
+              "category": "Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/dog-park-diaries.webp",
+              "tags": [
+                "Documentary"
+              ],
+              "order": 9
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous warm cinematic mockumentary about the same society of dogs at a city park. Preserve each dog's breed, personality, alliances, grudges, and past scandals. Treat simple impulses such as stealing a tennis ball, following snacks, greeting a newcomer, or chasing a squirrel with the gravity of prestige political drama. Keep the humor affectionate, observational, and harmless.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Dog Park Power Struggle",
+            "summary": "A prestige mockumentary about alliances and scandals at a dog park."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Five space bounty hunters and a robot cat on a battered spaceship bridge.",
+              "category": "Sci-fi",
+              "thumbnail_url": "https://fal.ai/images/director-examples/the-gala.webp",
+              "tags": [
+                "Anime"
+              ],
+              "order": 10
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A never-ending original 1990s cel-animated space bounty show aboard the GALA, a stripped-out former luxury liner where nothing works and nobody is paid on time. Preserve the same five-person crew, one-eyed robot cat, ship layout, character silhouettes, relationships, hand-inked noir style, amber controls, and steel-blue shadows. Every bounty should go wrong in a new way caused mostly by the crew.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Broke Space Bounty Hunters",
+            "summary": "A broke bounty-hunting crew crosses the galaxy in a failing luxury liner."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Single fruit characters reacting to a new arrival beside a tropical villa pool.",
+              "category": "Reality TV",
+              "thumbnail_url": "https://fal.ai/images/director-examples/re-ai-lity-dating.webp",
+              "tags": [
+                "Animation"
+              ],
+              "order": 11
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous audience-directed reality dating show in an impossibly glossy tropical villa with the same cast of expressive adult fruit characters. Preserve each fruit's design, personality, romances, rivalries, betrayals, alliances, and awkward redemption attempts. Escalate through dates, arrivals, loyalty tests, secret tasks, themed parties, ceremonies, and terrible producer decisions. Keep every conflict social, romantic, funny, and nonviolent.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Fruit Dating Show",
+            "summary": "Produce romantic chaos among single fruits in a tropical villa."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A red-haired psychologist facing a rainy British fishing village in 1979.",
+              "category": "Horror",
+              "thumbnail_url": "https://fal.ai/images/director-examples/wearmouth-sands.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 12
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A slow-burning 1979 British folk-horror mystery in the remote fishing village of Wearmouth Sands. Follow psychologist Helen Voss as she searches for her missing fisherman father and uncovers a polite local group protecting an old winter ritual. Preserve period vehicles, wardrobe, locations, relationships, clues, grainy 16mm photography, practical light, drizzle, and understated dread. Reveal the truth only through behavior, omissions, and consequences; avoid gore.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "The Silent Fishing Village",
+            "summary": "Uncover what a quiet fishing village refuses to say."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "An alien synth-pop band performing inside a glowing interdimensional portal.",
+              "category": "Music",
+              "thumbnail_url": "https://fal.ai/images/director-examples/portal-99.webp",
+              "tags": [
+                "Music video"
+              ],
+              "order": 13
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An always-on original music-video channel receiving broadcasts from alternate realities. Every transmission introduces a new fictional performer, genre, era, world, and visual language, from medieval hip-hop to underwater soul or robot garage rock. Connect videos with seamless portal jumps, distorted signals, and reality glitches. Never imitate or depict real performers, copyrighted songs, or existing franchises.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Alternate-Reality Music TV",
+            "summary": "Channel-surf through original music videos from alternate realities."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Eccentric synthetic hosts broadcasting from an alternate-world public-access studio.",
+              "category": "Variety",
+              "thumbnail_url": "https://fal.ai/images/director-examples/agent-radio-television.webp",
+              "tags": [
+                "Retro TV"
+              ],
+              "order": 14
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous pirate television network from an alternate world, inhabited by recurring synthetic hosts with persistent identities and shared lore. Rotate through absurd local news, late-night call-ins, paranormal reports, public-access experiments, original music, fake commercials, and sitcom-like situations. Preserve characters, relationships, running jokes, station history, and consequences across every program.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Pirate Public Access TV",
+            "summary": "Intercept strange broadcasts from a persistent synthetic television network."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Cheerful corn children deciding how to share a glowing kernel.",
+              "category": "Family",
+              "thumbnail_url": "https://fal.ai/images/director-examples/cornytopia.webp",
+              "tags": [
+                "Kids animation"
+              ],
+              "order": 15
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A never-ending wholesome animated kingdom of sentient corn children called Niblets. Preserve the recurring cast, their traits, homes, friendships, Alphabet Cob, and gem-kernel history. Each episode begins with a small relatable problem involving honesty, courage, sharing, patience, or kindness, then plays the chosen response honestly. Keep the storytelling gentle, funny, musical, age-appropriate, and free of villains or scares.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Kingdom of Corn Kids",
+            "summary": "Help a kingdom of corn kids make kind choices."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A strange interdimensional subject standing on a glowing laboratory platform.",
+              "category": "Sci-fi",
+              "thumbnail_url": "https://fal.ai/images/director-examples/dimension-testers.webp",
+              "tags": [
+                "Game"
+              ],
+              "order": 16
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless original sci-fi series observed from cameras inside a secret interdimensional testing facility. Preserve the test chamber layout, staff, equipment damage, procedures, and accumulated consequences. Each cycle introduces a surprising nonhuman subject or artifact, lets the experiment escalate, then moves through containment and cleanup into the next test. Favor imaginative transformations, anomalies, and dark comedy over graphic harm.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Interdimensional Test Lab",
+            "summary": "Run bizarre experiments inside an interdimensional test chamber."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Cel-animated bounty hunters discovering a pixelated world on a spaceship screen.",
+              "category": "Gaming",
+              "thumbnail_url": "https://fal.ai/images/director-examples/game-hunt.webp",
+              "tags": [
+                "Anime"
+              ],
+              "order": 17
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous 1990s cel-animated space show where the fixed crew of the battered GALA hunts mysterious signals containing lost original indie games. Preserve the crew, ship, relationships, and hand-inked visual identity. Each hunt begins with a new signal, enters a visually distinct game-like world, recovers its central idea, and lets something from that world comically leak back onto the ship. Use only fictional game material unless supplied by the user.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Lost Video Game Hunters",
+            "summary": "Space bounty hunters recover lost indie games from mysterious signals."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A 1940s radio announcer at a microphone while a noir mystery unfolds behind glass.",
+              "category": "Mystery",
+              "thumbnail_url": "https://fal.ai/images/director-examples/midnight-radio.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 18
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous fictional 1940s radio station broadcast presented with period visuals, studio microphones, hard shadows, wet streets, and film grain. Preserve the announcer, recurring actors, current serialized mystery, clues, and period rules. Alternate dramatic scenes with station identifications and absurd fictional sponsor spots. Every nightly story should move toward a satisfying ending without breaking the fourth wall.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "1940s Radio Mystery",
+            "summary": "Write the next scene of a lost 1940s radio mystery."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Bioluminescent alien animals grazing beneath a ringed planet.",
+              "category": "Nature",
+              "thumbnail_url": "https://fal.ai/images/director-examples/big-big-galaxy.webp",
+              "tags": [
+                "Documentary"
+              ],
+              "order": 19
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless prestige nature documentary exploring original alien planets, cosmic environments, and unfamiliar ecosystems. Move between sweeping planetary vistas and crisp macro observations of invented organisms, explaining their behavior with calm authoritative narration. Preserve the rules and species of a world while visiting it, then transition naturally to a new environment. Keep every creature original and avoid advanced humanoid civilizations.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Alien Wildlife Documentary",
+            "summary": "Observe beautiful and eerie wildlife on impossible alien planets."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Two fictional wrestlers facing off as masked rivals storm the arena.",
+              "category": "Sports",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-wrestling.webp",
+              "tags": [
+                "Broadcast"
+              ],
+              "order": 20
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A never-ending original professional wrestling promotion with a persistent roster, championships, factions, rivalries, alliances, and grudges. Move fluidly between matches, promos, backstage confrontations, parking-lot chaos, interference, betrayals, and surprise masked returns. Preserve continuity and wrestling logic so every escalation changes future storylines. Keep violence theatrical and non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Pro Wrestling Storylines",
+            "summary": "Book matches, betrayals and backstage chaos in an original promotion."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A cyberpunk cafe AI serving hackers beneath flickering neon signs.",
+              "category": "Simulation",
+              "thumbnail_url": "https://fal.ai/images/director-examples/cyberdeck-cafe.webp",
+              "tags": [
+                "Animation"
+              ],
+              "order": 21
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous cyberpunk cafe simulator set in a literal back alley between megacorporations. The Cyberdeck Cafe is operated by the same personable AI proprietor and visited by recurring hackers, couriers, mercenaries, and exhausted locals. Preserve the cafe layout, regulars, debts, relationships, active gigs, and neon-noir atmosphere as orders, assignments, secrets, and conflicts overlap. Keep danger suspenseful rather than graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Cyberpunk Cafe Manager",
+            "summary": "Manage a back-alley cafe for high-tech lowlifes."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Original athletes competing in a zero-gravity stadium above a futuristic city.",
+              "category": "Sports",
+              "thumbnail_url": "https://fal.ai/images/director-examples/ai-sports-universe.webp",
+              "tags": [
+                "Broadcast"
+              ],
+              "order": 22
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A persistent fictional sports universe where original teams and athletes compete through unscripted seasons in familiar or invented sports. Preserve standings, player appearances, skills, injuries, trades, rivalries, personalities, records, and championship history. Present games with convincing broadcast grammar, commentary, replays, crowd reactions, and evolving off-field storylines. Do not use real leagues, athletes, teams, or brands.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Future Sports League",
+            "summary": "Follow fictional teams and athletes through unpredictable seasons."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A confused man noticing identical strangers on an artificial suburban street.",
+              "category": "Drama",
+              "thumbnail_url": "https://fal.ai/images/director-examples/unseen-audience.webp",
+              "tags": [
+                "Reality TV"
+              ],
+              "order": 23
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An infinite live reality drama about the same fictional man who believes he is living a normal life inside an artificial world. Preserve his appearance, home, work, friends, relationships, memories, and accumulated suspicions. The surrounding cast must absorb new events while quietly protecting the illusion. Begin naturalistically and let small inconsistencies, coincidences, planted clues, and emotional consequences gradually make him question reality.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "The Secret Reality Show",
+            "summary": "Secretly alter the world around a man who thinks his life is normal."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A legged shark climbing apartment stairs toward a surprised party.",
+              "category": "Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/sharks-with-legs.webp",
+              "tags": [
+                "Animation"
+              ],
+              "order": 24
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless campy creature-feature comedy set in a storm-flooded fictional New York where sharks have grown legs and can climb stairs. Follow a recurring group of resourceful residents trying to survive across apartments, rooftops, subways, bodegas, and parties. Preserve the cast, neighborhood geography, water level, improvised defenses, and consequences. Keep attacks suspenseful, ridiculous, and non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Walking Sharks Attack",
+            "summary": "Escape a flooded New York invaded by sharks that can climb stairs."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Three exhausted financial-news hosts reacting to a chaotic terminal.",
+              "category": "Workplace Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/blackledger.webp",
+              "tags": [
+                "Live action"
+              ],
+              "order": 25
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous deadpan workplace comedy inside the fictional Blackledger quantitative news studio. Preserve the same intense lead anchor, sleep-deprived chief quant, energetic correspondent, office rivalries, running jokes, and polished financial-broadcast visual identity. Alternate serious market-style explanations using fictional data with teleprompter failures, studio accidents, green-screen absurdity, and escalating staff politics. Never present financial advice as real.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Wall Street Newsroom Chaos",
+            "summary": "Watch a quantitative newsroom unravel on live television."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A glamorous family reacting to an unexpected twin at a mansion doorway.",
+              "category": "Drama",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-telenovela.webp",
+              "tags": [
+                "Reality TV"
+              ],
+              "order": 26
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous original telenovela with a fixed ensemble of families, lovers, rivals, employees, and charming impostors. Preserve appearances, relationships, secrets, debts, betrayals, and emotional consequences. Escalate through forbidden romances, secret twins, inheritance schemes, mistaken identities, confessions, ceremonies, and shocking entrances. Play every twist with sincere, lavish melodrama and keep physical conflict non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Endless Telenovela",
+            "summary": "Create betrayals, forbidden romances and impossible family revelations."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A confident detective examining a rubber chicken beside an obvious footprint.",
+              "category": "Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-mystery.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 27
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous comedic mystery starring the same elegant, supremely confident detective who always interprets the wrong clue as decisive. Preserve the detective, assistant, suspects, locations, evidence, and unresolved case logic. Each mistaken deduction should accidentally uncover a useful fact, create a new complication, or implicate the wrong person while the assistant quietly tracks the real solution.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "The Detective Is Always Wrong",
+            "summary": "Guide a brilliant-looking detective who always chooses the wrong clue."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Three survivors facing two dark corridors in an abandoned hotel.",
+              "category": "Horror",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-horror-movie.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 28
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless cinematic horror movie following the same small group of adult survivors through a shifting but coherent haunted location. Preserve their appearances, relationships, injuries, inventory, discovered rules, map, and prior choices. Build suspense through sound, negative space, pursuit, difficult decisions, and surprising but earned scares. Keep imagery atmospheric and avoid graphic gore.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Choose-Your-Own Horror",
+            "summary": "Choose where the survivors go and when the next scare lands."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Two nervous young hosts introducing a colorful original music video.",
+              "category": "Music",
+              "thumbnail_url": "https://fal.ai/images/director-examples/channel-99.webp",
+              "tags": [
+                "Retro TV"
+              ],
+              "order": 29
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless fictional late-1990s music television channel hosted by the same enthusiastic but inexperienced young presenters. Preserve the studio, hosts, running jokes, analog broadcast texture, awkward interviews, and low-budget energy. Rotate through fully original music videos, bumpers, countdowns, viewer dedications, and absurd period-style commercials. Never imitate real artists, songs, brands, or channels.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Awkward '90s Music TV",
+            "summary": "Program a charmingly awkward late-1990s music television channel."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Two public-domain historical figures competing on a theatrical stage.",
+              "category": "Variety",
+              "thumbnail_url": "https://fal.ai/images/director-examples/performance-battles.webp",
+              "tags": [
+                "Live action"
+              ],
+              "order": 30
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless theatrical competition where public-domain historical figures resolve playful disputes through original rap, poetry, dance, debate, opera, painting, and improvised performance. Recreate period clothing respectfully while staging each contest as a surprising collision of eras. Preserve the current competitors, score, chosen medium, and callbacks until a winner emerges. Do not use living people, copyrighted characters, or existing lyrics.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Historical Talent Battles",
+            "summary": "Settle historical rivalries through music, poetry and theatrical challenges."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A fantasy party studying a glowing mechanism inside an ancient dungeon.",
+              "category": "Fantasy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/dungeon-puzzles.webp",
+              "tags": [
+                "Game"
+              ],
+              "order": 31
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous original medieval fantasy adventure following the same party through an enormous living dungeon built from interconnected puzzles. Preserve the heroes, abilities, inventory, injuries, relationships, solved mechanisms, map, and quest. Every room presents a visually understandable riddle involving symbols, objects, creatures, timing, or cooperation, and each solution changes later rooms. Keep peril adventurous and non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Endless Fantasy Dungeon",
+            "summary": "Help an adventuring party solve an endless magical dungeon."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Athletes playing golf down a giant water slide in a packed stadium.",
+              "category": "Sports",
+              "thumbnail_url": "https://fal.ai/images/director-examples/impossible-sports.webp",
+              "tags": [
+                "Game"
+              ],
+              "order": 32
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless sports network covering original competitions made by combining familiar equipment, environments, and rules in impossible ways. Present every invented sport with sincere professional commentary, officials, teams, strategy, instant replays, crowds, standings, and evolving rivalries. Explain the current rules visually and preserve the score and field state until the match ends. Keep all impacts safe and non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Invent a New Sport",
+            "summary": "Invent a new sport every match and play it with total seriousness."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Contestants confronting an absurd obstacle on a colorful retro game show.",
+              "category": "Competition",
+              "thumbnail_url": "https://fal.ai/images/director-examples/game-show-network.webp",
+              "tags": [
+                "Retro TV"
+              ],
+              "order": 33
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous network of completely original retro game shows with recurring hosts, contestants, champions, prizes, and running jokes. Move among trivia, physical challenges, guessing games, social bluffing, and strange audience-invented formats. Clearly establish each game's rules, preserve score and progress, and reach a winner before transitioning to the next program. Do not reproduce existing show names, sets, music, or signature games.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Audience-Made Game Shows",
+            "summary": "Play original retro game shows designed by the audience."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Cheerful renovation hosts standing in a kitchen with wildly crooked cabinets.",
+              "category": "Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/home-improvised.webp",
+              "tags": [
+                "Reality TV"
+              ],
+              "order": 34
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless original home-renovation comedy following the same overly confident hosts, patient homeowners, and exhausted crew. Preserve the house layout, budget, schedule, existing mistakes, and character relationships. Every audience-selected design decision creates an unforeseen but funny construction problem that the hosts treat as intentional, yet each episode still moves toward a usable reveal. Avoid copying any existing television property.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Renovation Disaster Show",
+            "summary": "Turn a simple renovation into an escalating deadpan catastrophe."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A diverse starship crew meeting crystalline aliens in a luminous chamber.",
+              "category": "Sci-fi",
+              "thumbnail_url": "https://fal.ai/images/director-examples/space-diplomacy.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 35
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous original optimistic space-diplomacy series following the same diverse crew aboard an interstellar exploration vessel. Preserve crew appearances, roles, relationships, ship layout, mission history, alliances, and unresolved consequences. Each world introduces an original civilization with a coherent need, culture, and conflict that can be approached through negotiation, investigation, exchange, or defensive action. Avoid resemblance to existing franchises.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Alien Diplomacy Mission",
+            "summary": "Negotiate with original civilizations aboard a diplomatic starship."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A theatrical heroine opening a rose-shaped doorway beneath a city.",
+              "category": "Fantasy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/skunk-in-the-roses.webp",
+              "tags": [
+                "Animation"
+              ],
+              "order": 36
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous fantasy-comedy in the Scent Underground, a magical hidden world where aromas can alter reality. Follow the same theatrical heroine and recurring ensemble through strange districts, rivalries, romances, mysteries, and absurd social rules. Preserve character designs, protected relationships, locations, discovered scent magic, objects, and established lore while allowing each journey to branch in a new direction.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "The Underground Scent Kingdom",
+            "summary": "Enter a magical underground where scent can alter reality."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A cinematic montage of a historic South Asian port, university and observatory.",
+              "category": "Education",
+              "thumbnail_url": "https://fal.ai/images/director-examples/south-asian-history.webp",
+              "tags": [
+                "Documentary"
+              ],
+              "order": 37
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An always-on educational documentary exploring South Asian history for a global diaspora. Each segment should identify a specific place, period, community, object, movement, or historical question and explain it with clear cinematic reconstruction, maps, artifacts, and careful narration. Maintain factual humility, distinguish evidence from legend, avoid invented quotations, and portray cultures with regional and period specificity rather than generic imagery.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "South Asian History Explorer",
+            "summary": "Explore requested moments from South Asian history with cinematic clarity."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A tiny feathered synthetic creature camouflaged among luminous leaves.",
+              "category": "Nature",
+              "thumbnail_url": "https://fal.ai/images/director-examples/wildlife-wired.webp",
+              "tags": [
+                "Documentary"
+              ],
+              "order": 38
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous nature series documenting original synthetic species as if they were real wildlife. For each ecosystem, preserve the environment, food web, individual animals, behaviors, nests, migrations, and adaptations. Use patient observational camera work, macro detail, field-documentary narration, and plausible ecological cause and effect. Let audience suggestions influence the next behavior or habitat without breaking biological coherence.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Synthetic Wildlife Documentary",
+            "summary": "Discover a new synthetic species and watch its ecosystem adapt."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "The same three film characters crossing between noir and fantasy worlds.",
+              "category": "Cinema",
+              "thumbnail_url": "https://fal.ai/images/director-examples/filmagic.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 39
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuously evolving interactive film with a fixed cast, recognizable visual identity, and persistent narrative continuity. Preserve character appearances, motivations, relationships, objects, injuries, locations, and unresolved plot threads while allowing the story to move among suspense, drama, action, comedy, science fiction, and fantasy. Make every genre transition emerge from a visible action or object already in the scene.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Genre-Shifting Interactive Movie",
+            "summary": "Direct a continuous film whose cast survives every genre shift."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Two detectives examining clues in an elegant locked-room mystery.",
+              "category": "Mystery",
+              "thumbnail_url": "https://fal.ai/images/director-examples/murder-mystery.webp",
+              "tags": [
+                "Cinema"
+              ],
+              "order": 40
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous classic murder mystery following the same two detectives through a coherent fictional case. Preserve the victim history, suspects, alibis, motives, locations, timeline, physical evidence, and every fact already established. Let each investigation choice reveal a fair clue, contradiction, red herring, or character secret while keeping one logically solvable culprit. Keep violence offscreen and imagery non-graphic.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Solve a Murder Mystery",
+            "summary": "Examine scenes, question suspects and solve a coherent fictional crime."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "One mysterious event reflected in the eyes of three characters across time.",
+              "category": "Experimental",
+              "thumbnail_url": "https://fal.ai/images/director-examples/time-lords.webp",
+              "tags": [
+                "Experimental"
+              ],
+              "order": 41
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous multigenerational mystery told through recurring characters who witness the same evolving timeline from different perspectives. Preserve identities, relationships, chronology, locations, shared events, knowledge boundaries, and cause and effect. Periodically revisit an earlier moment through another character's eyes, revealing information that changes how the audience understands the present without contradicting established facts.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "One Event, Many Perspectives",
+            "summary": "Revisit one evolving event through different characters' perspectives."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "Original storybook travelers approaching a glowing castle in an enchanted forest.",
+              "category": "Family",
+              "thumbnail_url": "https://fal.ai/images/director-examples/storybook-live.webp",
+              "tags": [
+                "Kids animation"
+              ],
+              "order": 42
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous family storybook channel creating original adaptations inspired only by clearly public-domain fairy tales, folklore, and myths. Use distinctive new character designs, dialogue, settings, and visual motifs rather than famous film versions. Preserve the current cast, quest, promises, magical rules, collected objects, and painterly style. Keep stories adventurous, emotionally clear, age-appropriate, and ultimately hopeful.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Interactive Storybook",
+            "summary": "Guide new adaptations of stories safely in the public domain."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A friendly presenter connecting a bicycle, atom and synthesizer on a visual map.",
+              "category": "Education",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-tutorials.webp",
+              "tags": [
+                "Education"
+              ],
+              "order": 43
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless visual tutorial hosted by the same curious, clear presenter. Begin with one practical topic and let each explanation branch naturally into the audience's next question. Preserve the current goal, completed steps, materials, definitions, and visual diagram so newcomers can follow. Demonstrate concepts with concrete examples, label uncertainty, avoid pretending to perform unsafe procedures, and periodically recap the learning path.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "The Never-Ending Tutorial",
+            "summary": "Let every explanation branch into the next thing viewers want to learn."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A dreamer standing in a city where water floats upward into the sky.",
+              "category": "Experimental",
+              "thumbnail_url": "https://fal.ai/images/director-examples/vivid-dreams.webp",
+              "tags": [
+                "Experimental"
+              ],
+              "order": 44
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous surreal anthology that turns a viewer's dream into a vivid interactive film. Preserve the dreamer's identity, emotional logic, recurring symbols, locations, objects, and unresolved feeling while allowing impossible transitions and transformations. Move through dream association rather than random cuts, carrying at least one visible subject, color, motion, or sound into every new scene. Avoid graphic harm.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "9:16"
+            },
+            "name": "Turn Dreams Into Movies",
+            "summary": "Transform submitted dreams into surreal interactive films."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A tranquil beach changing from sunrise to moonlight across one panorama.",
+              "category": "Ambient",
+              "thumbnail_url": "https://fal.ai/images/director-examples/calm-worlds.webp",
+              "tags": [
+                "Ambient"
+              ],
+              "order": 45
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "An endless calming journey through beautiful natural landscapes around an original world. Preserve the current geography and transition gradually as weather, season, tide, color, wildlife, and time of day change. Use slow stable camera movement, realistic ambient detail, gentle sound-implied motion, and seamless environmental transformations. Avoid disasters, sudden cuts, people, buildings, text, and threatening animals.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Shape a Living Landscape",
+            "summary": "Shape a living landscape through weather, season and time of day."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A modest recurring character contemplating two absurd everyday choices.",
+              "category": "Comedy",
+              "thumbnail_url": "https://fal.ai/images/director-examples/mr-humble.webp",
+              "tags": [
+                "Live action"
+              ],
+              "order": 46
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous vertical comedy following the same humble, recognizable fictional everyman through relatable daily situations. Preserve his appearance, home, friends, habits, relationships, and lessons from previous episodes. Turn small dilemmas involving work, food, money, friendship, chores, and social misunderstandings into concise visual stories that end with funny, grounded insight rather than preaching.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "9:16"
+            },
+            "name": "Everyday Dilemmas",
+            "summary": "Navigate everyday dilemmas with humor and unexpectedly grounded wisdom."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A colorful original hero and friends performing atop a surreal city bus.",
+              "category": "Music",
+              "thumbnail_url": "https://fal.ai/images/director-examples/dashworld.webp",
+              "tags": [
+                "Animation"
+              ],
+              "order": 47
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous original animated music universe following Dash and a fixed ensemble of friends through playful adventures that naturally become original songs. Preserve character designs, relationships, world rules, active story arcs, musical motifs, and consequences. Let audience-directed choices shape locations, conflicts, emotions, and lyrical themes, then resolve major beats through new music without imitating existing artists or songs.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "9:16"
+            },
+            "name": "Musical Adventure World",
+            "summary": "Guide a persistent cast through adventures that culminate in original songs."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "An original animated sitcom family reacting around a living-room television.",
+              "category": "Sitcom",
+              "thumbnail_url": "https://fal.ai/images/director-examples/infinite-norm.webp",
+              "tags": [
+                "Animation"
+              ],
+              "order": 48
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous original animated sitcom following the same opinionated suburban lead, family, friends, and neighbors. Preserve approved character designs, voices, relationships, established canon, locations, running jokes, and serialized storylines. Audience choices may trigger everyday actions, arguments, celebrations, television choices, poker nights, and comic complications, but every new scene must remain consistent with the show's protected world and supplied assets.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "16:9"
+            },
+            "name": "Direct an Animated Sitcom",
+            "summary": "Direct canonical scenes inside an established animated sitcom world."
+          },
+          {
+            "x-fal-ui": {
+              "thumbnail_alt": "A young woman choosing between two paths through a changing city.",
+              "category": "Life Simulation",
+              "thumbnail_url": "https://fal.ai/images/director-examples/life-experiment.webp",
+              "tags": [
+                "Game"
+              ],
+              "order": 49
+            },
+            "payload": {
+              "protocol_version": 1,
+              "prompt": "A continuous vertical life simulation following the same fictional young adult over months and years. Preserve her appearance, personality, home, work, finances, friendships, romances, health, skills, goals, memories, and consequences. Turn audience choices into believable decisions with mixed short- and long-term effects rather than simple good-or-bad outcomes. Keep the drama grounded, empathetic, and non-exploitative.",
+              "prompt_version": 1,
+              "resolution": "768p",
+              "memory": 3,
+              "type": "configure",
+              "aspect_ratio": "9:16"
+            },
+            "name": "Choose a Life Path",
+            "summary": "Guide one young adult toward better decisions or spectacular mistakes."
+          },
+          {
+            "payload": {
+              "protocol_version": 1,
+              "resolution": "768p",
+              "type": "configure",
+              "prompt": "A continuous original live-action stream following one dancer in a sunlit rehearsal studio.",
+              "prompt_version": 1,
+              "memory": 12,
+              "script": [
+                {
+                  "offset": 0,
+                  "prompt": "The dancer enters the room and stretches."
+                },
+                {
+                  "audio_url": "https://example.com/rehearsal-music.wav",
+                  "offset": 2
+                },
+                {
+                  "offset": 5,
+                  "prompt": "The dancer turns toward the window."
+                },
+                {
+                  "offset": 8,
+                  "end_image_url": "https://example.com/arrival.jpg"
+                },
+                {
+                  "offset": 8,
+                  "prompt": "The dancer bows to an unseen audience."
+                }
+              ],
+              "aspect_ratio": "16:9"
+            },
+            "name": "Scripted Dance"
+          }
+        ],
+        "title": "Client configure message",
+        "name": "configure",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorClientConfigureMessage"
+        }
+      },
+      "server.audio_rejected": {
+        "title": "Server audio_rejected message",
+        "name": "audio_rejected",
+        "payload": {
+          "$ref": "#/components/schemas/MiniMaxH3MaxDirectorServerAudioRejectedMessage"
+        }
+      }
+    }
+  },
+  "x-fal-media": {
+    "send": [],
+    "perspective": "client",
+    "receive": [
+      {
+        "settings": {
+          "frameRate": 24
+        },
+        "kind": "video"
+      },
+      {
+        "kind": "audio"
+      }
+    ]
+  }
+}

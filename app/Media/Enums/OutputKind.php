@@ -9,4 +9,6 @@ enum OutputKind: string
     case Video = 'video';
     case Audio = 'audio';
     case Model3d = 'model3d';
+    case Data = 'data';
+    case File = 'file';
 }

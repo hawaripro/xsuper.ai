@@ -6,6 +6,8 @@ use App\Exceptions\AiProxyException;
 use App\Models\AiProviderProfile;
 use App\Services\AiProviderEndpoint;
 use App\Services\AiProviderTransport;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\Psr7\PumpStream;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -225,6 +227,53 @@ class ProviderTransportTest extends TestCase
             $this->assertStringNotContainsString('compatible.test', $exception->getMessage());
             $this->assertNull($exception->getPrevious());
         }
+    }
+
+    public function test_cancelled_admission_never_contacts_the_provider(): void
+    {
+        Http::fake();
+        try {
+            $this->transport()->complete($this->provider('openai', 'https://compatible.test/v1', 'secret'), [
+                'model' => 'm', 'messages' => [['role' => 'user', 'content' => 'hello']],
+                '_is_cancelled' => static fn (): bool => true,
+            ]);
+            $this->fail('Stopped admission must not call the provider.');
+        } catch (AiProxyException $error) {
+            $this->assertSame(499, $error->responseStatus());
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_stopping_a_partial_response_closes_the_body_without_emitting_buffered_completion(): void
+    {
+        $cancelled = false;
+        $closed = false;
+        $source = Utils::streamFor("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial\"},\"finish_reason\":null}]}\n\n".
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"must not escape\"},\"finish_reason\":\"stop\"}],\"usage\":{\"total_tokens\":4}}\n\n".
+            "data: [DONE]\n\n");
+        $body = FnStream::decorate($source, ['close' => function () use ($source, &$closed): void {
+            $closed = true;
+            $source->close();
+        }]);
+        Http::fake(['https://compatible.test/v1/chat/completions' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
+        $received = [];
+        try {
+            foreach ($this->transport()->stream($this->provider('openai', 'https://compatible.test/v1', 'secret'), [
+                'model' => 'm', 'messages' => [['role' => 'user', 'content' => 'hello']],
+                '_is_cancelled' => static function () use (&$cancelled): bool { return $cancelled; },
+            ]) as $chunk) {
+                $received[] = $chunk['choices'][0]['delta']['content'];
+                $cancelled = true;
+            }
+            $this->fail('A stopped partial stream cannot be a successful completion.');
+        } catch (AiProxyException $error) {
+            $this->assertSame(499, $error->responseStatus());
+        }
+        $this->assertSame(['partial'], $received);
+        $this->assertTrue($closed);
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => ! array_key_exists('_is_cancelled', $request->data())
+            && $request['stream_options']['include_usage'] === true);
     }
 
     private function provider(string $protocol, string $baseUrl, string $key): AiProviderProfile

@@ -9,7 +9,10 @@ use App\Http\Controllers\Api\ApiKeyController;
 use App\Http\Controllers\Api\AudioController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\AvatarController;
+use App\Http\Controllers\Api\ChatArtifactController;
+use App\Http\Controllers\Api\ChatAttachmentController;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\ChatWorkspaceController;
 use App\Http\Controllers\Api\ContentController;
 use App\Http\Controllers\Api\DashboardController as ApiDashboardController;
 use App\Http\Controllers\Api\DashboardSearchController;
@@ -28,6 +31,7 @@ use App\Http\Controllers\Api\PeriodController;
 use App\Http\Controllers\Api\PricingController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\RealtimeController;
+use App\Http\Controllers\Api\RealtimeMediaController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\SecurityController;
 use App\Http\Controllers\Api\StorageUpgradeController;
@@ -36,6 +40,7 @@ use App\Http\Controllers\Api\ThreeDController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\VideoController;
+use App\Http\Controllers\Api\WorkspaceMediaController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\PublicSiteController;
@@ -130,10 +135,31 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/c/m', [ChatController::class, 'models']);
             Route::get('/c/am', [ChatController::class, 'allModels']);
             Route::post('/c/s', [ChatController::class, 'send']);
+            Route::get('/c/capabilities', [ChatController::class, 'capabilities']);
+            Route::get('/c/workspaces', [ChatWorkspaceController::class, 'index']);
+            Route::post('/c/workspaces', [ChatWorkspaceController::class, 'store']);
+            Route::patch('/c/workspaces/{workspace}', [ChatWorkspaceController::class, 'update'])->whereNumber('workspace');
+            Route::post('/c/h', [ChatWorkspaceController::class, 'createConversation']);
             Route::get('/c/h', [ChatController::class, 'history']);
             Route::get('/c/h/{conversationId}', [ChatController::class, 'conversation']);
             Route::delete('/c/h/{conversationId}', [ChatController::class, 'deleteConversation']);
+            Route::patch('/c/h/{conversationId}', [ChatWorkspaceController::class, 'updateConversation']);
+            Route::get('/c/h/{conversationId}/attachments', [ChatAttachmentController::class, 'index']);
+            Route::post('/c/h/{conversationId}/attachments', [ChatAttachmentController::class, 'store'])->middleware(['storage.available', 'throttle:30,1,chat-attachments']);
+            Route::delete('/c/h/{conversationId}/attachments/{attachment}', [ChatAttachmentController::class, 'destroy'])->whereUuid('attachment');
+            Route::get('/c/h/{conversationId}/attachments/{attachment}/preview', [ChatAttachmentController::class, 'preview'])->whereUuid('attachment');
+            Route::get('/c/h/{conversationId}/attachments/{attachment}/download', [ChatAttachmentController::class, 'download'])->whereUuid('attachment');
+            Route::get('/c/h/{key}/artifacts', [ChatArtifactController::class, 'index']);
+            Route::post('/c/h/{key}/artifacts', [ChatArtifactController::class, 'store'])->middleware(['storage.available', 'throttle:30,1,chat-artifacts']);
+            Route::get('/c/artifacts/{artifact}', [ChatArtifactController::class, 'show'])->whereUuid('artifact');
+            Route::post('/c/artifacts/{artifact}/revisions', [ChatArtifactController::class, 'revise'])->whereUuid('artifact')->middleware(['storage.available', 'throttle:60,1,chat-artifact-revisions']);
+            Route::get('/c/artifacts/{artifact}/revisions/{revision}', [ChatArtifactController::class, 'revision'])->whereUuid(['artifact', 'revision']);
+            Route::get('/c/artifacts/{artifact}/download', [ChatArtifactController::class, 'download'])->whereUuid('artifact');
+            Route::get('/c/artifacts/{artifact}/preview', [ChatArtifactController::class, 'preview'])->whereUuid('artifact');
         });
+        // A running chat response stays observable and stoppable if the subscription expires mid-stream.
+        Route::get('/c/operations/{operationId}', [ChatController::class, 'operation'])->whereUuid('operationId');
+        Route::post('/c/operations/{operationId}/stop', [ChatController::class, 'stop'])->whereUuid('operationId');
 
         // Video and image generation
         Route::post('/v/{jobId}/cancel', [VideoController::class, 'cancel']);
@@ -159,8 +185,34 @@ Route::prefix('api')->middleware('web')->group(function () {
         // Controlled reference uploads (image/audio/video) for capability-driven studios.
         Route::post('/media/assets', [MediaAssetController::class, 'upload'])->middleware(['storage.available', 'throttle:30,1']);
         Route::get('/media/assets', [MediaAssetController::class, 'index']);
+        Route::get('/media/assets/policy', [MediaAssetController::class, 'policy']);
         Route::get('/media/assets/{asset}', [MediaAssetController::class, 'show']);
         Route::delete('/media/assets/{asset}', [MediaAssetController::class, 'destroy']);
+
+        // Unified capability workspace for every provider operation, plus realtime sessions.
+        Route::middleware('check.expiry')->group(function () {
+            Route::get('/media/workspace/models', [WorkspaceMediaController::class, 'models']);
+            Route::get('/media/workspace/capabilities', [WorkspaceMediaController::class, 'capabilities']);
+            // Storage is checked by the service after replay: a lost response for paid work must stay recoverable.
+            Route::post('/media/workspace/jobs', [WorkspaceMediaController::class, 'store'])->middleware('throttle:20,1,media-workspace-jobs');
+            Route::post('/media/realtime/ice', [RealtimeMediaController::class, 'ice'])->middleware('throttle:20,1,realtime-ice');
+            Route::post('/media/realtime/sessions', [RealtimeMediaController::class, 'store'])->middleware('throttle:10,1,realtime-session');
+            Route::post('/media/realtime/sessions/{session}/input', [RealtimeMediaController::class, 'input'])->whereUuid('session')->middleware('throttle:60,1,realtime-input');
+        });
+        // Existing results, cancellation and live-session shutdown remain available after expiry.
+        Route::get('/media/workspace/jobs', [WorkspaceMediaController::class, 'index']);
+        Route::delete('/media/workspace/jobs', [WorkspaceMediaController::class, 'clear']);
+        Route::get('/media/workspace/jobs/{id}', [WorkspaceMediaController::class, 'show'])->where('id', '[A-Za-z0-9:_-]{1,100}');
+        Route::post('/media/workspace/jobs/{id}/cancel', [WorkspaceMediaController::class, 'cancel'])->where('id', '[A-Za-z0-9:_-]{1,100}');
+        Route::post('/media/workspace/jobs/{id}/retry-save', [WorkspaceMediaController::class, 'retrySave'])->where('id', '[A-Za-z0-9:_-]{1,100}')->middleware(['storage.available', 'throttle:20,1,media-workspace-save']);
+        Route::delete('/media/workspace/jobs/{id}', [WorkspaceMediaController::class, 'destroy'])->where('id', '[A-Za-z0-9:_-]{1,100}');
+        Route::get('/media/workspace/jobs/{id}/outputs/{outputId}/download', [WorkspaceMediaController::class, 'download'])->where('id', '[A-Za-z0-9:_-]{1,100}');
+        Route::get('/media/workspace/jobs/{id}/outputs/{outputId}/preview', [WorkspaceMediaController::class, 'preview'])->where('id', '[A-Za-z0-9:_-]{1,100}');
+        Route::get('/media/realtime/sessions', [RealtimeMediaController::class, 'index']);
+        Route::get('/media/realtime/sessions/{session}', [RealtimeMediaController::class, 'show'])->whereUuid('session');
+        Route::post('/media/realtime/sessions/{session}/heartbeat', [RealtimeMediaController::class, 'heartbeat'])->whereUuid('session')->middleware('throttle:30,1,realtime-heartbeat');
+        Route::post('/media/realtime/sessions/{session}/close', [RealtimeMediaController::class, 'close'])->whereUuid('session');
+        Route::post('/media/realtime/sessions/{session}/recording', [RealtimeMediaController::class, 'recording'])->whereUuid('session')->middleware(['storage.available', 'throttle:10,1,realtime-recording']);
 
         Route::get('/avatar/models', [AvatarController::class, 'models'])->middleware('check.expiry');
         Route::post('/avatar', [AvatarController::class, 'generate'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
@@ -311,6 +363,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/admin/ai/providers/{provider}/models', [AiCatalogController::class, 'providerModels']);
             Route::get('/admin/ai/models/{model}/capabilities', [MediaCatalogController::class, 'capabilities']);
             Route::post('/admin/ai/providers/{provider}/discover', [MediaCatalogController::class, 'discover'])->middleware('throttle:12,1');
+            Route::post('/admin/ai/providers/{provider}/catalog-bulk', [MediaCatalogController::class, 'bulk'])->middleware('throttle:12,1');
             Route::post('/admin/ai/capabilities/{revision}/review', [MediaCatalogController::class, 'review']);
             Route::post('/admin/ai/capabilities/{revision}/publish', [MediaCatalogController::class, 'publish']);
             Route::post('/admin/ai/capabilities/{revision}/disable', [MediaCatalogController::class, 'disable']);

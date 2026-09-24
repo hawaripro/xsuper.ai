@@ -152,7 +152,7 @@ export default function AICatalog() {
                                             <span className="mt-4 grid grid-cols-4 gap-2 text-center">
                                                 {[
                                                     [totals.total, "Model", false],
-                                                    [totals.enabled, "Aktif", false],
+                                                    [totals.enabled, "Profil aktif", false],
                                                     [provider.counts?.published, "Capability terbit", false],
                                                     [provider.counts?.needs_handling, "Perlu penanganan", provider.counts?.needs_handling > 0],
                                                 ].map(([value, metric, warn]) => (
@@ -164,6 +164,7 @@ export default function AICatalog() {
                                             </span>
                                             <span className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
                                                 <span>{t("Belum berharga")}: {count(totals.unpriced)}</span>
+                                                <span>{t("Schema kompatibel")}: {count(provider.counts?.compatible)}</span>
                                                 <span>{provider.last_checked_at ? formatDateTime(provider.last_checked_at) : t("Belum diperiksa")}</span>
                                                 <span className="ml-auto inline-flex items-center gap-1 font-semibold text-red-500 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:transform-none">
                                                     {t("Lihat detail")} <Icon name="arrow" className="h-3.5 w-3.5" />
@@ -171,6 +172,7 @@ export default function AICatalog() {
                                             </span>
                                             {provider.last_error && <span className="mt-3 block break-words text-xs leading-5 text-red-700 dark:text-red-300">{provider.last_error}</span>}
                                             {provider.verification?.catalog_source === "static_documentation" && <span className="mt-2 block text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Katalog dari dokumentasi; autentikasi dan generasi belum diverifikasi.")}</span>}
+                                            {provider.protocol === "fal" && <span className="mt-2 block text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Impor, harga, dan publikasi terpisah. Koneksi terautentikasi bukan bukti generasi berhasil.")}</span>}
                                         </button>
                                     </li>
                                 );

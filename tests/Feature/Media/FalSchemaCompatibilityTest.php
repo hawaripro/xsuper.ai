@@ -12,7 +12,7 @@ class FalSchemaCompatibilityTest extends TestCase
     public function test_supported_image_schema_maps_internal_keys_without_exposing_provider_bindings(): void
     {
         $model = FalCatalogFixture::model();
-        $result = app(FalCapabilityImporter::class)->normalize($model);
+        $result = app(FalCapabilityImporter::class)->normalize($model, 1);
         $this->assertTrue($result['publishable']);
         $this->assertTrue($result['capability']->input(InputRole::Prompt)->required);
         $this->assertSame(['square', 'portrait'], $result['capability']->param('size')->options);
@@ -25,7 +25,7 @@ class FalSchemaCompatibilityTest extends TestCase
         $model = FalCatalogFixture::model();
         $model['openapi']['components']['schemas']['Input']['required'][] = 'control';
         $model['openapi']['components']['schemas']['Input']['properties']['control'] = ['type' => 'object'];
-        $result = app(FalCapabilityImporter::class)->normalize($model);
+        $result = app(FalCapabilityImporter::class)->normalize($model, 1);
         $this->assertFalse($result['publishable']);
         $this->assertStringContainsString('control', implode(' ', $result['report']['blockers']));
     }
@@ -35,7 +35,7 @@ class FalSchemaCompatibilityTest extends TestCase
         $model = FalCatalogFixture::model();
         $model['openapi']['components']['schemas']['Input']['required'][] = 'missing';
         $model['openapi']['components']['schemas']['Output']['properties']['images']['oneOf'] = [['type' => 'string']];
-        $result = app(FalCapabilityImporter::class)->normalize($model);
+        $result = app(FalCapabilityImporter::class)->normalize($model, 1);
         $this->assertFalse($result['publishable']);
         $this->assertStringContainsString('required input', implode(' ', $result['report']['blockers']));
         $this->assertStringContainsString('oneOf', implode(' ', $result['report']['blockers']));
@@ -47,7 +47,7 @@ class FalSchemaCompatibilityTest extends TestCase
         $model['metadata']['category'] = 'image-to-image';
         $model['openapi']['components']['schemas']['Input']['required'][] = 'image_urls';
         $model['openapi']['components']['schemas']['Input']['properties']['image_urls'] = ['type' => 'array', 'minItems' => 1, 'maxItems' => 3, 'items' => ['type' => 'string']];
-        $result = app(FalCapabilityImporter::class)->normalize($model);
+        $result = app(FalCapabilityImporter::class)->normalize($model, 1);
         $this->assertTrue($result['publishable']);
         $this->assertTrue($result['capability']->input(InputRole::ImageRef)->required);
         $this->assertSame('reference_image', $result['capability']->input(InputRole::ImageRef)->key);
@@ -58,6 +58,6 @@ class FalSchemaCompatibilityTest extends TestCase
     {
         $model = FalCatalogFixture::model();
         $model['metadata']['category'] = 'text-to-video';
-        $this->assertFalse(app(FalCapabilityImporter::class)->normalize($model)['publishable']);
+        $this->assertFalse(app(FalCapabilityImporter::class)->normalize($model, 1)['publishable']);
     }
 }

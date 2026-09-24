@@ -133,7 +133,7 @@ class AudioMultiTrackTest extends TestCase
     {
         [$user, $job] = $this->submitMusic();
         $job->update([
-            'status' => 'processing', 'stage' => 'saving', 'processing_token' => 'slow-two-track-save',
+            'status' => 'processing', 'stage' => 'saving', 'processing_token' => '5c4a2f10-0000-4000-8000-000000000136',
             'processing_started_at' => now()->subMinutes(6),
         ]);
         $path = GeneratedAudioStore::path($job->job_id, 0);

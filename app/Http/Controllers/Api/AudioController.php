@@ -10,6 +10,7 @@ use App\Media\CapabilityResolver;
 use App\Media\CapabilityValidator;
 use App\Media\Enums\InputRole;
 use App\Media\Enums\MediaOperation;
+use App\Media\Exceptions\CapabilityConfigException;
 use App\Media\Exceptions\CapabilityValidationException;
 use App\Media\MediaActivation;
 use App\Media\MediaGenerationCoordinator;
@@ -21,6 +22,7 @@ use App\Models\UserToken;
 use App\Services\AudioGenerationService;
 use App\Services\GeneratedAudioStore;
 use App\Services\MediaModelConfig;
+use App\Services\StorageQuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -47,7 +49,7 @@ class AudioController extends Controller
                 && $model->token_cost > 0 && $model->token_cost <= 2_147_483_647)
             ->map(function (AiModelProfile $model) use ($capabilities): array {
                 $payload = MediaModelConfig::publicModel($model);
-                $payload['capabilities'] = $capabilities->forModel($model);
+                $payload['capabilities'] = MediaModelConfig::legacyCapabilities($capabilities->forModel($model));
 
                 return $payload;
             })->filter(fn (array $model): bool => $model['capabilities'] !== [])->values()->all();
@@ -163,7 +165,11 @@ class AudioController extends Controller
                         }
                     }
                     $model = AiModelProfile::query()->with('provider')->lockForUpdate()->findOrFail($model->id);
-                    $resolved = app(CapabilityResolver::class)->resolve($model, $operation);
+                    try {
+                        $resolved = app(CapabilityResolver::class)->resolve($model, $operation);
+                    } catch (CapabilityConfigException) {
+                        throw new ImageGenerationException('This model operation is unavailable in this studio. Open it from the media workspace.', 503);
+                    }
                     if (isset($options['expected_price_tokens']) && (int) $options['expected_price_tokens'] !== $model->token_cost) {
                         throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
                     }
@@ -221,10 +227,12 @@ class AudioController extends Controller
     public function destroy(Request $request, string $jobId): JsonResponse
     {
         DB::transaction(function () use ($request, $jobId): void {
+            $user = User::query()->whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
             $job = AudioJob::query()->where('user_id', $request->user()->id)->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
             if (in_array($job->status, ['pending', 'processing'], true)) {
                 throw ValidationException::withMessages(['job' => 'Pekerjaan masih berjalan. Tunggu sampai selesai sebelum menghapusnya.']);
             }
+            app(StorageQuotaService::class)->assertJobUnreferenced($user, 'audio:'.$job->job_id);
             Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($job->job_id));
             $job->delete();
         });

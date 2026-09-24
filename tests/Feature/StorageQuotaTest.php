@@ -160,7 +160,7 @@ class StorageQuotaTest extends TestCase
         Storage::disk('local')->put($path, str_repeat('g', 72));
         Storage::disk('local')->put($path.'.part', 'interrupted');
         $job->forceFill([
-            'status' => 'completed', 'stage' => 'completed', 'model_path' => $path,
+            'status' => 'completed', 'stage' => 'completed', 'billing_status' => 'settled', 'model_path' => $path,
             'model_url' => '/api/3d/'.$id.'/asset', 'size_bytes' => 999999, 'created_at' => now()->subDays(10),
         ])->save();
         $video->update(['status' => 'failed']);

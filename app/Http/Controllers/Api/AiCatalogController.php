@@ -7,11 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
+use App\Models\ChatOperation;
 use App\Models\ImageJob;
 use App\Models\MediaCapabilityRevision;
+use App\Models\RealtimeMediaSession;
 use App\Models\ThreeDJob;
 use App\Models\UsageRate;
 use App\Models\VideoJob;
+use App\Models\WorkspaceMediaJob;
 use App\Services\AiProxyService;
 use App\Services\AuditService;
 use App\Services\FalProtocol;
@@ -105,8 +108,8 @@ class AiCatalogController extends Controller
 
         return response()->json(['providers' => $providers->map(function (AiProviderProfile $provider) use ($catalog): array {
             $counts = AiModelProfile::where('provider_id', $provider->id)->selectRaw(
-                'COUNT(*) as total, SUM(CASE WHEN is_enabled THEN 1 ELSE 0 END) as enabled, SUM(CASE WHEN is_available THEN 1 ELSE 0 END) as available, SUM(CASE WHEN category IN (?, ?, ?, ?, ?) AND (token_cost IS NULL OR token_cost < 1) THEN 1 ELSE 0 END) as unpriced',
-                ['image', 'video', 'audio', 'avatar', 'model3d'],
+                'COUNT(*) as total, SUM(CASE WHEN is_enabled THEN 1 ELSE 0 END) as enabled, SUM(CASE WHEN is_available THEN 1 ELSE 0 END) as available, SUM(CASE WHEN category IN (?, ?, ?, ?, ?, ?) AND (token_cost IS NULL OR token_cost < 1) THEN 1 ELSE 0 END) as unpriced',
+                ['image', 'video', 'audio', 'avatar', 'model3d', 'other'],
             )->first();
 
             return [...$provider->adminPayload(),
@@ -126,7 +129,7 @@ class AiCatalogController extends Controller
             'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
         $query = AiModelProfile::query()->where('provider_id', $provider->id)->with('provider')
-            ->with(['capabilityRevisions' => fn ($query) => $query->select(['id', 'ai_model_profile_id', 'operation', 'revision', 'status', 'compatibility_report', 'published_at'])->orderByDesc('revision')]);
+            ->with(['capabilityRevisions' => fn ($query) => $query->select(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'revision', 'status', 'compatibility_report', 'curation_overrides', 'reviewed_at', 'published_at', 'provider_bindings->max_session_seconds as session_seconds', 'provider_bindings->adapter as adapter'])->selectRaw('source_schema IS NOT NULL as source_backed')->orderByDesc('revision')]);
         if (($input['q'] ?? '') !== '') {
             $needle = '%'.strtolower(str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $input['q'])).'%';
             $query->where(fn ($query) => $query->whereRaw('LOWER(display_name) LIKE ?', [$needle])
@@ -141,7 +144,9 @@ class AiCatalogController extends Controller
         } elseif ($status === 'unavailable') {
             $query->where('is_available', false);
         } elseif ($status === 'unpriced') {
-            $query->whereIn('category', ['image', 'video', 'audio', 'avatar', 'model3d'])->where(fn ($q) => $q->whereNull('token_cost')->orWhere('token_cost', '<', 1));
+            $query->where(fn ($q) => $q->whereIn('category', ['image', 'video', 'audio', 'avatar', 'model3d', 'other'])
+                ->orWhereHas('capabilityRevisions', fn ($c) => $c->whereNotNull('source_schema')))
+                ->where(fn ($q) => $q->whereNull('token_cost')->orWhere('token_cost', '<', 1));
         } elseif ($status === 'found') {
             $query->whereDoesntHave('capabilityRevisions', fn ($q) => $q->whereNotNull('source_schema'));
         } elseif ($status !== null && $status !== '') {
@@ -225,7 +230,7 @@ class AiCatalogController extends Controller
                         'upstream_model_id' => $metadata['id'],
                         'display_name' => $metadata['name'],
                         'provider_name' => $metadata['provider'] ?? $metadata['owned_by'] ?? $provider->name,
-                        'is_enabled' => $publish,
+                        'is_enabled' => $publish && ($provider->protocol !== 'fal' || $metadata['category'] === 'chat'),
                         'category' => $metadata['category'],
                         'capabilities' => $metadata['capabilities'],
                         'context_window' => $metadata['context_length'] ?? $metadata['context_window'] ?? null,
@@ -235,11 +240,9 @@ class AiCatalogController extends Controller
                     ]);
                 }
                 $model->fill(['is_available' => true, 'last_seen_at' => now()]);
-                // Media models are billed per result via token_cost; without one they
-                // stay hidden from the workspace even when categorized + available.
-                // Seed a default so a synced media model is immediately usable.
+                // New fal media prices are entered and reviewed explicitly in the catalog.
                 $mediaDefaults = config('media_tools.default_generation_tokens', []);
-                if (! $model->exists && in_array($model->category, ['image', 'video', 'audio', 'avatar'], true) && empty($model->token_cost) && ! empty($mediaDefaults[$model->category])) {
+                if ($provider->protocol !== 'fal' && ! $model->exists && in_array($model->category, ['image', 'video', 'audio', 'avatar'], true) && empty($model->token_cost) && ! empty($mediaDefaults[$model->category])) {
                     $model->token_cost = (int) $mediaDefaults[$model->category];
                 }
                 $this->saveSyncedModel($model, $provider);
@@ -259,7 +262,8 @@ class AiCatalogController extends Controller
             // this they arrive published but unbillable, which is exactly the
             // state that made a connected provider look broken in the workspace.
             $priced = app(ModelAutoPricer::class)->price(
-                AiModelProfile::query()->whereIn('id', $seenIds)->get(),
+                AiModelProfile::query()->whereIn('id', $seenIds)
+                    ->whereDoesntHave('capabilityRevisions', fn ($query) => $query->whereNotNull('source_schema'))->get(),
                 1.0,
                 16000,
                 false,
@@ -388,7 +392,7 @@ class AiCatalogController extends Controller
             $this->assertExactCount($models->count(), (int) $validated['expected_count']);
             $modelIds = $models->pluck('model_id');
             $rates = UsageRate::query()->whereIn('model', $modelIds)->orderBy('id')->lockForUpdate()->get();
-            foreach ([ImageJob::class, VideoJob::class, AudioJob::class, ThreeDJob::class] as $jobClass) {
+            foreach ([ImageJob::class, VideoJob::class, AudioJob::class, ThreeDJob::class, WorkspaceMediaJob::class, RealtimeMediaSession::class] as $jobClass) {
                 $busy = $jobClass::query()->whereIn('model', $modelIds)
                     ->where(fn ($query) => $query->whereIn('status', ['pending', 'processing'])->orWhere('billing_status', 'reserved')->orWhereNotNull('capability_revision_id'))
                     ->orderBy('id')->lockForUpdate()->first();
@@ -397,6 +401,9 @@ class AiCatalogController extends Controller
                         'message' => 'Selected models have active jobs or retained capability history. Disable them instead of deleting.',
                     ], 409));
                 }
+            }
+            if (ChatOperation::query()->whereIn('model', $modelIds)->whereIn('status', ChatOperation::ACTIVE)->lockForUpdate()->first()) {
+                throw new HttpResponseException(response()->json(['message' => 'Selected models have active chat operations. Stop them before deleting, or disable these models instead.'], 409));
             }
             foreach ($models as $model) {
                 $audit->record($request->user(), 'ai_model.deleted', $model, [
@@ -634,6 +641,13 @@ class AiCatalogController extends Controller
         if ($model->isDirty('provider_id')) {
             $model->unsetRelation('provider');
         }
+        if ($model->provider?->protocol === 'fal' && $model->capabilityRevisions()->where('contract_version', 2)->whereNotNull('source_schema')->exists()) {
+            if ($model->isDirty('generation_config') && ! empty($model->generation_config)) {
+                throw ValidationException::withMessages(['generation_config' => 'Source-backed controls are immutable capability evidence. Review a new candidate instead of overriding generation settings.']);
+            }
+
+            return;
+        }
         $falConfig = null;
         if (in_array($model->provider?->protocol, ['fal', 'kinovi'], true) && in_array($model->category, ['image', 'video', 'audio', 'avatar', 'model3d'], true)) {
             $upstream = $model->upstream_model_id ?: $model->model_id;
@@ -814,11 +828,15 @@ class AiCatalogController extends Controller
             'context_window' => $model->context_window,
             'max_output_tokens' => $model->max_output_tokens,
             'token_cost' => $model->token_cost,
+            'schema_managed' => $model->relationLoaded('capabilityRevisions')
+                ? $model->capabilityRevisions->contains(fn ($revision) => (bool) $revision->source_backed)
+                : $model->capabilityRevisions()->whereNotNull('source_schema')->exists(),
+            'catalog_price_unit' => MediaModelConfig::catalogPriceUnit($model),
             'generation_config' => in_array($model->provider?->protocol, ['fal', 'kinovi'], true) && in_array($model->category, ['image', 'video', 'audio', 'avatar', 'model3d'], true)
                 ? $this->effectiveGenerationConfig($model)
                 : ($model->generation_config === null ? null : Arr::only($model->generation_config, self::CONFIG_KEYS)),
             'generation_config_readonly' => in_array($model->provider?->protocol, ['fal', 'kinovi'], true),
-            'capability_summary' => ($model->relationLoaded('capabilityRevisions') ? $model->capabilityRevisions : $model->capabilityRevisions()->select(['id', 'ai_model_profile_id', 'operation', 'revision', 'status', 'compatibility_report', 'published_at'])->get())
+            'capability_summary' => ($model->relationLoaded('capabilityRevisions') ? $model->capabilityRevisions : $model->capabilityRevisions()->select(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'revision', 'status', 'compatibility_report', 'curation_overrides', 'reviewed_at', 'published_at', 'provider_bindings->max_session_seconds as session_seconds'])->get())
                 ->map(fn ($revision) => $revision->adminPayload(false))->values()->all(),
             'is_enabled' => $model->is_enabled,
             'is_available' => $model->is_available,
@@ -833,7 +851,9 @@ class AiCatalogController extends Controller
                 'slug' => $model->provider->slug,
                 'name' => $model->provider->name,
                 'status' => $model->provider->status,
+                'protocol' => $model->provider->protocol,
                 'is_enabled' => $model->provider->is_enabled,
+                'authenticated' => $model->provider->authenticated_at !== null,
                 'capabilities' => $model->provider->capabilities ?? [],
                 'last_checked_at' => $model->provider->last_checked_at?->toISOString(),
             ] : null,

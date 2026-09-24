@@ -35,7 +35,12 @@ final class CapabilityResolver
         return array_keys($operations);
     }
 
-    public function resolve(AiModelProfile $model, MediaOperation $operation): ResolvedCapability
+    /**
+     * Legacy fixed-form entrypoints receive only version-1 contracts. Schema contracts are
+     * executed exclusively by callers that opt in; a published schema contract never falls
+     * back to a native builder.
+     */
+    public function resolve(AiModelProfile $model, MediaOperation $operation, bool $schemaContracts = false): ResolvedCapability
     {
         $published = MediaCapabilityRevision::query()
             ->where('ai_model_profile_id', $model->id)
@@ -47,18 +52,18 @@ final class CapabilityResolver
         if ($published !== null) {
             try {
                 $capability = MediaCapability::fromArray([...($published->definition ?? []), 'provider_bindings' => $published->provider_bindings ?? []]);
-                if ($capability->modelPublicId !== $model->model_id || $capability->operation !== $operation || $capability->contractVersion !== 1) {
+                if ($capability->modelPublicId !== $model->model_id || $capability->operation !== $operation
+                    || $capability->contractVersion !== (int) $published->contract_version || ! in_array($capability->contractVersion, [1, 2], true)) {
                     throw new \UnexpectedValueException('Capability identity or contract version does not match.');
                 }
-                if ($published->source_schema !== null && ($model->provider?->protocol !== 'fal'
-                    || ($capability->providerBindings['adapter'] ?? null) !== 'fal_image_v1'
-                    || ($capability->providerBindings['endpoint'] ?? null) !== ($model->upstream_model_id ?: $model->model_id))) {
-                    throw new \UnexpectedValueException('Published provider binding does not match model routing.');
-                }
+                $this->assertBinding($model, $published, $capability);
             } catch (Throwable $e) {
                 throw new CapabilityConfigException(
                     "Published capability for {$model->model_id}/{$operation->value} is invalid.", 0, $e
                 );
+            }
+            if ($capability->contractVersion !== 1 && ! $schemaContracts) {
+                throw new CapabilityConfigException("Operation {$operation->value} for {$model->model_id} is available only in the media workspace.");
             }
 
             return new ResolvedCapability(
@@ -79,6 +84,32 @@ final class CapabilityResolver
         }
 
         return new ResolvedCapability($derived, 'legacy', null, $this->hash($derived->toArray()));
+    }
+
+    /** Execution must match the reviewed provider binding and the model's current routing identity. */
+    private function assertBinding(AiModelProfile $model, MediaCapabilityRevision $published, MediaCapability $capability): void
+    {
+        $bindings = $capability->providerBindings;
+        $routing = $model->upstream_model_id ?: $model->model_id;
+        if ($capability->contractVersion === 1) {
+            if ($published->source_schema !== null && ($model->provider?->protocol !== 'fal'
+                || ($bindings['adapter'] ?? null) !== 'fal_image_v1' || ($bindings['endpoint'] ?? null) !== $routing)) {
+                throw new \UnexpectedValueException('Published provider binding does not match model routing.');
+            }
+
+            return;
+        }
+        $valid = $model->provider?->protocol === 'fal' && ($bindings['endpoint'] ?? null) === $routing
+            && $capability->inputSchema !== [] && match ($bindings['adapter'] ?? null) {
+                'fal_schema_v2' => is_array($bindings['request_schema'] ?? null) && is_array($bindings['output_schema'] ?? null)
+                    && (($bindings['transport'] ?? null) === 'direct'
+                        || (($bindings['transport'] ?? null) === 'queue' && is_string($bindings['queue_root'] ?? null) && $bindings['queue_root'] !== '')),
+                'fal_wma_v1' => $capability->operation === MediaOperation::RealtimeVideo,
+                default => false,
+            };
+        if (! $valid) {
+            throw new \UnexpectedValueException('Published schema binding is not executable for this model routing.');
+        }
     }
 
     public function ensureRevision(AiModelProfile $model, MediaOperation $operation, ResolvedCapability $resolved): MediaCapabilityRevision
