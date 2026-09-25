@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'ensure.active' => \App\Http\Middleware\EnsureActive::class,
             'storage.available' => \App\Http\Middleware\EnsureStorageAvailable::class,
         ]);
+        // Named per-key limits need the verified identity before Laravel sorts throttling middleware.
+        $middleware->prependToPriorityList(\Illuminate\Routing\Middleware\ThrottleRequests::class, \App\Http\Middleware\VerifyApiKey::class);
 
         // Make auth middleware return JSON 401 for AJAX/API requests
         // instead of redirecting to login page

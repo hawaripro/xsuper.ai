@@ -58,7 +58,7 @@ export default function MediaApiGuide({ baseUrl }) {
         {
             id: 'upload', title: t('8. Unggah referensi milik akun'), endpoint: 'POST /v1/files',
             description: t('Unggah multipart file dan role; ukuran, isi berkas, dan kuota penyimpanan diperiksa. Role yang tersedia mencakup image_ref, init_frame, end_frame, avatar_photo, speech_audio, reference_video, document, file, model_reference, audio_reference, dan mask_image. Gunakan role yang diminta skema.'),
-            code: `curl "${api}/files" \\\n  ${auth} \\\n  -F "file=@reference.png" -F "role=image_ref"\n\n# Put the returned file id in the asset field declared by the model\ncurl "${api}/media/generations" \\\n  ${auth} ${json} \\\n  -H "Idempotency-Key: image-edit-001" \\\n  -d '{"model":"YOUR_MODEL_ID","operation":"image_to_image","inputs":{"prompt":"Make the scene brighter","image":"YOUR_FILE_ID"}}'`,
+            code: `curl "${api}/files" \\\n  ${auth} \\\n  -F "file=@reference.png" -F "role=image_ref"\n\n# Put the returned file id in the asset field declared by the model\ncurl "${api}/media/generations" \\\n  ${auth} ${json} \\\n  -H "Idempotency-Key: image-edit-001" \\\n  -d '{"model":"YOUR_MODEL_ID","operation":"image_edit","inputs":{"prompt":"Make the scene brighter","image":"YOUR_FILE_ID"}}'`,
         },
         {
             id: 'openai', title: t('9. Gunakan OpenAI Images di alat Anda'), endpoint: 'POST /v1/images/generations',

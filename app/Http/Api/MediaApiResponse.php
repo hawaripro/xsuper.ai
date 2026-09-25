@@ -6,6 +6,7 @@ use App\Exceptions\ImageGenerationException;
 use App\Exceptions\InsufficientBalanceException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,9 @@ final class MediaApiResponse
     {
         if (! $request->is('v1/media', 'v1/media/*', 'v1/images/*', 'v1/files')) {
             return null;
+        }
+        if ($error instanceof HttpResponseException && $error->getResponse() instanceof JsonResponse) {
+            return $error->getResponse();
         }
         if ($error instanceof InsufficientBalanceException) {
             return ApiErrorResponse::insufficientBalance($error, 'openai');

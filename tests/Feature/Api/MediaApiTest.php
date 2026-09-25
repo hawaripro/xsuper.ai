@@ -139,17 +139,17 @@ class MediaApiTest extends TestCase
         $schema = $revision->definition['input_schema'];
         $schema['properties']['image'] = ['type' => 'string', 'format' => 'uuid', 'x-workspace-asset' => ['kind' => 'image', 'role' => 'image_ref']];
         $schema['required'][] = 'image';
-        $imageRevision->fill(['operation' => 'image_to_image',
-            'definition' => [...$revision->definition, 'operation' => 'image_to_image', 'input_schema' => $schema],
+        $imageRevision->fill(['operation' => 'image_edit',
+            'definition' => [...$revision->definition, 'operation' => 'image_edit', 'input_schema' => $schema],
             'provider_bindings' => [...$revision->provider_bindings, 'request_schema' => $schema]])->save();
         $upload = $this->post('/v1/files', ['file' => UploadedFile::fake()->image('reference.png', 8, 8), 'role' => 'image_ref'], ['Accept' => 'application/json'])
             ->assertCreated()->assertJsonPath('object', 'file')->assertJsonPath('kind', 'image');
-        $this->postJson('/v1/media/generations', [...$this->request($model, ['image' => $upload->json('id')]), 'operation' => 'image_to_image'])
+        $this->postJson('/v1/media/generations', [...$this->request($model, ['image' => $upload->json('id')]), 'operation' => 'image_edit'])
             ->assertAccepted();
         $other = User::factory()->create();
         UserToken::topup($other->id, 100);
         $key = ApiKey::generate($other->id);
-        $this->withToken($key->plainKey)->postJson('/v1/media/generations', [...$this->request($model, ['image' => $upload->json('id')]), 'operation' => 'image_to_image'])
+        $this->withToken($key->plainKey)->postJson('/v1/media/generations', [...$this->request($model, ['image' => $upload->json('id')]), 'operation' => 'image_edit'])
             ->assertForbidden();
         $this->assertSame(100, UserToken::getBalance($other->id));
         config(['storage_quota.base_bytes' => 0]);
@@ -174,6 +174,61 @@ class MediaApiTest extends TestCase
         $this->assertSame(970, UserToken::getBalance($user->id));
         $inputs = WorkspaceMediaJob::query()->orderBy('id')->first()->normalized_inputs;
         $this->assertSame([1024, 1024, 2], [$inputs['width'], $inputs['height'], $inputs['numberResults']]);
+    }
+
+    public function test_image_schema_maps_alternate_prompt_and_closest_supported_aspect(): void
+    {
+        [$user, $model, $revision] = $this->fixture();
+        $schema = ['type' => 'object', 'properties' => ['positivePrompt' => ['type' => 'string'],
+            'aspect_ratio' => ['type' => 'string', 'enum' => ['1:1', '16:9', '9:16']]], 'required' => ['positivePrompt']];
+        $revision->update(['definition' => [...$revision->definition, 'input_schema' => $schema],
+            'provider_bindings' => [...$revision->provider_bindings, 'request_schema' => $schema, 'quantity_input' => null]]);
+        $this->fakeImmediateResult();
+        Sleep::fake();
+        Sleep::whenFakingSleep(fn () => WorkspaceMediaJob::query()->where('status', 'pending')
+            ->each(fn ($job) => app(WorkspaceMediaService::class)->process($job->id)));
+        $this->postJson('/v1/images/generations', ['model' => $model->model_id, 'prompt' => 'A wide landscape', 'size' => '1792x1024'])
+            ->assertOk();
+        $this->assertSame(['positivePrompt' => 'A wide landscape', 'aspect_ratio' => '16:9'], WorkspaceMediaJob::query()->sole()->normalized_inputs);
+        $this->assertSame(990, UserToken::getBalance($user->id));
+    }
+
+    public function test_native_batch_is_debited_once_and_every_image_remains_addressable(): void
+    {
+        [$user] = $this->fixture();
+        $provider = AiProviderProfile::create(['slug' => 'native-fixture', 'name' => 'Images', 'protocol' => 'openai',
+            'base_url' => 'https://images.example.test/v1', 'api_key' => 'test-only-key', 'is_enabled' => true]);
+        $model = AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'native-fixture',
+            'upstream_model_id' => 'dall-e-2', 'display_name' => 'Native image', 'category' => 'image',
+            'is_enabled' => true, 'is_available' => true, 'token_cost' => 10]);
+        $request = [...$this->request($model, ['size' => '1024x1024']), 'count' => 2];
+        $response = $this->withHeader('Idempotency-Key', 'native-batch')->postJson('/v1/media/generations', $request)
+            ->assertAccepted()->assertJsonCount(2, 'generation_ids')->assertJsonPath('total_tokens', 20);
+        $this->postJson('/v1/media/generations', $request)->assertAccepted()->assertJsonPath('generation_ids', $response->json('generation_ids'));
+        Http::fake(['https://images.example.test/v1/images/generations' => Http::response(['data' => [['b64_json' => self::PNG]]])]);
+        foreach (\App\Models\ImageJob::query()->get() as $job) {
+            app(\App\Services\ImageGenerationService::class)->process($job->id);
+        }
+        foreach ($response->json('generation_ids') as $id) {
+            $result = $this->getJson('/v1/media/generations/'.rawurlencode($id))->assertOk()->assertJsonPath('status', 'completed');
+            $this->get($result->json('outputs.0.url'))->assertOk();
+        }
+        $this->assertSame(980, UserToken::getBalance($user->id));
+        $this->assertDatabaseCount('token_reservations', 2);
+    }
+
+    public function test_images_failure_is_member_safe_and_releases_the_real_reservation(): void
+    {
+        [$user, $model] = $this->fixture();
+        Http::fake(['https://fal.run/fal-ai/private-endpoint' => Http::response(['detail' => 'private provider routing secret'], 422)]);
+        Sleep::fake();
+        Sleep::whenFakingSleep(fn () => WorkspaceMediaJob::query()->where('status', 'pending')
+            ->each(fn ($job) => app(WorkspaceMediaService::class)->process($job->id)));
+        $response = $this->postJson('/v1/images/generations', ['model' => $model->model_id, 'prompt' => 'A cup'])
+            ->assertStatus(502)->assertJsonPath('error.code', 'generation_failed');
+        $this->assertStringNotContainsString('private provider routing secret', $response->getContent());
+        $this->assertSame('released', WorkspaceMediaJob::query()->sole()->billing_status);
+        $this->assertSame(1000, UserToken::getBalance($user->id));
     }
 
     public function test_images_timeout_links_existing_paid_job_and_unsupported_size_is_rejected(): void
@@ -209,7 +264,7 @@ class MediaApiTest extends TestCase
             UserToken::topup($user->id, $balance);
         }
         $provider = AiProviderProfile::create(['slug' => 'private-provider', 'name' => 'Private provider', 'protocol' => 'fal',
-            'base_url' => 'https://fal.run', 'api_key' => 'test-only-key', 'is_enabled' => true]);
+            'base_url' => 'https://fal.run', 'api_key' => 'test-only-key', 'is_enabled' => true, 'status' => 'healthy', 'authenticated_at' => now()]);
         $model = AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'public-image', 'upstream_model_id' => 'fal-ai/private-endpoint',
             'display_name' => 'Public Image', 'category' => 'image', 'is_enabled' => true, 'is_available' => true, 'token_cost' => 10]);
         $schema = ['type' => 'object', 'properties' => ['prompt' => ['type' => 'string'],
@@ -223,7 +278,8 @@ class MediaApiTest extends TestCase
                 'inputs' => [], 'params' => [], 'input_schema' => $schema, 'output_schema' => ['type' => 'object']],
             'provider_bindings' => ['adapter' => 'fal_schema_v2', 'endpoint' => 'fal-ai/private-endpoint', 'transport' => 'direct',
                 'quantity_input' => 'numberResults', 'request_schema' => $schema, 'output_schema' => ['type' => 'object']],
-            'curation_overrides' => ['pricing' => ['token_cost' => 10, 'unit' => 'generation', 'reviewed_by' => $user->id, 'reviewed_at' => now()->toISOString()]],
+            'curation_overrides' => ['pricing' => ['token_cost' => 10, 'unit' => 'generation', 'reviewed_by' => $user->id,
+                'reviewed_at' => now()->toISOString(), 'variable_configuration' => true]],
         ]);
         $key = ApiKey::generate($user->id);
         $this->withToken($key->plainKey);

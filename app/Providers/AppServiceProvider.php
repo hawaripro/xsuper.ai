@@ -33,8 +33,8 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('media-api-create', fn (Request $request) => Limit::perMinute(20)
             ->by('media-api:'.$request->attributes->get('api_key')->id)
-            ->response(fn () => \App\Http\Api\ApiErrorResponse::openAi(
-                'Media creation is limited to 20 requests per minute per key.', 'rate_limit_error', 'rate_limit_exceeded', 429)));
+            ->response(fn (Request $request, array $headers) => \App\Http\Api\ApiErrorResponse::openAi(
+                'Media creation is limited to 20 requests per minute per key.', 'rate_limit_error', 'rate_limit_exceeded', 429)->withHeaders($headers)));
 
         Notification::observe(NotificationObserver::class);
         ImageJob::observe(MediaJobObserver::class);
