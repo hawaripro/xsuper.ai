@@ -268,10 +268,8 @@ class AiProxyService
     }
 
     /**
-     * Web chat sends no explicit token limit. Use the catalog's per-model output
-     * limit when it is known; otherwise let the provider apply the model maximum
-     * instead of a fixed 4096, which truncated long and reasoning-heavy answers.
-     * API callers pass the limit their wallet reservation covers.
+     * Paid chat and API callers supply the output limit covered by their reservation.
+     * Unbilled callers use the catalog's output limit when known, otherwise the provider maximum.
      */
     private function withOutputLimit(array $options, ?AiProviderProfile $provider, string $model, ?int $default): array
     {

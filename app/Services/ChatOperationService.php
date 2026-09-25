@@ -324,6 +324,9 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
                     $messages = $this->requestMessages($operation);
                     $route = $operation->context_snapshot['route'];
                     $options = ['_is_cancelled' => $isCancelled, '_route_snapshot' => $route];
+                    if ($operation->billing !== null) {
+                        $options['max_tokens'] = $operation->billing['output_cap'];
+                    }
                     $events = $this->proxy->streamChatCompletion($messages, $operation->model, $options, $route['max_output_tokens'] ?: null);
                     foreach ($events as $event) {
                         $observedUsage = $this->measuredUsage($event['usage'] ?? null);

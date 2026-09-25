@@ -187,16 +187,19 @@ class ChatBillingTest extends TestCase
     public function test_continuation_and_retry_are_new_charges_not_replays(): void
     {
         $user = $this->member();
-        $this->answer();
+        $body = $this->answerBody();
+        Http::fakeSequence('https://chat.example.test/v1/chat/completions')
+            ->push($body, 200, ['Content-Type' => 'text/event-stream'])
+            ->push($body, 200, ['Content-Type' => 'text/event-stream'])
+            ->push([], 503)
+            ->push($body, 200, ['Content-Type' => 'text/event-stream']);
         $this->actingAs($user)->postJson('/api/c/s', $this->input())->assertOk()->streamedContent();
         $first = ChatOperation::query()->sole();
         $continuation = [...$this->input(), 'continuation' => true, 'continuation_of' => $first->assistant_message_id];
         $this->postJson('/api/c/s', $continuation)->assertOk()->streamedContent();
-        Http::fake(['https://chat.example.test/v1/chat/completions' => Http::response([], 503)]);
         $failedInput = $this->input();
         $this->postJson('/api/c/s', $failedInput)->assertOk()->streamedContent();
         $failed = ChatOperation::query()->where('client_request_id', $failedInput['client_request_id'])->sole();
-        $this->answer();
         $this->postJson('/api/c/s', [...$this->input(), 'retry_of' => $failed->assistant_message_id])->assertOk()->streamedContent();
         $this->assertSame(999946, Wallet::balance($user->id));
         $this->assertSame(4, DB::table('wallet_transactions')->where('type', 'reserve')->count());
@@ -251,7 +254,9 @@ class ChatBillingTest extends TestCase
         AiProviderProfile::query()->update(['protocol' => 'anthropic']);
         $events = [
             ['type' => 'message_start', 'message' => ['id' => 'msg_test', 'model' => 'private-chat', 'usage' => ['input_tokens' => 100, 'cache_read_input_tokens' => 20, 'cache_creation_input_tokens' => 30, 'output_tokens' => 0]]],
+            ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '']],
             ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => 'Cached answer']],
+            ['type' => 'content_block_stop', 'index' => 0],
             ['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn'], 'usage' => ['output_tokens' => 7]],
             ['type' => 'message_stop'],
         ];
@@ -283,7 +288,12 @@ class ChatBillingTest extends TestCase
 
     private function answer(array $usage = ['prompt_tokens' => 7, 'completion_tokens' => 11, 'total_tokens' => 18]): void
     {
-        $body = 'data: '.json_encode(['choices' => [['delta' => ['content' => 'Saved answer'], 'finish_reason' => 'stop']], 'usage' => $usage])."\n\ndata: [DONE]\n\n";
-        Http::fake(['https://chat.example.test/v1/chat/completions' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
+        $body = $this->answerBody($usage);
+        Http::fake(['https://chat.example.test/v1/chat/completions' => fn () => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
+    }
+
+    private function answerBody(array $usage = ['prompt_tokens' => 7, 'completion_tokens' => 11, 'total_tokens' => 18]): string
+    {
+        return 'data: '.json_encode(['choices' => [['delta' => ['content' => 'Saved answer'], 'finish_reason' => 'stop']], 'usage' => $usage])."\n\ndata: [DONE]\n\n";
     }
 }
