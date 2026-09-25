@@ -80,13 +80,14 @@ export default function Dashboard() {
     const activity = dashboard?.activity;
     const services = Array.isArray(dashboard?.services) ? dashboard.services : [];
     const isAdmin = user?.role === 'admin';
+    const membership = user?.membership;
     const permissions = user?.permissions || {};
     const allowed = (key, fallback = true) => isAdmin || (permissions[key] ?? fallback) === true;
-    const hasAccess = Boolean(account && (isAdmin || (account.is_active && !account.is_expired)));
+    const hasAccess = Boolean(account && (isAdmin || account.is_active));
     const hasHistory = allowed('chat_history') && allowed('chat');
     const dateLocale = locale === 'en' ? 'en-US' : 'id-ID';
     const unavailable = t('Belum tersedia');
-    const healthy = Boolean(account && account.is_active && !account.is_expired);
+    const healthy = Boolean(account && account.is_active);
     const studioActions = [
         ...(allowed('chat') ? [{ key: 'chat', label: 'Mulai percakapan', href: '/chat' }] : []),
         ...(allowed('image_generator') ? [{ key: 'image', label: 'Buat gambar', href: studioHref({ kind: 'image' }) }] : []),
@@ -112,15 +113,15 @@ export default function Dashboard() {
             {showOnboarding && locale === 'id' && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
             {onboardingError && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => setOnboardingRevision(value => value + 1)}>{t('Coba lagi')}</Button>}>{t('Status onboarding tidak dapat diperiksa')}: {t(errorMessage(onboardingError))}</InlineAlert>}
             {sources.dashboard.error && <InlineAlert tone="error" action={<Button variant="ghost" onClick={() => loadSource('dashboard')}>{t('Coba lagi')}</Button>}><strong>{t('Ringkasan akun tidak dapat diperbarui.')}</strong> {t(errorMessage(sources.dashboard.error))}{dashboard && <span> {t('Data terakhir tetap ditampilkan.')}</span>}</InlineAlert>}
-            {account?.is_expired && <InlineAlert tone="error" action={<Link className="dw-button dw-button-primary" to={localizedPath('/deposit?tab=subscription')}>{t('Perpanjang langganan')}</Link>}><strong>{t('Masa aktif akun berakhir.')}</strong> {t('Perpanjang durasi untuk memulihkan akses fitur yang dilindungi.')}</InlineAlert>}
+            {membership?.expires_at && !membership.active && <InlineAlert tone="info" action={<Link className="dw-button dw-button-primary" to={localizedPath('/deposit?tab=subscription')}>{t('Perpanjang langganan')}</Link>}><strong>{t('Langganan berakhir.')}</strong> {t('Bonus penyimpanan berakhir; saldo dan token tetap dapat dipakai untuk Chat, Studio & API.')}</InlineAlert>}
             {account?.is_active === false && <InlineAlert tone="error"><strong>{t('Akun tidak aktif.')}</strong> {t('Hubungi dukungan jika status ini tidak sesuai.')} <Link className="underline" to={localizedPath('/bantuan')}>{t('Help & Support')}</Link></InlineAlert>}
             {Number(activity?.devices?.pending || 0) > 0 && <InlineAlert tone="warning">{formatCount(activity.devices.pending)} {t('perangkat menunggu persetujuan. Fitur tertentu dapat ditolak sampai perangkat disetujui.')}</InlineAlert>}
 
             <dl className="dw-metrics" aria-label={t('Ringkasan akun')}>
                 <WorkspaceMetric label={t('Saldo token generator')} icon={Icons.token} tone="fuchsia" value={sources.balance.data ? formatCount(sources.balance.data.balance) : unavailable} loading={sources.balance.loading && !sources.balance.data} detail={<>{t('Untuk gambar, video, dan audio.')} <Link to={localizedPath('/deposit?tab=tokens')}>{t('Isi token')}</Link></>} />
-                <WorkspaceMetric label={t('Saldo API PAYG · USD')} icon={Icons.paket} tone="emerald" value={wallet ? formatUsdMicros(wallet.balance_microusd) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={<>{t('Terpisah dari token generator.')} <Link to={localizedPath('/deposit?tab=wallet')}>{t('Isi saldo')}</Link></>} />
+                <WorkspaceMetric label={t('Saldo AI · USD')} icon={Icons.paket} tone="emerald" value={wallet ? formatUsdMicros(wallet.balance_microusd) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={<>{t('Untuk Chat & API, terpisah dari token media.')} <Link to={localizedPath('/deposit?tab=wallet')}>{t('Isi saldo')}</Link></>} />
                 <WorkspaceMetric label={t('Permintaan tercatat')} icon={Icons.analytics} tone="cyan" value={usage ? formatCount(usage.total_requests) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={usage ? `${formatCount(usage.total_tokens)} ${t('token pemakaian · sepanjang waktu')}` : t('Pemakaian akun Anda, bukan saldo generator.')} />
-                <WorkspaceMetric label={t('Masa aktif')} icon={Icons.period} tone="amber" value={account ? (account.is_expired ? t('Berakhir') : account.days_remaining == null ? t('Tanpa batas') : `${formatCount(account.days_remaining)} ${t('hari')}`) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={account?.expires_at ? `${t('Hingga')} ${formatLocalDate(account.expires_at, { locale: dateLocale })}` : account ? t('Tidak ada tanggal kedaluwarsa akun.') : t('Status akun belum dapat dimuat.')} />
+                <WorkspaceMetric label={t('Langganan')} icon={Icons.period} tone="amber" value={membership ? (membership.active ? `${t('Sisa')} ${formatCount(membership.days_remaining)} ${t('hari')}` : t('Belum berlangganan')) : unavailable} loading={!membership && sources.dashboard.loading} detail={membership?.active ? `${t('Aktif sampai')} ${formatLocalDate(membership.expires_at, { locale: dateLocale })}` : <Link to={localizedPath('/deposit?tab=subscription')}>{t('Pilih paket langganan')}</Link>} />
             </dl>
             {sources.balance.error && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => loadSource('balance')}>{t('Coba lagi')}</Button>}>{t('Saldo token tidak dapat diperbarui.')}{sources.balance.data && <> {t('Data terakhir tetap ditampilkan.')}</>} {t(errorMessage(sources.balance.error))}</InlineAlert>}
 

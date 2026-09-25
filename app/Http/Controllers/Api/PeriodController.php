@@ -6,8 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
 use App\Models\User;
+use App\Models\UserToken;
+use App\Models\Wallet;
 use App\Models\PaymentCheckout;
+use App\Services\AuditService;
 use App\Services\ReferralService;
+use App\Services\StorageQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +43,9 @@ class PeriodController extends Controller
                 'package' => $order->package,
                 'days' => $order->days,
                 'price' => $order->price,
+                'bonus_tokens' => (int) $order->bonus_tokens,
+                'bonus_wallet_microusd' => (int) $order->bonus_wallet_microusd,
+                'storage_bytes' => (int) $order->storage_bytes,
                 'status' => $order->status,
                 'note' => $order->note,
                 'created_at' => $order->created_at,
@@ -149,6 +156,9 @@ class PeriodController extends Controller
                 'package' => $validated['package'],
                 'days' => $pkg['days'],
                 'price' => $checkout->amount_idr,
+                'bonus_tokens' => $pkg['bonus_tokens'],
+                'bonus_wallet_microusd' => $pkg['bonus_wallet_microusd'],
+                'storage_bytes' => $pkg['storage_bytes'],
                 'payment_method' => 'qris',
                 'payment_reference' => $checkout->reference,
                 'payment_expires_at' => $checkout->expires_at,
@@ -193,13 +203,29 @@ class PeriodController extends Controller
             ]);
 
             $referrals->rewardFirstPurchase($approvedOrder, $request->user());
+            $membershipEnd = $user->fresh()->expires_at;
+            $reference = 'duration-order:'.$approvedOrder->id;
+            if ($approvedOrder->bonus_tokens > 0) {
+                UserToken::topup($user->id, (int) $approvedOrder->bonus_tokens, 'Bonus token langganan', $reference);
+            }
+            if ($approvedOrder->bonus_wallet_microusd > 0) {
+                Wallet::credit($user->id, (int) $approvedOrder->bonus_wallet_microusd, 'Bonus Saldo AI langganan', $reference, 'membership');
+            }
+            app(StorageQuotaService::class)->grantMembershipStorage($user, $approvedOrder, $membershipEnd);
+            app(AuditService::class)->record($request->user(), 'membership.approved', $approvedOrder, [
+                'bonus_tokens' => (int) $approvedOrder->bonus_tokens,
+                'bonus_wallet_microusd' => (int) $approvedOrder->bonus_wallet_microusd,
+                'storage_bytes' => (int) $approvedOrder->storage_bytes,
+                'expires_at' => $membershipEnd->toISOString(),
+            ]);
 
             return [$approvedOrder, $user->fresh()->expires_at];
         });
 
         return response()->json([
-            'message' => "Durasi {$approvedOrder->days} hari ditambahkan. Aktif sampai {$newExpiry->format('d M Y H:i')}.",
+            'message' => "Langganan diperpanjang {$approvedOrder->days} hari. Bonus token, Saldo AI, dan penyimpanan sesuai pesanan telah diberikan.",
             'new_expires_at' => $newExpiry,
+            'benefits' => $approvedOrder->only(['bonus_tokens', 'bonus_wallet_microusd', 'storage_bytes']),
         ]);
     }
 
@@ -249,7 +275,11 @@ class PeriodController extends Controller
      */
     public function destroy(DurationOrder $order)
     {
-        $order->delete();
+        DB::transaction(function () use ($order): void {
+            $locked = DurationOrder::query()->lockForUpdate()->findOrFail($order->id);
+            abort_if($locked->status === 'approved', 409, 'Pesanan yang sudah disetujui tidak bisa dihapus.');
+            $locked->delete();
+        });
 
         return response()->json(['message' => 'Order dihapus.']);
     }
@@ -265,27 +295,25 @@ class PeriodController extends Controller
             'note' => 'nullable|string|max:255',
         ]);
 
-        $user = User::findOrFail($validated['user_id']);
-        $now = now();
+        [$user, $newExpiry] = DB::transaction(function () use ($validated, $request): array {
+            $user = User::query()->lockForUpdate()->findOrFail($validated['user_id']);
+            $startFrom = $user->hasActiveMembership() ? $user->expires_at->copy() : now();
+            $newExpiry = $startFrom->addDays($validated['days']);
+            $user->forceFill(['expires_at' => $newExpiry])->save();
 
-        $currentExpiry = $user->expires_at;
-        $startFrom = ($currentExpiry && $currentExpiry->isFuture()) ? $currentExpiry : $now;
-        $newExpiry = $startFrom->copy()->addDays($validated['days']);
+            // Manual duration grants days only: benefit snapshots remain zero.
+            $order = DurationOrder::create([
+                'user_id' => $user->id, 'package' => 'manual', 'days' => $validated['days'],
+                'price' => 0, 'status' => 'approved', 'approved_at' => now(),
+                'approved_by' => $request->user()->id,
+                'note' => $validated['note'] ?? 'Manual oleh admin',
+            ]);
+            app(AuditService::class)->record($request->user(), 'membership.duration_added', $order, [
+                'days' => (int) $validated['days'], 'expires_at' => $newExpiry->toISOString(),
+            ]);
 
-        $user->expires_at = $newExpiry;
-        $user->save();
-
-        // Log as approved order
-        DurationOrder::create([
-            'user_id' => $user->id,
-            'package' => 'manual',
-            'days' => $validated['days'],
-            'price' => 0,
-            'status' => 'approved',
-            'approved_at' => $now,
-            'approved_by' => Auth::id(),
-            'note' => $validated['note'] ?? 'Manual oleh admin',
-        ]);
+            return [$user, $newExpiry];
+        });
 
         return response()->json([
             'message' => "Durasi {$validated['days']} hari ditambahkan ke {$user->name}.",

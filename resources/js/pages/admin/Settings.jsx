@@ -132,6 +132,8 @@ export default function Settings() {
     const [draft, setDraft] = useState(emptyRate);
     const [rateDrafts, setRateDrafts] = useState({});
     const [durationDrafts, setDurationDrafts] = useState({});
+    const [benefitValuePct, setBenefitValuePct] = useState(107);
+    const [benefitTokenPct, setBenefitTokenPct] = useState(60);
     const [rateSelection, setRateSelection] = useState([]);
     const [durationSelection, setDurationSelection] = useState([]);
     const [search, setSearch] = useState("");
@@ -217,6 +219,29 @@ export default function Settings() {
     const input = "ui-input min-h-10";
     const patchRate = (id, key, value) => setRateDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
     const patchDuration = (id, key, value) => setDurationDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
+    const fillMembershipBenefits = () => {
+        const tokenRevenue = Number(catalog?.valuation?.token_revenue_idr);
+        const walletRate = Number(catalog?.valuation?.wallet_idr_per_usd);
+        if (!(tokenRevenue > 0 && walletRate > 0) || !priceInRange(benefitValuePct, 0, 1000) || !priceInRange(benefitTokenPct, 0, 100)) {
+            setStatus({ error: t("Aktifkan paket token dan isi persentase yang valid."), success: "" });
+            return;
+        }
+        const value = Number(benefitValuePct) / 100;
+        const share = Number(benefitTokenPct) / 100;
+        setDurationDrafts(current => {
+            const next = { ...current };
+            packages.forEach(([id, original]) => {
+                const price = Number(current[id]?.price_idr ?? original.price_idr);
+                next[id] = {
+                    ...next[id],
+                    bonus_tokens: Math.floor(price * value * share / tokenRevenue / 25) * 25,
+                    bonus_wallet_usd: (Math.floor(price * value * (1 - share) / walletRate * 4) / 4).toFixed(2),
+                };
+            });
+            return next;
+        });
+        setStatus({ error: "", success: t("Bonus dihitung ke draf. Tinjau lalu simpan untuk menerapkan.") });
+    };
     const selectRates = (ids) => {
         if (ids.length > 200) { setStatus({ error: t("Pilih maksimal 200 baris dalam satu operasi."), success: "" }); return; }
         setRateSelection(ids);
@@ -245,7 +270,7 @@ export default function Settings() {
             const changes = type === "rates" ? rateDrafts[id] : durationDrafts[id];
             const item = type === "rates" ? { id } : { package: id };
             for (const [field, value] of Object.entries(changes)) {
-                item[field] = ["price_idr", "price_usd", "sort_order"].includes(field) ? nullableNumber(value) : value;
+                item[field] = ["price_idr", "price_usd", "sort_order", "bonus_tokens", "bonus_wallet_usd", "storage_gb"].includes(field) ? nullableNumber(value) : value;
             }
             const row = { ...(type === "rates" ? rateById.get(id) : catalog.duration_packages[id]), ...item };
             const fields = {};
@@ -259,6 +284,9 @@ export default function Settings() {
             } else {
                 if (!priceInRange(row.price_idr, 1, 4294967295) || !Number.isInteger(Number(row.price_idr))) fields.price_idr = "Harga IDR paket harus bilangan bulat positif.";
                 if (!priceInRange(row.price_usd, 0.01, 999999.99)) fields.price_usd = "Harga USD paket minimal 0.01.";
+                if (!priceInRange(row.bonus_tokens, 0, 1000000) || !Number.isInteger(Number(row.bonus_tokens))) fields.bonus_tokens = "Bonus token harus bilangan bulat 0–1000000.";
+                if (!priceInRange(row.bonus_wallet_usd, 0, 1000)) fields.bonus_wallet_usd = "Bonus Saldo AI harus antara $0 dan $1000.";
+                if (!priceInRange(row.storage_gb, 0, 1024)) fields.storage_gb = "Penyimpanan harus antara 0 dan 1024 GB.";
             }
             if (row.sort_order !== null && (!priceInRange(row.sort_order, 0, 65535) || !Number.isInteger(Number(row.sort_order)))) fields.sort_order = "Urutan harus bilangan bulat 0–65535.";
             if (Object.keys(fields).length) errors[id] = fields;
@@ -405,8 +433,14 @@ export default function Settings() {
         {loading.pricing && !catalog ? <LoadingState label={t("Memuat pricing…")} /> : catalog && (
             <section className={panel} aria-labelledby="duration-prices-title">
                 <SectionHead dark={dark} tone="blue" id="duration-prices-title" title={t("Paket durasi")} subtitle={t("Minimal satu paket tetap aktif. Kredit token Deposit dikelola terpisah.")} icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} />
+                <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4 dark:border-white/10">
+                    <label className="text-xs">{t("Nilai bonus (% harga)")}<input className={`${input} mt-1 w-36`} type="number" min="0" max="1000" value={benefitValuePct} disabled={busy} onChange={event => setBenefitValuePct(event.target.value)} /></label>
+                    <label className="text-xs">{t("Porsi token (%)")}<input className={`${input} mt-1 w-36`} type="number" min="0" max="100" value={benefitTokenPct} disabled={busy} onChange={event => setBenefitTokenPct(event.target.value)} /></label>
+                    <button className="ui-btn-secondary min-h-10" type="button" disabled={busy} onClick={fillMembershipBenefits}>{t("Hitung otomatis")}</button>
+                    <p className={`w-full text-xs ${muted}`}>{t("Mengisi bonus semua paket ke draf; penyimpanan tidak berubah. Token dibulatkan turun per 25 dan Saldo AI per $0.25.")}</p>
+                </div>
                 <div className="max-w-full overflow-x-auto"><table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr><th className="p-3"><input type="checkbox" aria-label={t("Pilih semua paket di tabel")} checked={packages.length > 0 && packages.every(([id]) => durationSelection.includes(id))} disabled={busy} onChange={(event) => setDurationSelection(event.target.checked ? packages.map(([id]) => id) : [])} /></th><th className="p-3">{t("Paket")}</th><th className="p-3">IDR</th><th className="p-3">USD</th><th className="p-3">{t("Urutan")}</th><th className="p-3">{t("Aktif")}</th></tr></thead>
+                    <thead className="bg-slate-50 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr><th className="p-3"><input type="checkbox" aria-label={t("Pilih semua paket di tabel")} checked={packages.length > 0 && packages.every(([id]) => durationSelection.includes(id))} disabled={busy} onChange={(event) => setDurationSelection(event.target.checked ? packages.map(([id]) => id) : [])} /></th><th className="p-3">{t("Paket")}</th><th className="p-3">IDR</th><th className="p-3">USD</th><th className="p-3">{t("Bonus token")}</th><th className="p-3">{t("Bonus Saldo AI (USD)")}</th><th className="p-3">{t("Penyimpanan (GB)")}</th><th className="p-3">{t("Urutan")}</th><th className="p-3">{t("Aktif")}</th></tr></thead>
                     <tbody>{packages.map(([id, original]) => {
                         const row = { ...original, ...durationDrafts[id] };
                         return <tr key={id} className="border-t border-slate-200 align-top dark:border-white/10">
@@ -414,6 +448,9 @@ export default function Settings() {
                             <td className="min-w-40 p-3"><strong>{t(row.label)}</strong><span className="block text-xs text-slate-500 dark:text-slate-400">{row.days} {t("hari")} · {id}</span>{durationDrafts[id] && <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">{t("Belum disimpan")}</span>}{fieldError("durations", id, "row")}</td>
                             <td className="p-3"><input aria-label={`IDR ${id}`} className={`${input} min-w-32`} type="number" min="1" step="1" value={row.price_idr} disabled={busy} aria-invalid={!!rowErrors.durations?.[id]?.price_idr} onChange={(event) => patchDuration(id, "price_idr", event.target.value)} />{fieldError("durations", id, "price_idr")}</td>
                             <td className="p-3"><input aria-label={`USD ${id}`} className={`${input} min-w-28`} type="number" min="0.01" step="0.01" value={row.price_usd} disabled={busy} aria-invalid={!!rowErrors.durations?.[id]?.price_usd} onChange={(event) => patchDuration(id, "price_usd", event.target.value)} />{fieldError("durations", id, "price_usd")}</td>
+                            <td className="p-3"><input aria-label={`${t("Bonus token")} ${id}`} className={`${input} min-w-28`} type="number" min="0" max="1000000" step="1" value={row.bonus_tokens} disabled={busy} aria-invalid={!!rowErrors.durations?.[id]?.bonus_tokens} onChange={event => patchDuration(id, "bonus_tokens", event.target.value)} />{fieldError("durations", id, "bonus_tokens")}</td>
+                            <td className="p-3"><input aria-label={`${t("Bonus Saldo AI (USD)")} ${id}`} className={`${input} min-w-28`} type="number" min="0" max="1000" step="0.01" value={row.bonus_wallet_usd} disabled={busy} aria-invalid={!!rowErrors.durations?.[id]?.bonus_wallet_usd} onChange={event => patchDuration(id, "bonus_wallet_usd", event.target.value)} />{fieldError("durations", id, "bonus_wallet_usd")}</td>
+                            <td className="p-3"><input aria-label={`${t("Penyimpanan (GB)")} ${id}`} className={`${input} min-w-28`} type="number" min="0" max="1024" step="0.1" value={row.storage_gb} disabled={busy} aria-invalid={!!rowErrors.durations?.[id]?.storage_gb} onChange={event => patchDuration(id, "storage_gb", event.target.value)} />{fieldError("durations", id, "storage_gb")}</td>
                             <td className="p-3"><input aria-label={`${t("Urutan")} ${id}`} className={`${input} w-24`} type="number" min="0" max="65535" step="1" value={row.sort_order} disabled={busy} onChange={(event) => patchDuration(id, "sort_order", event.target.value)} />{fieldError("durations", id, "sort_order")}</td>
                             <td className="p-3"><label className="flex min-h-10 items-center gap-2"><input type="checkbox" disabled={busy} checked={!!row.is_active} onChange={(event) => patchDuration(id, "is_active", event.target.checked)} aria-label={`${t("Aktif")} ${id}`} />{t(row.is_active ? "Aktif" : "Nonaktif")}</label></td>
                         </tr>;

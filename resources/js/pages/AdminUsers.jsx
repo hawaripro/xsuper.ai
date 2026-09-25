@@ -266,7 +266,7 @@ export default function AdminUsers() {
                                     <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("User")}</th>
                                     <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] hidden sm:table-cell ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Email")}</th>
                                     <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Role")}</th>
-                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] hidden md:table-cell ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Masa Aktif")}</th>
+                                    <th className={`text-left px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] hidden md:table-cell ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Langganan")}</th>
                                     <th className={`text-right px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Aksi")}</th>
                                 </tr>
                             </thead>
@@ -292,16 +292,10 @@ export default function AdminUsers() {
                                             </span>
                                         </td>
                                         <td className="px-5 py-4 hidden md:table-cell">
-                                            {u.role === 'admin' ? (
-                                                <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>∞ Unlimited</span>
-                                            ) : u.is_expired ? (
-                                                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-400">{t("Expired")}</span>
-                                            ) : u.days_remaining !== null && u.days_remaining !== undefined ? (
-                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${u.days_remaining <= 3 ? 'bg-red-500/15 text-red-400' : u.days_remaining <= 7 ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'}`}>
-                                                    {u.days_remaining} {t("hari")}
-                                                </span>
+                                            {u.membership?.active ? (
+                                                <span className="text-xs font-bold text-emerald-500">{u.membership.days_remaining} {t("hari lagi")}</span>
                                             ) : (
-                                                <span className="text-xs text-emerald-400">∞ Unlimited</span>
+                                                <span className="text-xs text-slate-500">{t(u.membership?.expires_at ? "Langganan berakhir." : "Belum berlangganan")}</span>
                                             )}
                                         </td>
                                         <td className="px-5 py-4">
@@ -386,7 +380,7 @@ export default function AdminUsers() {
                                     {/* Duration */}
                                     <div>
                                         <label className={`block text-xs font-bold uppercase tracking-[0.1em] mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            {editUser ? 'Tambah Durasi' : 'Durasi Akses'}
+                                            {t(editUser ? 'Tambah durasi langganan' : 'Durasi langganan')}
                                         </label>
                                         <select value={formData.duration} onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                                             className={selectClass}>
@@ -397,13 +391,13 @@ export default function AdminUsers() {
                                             <option value="90d" className={optionBg}>3 Bulan</option>
                                             <option value="180d" className={optionBg}>6 Bulan</option>
                                             <option value="365d" className={optionBg}>12 Bulan</option>
-                                            <option value="unlimited" className={optionBg}>∞ Unlimited</option>
-                                            {editUser && <option value="clear" className={optionBg}>{t("Reset Expired")}</option>}
+                                            {editUser && <option value="clear" className={optionBg}>{t("Hapus langganan")}</option>}
                                         </select>
-                                        {editUser && editUser.expires_at && (
+                                        <p className={`mt-1.5 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t("Penambahan manual hanya menambah hari, tanpa bonus token, Saldo AI, atau penyimpanan.")}</p>
+                                        {editUser?.membership?.expires_at && (
                                             <p className={`mt-1.5 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                Expired: {new Date(editUser.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                                {editUser.days_remaining !== null && ` (${editUser.days_remaining} ${t("hari lagi")})`}
+                                                {t("Langganan sampai")}: {new Date(editUser.membership.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                {editUser.membership.active && ` (${editUser.membership.days_remaining} ${t("hari lagi")})`}
                                             </p>
                                         )}
                                     </div>

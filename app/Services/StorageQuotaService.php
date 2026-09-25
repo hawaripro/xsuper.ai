@@ -7,6 +7,7 @@ use App\Models\ChatArtifact;
 use App\Models\ChatArtifactRevision;
 use App\Models\ChatAttachment;
 use App\Models\ChatOperation;
+use App\Models\DurationOrder;
 use App\Models\ImageJob;
 use App\Models\MediaAsset;
 use App\Models\MediaToolJob;
@@ -49,7 +50,10 @@ class StorageQuotaService
 
     public function activeUpgradeBytes(User $user): int
     {
-        return (int) UserStorageUpgrade::query()->where('user_id', $user->id)->active()->sum('extra_bytes');
+        $upgrades = UserStorageUpgrade::query()->where('user_id', $user->id)->active();
+
+        return (int) (clone $upgrades)->whereNull('duration_order_id')->sum('extra_bytes')
+            + (int) (clone $upgrades)->whereNotNull('duration_order_id')->max('extra_bytes');
     }
 
     public function activeUpgradeExpiry(User $user): ?Carbon
@@ -125,6 +129,25 @@ class StorageQuotaService
             'user_id' => $user->id, 'plan_key' => $planKey, 'extra_bytes' => $extraBytes,
             'starts_at' => $now, 'expires_at' => $now->copy()->addDays($days), 'order_id' => $orderId,
         ]);
+    }
+
+    /** Membership storage is an order snapshot, not a stacking monthly allowance. */
+    public function grantMembershipStorage(User $user, DurationOrder $order, CarbonInterface $until): ?UserStorageUpgrade
+    {
+        if ((int) $order->storage_bytes === 0) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($user, $order, $until): UserStorageUpgrade {
+            // Serialize both direct calls and approval retries using the same order lock.
+            DurationOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            return UserStorageUpgrade::firstOrCreate(['duration_order_id' => $order->id], [
+                'user_id' => $user->id, 'plan_key' => 'membership:'.$order->package,
+                'extra_bytes' => (int) $order->storage_bytes, 'starts_at' => now(),
+                'expires_at' => $until, 'order_id' => null,
+            ]);
+        });
     }
 
     /** Batch read for Library, rather than one active-job query per uploaded file. */

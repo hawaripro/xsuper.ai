@@ -129,10 +129,23 @@ class Wallet extends Model
     public static function credit(int $userId, int $amountMicrousd, string $description, ?string $referenceId = null, string $type = 'credit'): int
     {
         return DB::transaction(function () use ($userId, $amountMicrousd, $description, $referenceId, $type): int {
+            // Serialize first-wallet creation as well as retries for this account.
+            User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
             $wallet = static::query()->lockForUpdate()->firstOrCreate(
                 ['user_id' => $userId],
                 ['balance_microusd' => 0],
             );
+            if ($referenceId !== null) {
+                $existing = WalletTransaction::query()->where('user_id', $userId)
+                    ->where('reference_id', $referenceId)->where('type', $type)->first();
+                if ($existing !== null) {
+                    if ((int) $existing->amount_microusd !== $amountMicrousd) {
+                        throw new \InvalidArgumentException('Wallet reference has already been used for a different amount.');
+                    }
+
+                    return (int) $wallet->balance_microusd;
+                }
+            }
             $wallet->balance_microusd += $amountMicrousd;
             $wallet->save();
             WalletTransaction::create([

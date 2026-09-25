@@ -210,6 +210,11 @@ export default function Operations() {
                     <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="order-confirm-title">
                         <h2 id="order-confirm-title" className="text-base font-bold text-slate-900 dark:text-white">{confirmation.type === 'storage' ? (confirmation.action === 'approve' ? t('Setujui pesanan penyimpanan?') : t('Tolak pesanan penyimpanan?')) : (confirmation.action === 'approve' ? t('Approve order?') : t('Reject order?'))}</h2>
                         <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{confirmation.type === 'storage' ? (confirmation.action === 'approve' ? `${t('Ini mengaktifkan upgrade penyimpanan untuk')} ${confirmation.order.user_name}: +${formatSize(confirmation.order.extra_bytes)}, ${confirmation.order.days} ${t('hari')}.` : `${t('Ini menolak pesanan upgrade penyimpanan milik')} ${confirmation.order.user_name}.`) : (confirmation.action === 'approve' ? `${t('Adds')} ${confirmation.order.days} ${t('days to the membership of')} ${confirmation.order.user_name}.` : `${t('Rejects the pending order of')} ${confirmation.order.user_name} (${confirmation.order.package}).`)}</p>
+                        {confirmation.type !== 'storage' && confirmation.action === 'approve' && <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                            <li>{count(confirmation.order.bonus_tokens)} {t('token media')}</li>
+                            <li>{t('Saldo AI')} {formatCurrency(Number(confirmation.order.bonus_wallet_microusd || 0) / 1_000_000, 'USD')}</li>
+                            <li>+{formatSize(confirmation.order.storage_bytes)} {t('penyimpanan selama aktif')}</li>
+                        </ul>}
                         <div className="mt-5 flex justify-end gap-2"><button type="button" className="ui-btn-secondary" onClick={() => setConfirmation(null)}>{t("Cancel")}</button><button type="button" className="ui-btn-primary min-h-10 px-4 text-xs" onClick={runOrderAction}>{t('Confirm')}</button></div>
                     </div>
                 </div>

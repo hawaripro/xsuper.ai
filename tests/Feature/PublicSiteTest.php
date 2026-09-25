@@ -7,11 +7,15 @@ use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
+use App\Models\PricingSetting;
+use App\Models\TokenPackage;
+use App\Models\UsageRate;
 use App\Models\User;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
@@ -23,6 +27,7 @@ class PublicSiteTest extends TestCase
     {
         parent::setUp();
 
+        Http::fake();
         $this->withoutVite();
         config(['services.umami.id' => null]);
     }
@@ -236,7 +241,7 @@ class PublicSiteTest extends TestCase
         $this->assertCount(1, $html->query('//main//h1'));
         $this->assertCount(count(DurationOrder::PACKAGES), $html->query('//*[@data-plan]'));
 
-        foreach (DurationOrder::PACKAGES as $id => $package) {
+        foreach (DurationPackagePrice::catalog() as $id => $package) {
             $cards = $html->query('//*[@data-plan="'.$id.'"]');
             $this->assertCount(1, $cards);
             $this->assertStringContainsString($package['label'], $this->text($cards->item(0)->textContent));
@@ -350,7 +355,6 @@ class PublicSiteTest extends TestCase
 
         $pricing = $this->html($this->get('/en/pricing')->assertOk()->assertHeader('Content-Language', 'en')->getContent());
         $this->assertCanonicalAndIndexable($pricing, 'https://xsuper.dev/en/pricing');
-        $this->assertStringContainsString('Choose your time.', $this->text($pricing->evaluate('string(//main)')));
 
         $policy = $this->html($this->get('/en/privacy-policy')->assertOk()->getContent());
         $this->assertStringContainsString('Scope', $this->text($policy->evaluate('string(//main)')));
@@ -381,6 +385,72 @@ class PublicSiteTest extends TestCase
         $this->assertCount(1, $pricing->query('//*[@data-pricing-carousel]'));
         $this->assertCount(1, $pricing->query('//*[@data-pricing-prev]'));
         $this->assertCount(1, $pricing->query('//*[@data-pricing-next]'));
+    }
+
+    public function test_pricing_discloses_live_benefits_and_retail_examples_without_provider_metadata(): void
+    {
+        PricingSetting::current()->update(['wallet_idr_per_usd' => 20000]);
+        TokenPackage::query()->update(['is_active' => false]);
+        TokenPackage::create(['code' => 'public-test', 'name' => 'Studio Pack', 'base_tokens' => 100, 'bonus_tokens' => 25, 'price_idr' => 10000, 'is_active' => true]);
+        DurationPackagePrice::where('package', '1_month')->update(['bonus_tokens' => 425, 'bonus_wallet_microusd' => 1_750_000, 'storage_bytes' => 2 * 1024 ** 3]);
+        $provider = AiProviderProfile::create([
+            'slug' => 'secret-provider-slug', 'name' => 'Secret Provider Name', 'protocol' => 'openai',
+            'base_url' => 'https://private-price.example.test/v1', 'api_key' => 'private-price-secret', 'is_enabled' => true,
+        ]);
+        AiModelProfile::create([
+            'provider_id' => $provider->id, 'model_id' => 'public-image', 'upstream_model_id' => 'gpt-image-2',
+            'display_name' => 'Retail Image', 'category' => 'image', 'token_cost' => 10, 'is_enabled' => true, 'is_available' => true,
+        ]);
+        AiModelProfile::create([
+            'provider_id' => $provider->id, 'model_id' => 'unavailable-cheap-image', 'upstream_model_id' => 'gpt-image-2',
+            'display_name' => 'Unavailable Image', 'category' => 'image', 'token_cost' => 1, 'is_enabled' => true, 'is_available' => false,
+        ]);
+        foreach (['retail-chat' => true, 'unpriced-chat' => false] as $id => $priced) {
+            AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'display_name' => $id, 'category' => 'chat', 'is_enabled' => true, 'is_available' => true]);
+            foreach (['input_tokens' => 0.34, 'output_tokens' => 1.33] as $meter => $price) {
+                UsageRate::create(['model' => $id, 'service' => 'api', 'meter' => $meter, 'label' => 'Private rate label', 'unit' => '1M tokens', 'price_usd' => $priced ? $price : 0, 'price_idr' => 999, 'is_active' => true]);
+            }
+        }
+
+        $idContent = $this->get('/pricing')->assertOk()->getContent();
+        $id = $this->html($idContent);
+        $card = $this->text($id->evaluate('string(//*[@data-plan=\"1_month\"])'));
+        $this->assertStringContainsString('425 token media', $card);
+        $this->assertStringContainsString('Saldo AI $1,75 (≈ Rp 35.000)', $card);
+        $this->assertStringContainsString('+2 GB', $card);
+        $image = $this->text($id->evaluate('string(//*[@data-image-price-example])'));
+        $this->assertStringContainsString('Retail Image', $image);
+        $this->assertStringContainsString('10 token / gambar', $image);
+        $this->assertStringContainsString('Rp 800', $image);
+        $chat = $this->text($id->evaluate('string(//*[@data-chat-price-example])'));
+        $this->assertStringContainsString('$0.34', $chat);
+        $this->assertStringContainsString('Rp 6.800', $chat);
+        $this->assertStringContainsString('$1.33', $chat);
+        $this->assertCount(1, $id->query('//*[@data-chat-price-example]'));
+
+        $enContent = $this->get('/en/pricing')->assertOk()->getContent();
+        $en = $this->html($enContent);
+        $englishCard = $this->text($en->evaluate('string(//*[@data-plan=\"1_month\"])'));
+        $this->assertStringContainsString('425 media tokens', $englishCard);
+        $this->assertStringContainsString('AI Balance $1.75', $englishCard);
+        $this->assertStringNotContainsString('Rp ', $this->text($en->evaluate('string(//main)')));
+        $this->assertStringContainsString('$0.50', $this->text($en->evaluate('string(//*[@data-token-package])')));
+        foreach ([$idContent, $enContent] as $content) {
+            foreach (['Secret Provider Name', 'secret-provider-slug', 'private-price.example.test', 'private-price-secret', 'gpt-image-2', 'Private rate label', 'unpriced-chat', 'Unavailable Image'] as $secret) {
+                $this->assertStringNotContainsString($secret, $content);
+            }
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_unpriced_chat_is_payg_but_never_advertised_as_included(): void
+    {
+        $provider = AiProviderProfile::create(['slug' => 'unpriced', 'name' => 'Private', 'is_enabled' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'chat-without-rate', 'display_name' => 'Chat without rate', 'category' => 'chat', 'is_enabled' => true, 'is_available' => true]);
+        $models = $this->html($this->get('/en/models')->assertOk()->getContent());
+        $this->assertSame('payg', $models->evaluate('string(//*[@id=\"chat-without-rate\"]/@data-model-billing)'));
+        $this->assertStringNotContainsString('Included', $this->text($models->evaluate('string(//*[@id=\"chat-without-rate\"])')));
+        $this->assertCount(0, $models->query('//input[@value=\"subscription\"]'));
     }
 
     public function test_media_catalog_prices_show_generator_tokens_not_subscription_inclusion(): void

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class UserStorageUpgrade extends Model
 {
     protected $fillable = [
-        'user_id', 'plan_key', 'extra_bytes', 'starts_at', 'expires_at', 'order_id',
+        'user_id', 'plan_key', 'extra_bytes', 'starts_at', 'expires_at', 'order_id', 'duration_order_id',
     ];
 
     protected function casts(): array

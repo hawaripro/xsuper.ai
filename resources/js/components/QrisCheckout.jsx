@@ -39,7 +39,7 @@ function formatCountdown(ms) {
  * - onClose: optional close handler; when provided a close button is rendered.
  */
 export default function QrisCheckout({ packages, loading = false, error: packagesError = null, onReloadPackages, initialPackageKey = null, onApproved, onClose }) {
-    const { t } = useLocale();
+    const { t, locale } = useLocale();
     const [step, setStep] = useState("select"); // select | pay | wait | approved | rejected
     const [selected, setSelected] = useState(null);
     const [checkout, setCheckout] = useState(null);
@@ -183,6 +183,12 @@ export default function QrisCheckout({ packages, loading = false, error: package
     }, [step, checkout, order?.id, onApproved, stopPolling]);
 
     const activePackages = Array.isArray(packages) ? packages : [];
+    const usd = value => new Intl.NumberFormat(locale === "en" ? "en-US" : "id-ID", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0) / 1_000_000);
+    const benefits = item => <span className="mt-2 block space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+        <span className="block">{formatCount(item?.bonus_tokens || 0)} {t("token media")}</span>
+        <span className="block">{t("Saldo AI")} {usd(item?.bonus_wallet_microusd)}</span>
+        <span className="block">+{Number(item?.storage_bytes || 0) / 1024 ** 3} GB {t("penyimpanan selama aktif")}</span>
+    </span>;
 
     return (
         <div className="space-y-4">
@@ -219,11 +225,14 @@ export default function QrisCheckout({ packages, loading = false, error: package
                                     <span className="block text-[12px] font-semibold text-slate-900 dark:text-white">{pkg.label}</span>
                                     <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">{formatCount(pkg.days)} {t("hari")}</span>
                                     <span className="mt-2 block text-[12px] font-bold text-red-600 dark:text-red-400">{formatIdr(pkg.price)}</span>
+                                    {benefits(pkg)}
                                     {busy && selected?.key === pkg.key && <span className="mt-2 block"><Spinner label={t("Membuat checkout")} /></span>}
                                 </button>
                             ))}
                         </div>
                     )}
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t("Chat, Studio & API memakai saldo/token")}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t("Saldo dan token tidak terkunci saat langganan berakhir. Bonus penyimpanan memakai paket aktif terbesar, bukan dijumlahkan.")}</p>
                 </>
             )}
 
@@ -234,6 +243,7 @@ export default function QrisCheckout({ packages, loading = false, error: package
                         <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
                             {selected?.label} — <span className="font-bold text-red-600 dark:text-red-400">{formatIdr(checkout.amount_idr)}</span>
                         </p>
+                        {benefits(selected)}
                     </div>
                     <div className="inline-block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10">
                         <img src={checkout.qr_image_url} alt={t("Kode QRIS pembayaran")} className="h-[240px] w-[240px] object-contain" />
@@ -280,7 +290,7 @@ export default function QrisCheckout({ packages, loading = false, error: package
 
             {step === "approved" && (
                 <div className="space-y-3">
-                    <InlineAlert tone="success">{t("Pembayaran disetujui. Durasi akun Anda sudah bertambah.")}</InlineAlert>
+                    <InlineAlert tone="success">{t("Pembayaran disetujui. Bonus token, Saldo AI, dan penyimpanan sesuai pesanan telah diberikan.")}{benefits(order)}</InlineAlert>
                     <div className="flex justify-end gap-2">
                         <Button variant="secondary" onClick={resetFlow}>{t("Beli lagi")}</Button>
                         {onClose && <Button onClick={handleClose}>{t("Selesai")}</Button>}

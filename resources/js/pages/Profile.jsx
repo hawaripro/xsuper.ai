@@ -242,21 +242,21 @@ function DurationCountdown({ user, isDark }) {
         return () => clearInterval(timer);
     }, []);
 
-    if (!user?.expires_at) {
+    if (!user?.membership?.expires_at) {
         return (
             <div className={`mt-2 text-xs font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                ∞ {t("Unlimited")}
+                {t("Belum berlangganan")}
             </div>
         );
     }
 
-    const expiry = new Date(user.expires_at);
+    const expiry = new Date(user.membership.expires_at);
     const diff = expiry - now;
 
-    if (diff <= 0) {
+    if (!user.membership.active || diff <= 0) {
         return (
             <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-bold ${isDark ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-                ⚠️ {t("Expired")}
+                {t("Langganan berakhir. Saldo dan token tetap dapat dipakai.")}
             </div>
         );
     }
