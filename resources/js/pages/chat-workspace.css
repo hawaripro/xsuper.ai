@@ -165,6 +165,11 @@ a.cw-crumb:hover { color: var(--cw-accent-text); }
 .cw-crumb-current { color: var(--cw-text); font-weight: 600; }
 .cw-crumb-sep { color: var(--cw-text-3); opacity: 0.6; }
 .cw-topbar-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.cw-wallet-chip { display: inline-flex; flex-direction: column; justify-content: center; min-height: 2.5rem; padding: 0.3rem 0.6rem; border: 1px solid var(--cw-border-strong); border-radius: 0.55rem; background: var(--cw-surface); color: var(--cw-text); font-size: 0.7rem; line-height: 1.3; white-space: nowrap; }
+.cw-wallet-chip strong { font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.cw-wallet-chip:hover { background: var(--cw-surface-2); }
+.cw-wallet-chip:focus-visible { outline: 2px solid var(--cw-accent); outline-offset: 2px; }
+@media (max-width: 767px) { .cw-topbar { flex-wrap: wrap; } .cw-topbar-left { flex-basis: 100%; } .cw-topbar-right { width: 100%; justify-content: flex-end; } .cw-wallet-chip { margin-right: auto; flex-direction: row; align-items: center; gap: 0.5rem; } }
 
 .cw-cat-pill {
     display: none; align-items: center; gap: 0.4rem;
@@ -270,7 +275,9 @@ a.cw-crumb:hover { color: var(--cw-accent-text); }
 }
 .cw-model-option:hover { background: var(--cw-hover); color: var(--cw-text); }
 .cw-model-option-active { background: var(--cw-active); color: var(--cw-accent-text); }
-.cw-model-option-name { flex: 1; font-size: 0.82rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cw-model-option-copy { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; flex: 1; }
+.cw-model-option-name { font-size: 0.82rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cw-model-price { font-size: 0.72rem; line-height: 1.45; color: var(--cw-text-2); font-variant-numeric: tabular-nums; }
 .cw-check { display: inline-flex; color: var(--cw-accent-text); }
 .cw-check > svg { width: 0.9rem; height: 0.9rem; }
 
@@ -584,9 +591,9 @@ a.cw-attach-chip:focus-visible { outline: 2px solid var(--cw-accent); outline-of
 .cw-op-banner-text { display: flex; flex-direction: column; gap: 0.2rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .cw-op-banner-detail { color: var(--cw-text-2); font-size: 0.7rem; }
 .cw-op-banner-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.4rem; flex-shrink: 0; }
-.cw-op-banner-actions button { min-height: 2rem; padding: 0.3rem 0.65rem; border-radius: 0.55rem; border: 1px solid var(--cw-border-strong); background: var(--cw-surface); color: var(--cw-text); font-size: 0.72rem; font-weight: 600; }
-.cw-op-banner-actions button:hover { background: var(--cw-surface-2); }
-.cw-op-banner-actions button:focus-visible { outline: 2px solid var(--cw-accent); outline-offset: 2px; }
+.cw-op-banner-actions :is(button, a) { min-height: 2rem; padding: 0.3rem 0.65rem; border-radius: 0.55rem; border: 1px solid var(--cw-border-strong); background: var(--cw-surface); color: var(--cw-text); font-size: 0.72rem; font-weight: 600; }
+.cw-op-banner-actions :is(button, a):hover { background: var(--cw-surface-2); }
+.cw-op-banner-actions :is(button, a):focus-visible { outline: 2px solid var(--cw-accent); outline-offset: 2px; }
 .cw-op-banner-actions .cw-op-banner-dismiss { display: inline-flex; align-items: center; justify-content: center; min-height: 0; padding: 0.3rem; border-color: transparent; background: transparent; color: var(--cw-text-2); }
 .cw-op-banner-dismiss > svg { width: 0.85rem; height: 0.85rem; }
 @media (max-width: 639px) { .cw-op-banner { flex-wrap: wrap; } .cw-op-banner-actions { width: 100%; } }

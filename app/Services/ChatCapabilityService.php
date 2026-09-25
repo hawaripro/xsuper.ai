@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Media\AssetService;
 use App\Models\AiModelProfile;
+use App\Models\UsageRate;
 use App\Models\User;
 use App\Support\StudioLink;
 use Illuminate\Support\Collection;
@@ -24,11 +25,40 @@ class ChatCapabilityService
 
     public function __construct(private readonly AiProxyService $proxy, private readonly AssetService $assets) {}
 
+    /** Member-facing sale prices only; never expose provider bindings or cost snapshots. */
+    public function models(User $user, bool $all = false): array
+    {
+        $models = $all ? $this->proxy->getAllModelsFiltered() : $this->proxy->getModels();
+        $sellable = UsageRate::sellableModelIds();
+        $prices = UsageRate::active()->where('service', 'api')->whereIn('model', $sellable)
+            ->whereIn('meter', ['input_tokens', 'output_tokens'])->get()->groupBy('model');
+
+        return collect($models)
+            ->filter(fn (array $model): bool => $user->isAdmin() || in_array($model['id'], $sellable, true))
+            ->map(function (array $model) use ($prices, $user): array {
+                if (! $user->isAdmin()) {
+                    unset($model['provider']);
+                }
+                if (isset($prices[$model['id']])) {
+                    $rates = $prices[$model['id']]->keyBy('meter');
+                    $model['price'] = [
+                        'input_usd' => round((float) $rates['input_tokens']->price_usd, 4),
+                        'output_usd' => round((float) $rates['output_tokens']->price_usd, 4),
+                        'input_idr' => round((float) $rates['input_tokens']->price_idr),
+                        'output_idr' => round((float) $rates['output_tokens']->price_idr),
+                    ];
+                }
+
+                return $model;
+            })->values()->all();
+    }
+
     public function resolve(User $user, string $model): array
     {
         // `is_active === false` mirrors EnsureActive: an unloaded column is null, not inactive.
         abort_unless($user->hasPermission('chat') && ($user->isAdmin() || $user->is_active !== false), 403, 'Chat access is unavailable.');
-        $public = collect($this->proxy->getModels())->firstWhere('id', $model);
+        abort_if(! $user->isAdmin() && ! in_array($model, UsageRate::sellableModelIds(), true), 422, 'Harga model ini belum tersedia.');
+        $public = collect($this->models($user))->firstWhere('id', $model);
         abort_unless($public, 403, 'The selected chat model is unavailable.');
         $profile = AiModelProfile::query()->with('provider')->where('model_id', $model)->firstOrFail();
         $protocol = $profile->provider->base_url !== null ? $profile->provider->protocol : 'openai';
@@ -64,7 +94,7 @@ class ChatCapabilityService
         return [
             'profile' => $profile,
             'metadata' => [
-                'model' => [...$public, 'provider_name' => $profile->provider_name ?: $provider->name],
+                'model' => $user->isAdmin() ? [...$public, 'provider_name' => $profile->provider_name ?: $provider->name] : $public,
                 'input' => [
                     'images' => $images, 'documents' => true, 'native_pdf' => $pdf, 'text' => true,
                     'max_files' => 8, 'max_file_bytes' => max($limits),

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
+use App\Models\UsageRate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -29,7 +30,7 @@ class ChatModelSelectionTest extends TestCase
         $this->actingAs($user)->postJson('/api/c/s', [
             'model' => 'au'.'to',
             'messages' => [['role' => 'user', 'content' => 'hello']],
-        ])->assertForbidden();
+        ])->assertUnprocessable();
     }
 
     public function test_chat_catalog_includes_enabled_available_profile_without_claiming_unavailable_models(): void
@@ -77,6 +78,12 @@ class ChatModelSelectionTest extends TestCase
             'is_enabled' => false,
             'is_available' => true,
         ]);
+        foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'model' => 'available-db-model', 'meter' => $meter, 'label' => $meter,
+                'unit' => '1M tokens', 'price_usd' => $price, 'price_idr' => 16000 * $price, 'is_active' => true,
+            ]);
+        }
         Http::fake(['*' => Http::response(['data' => []])]);
 
         $response = $this->actingAs($user)->getJson('/api/c/am')->assertOk();

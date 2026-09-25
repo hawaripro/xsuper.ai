@@ -32,7 +32,7 @@ function makeEntry(user, key, workspaceId) {
             client_request_id: attempt.payload.client_request_id, started_at: attempt.startedAt || null,
         } : null,
         attempt, uploadPolicy: null, loaded: false, loading: false,
-        workspaceId, errors: { conversation: '', stream: '', upload: '' },
+        workspaceId, insufficientBalance: false, errors: { conversation: '', stream: '', upload: '' },
     };
 }
 
@@ -47,8 +47,8 @@ function acceptedMime(file, mimes = [], extensions = []) {
 
 export default function useChatWorkspace({ user, selectedModel, onModelChange }) {
     const { locale, t } = useLocale();
-    const latest = useRef({ selectedModel, onModelChange, locale, t });
-    latest.current = { selectedModel, onModelChange, locale, t };
+    const latest = useRef({ selectedModel, onModelChange, locale, t, isAdmin: user?.role === 'admin' });
+    latest.current = { selectedModel, onModelChange, locale, t, isAdmin: user?.role === 'admin' };
     const userKey = user?.id == null ? '' : String(user.id);
     const [, redraw] = useReducer((value) => value + 1, 0);
     const session = useMemo(() => ({
@@ -58,6 +58,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
         data: {
             workspaces: [], workspaceId: null, conversations: [], nextCursor: null, search: '', activeKey: 'new:',
             capabilities: null, capabilityModel: '', loading: { history: false, capabilities: false, workspaces: false },
+            wallet: null, walletRate: null,
             errors: { history: '', capabilities: '', workspace: '', persistence: '' },
         },
     }), [userKey]);
@@ -78,7 +79,12 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
             session.entries.set(key, next);
             notify();
         };
-        const errorAt = (key, type, error) => patch(key, (current) => ({ ...current, errors: { ...current.errors, [type]: error ? (error.message || String(error)) : '' } }));
+        const errorAt = (key, type, error) => patch(key, (current) => {
+            const insufficientBalance = type === 'stream' && error instanceof ApiError
+                && error.status === 402 && error.details?.code === 'insufficient_balance';
+            return { ...current, ...(type === 'stream' ? { insufficientBalance } : {}),
+                errors: { ...current.errors, [type]: insufficientBalance ? 'Saldo AI tidak cukup untuk mengirim pesan ini.' : error ? (error.message || String(error)) : '' } };
+        });
         const persist = (key) => {
             if (!session.userKey || session.deleted.has(key)) return;
             const current = entry(key);
@@ -101,6 +107,30 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
             session.requests.add(controller);
             try { return await apiRequest(path, { ...options, signal: controller.signal }); }
             finally { session.requests.delete(controller); }
+        };
+        const refreshWallet = async () => {
+            if (!session.userKey || latest.current.isAdmin) return;
+            const version = session.walletVersion = (session.walletVersion || 0) + 1;
+            try {
+                const wallet = await request('/api/pricing/wallet');
+                if (!session.disposed && version === session.walletVersion) {
+                    session.data.wallet = Number.isFinite(wallet?.balance_usd) ? wallet : null;
+                    notify();
+                }
+                if (session.data.walletRate === null) {
+                    const catalog = await request('/api/deposits/catalog').catch(() => null);
+                    if (!session.disposed && Number(catalog?.conversion?.idr_per_usd) > 0) {
+                        session.data.walletRate = Number(catalog.conversion.idr_per_usd);
+                        notify();
+                    }
+                }
+            } catch {
+                // A failed refresh must not present the pre-response balance as current.
+                if (!session.disposed && version === session.walletVersion) {
+                    session.data.wallet = null;
+                    notify();
+                }
+            }
         };
         const valid = (key) => !session.disposed && !session.deleted.has(key);
         const updateWorkspace = (workspace) => {
@@ -208,6 +238,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
         const applyOperation = (key, operation, attempt = entry(key).attempt) => {
             if (!valid(key) || (operation.conversation_id && String(operation.conversation_id) !== key)) return;
             const id = operation.operation_id || operation.id || entry(key).operation?.id || null;
+            const previousStatus = entry(key).operation?.status;
             patch(key, (current) => {
                 const previous = current.operation || {};
                 const next = { ...previous, ...operation, id, operation_id: id };
@@ -238,6 +269,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
                 }
                 persist(key);
             }
+            if (TERMINAL.has(operation.status) && previousStatus !== operation.status) refreshWallet();
         };
         const readOperation = async (key, id) => {
             const data = await request(`/api/c/operations/${encodeURIComponent(id)}`);
@@ -290,7 +322,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
                     applyOperation(key, data, attempt);
                 } else if (event === 'final') {
                     if (!data.message?.id) throw new Error(text('Pesan akhir belum dikonfirmasi server.', 'The final message was not confirmed by the server.'));
-                    applyOperation(key, { operation_id: data.operation_id, status: data.status, usage: data.usage, usage_known: data.usage_known }, attempt);
+                    applyOperation(key, { operation_id: data.operation_id, status: data.status, usage: data.usage, usage_known: data.usage_known, billing: data.billing }, attempt);
                     const message = normalizeMessage({ ...data.message, finish_reason: finishReason });
                     patch(key, (current) => ({ ...current,
                         messages: current.messages.some((item) => item.id === message.id)
@@ -331,7 +363,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
                 }
             };
             control.promise = (async () => {
-                patch(key, (current) => ({ ...current, attempt, operation: {
+                patch(key, (current) => ({ ...current, insufficientBalance: false, attempt, operation: {
                     ...(attempt.operationId ? current.operation : {}), status: 'sending', model: attempt.payload.model,
                     client_request_id: attempt.payload.client_request_id, started_at: current.operation?.started_at || attempt.startedAt || Date.now(),
                 }, errors: { ...current.errors, stream: '' } }));
@@ -373,6 +405,14 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
                         const recovered = await pollOperation(key, attempt.operationId);
                         if (recovered?.status === 'failed') throw new Error(recovered.error || error.message);
                         return recovered;
+                    }
+                    if (error instanceof ApiError && error.status === 402 && error.details?.code === 'insufficient_balance') {
+                        // Admission rejected the turn: restore its composer draft, not a failed chat bubble.
+                        patch(key, (current) => ({ ...current, operation: null, attempt: null,
+                            draft: current.draft || attempt.draftAtSend || (attempt.kind === 'turn' ? attempt.text : '') }));
+                        errorAt(key, 'stream', error);
+                        refreshWallet();
+                        throw error;
                     }
                     const rejected = error instanceof ApiError && error.status >= 400 && error.status < 500;
                     patch(key, (current) => ({ ...current, operation: { ...current.operation, status: rejected ? 'failed' : 'uncertain', can_stop: false, recoverable: !rejected },
@@ -654,6 +694,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
         const result = {
             async initialize() {
                 if (!session.userKey) return;
+                refreshWallet();
                 session.data.loading.workspaces = true; notify();
                 try {
                     const data = await request('/api/c/workspaces');
@@ -747,6 +788,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
             async deleteConversation(id) {
                 const key = String(id);
                 await request(pathFor(key), { method: 'DELETE' });
+                refreshWallet();
                 session.deleted.add(key);
                 session.streams.get(key)?.controller.abort();
                 const poll = session.polls.get(key);
@@ -882,6 +924,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
                 return results.map((item) => item.value);
             },
             refreshCapabilities: fetchCapabilities,
+            refreshWallet,
         };
         return result;
     }, [session]);
@@ -920,7 +963,7 @@ export default function useChatWorkspace({ user, selectedModel, onModelChange })
         ...data, conversationId: key.startsWith('new:') ? null : key, conversation: current.conversation,
         workspace: data.workspaces.find((workspace) => String(workspace.id) === String(data.workspaceId)) || null,
         messages: current.messages, draft: current.draft, attachments: current.attachments, tools: current.tools,
-        operation, uploadPolicy: current.uploadPolicy,
+        operation, uploadPolicy: current.uploadPolicy, insufficientBalance: current.insufficientBalance,
         // The submitted turn before the server has confirmed its saved user message.
         pendingTurn: current.attempt?.kind === 'turn' && !userTurnSaved && (ACTIVE.has(operation?.status) || operation?.status === 'uncertain')
             ? { text: current.attempt.text, attachments: current.attempt.attachments, status: operation.status } : null,

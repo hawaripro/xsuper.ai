@@ -107,22 +107,22 @@ class AdminStatsController extends Controller
     {
         $nextMonth = $month->copy()->addMonth();
 
-        // API usage costs are recorded only after the wallet settlement succeeds.
+        // Web chat and API costs are recorded only after wallet settlement succeeds.
         $payg = UsageLog::query()
-            ->where('source', 'api')
+            ->whereIn('source', ['api', 'web'])
             ->where('cost_microusd', '>', 0)
             ->where('created_at', '<=', $now);
         $paygByModel = (clone $payg)
             ->where('created_at', '>=', $month)
             ->where('created_at', '<', $nextMonth)
-            ->select('model')
+            ->select('model', 'source')
             ->selectRaw('SUM(cost_microusd) as cost_microusd, COUNT(*) as requests')
-            ->groupBy('model')
+            ->groupBy('model', 'source')
             ->orderByDesc('cost_microusd')
             ->orderBy('model')
             ->get()
             ->map(fn (UsageLog $row): array => [
-                'service' => 'api',
+                'service' => $row->source === 'web' ? 'chat' : 'api',
                 'model' => $row->model,
                 'cost_microusd' => (int) $row->cost_microusd,
                 'requests' => (int) $row->getAttribute('requests'),

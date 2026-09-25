@@ -79,11 +79,11 @@ export default function AdminOverview() {
                 <header className="dw-section-head"><div><h2 id="overview-metrics">{t('Business pulse')}</h2><p>{t('Bulan settlement hanya mengubah pendapatan PAYG dan token generator, bukan pendapatan langganan.')}</p></div><label className="dw-month-label"><span>{t('Settlement month')}</span><input type="month" name="usage_month" value={usageMonth} onChange={event => { if (event.target.value) setUsageMonth(event.target.value); }} aria-controls="overview-financial-metrics usage-earnings-data" /></label></header>
                 <dl id="overview-financial-metrics" className="dw-metrics" aria-busy={sources.revenue.loading}>
                     <WorkspaceMetric label={t('Subscription revenue this month')} value={revenue ? formatCurrency(revenue.revenue_this_month, 'IDR') : unavailable} loading={financePending} icon={Icons.revenue} tone="emerald" detail={revenue ? `${formatCount(revenue.approved_this_month)} ${t('approved subscription orders')} · IDR` : t('Approved subscription payments · IDR')} />
-                    <WorkspaceMetric label={t('PAYG earnings · selected month')} value={earnings ? formatUsdMicros(earnings.payg.month_cost_microusd) : unavailable} loading={earningsPending} icon={Icons.api} tone="cyan" detail={t('Settled API charges · USD')} />
+                    <WorkspaceMetric label={t('PAYG earnings · selected month')} value={earnings ? formatUsdMicros(earnings.payg.month_cost_microusd) : unavailable} loading={earningsPending} icon={Icons.api} tone="cyan" detail={t('Biaya API dan chat terselesaikan · USD')} />
                     <WorkspaceMetric label={t('Generator tokens · selected month')} value={earnings ? formatCount(earnings.generators.month_tokens) : unavailable} loading={earningsPending} icon={Icons.token} tone="fuchsia" detail={t('Settled image, video, and audio tokens')} />
                     <WorkspaceMetric label={t('Pending orders')} value={revenue ? formatCount(revenue.pending_orders) : unavailable} loading={financePending} icon={Icons.orders} tone="amber" detail={<Link to={localizedPath('/admin/operations')}>{t('Open operations')}</Link>} />
                 </dl>
-                <p className="dw-note">{Icons.info}{t('Settled API charges and generator tokens, separate from deposits and subscription revenue.')}</p>
+                <p className="dw-note">{Icons.info}{t('Biaya API dan chat serta token generator dipisahkan dari deposit dan pendapatan langganan.')}</p>
             </section>
 
             <div className="dw-board">
@@ -130,7 +130,8 @@ export default function AdminOverview() {
                             <WorkspaceMetric label={t('Subscription revenue last month')} value={formatCurrency(revenue.revenue_last_month, 'IDR')} detail={t('Approved subscription payments · IDR')} icon={Icons.period} tone="amber" />
                         </dl>
                         <div className="dw-finance-grid">
-                            <section className="dw-finance-detail" aria-labelledby="payg-model-earnings-title"><h3 id="payg-model-earnings-title">{t('PAYG API earnings by model')}</h3><DataTable rows={earnings.payg.by_model} rowKey="model" emptyTitle={t('No settled PAYG earnings')} emptyDescription={t('Settled paid API requests will appear here for the selected month.')} columns={[
+                            <section className="dw-finance-detail" aria-labelledby="payg-model-earnings-title"><h3 id="payg-model-earnings-title">{t('Pendapatan API dan chat per model')}</h3><DataTable rows={earnings.payg.by_model} rowKey={row => `${row.service}:${row.model}`} emptyTitle={t('No settled PAYG earnings')} emptyDescription={t('Permintaan API dan chat berbayar yang terselesaikan akan tampil di sini untuk bulan yang dipilih.')} columns={[
+                                { key: 'service', label: t('Layanan'), render: row => t(row.service === 'chat' ? 'Chat web' : 'API') },
                                 { key: 'model', label: t('Model'), render: row => <span className="break-all">{row.model}</span> },
                                 { key: 'requests', label: t('Settled requests'), render: row => formatCount(row.requests) },
                                 { key: 'earnings', label: t('Earnings (USD)'), render: row => formatUsdMicros(row.cost_microusd) },
