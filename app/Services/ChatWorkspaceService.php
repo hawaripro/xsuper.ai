@@ -466,8 +466,8 @@ final class ChatWorkspaceService
 
     private function authorize(User $user, bool $history = false): void
     {
-        // Same activity rule as EnsureActive/CheckExpiry: only an explicit false is inactive.
-        abort_unless($user->isAdmin() || ($user->is_active !== false && ! $user->isExpired()), 403, 'Akun tidak memiliki akses aktif.');
+        // Same activity rule as EnsureActive: only an explicit false is inactive.
+        abort_unless($user->isAdmin() || $user->is_active !== false, 403, 'Akun tidak memiliki akses aktif.');
         abort_unless($user->hasPermission('chat') && (! $history || $user->hasPermission('chat_history')), 403, 'Anda tidak memiliki akses ke fitur ini.');
     }
 

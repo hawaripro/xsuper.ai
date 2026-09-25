@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class AiModelProfile extends Model
 {
-    protected $hidden = ['upstream_identity'];
+    protected $hidden = ['upstream_identity', 'cost'];
 
     protected $fillable = [
         'provider_id', 'model_id', 'upstream_model_id', 'display_name', 'provider_name', 'category',
@@ -36,6 +37,11 @@ class AiModelProfile extends Model
     public function provider()
     {
         return $this->belongsTo(AiProviderProfile::class, 'provider_id');
+    }
+
+    public function cost(): HasOne
+    {
+        return $this->hasOne(ModelCost::class);
     }
 
     public function capabilityRevisions()

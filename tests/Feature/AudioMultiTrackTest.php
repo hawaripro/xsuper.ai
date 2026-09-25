@@ -78,8 +78,11 @@ class AudioMultiTrackTest extends TestCase
             $this->actingAs($other)->get($output['url'])->assertNotFound();
         }
 
-        $user->update(['expires_at' => now()->addDay()]);
-        $this->actingAs($user)->deleteJson('/api/audio/'.$job->job_id)->assertOk();
+        // Membership expiry never blocks usage: the expired owner composes again, paid from the token balance.
+        $this->actingAs($user)->postJson('/api/audio', [
+            'operation' => 'music', 'model' => 'suno-music', 'prompt' => 'A second composition.',
+        ])->assertAccepted()->assertJsonPath('balance', 380);
+        $this->deleteJson('/api/audio/'.$job->job_id)->assertOk();
         $this->assertSame([], Storage::disk('local')->allFiles('generated/audio'));
         $this->assertSame(0, app(StorageQuotaService::class)->usedBytes($user));
     }

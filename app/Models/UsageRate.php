@@ -76,6 +76,26 @@ class UsageRate extends Model
         return static::activeForModel($service, $model)->get($meter);
     }
 
+    /**
+     * Models whose token usage can be billed: an active input AND an active output rate with a USD
+     * price >= 0 for the service. One grouped query.
+     *
+     * @return list<string>
+     */
+    public static function sellableModelIds(string $service = 'api'): array
+    {
+        return static::active()
+            ->where('service', $service)
+            ->whereIn('meter', ['input_tokens', 'output_tokens'])
+            ->whereNotNull('price_usd')
+            ->where('price_usd', '>=', 0)
+            ->groupBy('model')
+            ->havingRaw('COUNT(DISTINCT meter) = 2')
+            ->orderBy('model')
+            ->pluck('model')
+            ->all();
+    }
+
     public function costMicrousd(int $quantity): int
     {
         if ($quantity <= 0) {

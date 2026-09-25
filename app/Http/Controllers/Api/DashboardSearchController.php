@@ -67,8 +67,8 @@ class DashboardSearchController extends Controller
 
     private function access(User $user): array
     {
-        // Same rule as EnsureActive/CheckExpiry: only an explicit false is inactive (an unloaded column is null).
-        $active = $user->isAdmin() || ($user->is_active !== false && ! $user->isExpired());
+        // Same rule as EnsureActive: only an explicit false is inactive (an unloaded column is null).
+        $active = $user->isAdmin() || $user->is_active !== false;
         $chat = $active && $user->hasPermission('chat');
 
         return [
@@ -78,7 +78,6 @@ class DashboardSearchController extends Controller
             'templates' => $chat,
             'image' => $active && $user->hasPermission('image_generator'),
             'video' => $active && $user->hasPermission('video_generator'),
-            // These pages retain permission-gated access to owned results after expiry.
             'audio' => $user->hasPermission('audio_generator'),
             'avatar' => $user->hasPermission('video_generator'),
             'model3d' => $user->hasPermission('image_generator'),

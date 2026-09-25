@@ -811,6 +811,8 @@ class MediaGenerationWorkflowTest extends TestCase
         $this->assertNull($job->fresh()->processing_started_at);
         $this->assertSame(500, UserToken::getBalance($user->id));
         $this->assertSame(1, TokenTransaction::query()->where('user_id', $user->id)->where('type', 'refund')->count());
+        // Membership expiry never blocks usage: the expired owner starts new work, paid from the token balance.
+        $this->actingAs($user)->postJson('/api/v/gen', $this->videoInput())->assertStatus(202)->assertJsonPath('balance', 300);
         Http::assertNothingSent();
     }
 

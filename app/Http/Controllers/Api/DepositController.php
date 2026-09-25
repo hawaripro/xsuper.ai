@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DepositOrder;
 use App\Models\DurationPackagePrice;
+use App\Models\PricingSetting;
 use App\Models\TokenPackage;
 use App\Models\User;
 use App\Models\UserToken;
@@ -468,7 +469,7 @@ class DepositController extends Controller
 
     private function conversionRate(): int
     {
-        return $this->positiveConfig('deposits.idr_per_usd');
+        return PricingSetting::current()->wallet_idr_per_usd;
     }
 
     private function minimumIdr(): int

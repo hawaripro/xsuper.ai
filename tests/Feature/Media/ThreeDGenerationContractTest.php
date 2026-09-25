@@ -83,6 +83,9 @@ class ThreeDGenerationContractTest extends TestCase
             ->assertJsonMissingPath('job.provider_result_url')->assertJsonMissingPath('job.reference_asset_ids');
         $this->get($job->model_url)->assertOk()->assertHeader('Content-Type', 'model/gltf-binary');
         $this->get($job->model_url.'?download=1')->assertOk()->assertHeader('Content-Disposition', 'attachment; filename=model-'.$job->job_id.'.glb');
+        // Membership expiry never blocks usage: the expired owner submits new work at the current price.
+        $this->postJson('/api/3d', [...$input, 'expected_price_tokens' => 300, 'idempotency_key' => 'after-expiry'])
+            ->assertAccepted()->assertJsonPath('balance', 150);
         $other = User::factory()->create(['is_active' => true]);
         $this->actingAs($other)->getJson('/api/3d/'.$job->job_id)->assertNotFound();
         $this->get($job->model_url)->assertNotFound();
