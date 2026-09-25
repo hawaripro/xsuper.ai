@@ -43,13 +43,15 @@ final class PricingApplier
             $error = null;
             try {
                 $next = $this->nextPrice($model);
+                $error = $this->costUnitError($model);
             } catch (ValidationException $exception) {
                 $next = null;
                 $error = collect($exception->errors())->flatten()->first();
             }
+            // Current prices are shown in the unit they are charged in; new prices and costs use the target unit.
             $current = $model->category === 'chat'
                 ? ($rates->get($model->model_id, collect())->mapWithKeys(fn ($rate) => [$rate->meter => ['usd' => $rate->price_usd, 'idr' => $rate->price_idr, 'active' => $rate->is_active]])->all())
-                : ['token_cost' => $model->token_cost, 'unit' => MediaModelConfig::catalogPriceUnit($model)];
+                : ['token_cost' => $model->token_cost, 'unit' => MediaModelConfig::appliedPriceUnit($model)];
             return ['id' => $model->id, 'model_id' => $model->model_id, 'display_name' => $model->display_name,
                 'provider_name' => $model->provider->name, 'kind' => $model->category === 'chat' ? 'llm' : 'media',
                 'status' => $model->cost?->status ?? 'unknown', 'source' => $model->cost?->source,
@@ -132,9 +134,10 @@ final class PricingApplier
                         }
                         $summary[$next === null ? 'unknown_chat' : 'llm']++;
                     } elseif ($next !== null) {
-                        $changed = $model->token_cost !== $next['token_cost'];
+                        // The tariff and its unit change together, so a converted video price never bills the old amount per second.
+                        $changed = $model->token_cost !== $next['token_cost'] || $model->token_cost_unit !== $next['unit'];
                         if ($changed) {
-                            $model->update(['token_cost' => $next['token_cost']]);
+                            $model->update(['token_cost' => $next['token_cost'], 'token_cost_unit' => $next['unit']]);
                         }
                         foreach ($model->capabilityRevisions()->where('contract_version', 2)->where(fn ($q) => $q->whereNotNull('reviewed_at')->orWhere('status', 'published'))->orderBy('id')->lockForUpdate()->get() as $revision) {
                             $overrides = $revision->curation_overrides ?? [];
@@ -152,7 +155,8 @@ final class PricingApplier
                         $summary['media']++;
                         $summary['media_written'] += (int) $changed;
                     } else {
-                        $summary['unknown_media']++;
+                        // Unknown costs and costs in another unit than the target leave the tariff and its unit unchanged.
+                        $summary[$this->costUnitError($model) === null ? 'unknown_media' : 'unit_mismatch']++;
                     }
                 }
             });
@@ -169,9 +173,24 @@ final class PricingApplier
         if ($model->category === 'chat') {
             return $this->engine->llmRates($model->cost, $model->provider);
         }
-        $tokens = $this->engine->mediaTokensFor($model->cost, $model->provider);
         $unit = MediaModelConfig::catalogPriceUnit($model);
-        return $tokens === null || $model->cost->unit !== $unit ? null : ['token_cost' => $tokens, 'unit' => $unit];
+        if ($model->cost->unit !== $unit) {
+            return null;
+        }
+        $tokens = $this->engine->mediaTokensFor($model->cost, $model->provider);
+        return $tokens === null ? null : ['token_cost' => $tokens, 'unit' => $unit];
+    }
+
+    /** A known media cost stored in another unit than the target unit cannot price the model. */
+    private function costUnitError(AiModelProfile $model): ?string
+    {
+        $cost = $model->cost;
+        if ($model->category === 'chat' || $cost === null || ! in_array($cost->status, ['ok', 'estimate'], true)) {
+            return null;
+        }
+        $unit = MediaModelConfig::catalogPriceUnit($model);
+        return $cost->unit === $unit ? null
+            : 'The stored cost is per '.($cost->unit ?? 'unspecified unit').', but this model is priced per '.$unit.'. Enter the provider cost per '.$unit.'; the current price stays unchanged.';
     }
 
     private function query(): Builder
@@ -184,7 +203,7 @@ final class PricingApplier
 
     private function emptySummary(): array
     {
-        return ['llm' => 0, 'media' => 0, 'unknown_chat' => 0, 'unknown_media' => 0, 'locked' => 0, 'rates_written' => 0, 'media_written' => 0];
+        return ['llm' => 0, 'media' => 0, 'unknown_chat' => 0, 'unknown_media' => 0, 'unit_mismatch' => 0, 'locked' => 0, 'rates_written' => 0, 'media_written' => 0];
     }
 
     private function counts(): array

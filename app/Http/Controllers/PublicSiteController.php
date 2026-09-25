@@ -299,7 +299,7 @@ class PublicSiteController extends Controller
             $media = app(WorkspaceMediaService::class);
             foreach ((clone $enabled)->with('provider')->where('category', 'image')->where('token_cost', '>', 0)
                 ->orderBy('token_cost')->orderBy('id')->cursor() as $model) {
-                if (MediaModelConfig::catalogPriceUnit($model) !== 'generation'
+                if (MediaModelConfig::appliedPriceUnit($model) !== 'generation'
                     || ! in_array('image', $media->eligibleOutputKinds($guest, $model), true)) {
                     continue;
                 }

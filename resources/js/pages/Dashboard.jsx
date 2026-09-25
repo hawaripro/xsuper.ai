@@ -34,7 +34,7 @@ function greeting(t) {
 }
 
 export default function Dashboard() {
-    const { user } = useAuth();
+    const { user, syncMembership } = useAuth();
     const { locale, t, localizedPath } = useLocale();
     const [sources, setSources] = useState(INITIAL_SOURCES);
     const [period, setPeriod] = useState('daily');
@@ -80,7 +80,9 @@ export default function Dashboard() {
     const activity = dashboard?.activity;
     const services = Array.isArray(dashboard?.services) ? dashboard.services : [];
     const isAdmin = user?.role === 'admin';
-    const membership = user?.membership;
+    // Membership comes with every dashboard load; the auth user is only fetched at sign-in.
+    const membership = dashboard?.membership;
+    useEffect(() => { syncMembership(membership); }, [membership, syncMembership]);
     const permissions = user?.permissions || {};
     const allowed = (key, fallback = true) => isAdmin || (permissions[key] ?? fallback) === true;
     const hasAccess = Boolean(account && (isAdmin || account.is_active));
@@ -121,7 +123,7 @@ export default function Dashboard() {
                 <WorkspaceMetric label={t('Saldo token generator')} icon={Icons.token} tone="fuchsia" value={sources.balance.data ? formatCount(sources.balance.data.balance) : unavailable} loading={sources.balance.loading && !sources.balance.data} detail={<>{t('Untuk gambar, video, dan audio.')} <Link to={localizedPath('/deposit?tab=tokens')}>{t('Isi token')}</Link></>} />
                 <WorkspaceMetric label={t('Saldo AI · USD')} icon={Icons.paket} tone="emerald" value={wallet ? formatUsdMicros(wallet.balance_microusd) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={<>{t('Untuk Chat & API, terpisah dari token media.')} <Link to={localizedPath('/deposit?tab=wallet')}>{t('Isi saldo')}</Link></>} />
                 <WorkspaceMetric label={t('Permintaan tercatat')} icon={Icons.analytics} tone="cyan" value={usage ? formatCount(usage.total_requests) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={usage ? `${formatCount(usage.total_tokens)} ${t('token pemakaian · sepanjang waktu')}` : t('Pemakaian akun Anda, bukan saldo generator.')} />
-                <WorkspaceMetric label={t('Langganan')} icon={Icons.period} tone="amber" value={membership ? (membership.active ? `${t('Sisa')} ${formatCount(membership.days_remaining)} ${t('hari')}` : t('Belum berlangganan')) : unavailable} loading={!membership && sources.dashboard.loading} detail={membership?.active ? `${t('Aktif sampai')} ${formatLocalDate(membership.expires_at, { locale: dateLocale })}` : <Link to={localizedPath('/deposit?tab=subscription')}>{t('Pilih paket langganan')}</Link>} />
+                <WorkspaceMetric label={t('Langganan')} icon={Icons.period} tone="amber" value={membership ? (membership.active ? `${t('Sisa')} ${formatCount(membership.days_remaining)} ${t('hari')}` : t(membership.expires_at ? 'Sudah berakhir' : 'Belum berlangganan')) : unavailable} loading={sources.dashboard.loading && !dashboard} detail={membership?.active ? `${t('Aktif sampai')} ${formatLocalDate(membership.expires_at, { locale: dateLocale })}` : <Link to={localizedPath('/deposit?tab=subscription')}>{t(membership?.expires_at ? 'Perpanjang langganan' : 'Pilih paket langganan')}</Link>} />
             </dl>
             {sources.balance.error && <InlineAlert tone="warning" action={<Button variant="ghost" onClick={() => loadSource('balance')}>{t('Coba lagi')}</Button>}>{t('Saldo token tidak dapat diperbarui.')}{sources.balance.data && <> {t('Data terakhir tetap ditampilkan.')}</>} {t(errorMessage(sources.balance.error))}</InlineAlert>}
 

@@ -40,6 +40,8 @@ final class FalPricingSource
         $result = [];
         foreach ($models as $model) {
             $unit = MediaModelConfig::catalogPriceUnit($model);
+            // A per-request tariff covers every output one request may ask for; native execution bills each output.
+            $outputs = MediaCostBounds::outputsPerInvocation($model, $unit);
             $cost = CostData::unknown('fal_api', 'No safely mappable fal price for every selectable endpoint/configuration.', $endpoints[$model->id][0]);
             $values = [];
             $notes = [];
@@ -58,6 +60,10 @@ final class FalPricingSource
                             ? (($seconds = MediaCostBounds::duration($model, true)) > 0 ? 1 / $seconds : null) : 1,
                         default => null,
                     };
+                    // Only a provider request price is independent of how many outputs that request returns.
+                    if ($factor !== null && $providerUnit !== 'request') {
+                        $factor = $outputs === null ? null : $factor * $outputs;
+                    }
                     if ($factor === null || strtolower($price['currency'] ?? '') !== 'usd' || ! is_numeric($price['unit_price'] ?? null) || $price['unit_price'] <= 0) {
                         $unknown = true;
                         break 2;
@@ -71,7 +77,8 @@ final class FalPricingSource
             }
             if (! $unknown && $values !== []) {
                 $cost = [...$cost, 'status' => 'ok', 'unit' => $unit, 'unit_cost' => number_format(max($values), 10, '.', ''),
-                    'basis_note' => mb_substr('Worst selectable endpoint/tier per '.$unit.': '.implode('; ', array_unique($notes)).'. Fixed video prices use the shortest selectable duration; megapixels round up. No GPU/compute conversion.', 0, 500)];
+                    'basis_note' => mb_substr('Worst selectable endpoint/tier per '.$unit.': '.implode('; ', array_unique($notes)).'. Fixed video prices use the shortest selectable duration; megapixels round up'
+                        .($outputs > 1 ? '; per-output prices cover the '.$outputs.' outputs one billed request can return' : '').'. No GPU/compute conversion.', 0, 500)];
             }
             $result[$model->id] = $cost;
         }

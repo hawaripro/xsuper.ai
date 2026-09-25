@@ -43,11 +43,11 @@ class WorkspaceNativeStudioTest extends TestCase
 
     public function test_native_video_carries_product_mode_cta_and_variation_through_the_workspace(): void
     {
-        $model = $this->model(FalProtocol::VIDEO, 'video', 200);
-        $user = $this->member(['video_generator' => true]);
+        $model = $this->model(FalProtocol::VIDEO, 'video', 200, 'second');
+        $user = $this->member(['video_generator' => true], 5000);
 
         $this->actingAs($user)->postJson('/api/media/workspace/jobs', $this->request($model, 'text_to_video', $this->videoInputs(), [
-            'count' => 2, 'pro' => true, 'expected_price_tokens' => 400,
+            'count' => 2, 'pro' => true, 'expected_price_tokens' => 2000,
             'mode' => 'ab_testing', 'cta' => '  Order today  ', 'ugc_variation' => true,
         ]))->assertStatus(202)->assertJsonCount(2, 'jobs');
 
@@ -58,19 +58,20 @@ class WorkspaceNativeStudioTest extends TestCase
             $this->assertSame('Order today', $job->settings['cta']);
             $this->assertTrue((bool) $job->settings['ugc_variation']);
             $this->assertTrue((bool) $job->pro_mode);
-            $this->assertSame(400, (int) $job->price_tokens);
+            $this->assertSame(2000, (int) $job->price_tokens, '200 tokens/second × 5 seconds × Pro 2');
             $this->assertStringContainsString('Call to action: Order today', $job->prompt);
         }
         $this->assertStringNotContainsString('Create variation', $jobs[0]->prompt);
         $this->assertStringContainsString('Create variation 2', $jobs[1]->prompt, 'only later videos are varied');
-        $this->assertSame(200, UserToken::getBalance($user->id));
+        $this->assertSame(1000, UserToken::getBalance($user->id), '5000 - (200 × 5 × 2 × 2 videos)');
     }
 
     public function test_video_authoring_options_belong_to_the_replay_identity(): void
     {
-        $model = $this->model(FalProtocol::VIDEO, 'video', 200);
+        $model = $this->model(FalProtocol::VIDEO, 'video', 200, 'second');
         $user = $this->member(['video_generator' => true]);
-        $request = $this->request($model, 'text_to_video', $this->videoInputs(), ['mode' => 'ab_testing', 'cta' => 'Order today']);
+        $request = $this->request($model, 'text_to_video', $this->videoInputs(),
+            ['expected_price_tokens' => 1000, 'mode' => 'ab_testing', 'cta' => 'Order today']);
 
         $first = $this->actingAs($user)->postJson('/api/media/workspace/jobs', $request)->assertStatus(202);
         $this->postJson('/api/media/workspace/jobs', $request)->assertStatus(202)->assertJsonPath('job.id', $first->json('job.id'));
@@ -79,14 +80,14 @@ class WorkspaceNativeStudioTest extends TestCase
         $this->postJson('/api/media/workspace/jobs', [...$request, 'ugc_variation' => true])->assertStatus(409);
 
         $this->assertSame(1, VideoJob::query()->count());
-        $this->assertSame(800, UserToken::getBalance($user->id));
+        $this->assertSame(0, UserToken::getBalance($user->id), 'only one 200 × 5-second reservation');
     }
 
     public function test_plain_requests_keep_their_recorded_execution_identity(): void
     {
-        $model = $this->model(FalProtocol::VIDEO, 'video', 200);
+        $model = $this->model(FalProtocol::VIDEO, 'video', 200, 'second');
         $user = $this->member(['video_generator' => true]);
-        $request = $this->request($model, 'text_to_video', $this->videoInputs());
+        $request = $this->request($model, 'text_to_video', $this->videoInputs(), ['expected_price_tokens' => 1000]);
 
         $first = $this->actingAs($user)->postJson('/api/media/workspace/jobs', $request)->assertStatus(202);
         // Submissions recorded before the authoring options existed must keep replaying unchanged.
@@ -158,13 +159,13 @@ class WorkspaceNativeStudioTest extends TestCase
     public function test_common_jobs_keep_the_request_details_the_studios_showed(): void
     {
         Storage::fake('local');
-        $model = $this->model(FalProtocol::VIDEO, 'video', 200);
-        $user = $this->member(['video_generator' => true]);
+        $model = $this->model(FalProtocol::VIDEO, 'video', 200, 'second');
+        $user = $this->member(['video_generator' => true], 3000);
         $asset = app(AssetService::class)->store($user, UploadedFile::fake()->image('frame.jpg', 32, 32), InputRole::ImageRef);
 
         $id = $this->actingAs($user)->postJson('/api/media/workspace/jobs', $this->request($model, 'image_to_video',
             ['prompt' => 'Animate the product', 'reference_image' => $asset->id, 'duration' => 5],
-            ['pro' => true, 'expected_price_tokens' => 400, 'mode' => 'ab_testing', 'cta' => 'Order today']))
+            ['pro' => true, 'expected_price_tokens' => 2000, 'mode' => 'ab_testing', 'cta' => 'Order today']))
             ->assertStatus(202)->json('job.id');
         $job = VideoJob::query()->sole();
 
@@ -175,7 +176,7 @@ class WorkspaceNativeStudioTest extends TestCase
             ->assertJsonPath('job.details.pro_mode', true)
             ->assertJsonPath('job.details.duration', 5)
             ->assertJsonPath('job.details.reference_url', '/api/v/'.$job->job_id.'/reference')
-            ->assertJsonPath('job.details.tokens_reserved', 400)
+            ->assertJsonPath('job.details.tokens_reserved', 2000)
             ->assertJsonPath('job.details.billing_mode', 'tokens');
         $this->get('/api/v/'.$job->job_id.'/reference')->assertOk();
 
@@ -193,16 +194,18 @@ class WorkspaceNativeStudioTest extends TestCase
     public function test_clearing_a_studio_history_removes_only_finished_unreferenced_jobs_of_that_kind(): void
     {
         Storage::fake('local');
-        $video = $this->model(FalProtocol::VIDEO, 'video', 10);
+        $video = $this->model(FalProtocol::VIDEO, 'video', 10, 'second');
         $speech = $this->model(FalProtocol::AUDIO_SPEECH, 'audio', 10);
         $user = $this->member(['video_generator' => true, 'audio_generator' => true]);
         $other = $this->member(['video_generator' => true]);
         $this->actingAs($user)->postJson('/api/media/workspace/jobs', $this->request($video, 'text_to_video', $this->videoInputs(),
-            ['count' => 4, 'expected_price_tokens' => 10]))->assertStatus(202);
+            ['count' => 4, 'expected_price_tokens' => 50]))->assertStatus(202);
         $this->postJson('/api/media/workspace/jobs', $this->request($speech, 'text_to_speech',
             ['prompt' => 'Hello there', 'voice' => 'af_heart', 'speed' => 1], ['expected_price_tokens' => 10, 'idempotency_key' => 'speech']))->assertStatus(202);
         $this->actingAs($other)->postJson('/api/media/workspace/jobs', $this->request($video, 'text_to_video', $this->videoInputs(),
-            ['expected_price_tokens' => 10, 'idempotency_key' => 'other']))->assertStatus(202);
+            ['expected_price_tokens' => 50, 'idempotency_key' => 'other']))->assertStatus(202);
+        $this->assertSame(790, UserToken::getBalance($user->id), '1000 - (10 × 5 seconds × 4 videos) - 10 audio');
+        $this->assertSame(950, UserToken::getBalance($other->id), '1000 - (10 × 5 seconds)');
 
         [$completed, $failed, $referenced, $pending] = VideoJob::query()->where('user_id', $user->id)->orderBy('id')->get()->all();
         foreach ([$completed, $referenced] as $job) {
@@ -281,7 +284,7 @@ class WorkspaceNativeStudioTest extends TestCase
         ]);
     }
 
-    private function model(string $modelId, string $category, int $price): AiModelProfile
+    private function model(string $modelId, string $category, int $price, ?string $unit = null): AiModelProfile
     {
         $provider = AiProviderProfile::query()->firstOrCreate(['slug' => 'fal'], [
             'name' => 'fal', 'protocol' => 'fal', 'base_url' => 'https://fal.run', 'api_key' => 'k', 'is_enabled' => true,
@@ -290,14 +293,14 @@ class WorkspaceNativeStudioTest extends TestCase
         return AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => $modelId, 'upstream_model_id' => $modelId,
             'display_name' => Str::afterLast($modelId, '/'), 'category' => $category, 'token_cost' => $price,
-            'is_enabled' => true, 'is_available' => true,
+            'token_cost_unit' => $unit, 'is_enabled' => true, 'is_available' => true,
         ]);
     }
 
-    private function member(array $permissions): User
+    private function member(array $permissions, int $balance = 1000): User
     {
         $user = User::factory()->create(['is_active' => true, 'permissions' => $permissions]);
-        UserToken::topup($user->id, 1000);
+        UserToken::topup($user->id, $balance);
 
         return $user;
     }
@@ -313,6 +316,7 @@ class WorkspaceNativeStudioTest extends TestCase
             'model' => $model->model_id, 'operation' => $operation, 'inputs' => $inputs,
             'expected_capability_hash' => app(CapabilityResolver::class)->resolve($model, MediaOperation::from($operation), schemaContracts: true)->sourceHash,
             'expected_price_tokens' => (int) $model->token_cost, 'idempotency_key' => 'native-studio-key',
+            'count' => 1, 'pro' => false,
             ...$extra,
         ];
     }

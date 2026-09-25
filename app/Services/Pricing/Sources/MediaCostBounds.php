@@ -5,6 +5,8 @@ namespace App\Services\Pricing\Sources;
 use App\Models\AiModelProfile;
 use App\Services\FalProtocol;
 use App\Services\KinoviProtocol;
+use App\Services\MediaModelConfig;
+use App\Services\ThreeDProtocol;
 use Illuminate\Support\Collection;
 
 /** Bounds come from selectable inputs, never sample/default configurations. */
@@ -64,6 +66,55 @@ final class MediaCostBounds
             $bounds[] = (float) $bound;
         }
         return $minimum ? min($bounds) : max($bounds);
+    }
+
+    /**
+     * The most outputs one billed invocation can return. Native v1 execution bills each output (count) and a
+     * v2 contract whose reviewed quantity input multiplies a per-generation or per-second tariff bills per
+     * output too; any other v2 contract charges its tariff once per request, however many outputs its
+     * schema lets a member ask for. While a model still executes natively, only a published v2 contract
+     * replaces that path, so unpublished candidates never scale its per-output price. Null when such a count
+     * has no numeric maximum.
+     */
+    public static function outputsPerInvocation(AiModelProfile $model, string $unit): ?int
+    {
+        $outputs = 1;
+        $revisions = self::revisions($model)->where('contract_version', 2);
+        if (self::native($model) !== [] || ThreeDProtocol::supports($model) || MediaModelConfig::hasCatalogImage($model)) {
+            $revisions = $revisions->where('status', 'published');
+        }
+        foreach ($revisions as $revision) {
+            $schema = $revision->definition['input_schema'] ?? null;
+            $properties = is_array($schema) ? self::inputProperties($schema) : [];
+            $bound = $revision->provider_bindings['quantity_input'] ?? null;
+            if (is_string($bound) && isset($properties[$bound]) && in_array($unit, ['generation', 'second'], true)) {
+                continue;
+            }
+            // The same result-count fields the OpenAI image mapping fills for a member's `n`.
+            foreach (array_unique(array_filter([$bound, 'numberResults', 'num_images', 'num_outputs', 'n'])) as $field) {
+                if (! is_array($properties[$field] ?? null)) {
+                    continue;
+                }
+                $maximum = self::maximum($properties[$field]);
+                if ($maximum === null) {
+                    return null;
+                }
+                $outputs = max($outputs, (int) ceil($maximum));
+            }
+        }
+        return $outputs;
+    }
+
+    /** Top-level input properties, including members declared through allOf branches. */
+    private static function inputProperties(array $schema): array
+    {
+        $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+        foreach (is_array($schema['allOf'] ?? null) ? $schema['allOf'] : [] as $branch) {
+            if (is_array($branch)) {
+                $properties = array_replace_recursive($properties, self::inputProperties($branch));
+            }
+        }
+        return $properties;
     }
 
     public static function megapixels(AiModelProfile $model): ?float

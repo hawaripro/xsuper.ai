@@ -159,7 +159,7 @@ final class AnthropicBridge
         if ($textIndex !== null) { yield ['type' => 'content_block_stop', 'index' => $textIndex]; }
         foreach ($tools as $tool) {
             if (! $tool['started']) { throw new AiProxyException('The AI provider returned an incomplete tool call.', 502); }
-            $this->toolInput($tool['arguments'] ?: '{}');
+            $this->toolInput($tool['arguments'] === '' ? '{}' : $tool['arguments']);
             yield ['type' => 'content_block_stop', 'index' => $tool['index']];
         }
         yield ['type' => 'message_delta', 'delta' => ['stop_reason' => $this->stopReason($finish), 'stop_sequence' => null], 'usage' => $this->usage($usage)];

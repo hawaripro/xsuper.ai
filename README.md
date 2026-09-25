@@ -84,6 +84,10 @@ Use `Authorization: Bearer <key>` or `x-api-key: <key>`. Claude Code uses `ANTHR
 
 Validation errors return HTTP 400 in the endpoint family's envelope; unknown/unsellable OpenAI model IDs use `model_not_found`. Insufficient Saldo AI returns HTTP 402 (`billing_error` for Messages, `insufficient_quota` / `insufficient_balance` for OpenAI). OpenAI usage responses include `cost_usd` and `balance_usd`. Both families bill cached input at the snapshot's cache rate, falling back to the input rate when no cache rate is configured.
 
+Native Anthropic streams settle only from the final output count reported by the terminal `message_delta`; a stream that stops without it, or with content blocks out of order, is incomplete (reservation held after delivered output, released before any output) and ends with an error event instead of `message_stop`. Any delivered text, including `"0"`, counts as output. Usage stays recorded when a member deletes the key while its request is in flight; the row keeps a null key reference.
+
+`POST /v1/images/generations` 502 and 504 errors include `error.generation_ids` and `error.poll_urls` for every generation the request created, and each native batch job's status lists the same `generation_ids`, so already-paid siblings stay reachable without resubmitting.
+
 ### Account and device security
 
 Custom, Fortify, and Google login share active-account, admin-IP, and device policies. Google sign-in does not bypass enrolled local 2FA or link an unverified pre-existing local account. Trusted provider email verification is required to skip the initial email OTP.

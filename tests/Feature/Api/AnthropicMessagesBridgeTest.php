@@ -69,6 +69,25 @@ class AnthropicMessagesBridgeTest extends TestCase
         Http::assertSent(fn ($request) => $request['stream_options']['include_usage'] === true);
     }
 
+    public function test_stream_tool_arguments_of_zero_are_invalid_input_not_an_empty_object(): void
+    {
+        [$user, $key] = $this->apiFixture();
+        $events = [
+            ['choices' => [['delta' => ['tool_calls' => [['index' => 0, 'id' => 'call_1', 'function' => ['name' => 'read_file', 'arguments' => '0']]]], 'finish_reason' => null]]],
+            ['choices' => [['delta' => new \stdClass, 'finish_reason' => 'tool_calls']]],
+            ['choices' => [], 'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 8]],
+        ];
+        Http::fake(['*' => Http::response($this->eventStream($events, true), 200, ['Content-Type' => 'text/event-stream'])]);
+        $stream = $this->withToken($key->plainKey)->postJson('/v1/messages', ['model' => 'public-model', 'stream' => true, 'max_tokens' => 20, 'messages' => [['role' => 'user', 'content' => 'Read files']]])->assertOk()->streamedContent();
+        $this->assertStringContainsString('"partial_json":"0"', $stream);
+        $this->assertStringContainsString('event: error', $stream);
+        $this->assertStringNotContainsString('event: message_stop', $stream);
+        // The delivered tool call keeps its reservation for review: neither settled nor released.
+        $this->assertLessThan(1_000_000, Wallet::balance($user->id));
+        $this->assertDatabaseMissing('wallet_transactions', ['user_id' => $user->id, 'type' => 'settlement']);
+        $this->assertDatabaseMissing('wallet_transactions', ['user_id' => $user->id, 'type' => 'release']);
+    }
+
     public function test_native_anthropic_body_is_preserved_and_sse_cache_usage_is_billed(): void
     {
         [$user, $key] = $this->apiFixture('anthropic');

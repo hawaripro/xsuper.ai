@@ -88,9 +88,9 @@ class FalProviderTest extends TestCase
     public function test_nested_fal_video_polls_app_root_and_settles_once_without_anthropic_review(): void
     {
         $provider = $this->provider();
-        $this->model($provider, 'video', FalProtocol::VIDEO, 200);
+        $this->model($provider, 'video', FalProtocol::VIDEO, 200, 'second');
         $admin = User::factory()->create(['role' => 'admin']);
-        UserToken::topup($admin->id, 250);
+        UserToken::topup($admin->id, 450);
         Http::fake([
             'https://queue.fal.run/'.FalProtocol::VIDEO => function (Request $request) {
                 $this->assertSame(30, $request['num_frames']);
@@ -112,7 +112,10 @@ class FalProviderTest extends TestCase
         ]);
         $this->actingAs($admin)->getJson('/api/v/models')->assertOk()->assertJsonPath('models.0.id', FalProtocol::VIDEO);
         $service = app(VideoGenerationService::class);
-        $job = $service->create($admin, ['model' => FalProtocol::VIDEO, 'prompt' => 'A calm green garden', 'count' => 1, 'mode' => 'prompt'])[0];
+        // 200 tokens/second × 2 seconds × 1 Standard video = 400 tokens.
+        $job = $service->create($admin, ['model' => FalProtocol::VIDEO, 'prompt' => 'A calm green garden', 'count' => 1,
+            'mode' => 'prompt', 'pro_mode' => false, 'settings' => ['duration' => 2]])[0];
+        $this->assertSame(400, (int) $job->tokens_reserved);
         $service->process($job->id);
         $this->assertSame('rendering', $job->fresh()->stage);
         $this->actingAs($admin)->postJson('/api/v/'.$job->job_id.'/cancel')->assertStatus(409)->assertJsonPath('balance', 50);
@@ -131,15 +134,18 @@ class FalProviderTest extends TestCase
     public function test_completed_fal_error_refunds_without_downloading_or_resubmitting(): void
     {
         $provider = $this->provider();
-        $this->model($provider, 'video', FalProtocol::VIDEO, 200);
+        $this->model($provider, 'video', FalProtocol::VIDEO, 200, 'second');
         $admin = User::factory()->create(['role' => 'admin']);
-        UserToken::topup($admin->id, 250);
+        UserToken::topup($admin->id, 450);
         Http::fake([
             'https://queue.fal.run/'.FalProtocol::VIDEO => Http::response(['request_id' => 'fal-failed']),
             'https://queue.fal.run/fal-ai/longcat-video/requests/fal-failed/status' => Http::response(['status' => 'COMPLETED', 'error' => 'private provider diagnostics']),
         ]);
         $service = app(VideoGenerationService::class);
-        $job = $service->create($admin, ['model' => FalProtocol::VIDEO, 'prompt' => 'A quiet garden', 'count' => 1, 'mode' => 'prompt'])[0];
+        $job = $service->create($admin, ['model' => FalProtocol::VIDEO, 'prompt' => 'A quiet garden', 'count' => 1,
+            'mode' => 'prompt', 'pro_mode' => false, 'settings' => ['duration' => 2]])[0];
+        $this->assertSame(400, (int) $job->tokens_reserved);
+        $this->assertSame(50, UserToken::getBalance($admin->id));
         $service->process($job->id);
         $this->travel(9)->seconds();
         $service->poll($job->id);
@@ -147,7 +153,7 @@ class FalProviderTest extends TestCase
         $this->assertSame('released', $job->fresh()->billing_status);
         $this->assertStringNotContainsString('private provider diagnostics', $job->fresh()->error_message);
         $service->poll($job->id);
-        $this->assertSame(250, UserToken::getBalance($admin->id));
+        $this->assertSame(450, UserToken::getBalance($admin->id));
         Http::assertSentCount(2);
     }
 
@@ -191,8 +197,8 @@ class FalProviderTest extends TestCase
         return AiProviderProfile::create(['name' => 'fal', 'slug' => 'fal', 'protocol' => 'fal', 'base_url' => 'https://fal.run', 'api_key' => 'fal-fixture-secret', 'is_enabled' => true]);
     }
 
-    private function model(AiProviderProfile $provider, string $category, string $id, int $cost): void
+    private function model(AiProviderProfile $provider, string $category, string $id, int $cost, ?string $unit = null): void
     {
-        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => $id, 'category' => $category, 'token_cost' => $cost, 'is_enabled' => true, 'is_available' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $id, 'display_name' => $id, 'category' => $category, 'token_cost' => $cost, 'token_cost_unit' => $unit, 'is_enabled' => true, 'is_available' => true]);
     }
 }

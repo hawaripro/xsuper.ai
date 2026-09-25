@@ -216,36 +216,90 @@ final class ProviderSseStream
         }
     }
 
-    /** Preserve native events while keeping routing identities and non-protocol metadata private. */
+    /**
+     * Preserve native events while keeping routing identities and non-protocol metadata private. The stream
+     * completes only when message_stop follows closed content blocks and a terminal message_delta reporting
+     * the final output_tokens; message_start reports only the initial output count.
+     */
     public static function anthropicPassthrough(StreamInterface $body, string $publicModel): Generator
     {
         $started = false;
-        $finished = false;
+        $openBlocks = [];
+        // Null until a message_delta arrives; then whether the latest one reported the final output count.
+        $finalUsage = null;
         foreach (self::frames($body) as $frame) {
             $original = self::decode($frame['data']);
             $data = array_intersect_key($original, array_flip(['type', 'message', 'index', 'content_block', 'delta', 'usage']));
             $type = $data['type'] ?? $frame['event'];
+            if (! is_string($type)) {
+                throw self::invalidStream();
+            }
             if ($type === 'error') {
                 throw self::streamFailure();
             }
-            if ($type === 'message_start') {
-                if (! is_array($data['message'] ?? null)) { throw self::invalidStream(); }
-                $started = true;
-                $data['message'] = array_intersect_key($data['message'], array_flip(['id', 'type', 'role', 'model', 'content', 'stop_reason', 'stop_sequence', 'usage']));
-                if (isset($data['message']['usage'])) {
-                    $data['message']['usage'] = self::nativeUsage($data['message']['usage']);
-                }
-                $data['message']['model'] = $publicModel;
+            if (isset($data['usage']) && ! is_array($data['usage'])) {
+                throw self::invalidStream();
+            }
+            switch ($type) {
+                case 'message_start':
+                    if ($started || ! is_array($data['message'] ?? null)) {
+                        throw self::invalidStream();
+                    }
+                    $started = true;
+                    $data['message'] = array_intersect_key($data['message'], array_flip(['id', 'type', 'role', 'model', 'content', 'stop_reason', 'stop_sequence', 'usage']));
+                    if (isset($data['message']['usage'])) {
+                        if (! is_array($data['message']['usage'])) {
+                            throw self::invalidStream();
+                        }
+                        $data['message']['usage'] = self::nativeUsage($data['message']['usage']);
+                    }
+                    $data['message']['model'] = $publicModel;
+                    break;
+
+                case 'content_block_start':
+                    $blockIndex = self::integerIndex($data['index'] ?? null);
+                    // Content belongs between message_start and the terminal message_delta.
+                    if (! $started || $finalUsage !== null || isset($openBlocks[$blockIndex])) {
+                        throw self::invalidStream();
+                    }
+                    $openBlocks[$blockIndex] = true;
+                    break;
+
+                case 'content_block_delta':
+                case 'content_block_stop':
+                    $blockIndex = self::integerIndex($data['index'] ?? null);
+                    if (! isset($openBlocks[$blockIndex])) {
+                        throw self::invalidStream();
+                    }
+                    if ($type === 'content_block_stop') {
+                        unset($openBlocks[$blockIndex]);
+                    }
+                    break;
+
+                case 'message_delta':
+                    if (! $started || $openBlocks !== []) {
+                        throw self::invalidStream();
+                    }
+                    $outputTokens = $data['usage']['output_tokens'] ?? null;
+                    $finalUsage = is_int($outputTokens) && $outputTokens >= 0;
+                    break;
+
+                case 'message_stop':
+                    if ($finalUsage !== true) {
+                        throw self::incompleteStream();
+                    }
+                    break;
             }
             if (isset($data['usage'])) { $data['usage'] = self::nativeUsage($data['usage']); }
             if ($data !== $original) {
                 $frame['raw'] = 'event: '.$frame['event']."\n".'data: '.json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n";
             }
-            if ($type === 'message_stop') { $finished = true; }
             yield ['data' => $data, 'raw' => $frame['raw']];
-            if ($finished) { break; }
+            if ($type === 'message_stop') {
+                return;
+            }
         }
-        if (! $started || ! $finished) { throw self::incompleteStream(); }
+        throw self::incompleteStream();
     }
 
     private static function nativeUsage(array $usage): array

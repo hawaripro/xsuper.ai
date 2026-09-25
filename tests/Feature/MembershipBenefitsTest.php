@@ -180,4 +180,25 @@ class MembershipBenefitsTest extends TestCase
         $this->assertSame(1_500_000, Wallet::balance($buyer->id));
         $this->assertSame(1, DB::table('wallet_transactions')->where('reference_id', "duration-order:{$order->id}")->count());
     }
+
+    public function test_dashboard_membership_follows_approval_and_expiry_like_the_account_payloads(): void
+    {
+        $buyer = User::factory()->create(['expires_at' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->purchase($buyer);
+        $this->getJson('/api/dashboard')->assertOk()
+            ->assertJsonPath('membership', ['active' => false, 'expires_at' => null, 'days_remaining' => null]);
+
+        $this->actingAs($admin)->postJson("/api/a/period/approve/{$order->id}")->assertOk();
+        $end = now()->addDays(30)->toISOString();
+        $active = ['active' => true, 'expires_at' => $end, 'days_remaining' => 30];
+        $this->assertSame($active, collect($this->getJson('/api/a/u')->assertOk()->json('users'))->firstWhere('id', $buyer->id)['membership']);
+        $this->actingAs($buyer->fresh())->getJson('/api/dashboard')->assertOk()->assertJsonPath('membership', $active);
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('membership', $active);
+
+        $this->travel(31)->days();
+        $expired = ['active' => false, 'expires_at' => $end, 'days_remaining' => 0];
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('membership', $expired);
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('membership', $expired);
+    }
 }

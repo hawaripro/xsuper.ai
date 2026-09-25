@@ -52,7 +52,7 @@ class MediaCatalogController extends Controller
 
         return response()->json([
             'model' => ['id' => $model->id, 'token_cost' => $model->token_cost,
-                'price_unit' => MediaModelConfig::catalogPriceUnit($model), 'category' => $model->category,
+                'price_unit' => MediaModelConfig::appliedPriceUnit($model), 'category' => $model->category,
                 'available' => $model->is_available, 'enabled' => $model->is_enabled],
             'account_verification' => [
                 'authenticated' => $model->provider?->authenticated_at !== null,

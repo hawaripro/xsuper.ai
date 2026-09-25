@@ -92,6 +92,12 @@ UsageRate::create([
     'service' => 'image', 'meter' => 'unit', 'model' => 'qa-image', 'label' => 'QA image rate',
     'unit' => 'image', 'price_idr' => 4000, 'price_usd' => 0.25, 'is_active' => true,
 ]);
+foreach (['input_tokens' => 0.15, 'output_tokens' => 0.60] as $meter => $price) {
+    UsageRate::create([
+        'service' => 'api', 'meter' => $meter, 'model' => 'qa-chat', 'label' => 'QA chat rate',
+        'unit' => '1M tokens', 'price_idr' => $price * 16000, 'price_usd' => $price, 'is_active' => true,
+    ]);
+}
 DB::table('prompt_templates')->insert([
     'title' => 'QA persisted coding template', 'category' => 'Coding', 'prompt_text' => 'Review this code and explain the risks.',
     'mode' => 'coding', 'is_active' => true, 'sort_order' => 0, 'created_at' => now(), 'updated_at' => now(),

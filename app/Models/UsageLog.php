@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class UsageLog extends Model
 {
@@ -13,9 +14,14 @@ class UsageLog extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * A key can be deleted while its request is in flight; settled usage then stays with the member without a key.
+     * Locking the owner and then the key, the order key deletion uses, makes a concurrent delete wait for this row
+     * and null its key afterwards instead of failing the insert.
+     */
     public static function record(int $userId, string $model, array $usage, string $source = 'web', ?string $deviceId = null): void
     {
-        static::create([
+        $attributes = [
             'user_id' => $userId,
             'api_key_id' => $usage['api_key_id'] ?? null,
             'model' => $model,
@@ -27,7 +33,18 @@ class UsageLog extends Model
             'cost_microusd' => $usage['cost_microusd'] ?? 0,
             'usage_rate_id' => $usage['usage_rate_id'] ?? null,
             'device_id' => $deviceId,
-        ]);
+        ];
+        if ($attributes['api_key_id'] === null) {
+            static::create($attributes);
+
+            return;
+        }
+
+        DB::transaction(function () use ($userId, $attributes): void {
+            User::query()->whereKey($userId)->sharedLock()->value('id');
+            $attributes['api_key_id'] = ApiKey::query()->whereKey($attributes['api_key_id'])->sharedLock()->value('id');
+            static::create($attributes);
+        });
     }
 
     public static function userStats(int $userId): array

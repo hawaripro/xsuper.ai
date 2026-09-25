@@ -8,8 +8,10 @@ use App\Models\AudioJob;
 use App\Models\ImageJob;
 use App\Models\MediaAsset;
 use App\Models\Notification;
+use App\Models\UsageRate;
 use App\Models\User;
 use App\Models\VideoJob;
+use App\Models\Wallet;
 use App\Services\FalProtocol;
 use App\Services\GeneratedAudioStore;
 use App\Services\GeneratedVideoStore;
@@ -36,12 +38,22 @@ class StudioLinksTest extends TestCase
 
     public function test_search_destinations_open_the_studio_filtered_to_each_permitted_kind(): void
     {
-        $member = $this->member();
+        $member = $this->member([
+            'chat' => true, 'image_generator' => true, 'video_generator' => true,
+            'audio_generator' => true, 'ai_api' => true,
+        ]);
 
-        $this->assertSame(['/chat', '/studio', '/studio?kind=image', '/studio?kind=audio', '/studio?kind=model3d'],
-            $this->urls($this->actingAs($member)->getJson('/api/dashboard/search')->assertOk()->json('groups'), 'studios'));
+        $this->actingAs($member);
+        foreach (['gambar' => 'image', 'video' => 'video', 'audio' => 'audio', 'avatar' => 'avatar', '3d' => 'model3d'] as $query => $kind) {
+            $this->assertSame(['/studio', '/studio?kind='.$kind],
+                $this->urls($this->getJson('/api/dashboard/search?q='.$query)->assertOk()->json('groups'), 'studios'));
+        }
+        $this->assertSame(['/chat'],
+            $this->urls($this->getJson('/api/dashboard/search?q=percakapan')->assertOk()->json('groups'), 'studios'));
 
-        $member->update(['permissions' => [...User::DEFAULT_PERMISSIONS, 'image_generator' => false, 'audio_generator' => false]]);
+        $member->update(['permissions' => [
+            ...$member->permissions, 'image_generator' => false, 'video_generator' => false, 'audio_generator' => false,
+        ]]);
         $this->assertSame(['/chat'], $this->urls($this->getJson('/api/dashboard/search')->assertOk()->json('groups'), 'studios'));
         Http::assertNothingSent();
     }
@@ -139,11 +151,18 @@ class StudioLinksTest extends TestCase
             'display_name' => 'Chat', 'category' => 'chat', 'input_modalities' => ['text'],
             'output_modalities' => ['text'], 'is_enabled' => true, 'is_available' => true,
         ]);
-        $member = $this->member();
+        foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'model' => 'studio-link-chat', 'meter' => $meter, 'label' => $meter,
+                'unit' => '1M tokens', 'price_usd' => $price, 'price_idr' => 16000 * $price, 'is_active' => true,
+            ]);
+        }
+        $member = $this->member(['chat' => true, 'image_generator' => true]);
+        Wallet::credit($member->id, 1_000_000, 'Fixture balance');
 
         $this->actingAs($member)->getJson('/api/c/capabilities?model=studio-link-chat')->assertOk()
             ->assertJsonPath('tools.image_generation.href', '/studio?kind=image');
-        $member->update(['permissions' => [...User::DEFAULT_PERMISSIONS, 'image_generator' => false]]);
+        $member->update(['permissions' => [...$member->permissions, 'image_generator' => false]]);
         $this->getJson('/api/c/capabilities?model=studio-link-chat')->assertOk()
             ->assertJsonPath('tools.image_generation.href', null);
         Http::assertNothingSent();

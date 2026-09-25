@@ -71,7 +71,7 @@ class ApiBillingSecurityTest extends TestCase
         return ['model' => self::MODEL, 'messages' => [['role' => 'user', 'content' => 'Hi']], 'max_tokens' => 1, 'stream' => $stream];
     }
 
-    private function completion(bool $stream, ?array $usage, bool $complete = true): void
+    private function completion(bool $stream, ?array $usage, bool $complete = true, ?\Closure $whileResponding = null): void
     {
         $body = [
             'id' => 'chatcmpl-billing', 'object' => 'chat.completion', 'model' => 'upstream-billing',
@@ -95,7 +95,13 @@ class ApiBillingSecurityTest extends TestCase
         }
         Http::swap(new \Illuminate\Http\Client\Factory);
         Http::preventStrayRequests();
-        Http::fake([self::COMPLETION_URL => Http::response($body, 200, ['Content-Type' => $stream ? 'text/event-stream' : 'application/json'])]);
+        Http::fake([self::COMPLETION_URL => static function () use ($body, $stream, $whileResponding) {
+            if ($whileResponding !== null) {
+                $whileResponding();
+            }
+
+            return Http::response($body, 200, ['Content-Type' => $stream ? 'text/event-stream' : 'application/json']);
+        }]);
     }
 
     public static function apiVariants(): array
@@ -313,6 +319,130 @@ class ApiBillingSecurityTest extends TestCase
         $this->assertSame($openingBalance + $ledger->sole()->amount_microusd, Wallet::balance($user->id));
         $this->assertGreaterThanOrEqual(0, Wallet::balance($user->id));
         $this->assertDatabaseMissing('usage_logs', ['user_id' => $user->id]);
+    }
+
+    /** Anthropic's message_start reports an initial output_tokens=1; only the terminal message_delta reports the final count. */
+    private static function nativeFrames(): array
+    {
+        return [
+            ['type' => 'message_start', 'message' => ['id' => 'msg-native', 'model' => 'upstream-billing', 'usage' => ['input_tokens' => 10, 'output_tokens' => 1]]],
+            ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '']],
+            ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => 'Delivered answer']],
+            ['type' => 'content_block_stop', 'index' => 0],
+            ['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn'], 'usage' => ['output_tokens' => 6]],
+            ['type' => 'message_stop'],
+        ];
+    }
+
+    private function nativeStream(array $frames): void
+    {
+        AiProviderProfile::where('slug', 'billing-security')->update(['protocol' => 'anthropic', 'base_url' => 'https://anthropic.example.test/v1']);
+        $this->providerStream('https://anthropic.example.test/v1/messages', implode('', array_map(
+            static fn (array $frame): string => 'event: '.$frame['type']."\ndata: ".json_encode($frame)."\n\n", $frames,
+        )));
+    }
+
+    private function providerStream(string $url, string $body): void
+    {
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://legacy.example.test/v1/models' => Http::response(['data' => []]),
+            $url => Http::response($body, 200, ['Content-Type' => 'text/event-stream']),
+        ]);
+    }
+
+    public static function unverifiedNativeTerminals(): array
+    {
+        [$start, $open, $text, $close, $final, $stop] = self::nativeFrames();
+        $unfinished = ['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn'], 'usage' => ['input_tokens' => 10]];
+
+        return [
+            'message_stop without message_delta' => [[$start, $open, $text, $close, $stop], true],
+            'message_delta without final output_tokens' => [[$start, $open, $text, $close, $unfinished, $stop], true],
+            'message_delta before the content block closes' => [[$start, $open, $text, $final, $close, $stop], true],
+            'content after message_delta' => [[$start, $open, $text, $close, $final, [...$open, 'index' => 1], $stop], true],
+            'message_stop without message_delta before output' => [[$start, $stop], false],
+            'message_delta without final output_tokens before output' => [[$start, $unfinished, $stop], false],
+        ];
+    }
+
+    #[DataProvider('unverifiedNativeTerminals')]
+    public function test_native_stream_never_settles_without_a_verified_final_message_delta(array $frames, bool $delivered): void
+    {
+        $user = $this->account(10000);
+        $this->nativeStream($frames);
+        $body = $this->postJson('/v1/messages', $this->payload(true))->assertOk()->streamedContent();
+        $this->assertStringContainsString('event: error', $body);
+        $this->assertStringNotContainsString('event: message_stop', $body);
+        $this->assertDatabaseMissing('wallet_transactions', ['user_id' => $user->id, 'type' => 'settlement']);
+        if ($delivered) {
+            $this->assertStringContainsString('Delivered answer', $body);
+            $this->assertReservationHeld($user, 10000);
+        } else {
+            $this->assertSame(10000, Wallet::balance($user->id));
+            $this->assertSame(1, WalletTransaction::where('user_id', $user->id)->where('type', 'release')->count());
+        }
+    }
+
+    public function test_native_stream_bills_message_start_input_with_the_final_message_delta_output(): void
+    {
+        [$start, $open, $text, $close, $final, $stop] = self::nativeFrames();
+        $start['message']['usage']['cache_read_input_tokens'] = 4;
+        // Terminal counts are cumulative; a count the delta leaves null keeps the message_start value.
+        $final['usage'] = ['input_tokens' => null, 'cache_read_input_tokens' => null, 'output_tokens' => 6];
+        $user = $this->account(10000);
+        $this->nativeStream([$start, $open, $text, $close, $final, $stop]);
+        $body = $this->postJson('/v1/messages', $this->payload(true))->assertOk()->streamedContent();
+        $this->assertStringContainsString('event: message_stop', $body);
+        $this->assertStringNotContainsString('"error"', $body);
+        // 10 input + 4 cached input + the final 6 output tokens, never message_start's initial output count.
+        $this->assertSame(20, (int) UsageLog::where('user_id', $user->id)->sole()->cost_microusd);
+        $this->assertSame(9980, Wallet::balance($user->id));
+        $this->assertSame(1, WalletTransaction::where('user_id', $user->id)->where('type', 'settlement')->count());
+    }
+
+    public function test_a_falsy_but_non_empty_delta_is_delivered_output_that_keeps_the_reservation(): void
+    {
+        foreach (['content', 'refusal'] as $field) {
+            $user = $this->account(10000);
+            $this->providerStream(self::COMPLETION_URL, 'data: '.json_encode(['id' => 'chatcmpl-zero', 'choices' => [['index' => 0, 'delta' => [$field => '0'], 'finish_reason' => null]]])."\n\n");
+            $body = $this->postJson('/v1/chat/completions', $this->payload(true))->assertOk()->streamedContent();
+            $this->assertStringContainsString('"'.$field.'":"0"', $body);
+            $this->assertStringContainsString('"error"', $body);
+            $this->assertReservationHeld($user, 10000);
+        }
+
+        [$start] = self::nativeFrames();
+        $user = $this->account(10000);
+        $this->nativeStream([$start, ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '0']]]);
+        $body = $this->postJson('/v1/messages', $this->payload(true))->assertOk()->streamedContent();
+        $this->assertStringContainsString('"text":"0"', $body);
+        $this->assertStringContainsString('event: error', $body);
+        $this->assertReservationHeld($user, 10000);
+    }
+
+    #[DataProvider('apiVariants')]
+    public function test_key_deleted_while_the_provider_responds_keeps_the_answer_and_charges_once(string $path, bool $stream): void
+    {
+        $user = $this->account(1000000);
+        $key = ApiKey::where('user_id', $user->id)->sole();
+        // The owner deletes the key after admission, while the provider is still answering.
+        $this->completion($stream, ['prompt_tokens' => 12, 'completion_tokens' => 6, 'total_tokens' => 18], true, fn () => $key->delete());
+        $response = $this->postJson($path, $this->payload($stream))->assertOk();
+        $body = $stream ? $response->streamedContent() : $response->getContent();
+        $this->assertStringContainsString('Delivered answer', $body);
+        $this->assertStringNotContainsString('"error"', $body);
+        if ($stream) {
+            $this->assertStringContainsString($path === '/v1/messages' ? 'event: message_stop' : 'data: [DONE]', $body);
+        }
+        $this->assertDatabaseMissing('api_keys', ['id' => $key->id]);
+        $log = UsageLog::where('user_id', $user->id)->sole();
+        $this->assertNull($log->api_key_id);
+        $this->assertSame(18, (int) $log->cost_microusd);
+        $this->assertSame(999982, Wallet::balance($user->id));
+        $this->assertSame(1, WalletTransaction::where('user_id', $user->id)->where('type', 'settlement')->count());
+        $this->assertDatabaseMissing('wallet_transactions', ['user_id' => $user->id, 'type' => 'release']);
     }
 
     #[DataProvider('apiVariants')]

@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { login, newSession, databaseRows, captureErrors } from './helpers.js';
 
-test('QRIS paid confirmation becomes a persisted order then admin approval extends membership', async ({ page, browser }) => {
+test('QRIS approval extends membership and credits the purchased benefit snapshot', async ({ page, browser }) => {
     test.setTimeout(90_000);
     const errors = captureErrors(page);
     await login(page, 'member');
     const member = databaseRows('users', { email: 'member@dashboard-e2e.test' })[0];
     const beforeExpiry = new Date(member.expires_at).getTime();
+    const beforeTokens = Number(databaseRows('user_tokens', { user_id: member.id })[0].balance);
+    const beforeWallet = Number(databaseRows('wallets', { user_id: member.id })[0].balance_microusd);
     await page.goto('/en/deposit?tab=subscription');
     const checkout = page.waitForResponse(response => response.url().endsWith('/api/period/checkout') && response.request().method() === 'POST');
     await page.locator('.deposit-subscription').getByRole('button', { name: /1 Week|1 Minggu/ }).click();
@@ -32,9 +34,14 @@ test('QRIS paid confirmation becomes a persisted order then admin approval exten
     await admin.page.getByRole('dialog').getByRole('button', { name: 'Confirm', exact: true }).click();
     expect((await approval).status()).toBe(200);
     await expect.poll(() => databaseRows('duration_orders', { id: order.id })[0].status).toBe('approved');
-    await expect(page.getByText('Payment approved. Your account duration has been extended.', { exact: true })).toBeVisible();
     const afterExpiry = new Date(databaseRows('users', { id: member.id })[0].expires_at).getTime();
     expect(afterExpiry - beforeExpiry).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(Number(databaseRows('user_tokens', { user_id: member.id })[0].balance)).toBe(beforeTokens + Number(order.bonus_tokens));
+    expect(Number(databaseRows('wallets', { user_id: member.id })[0].balance_microusd)).toBe(beforeWallet + Number(order.bonus_wallet_microusd));
+    const storage = databaseRows('user_storage_upgrades', { duration_order_id: order.id });
+    expect(storage).toHaveLength(1);
+    expect(Number(storage[0].extra_bytes)).toBe(Number(order.storage_bytes));
+    expect(new Date(storage[0].expires_at).getTime()).toBe(afterExpiry);
     await page.reload();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(errors).toEqual([]);

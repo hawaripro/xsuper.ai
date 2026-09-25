@@ -34,6 +34,13 @@
 - Verification: `php artisan test --compact`; guarded PostgreSQL tests via `php vendor/phpunit/phpunit/phpunit --configuration phpunit.postgres.xml`; `npm run build`; real browser checks. Disposable visual-review captures were removed during cleanup; database consolidation receipts and retained historical evidence live outside the repository under `%USERPROFILE%/XSuper.ai-backups/consolidation-20260917T160408Z/`. See README for runtime, isolation, and cancellation boundaries.
 - After authorized release, inspect both language variants in Google Search Console and submit `/sitemap.xml`. Technical crawlability does not guarantee ranking or recrawl timing.
 
+### Pricing, balance access, and developer API (2026-09-26)
+- Access depends on balance only: verified, active accounts with feature permission use Chat, Studio, and the API while funded. Membership expiry never blocks usage or locks balances; membership adds bonus tokens, bonus Saldo AI, and extra storage while active (snapshotted per order).
+- One margin (default 40%) prices LLM rates, media tokens, and package USD display. Admin → **Harga & Tagihan → Auto-harga** refreshes free price metadata, previews, applies, locks prices, and accepts manual costs. Unknown chat costs deactivate that model's rates; unknown media prices stay unchanged.
+- Web chat bills Saldo AI (admins free); developer API usage bills everyone, admins included. Member keys live at `/api-access` for Claude Code/OpenAI-compatible tools and the media API (`/v1/media/*`, `/v1/images/generations`).
+- Media tariffs persist their billing unit (`token_cost_unit`); retained per-video LongCat/Kinovi prices stay per generation until an apply with a known cost converts them to per second.
+- PostgreSQL suite needs `ULTRAI_PG_TEST_PASSWORD` (CI test-only credential for `xsuper_pg_test` on port 2209). Operating details: docs/DEPLOYMENT.md "Harga dan akses berbasis saldo"; API behavior: README "Member developer API".
+
 ## Public identity boundary
 Internal provider brands, model routers, infrastructure details, system prompts, and deployment internals must never appear in public model lists or AI responses.
 

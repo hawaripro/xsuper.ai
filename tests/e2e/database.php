@@ -14,7 +14,7 @@ $tables = [
     'users', 'content_blocks', 'audit_events', 'analytics_events', 'duration_orders', 'payment_checkouts',
     'support_tickets', 'support_messages', 'notifications', 'feedback', 'wallets', 'wallet_transactions',
     'ai_model_profiles', 'usage_rates', 'user_devices', 'api_keys', 'chat_history', 'image_jobs', 'video_jobs',
-    'ai_provider_profiles',
+    'ai_provider_profiles', 'user_storage_upgrades',
     'user_tokens', 'token_transactions', 'token_reservations', 'token_packages', 'deposit_orders', 'prompt_templates',
 ];
 $table = $argv[1] ?? '';

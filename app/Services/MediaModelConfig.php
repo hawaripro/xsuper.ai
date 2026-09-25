@@ -23,7 +23,18 @@ final class MediaModelConfig
     /** Protocols whose models execute published, source-backed schema contracts. */
     private const SCHEMA_PROTOCOLS = ['fal', 'runware'];
 
+    /** Native execution config; a persisted tariff unit (e.g. a retained per-generation video price) overrides its declared unit. */
     public static function forModel(AiModelProfile $model): array
+    {
+        $config = self::nativeConfig($model);
+        if ($model->token_cost_unit !== null) {
+            $config['price_unit'] = $model->token_cost_unit;
+        }
+
+        return $config;
+    }
+
+    private static function nativeConfig(AiModelProfile $model): array
     {
         if (ThreeDProtocol::supports($model)) {
             return ThreeDProtocol::config();
@@ -167,15 +178,19 @@ final class MediaModelConfig
                 'provider_bindings->max_session_seconds as session_seconds', 'provider_bindings->quantity_input as quantity_input']);
     }
 
-    /** Existing positive tariffs keep their current billing unit during technical upgrades. */
+    /**
+     * The target unit costs are collected and applied in: native-video seconds, a published or reviewed
+     * schema tariff unit, the Runware catalog unit, otherwise the native unit. It never depends on whether a
+     * tariff exists yet, so it is stable across the first application. The current tariff's unit is appliedPriceUnit().
+     */
     public static function catalogPriceUnit(AiModelProfile $model): string
     {
         if ($model->provider?->protocol === 'runware') {
             return self::runwarePriceUnit($model);
         }
-        $nativeVideo = $model->provider?->protocol === 'fal'
+        $native = $model->provider?->protocol === 'fal'
             ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
-        if (($nativeVideo['price_unit'] ?? null) === 'second') {
+        if (($native['price_unit'] ?? null) === 'second') {
             return 'second';
         }
         if ($model->provider?->protocol !== 'fal') {
@@ -204,23 +219,23 @@ final class MediaModelConfig
         if ($reviewed !== null) {
             return $reviewed->curation_overrides['pricing']['unit'];
         }
-        if ($model->token_cost > 0) {
-            if (ThreeDProtocol::supports($model)) {
-                return ThreeDProtocol::config()['price_unit'] ?? 'generation';
-            }
-            $native = $model->provider?->protocol === 'fal' ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
-            if ($native !== null) {
-                return $native['price_unit'] ?? 'generation';
-            }
-            $legacyPublished = $model->relationLoaded('capabilityRevisions')
-                ? $model->capabilityRevisions->contains(fn ($revision) => $revision->contract_version === 1 && $revision->published_at !== null)
-                : $model->capabilityRevisions()->where('contract_version', 1)->whereNotNull('published_at')->exists();
-            if ($legacyPublished) {
-                return 'generation';
-            }
+        if (ThreeDProtocol::supports($model)) {
+            return ThreeDProtocol::config()['price_unit'] ?? 'generation';
         }
+        if ($native !== null) {
+            return $native['price_unit'] ?? 'generation';
+        }
+        $legacyPublished = $model->relationLoaded('capabilityRevisions')
+            ? $model->capabilityRevisions->contains(fn ($revision) => $revision->contract_version === 1 && $revision->published_at !== null)
+            : $model->capabilityRevisions()->where('contract_version', 1)->whereNotNull('published_at')->exists();
 
-        return 'request';
+        return $legacyPublished ? 'generation' : 'request';
+    }
+
+    /** The unit the model's current tariff is charged in: its persisted unit, else the catalog unit it follows. */
+    public static function appliedPriceUnit(AiModelProfile $model): string
+    {
+        return $model->token_cost_unit ?? self::catalogPriceUnit($model);
     }
 
     /**

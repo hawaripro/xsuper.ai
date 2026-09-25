@@ -744,6 +744,10 @@ class AiCatalogController extends Controller
             $changes['generation_config'] = null;
         }
         $model->fill($changes);
+        if (array_key_exists('token_cost', $changes) && $changes['token_cost'] === null) {
+            // A cleared tariff has no unit: the next price follows the catalog unit the editor then shows.
+            $model->token_cost_unit = null;
+        }
         $this->normalizeGenerationConfig($model);
         $this->saveModel($model);
         $this->syncModelRates($model, $rates, array_key_exists('is_enabled', $changes), $oldCategory !== $model->category, $errorKey);
@@ -828,7 +832,7 @@ class AiCatalogController extends Controller
             'schema_managed' => $model->relationLoaded('capabilityRevisions')
                 ? $model->capabilityRevisions->contains(fn ($revision) => (bool) $revision->source_backed)
                 : $model->capabilityRevisions()->whereNotNull('source_schema')->exists(),
-            'catalog_price_unit' => MediaModelConfig::catalogPriceUnit($model),
+            'catalog_price_unit' => MediaModelConfig::appliedPriceUnit($model),
             'generation_config' => in_array($model->provider?->protocol, ['fal', 'kinovi'], true) && in_array($model->category, ['image', 'video', 'audio', 'avatar', 'model3d'], true)
                 ? $this->effectiveGenerationConfig($model)
                 : ($model->generation_config === null ? null : Arr::only($model->generation_config, self::CONFIG_KEYS)),

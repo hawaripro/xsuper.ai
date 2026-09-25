@@ -5,11 +5,13 @@ namespace Tests\Feature\Api;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ApiKey;
+use App\Models\ImageJob;
 use App\Models\MediaCapabilityRevision;
 use App\Models\User;
 use App\Models\UserToken;
 use App\Models\WorkspaceMediaJob;
 use App\Services\AiProviderEndpoint;
+use App\Services\ImageGenerationService;
 use App\Services\WorkspaceMediaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -196,11 +198,7 @@ class MediaApiTest extends TestCase
     public function test_native_batch_is_debited_once_and_every_image_remains_addressable(): void
     {
         [$user] = $this->fixture();
-        $provider = AiProviderProfile::create(['slug' => 'native-fixture', 'name' => 'Images', 'protocol' => 'openai',
-            'base_url' => 'https://images.example.test/v1', 'api_key' => 'test-only-key', 'is_enabled' => true]);
-        $model = AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'native-fixture',
-            'upstream_model_id' => 'dall-e-2', 'display_name' => 'Native image', 'category' => 'image',
-            'is_enabled' => true, 'is_available' => true, 'token_cost' => 10]);
+        $model = $this->nativeImageModel();
         $request = [...$this->request($model, ['size' => '1024x1024']), 'count' => 2];
         $response = $this->withHeader('Idempotency-Key', 'native-batch')->postJson('/v1/media/generations', $request)
             ->assertAccepted()->assertJsonCount(2, 'generation_ids')->assertJsonPath('total_tokens', 20);
@@ -210,7 +208,8 @@ class MediaApiTest extends TestCase
             app(\App\Services\ImageGenerationService::class)->process($job->id);
         }
         foreach ($response->json('generation_ids') as $id) {
-            $result = $this->getJson('/v1/media/generations/'.rawurlencode($id))->assertOk()->assertJsonPath('status', 'completed');
+            $result = $this->getJson('/v1/media/generations/'.rawurlencode($id))->assertOk()->assertJsonPath('status', 'completed')
+                ->assertJsonPath('generation_ids', $response->json('generation_ids'));
             $this->get($result->json('outputs.0.url'))->assertOk();
         }
         $this->assertSame(980, UserToken::getBalance($user->id));
@@ -241,8 +240,69 @@ class MediaApiTest extends TestCase
         $id = WorkspaceMediaJob::query()->sole()->job_id;
         $this->assertStringContainsString($id, $response->json('error.message'));
         $this->assertStringContainsString('/v1/media/generations/'.$id, $response->json('error.message'));
+        $this->assertSame([$id], $response->json('error.generation_ids'));
         $this->assertSame(990, UserToken::getBalance($user->id));
         $this->getJson('/v1/media/generations/'.$id)->assertOk()->assertJsonPath('status', 'pending');
+    }
+
+    public function test_native_images_timeout_lists_every_paid_generation_and_each_status_links_the_set(): void
+    {
+        [$user] = $this->fixture();
+        $model = $this->nativeImageModel();
+        config(['media.api_sync_wait_seconds' => 1]);
+        // No Idempotency-Key: the 504 itself must lead to every job this request paid for.
+        $response = $this->postJson('/v1/images/generations', ['model' => $model->model_id, 'prompt' => 'A cup', 'n' => 3])
+            ->assertStatus(504)->assertJsonPath('error.type', 'server_error')->assertJsonPath('error.code', 'generation_timeout');
+        $ids = ImageJob::query()->orderBy('id')->pluck('job_id')->map(fn (string $id): string => 'image:'.$id)->all();
+        $this->assertCount(3, $ids);
+        $this->assertSame(970, UserToken::getBalance($user->id));
+        $this->assertSame($ids, $response->json('error.generation_ids'));
+        $polls = $response->json('error.poll_urls');
+        $this->assertSame(array_map(fn (string $id): string => '/v1/media/generations/'.$id, $ids),
+            array_map(fn (string $url): string => parse_url($url, PHP_URL_PATH), $polls));
+        $this->assertStringContainsString('Poll '.$polls[0].' with your API key', $response->json('error.message'));
+        foreach ($polls as $url) {
+            $this->getJson($url)->assertOk()->assertJsonPath('status', 'pending')->assertJsonPath('generation_ids', $ids);
+        }
+        $history = $this->getJson('/v1/media/generations?kind=image')->assertOk()->assertJsonCount(3, 'data');
+        $this->assertSame([$ids, $ids, $ids], array_column($history->json('data'), 'generation_ids'));
+        $other = ApiKey::generate(User::factory()->create()->id);
+        $this->withToken($other->plainKey)->getJson('/v1/media/generations')->assertOk()->assertJsonPath('data', []);
+        foreach ($ids as $id) {
+            $this->getJson('/v1/media/generations/'.$id)->assertNotFound();
+        }
+    }
+
+    public function test_native_images_failure_lists_every_generation_and_keeps_the_paid_sibling_reachable(): void
+    {
+        [$user] = $this->fixture();
+        $model = $this->nativeImageModel();
+        // The first image is delivered; the provider rejects the second.
+        Http::fake(['https://images.example.test/v1/images/generations' => Http::sequence()
+            ->push(['data' => [['b64_json' => self::PNG]]])
+            ->push(['error' => ['message' => 'private provider detail']], 400)]);
+        Sleep::fake();
+        Sleep::whenFakingSleep(fn () => ImageJob::query()->where('status', 'pending')
+            ->each(fn (ImageJob $job) => app(ImageGenerationService::class)->process($job->id)));
+        $response = $this->postJson('/v1/images/generations', ['model' => $model->model_id, 'prompt' => 'A cup', 'n' => 2])
+            ->assertStatus(502)->assertJsonPath('error.type', 'server_error')->assertJsonPath('error.code', 'generation_failed');
+        $this->assertStringNotContainsString('private provider detail', $response->getContent());
+        $ids = ImageJob::query()->orderBy('id')->pluck('job_id')->map(fn (string $id): string => 'image:'.$id)->all();
+        $this->assertCount(2, $ids);
+        $this->assertSame($ids, $response->json('error.generation_ids'));
+        $polls = $response->json('error.poll_urls');
+        $this->assertSame(array_map(fn (string $id): string => '/v1/media/generations/'.$id, $ids),
+            array_map(fn (string $url): string => parse_url($url, PHP_URL_PATH), $polls));
+        // Only the rejected image is refunded; the delivered one stays charged and downloadable.
+        $this->assertSame(990, UserToken::getBalance($user->id));
+        $delivered = $this->getJson($polls[0])->assertOk()->assertJsonPath('status', 'completed')
+            ->assertJsonPath('billing_status', 'settled')->assertJsonPath('generation_ids', $ids);
+        $this->get($delivered->json('outputs.0.url'))->assertOk();
+        $this->getJson($polls[1])->assertOk()->assertJsonPath('status', 'failed')->assertJsonPath('billing_status', 'released');
+        $this->withToken(ApiKey::generate(User::factory()->create()->id)->plainKey);
+        foreach ($polls as $url) {
+            $this->getJson($url)->assertNotFound();
+        }
     }
 
     public function test_creation_limiter_is_per_key_and_returns_openai_envelope(): void
@@ -285,6 +345,16 @@ class MediaApiTest extends TestCase
         $this->withToken($key->plainKey);
 
         return [$user, $model, $revision, $key];
+    }
+
+    private function nativeImageModel(): AiModelProfile
+    {
+        $provider = AiProviderProfile::create(['slug' => 'native-fixture', 'name' => 'Images', 'protocol' => 'openai',
+            'base_url' => 'https://images.example.test/v1', 'api_key' => 'test-only-key', 'is_enabled' => true]);
+
+        return AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'native-fixture',
+            'upstream_model_id' => 'dall-e-2', 'display_name' => 'Native image', 'category' => 'image',
+            'is_enabled' => true, 'is_available' => true, 'token_cost' => 10]);
     }
 
     private function request(AiModelProfile $model, array $inputs = []): array

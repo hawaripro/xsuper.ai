@@ -11,7 +11,6 @@ test('admin creates and edits member, API key persists, deletion cleans the acco
     await form.locator('input[type="text"]').fill('QA Created Member');
     await form.locator('input[type="email"]').fill('created@dashboard-e2e.test');
     await form.locator('input[type="password"]').fill('Created-E2e-Only!');
-    await form.getByRole('button', { name: /API Eksternal/ }).click();
     const created = page.waitForResponse(response => response.url().endsWith('/api/a/u') && response.request().method() === 'POST');
     await form.locator('button[type="submit"]').click();
     expect((await created).status()).toBe(201);
@@ -36,7 +35,8 @@ test('admin creates and edits member, API key persists, deletion cleans the acco
     const originalKey = databaseRows('api_keys', { user_id: user.id })[0];
     expect(JSON.stringify(originalKey).includes(originalSecret)).toBe(false);
     expect((await (await page.request.get('/api/k/list')).text()).includes(originalSecret)).toBe(false);
-    expect((await page.request.get('/v1/models', { headers: { Authorization: `Bearer ${originalSecret}` } })).status()).toBe(200);
+    // Admin-created accounts still need email verification before a key can use the API.
+    expect((await page.request.get('/v1/models', { headers: { Authorization: `Bearer ${originalSecret}` } })).status()).toBe(403);
     const disabledKey = page.waitForResponse(response => response.url().endsWith(`/api/k/toggle/${originalKey.id}`));
     await page.getByRole('button', { name: 'Disable', exact: true }).click();
     expect((await disabledKey).status()).toBe(200);
@@ -52,7 +52,7 @@ test('admin creates and edits member, API key persists, deletion cleans the acco
     const replacementSecret = (await regeneratedResponse.json()).key;
     expect(replacementSecret).not.toBe(originalSecret);
     expect((await page.request.get('/v1/models', { headers: { Authorization: `Bearer ${originalSecret}` } })).status()).toBe(401);
-    expect((await page.request.get('/v1/models', { headers: { Authorization: `Bearer ${replacementSecret}` } })).status()).toBe(200);
+    expect((await page.request.get('/v1/models', { headers: { Authorization: `Bearer ${replacementSecret}` } })).status()).toBe(403);
     await page.goto('/en/admin/users');
     await expect(row).toContainText('QA Updated Member');
     await row.getByRole('button', { name: /Delete|Hapus/, exact: true }).click();

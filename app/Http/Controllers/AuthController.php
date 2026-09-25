@@ -162,7 +162,7 @@ class AuthController extends Controller
             'role' => $user->role,
             'avatar' => $user->avatar,
             'permissions' => $user->getPermissions(),
-            'membership' => $this->membership($user),
+            'membership' => $user->membershipSummary(),
         ];
 
         if (! $user->isAdmin()) {
@@ -171,18 +171,5 @@ class AuthController extends Controller
         }
 
         return response()->json($data);
-    }
-
-    /** Membership is a bonus period only; it never gates usage. */
-    private function membership(User $user): array
-    {
-        $endsAt = $user->membershipEndsAt();
-        $active = $user->hasActiveMembership();
-
-        return [
-            'active' => $active,
-            'expires_at' => $endsAt?->toISOString(),
-            'days_remaining' => $endsAt === null ? null : ($active ? (int) now()->diffInDays($endsAt) : 0),
-        ];
     }
 }

@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
+use App\Models\UsageRate;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Services\UsageBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -57,11 +59,12 @@ class DashboardWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_member_sees_all_enabled_models_and_cannot_stream_unknown_model(): void
+    public function test_member_sees_priced_enabled_models_and_cannot_stream_unknown_model(): void
     {
         $member = User::factory()->create([
-            'permissions' => [...User::DEFAULT_PERMISSIONS],
+            'is_active' => true, 'permissions' => ['chat' => true],
         ]);
+        Wallet::credit($member->id, 1_000_000, 'Fixture balance');
 
         Http::fake(['*' => Http::response(['data' => []])]);
 
@@ -84,7 +87,10 @@ class DashboardWorkflowTest extends TestCase
                 'is_enabled' => true,
                 'is_available' => true,
             ]);
+            $this->priceChatModel($modelId);
         }
+        // A price record alone must not publish an unknown model.
+        $this->priceChatModel('nonexistent-model');
 
         $models = collect($this->actingAs($member)->getJson('/api/c/am')->assertOk()->json('models'));
         $this->assertEqualsCanonicalizing(['curated-standard', 'curated-authentic'], $models->pluck('id')->all());
@@ -234,7 +240,10 @@ class DashboardWorkflowTest extends TestCase
             'provider_id' => $provider->id, 'model_id' => 'gated-chat', 'display_name' => 'Gated Chat',
             'category' => 'chat', 'is_enabled' => false, 'is_available' => true,
         ]);
-        $this->actingAs(User::factory()->create());
+        $this->priceChatModel('gated-chat');
+        $member = User::factory()->create(['is_active' => true, 'permissions' => ['chat' => true]]);
+        Wallet::credit($member->id, 1_000_000, 'Fixture balance');
+        $this->actingAs($member);
         $this->getJson('/api/c/am')->assertOk()->assertJsonCount(0, 'models');
         $this->getJson('/api/c/m')->assertOk()->assertJsonCount(0, 'models');
         $this->postJson('/api/c/s', [
@@ -246,6 +255,8 @@ class DashboardWorkflowTest extends TestCase
         $this->postJson('/api/c/s', [
             'model' => 'gated-chat', 'messages' => [['role' => 'user', 'content' => 'Provider disabled.']],
         ])->assertForbidden();
+        $this->assertSame(1_000_000, Wallet::balance($member->id));
+        $this->assertDatabaseCount('chat_operations', 0);
     }
 
     public function test_available_curated_model_is_authorized_when_live_listing_is_unavailable(): void
@@ -257,7 +268,9 @@ class DashboardWorkflowTest extends TestCase
             'provider_id' => $provider->id, 'model_id' => 'last-known-chat', 'display_name' => 'Last Known Chat',
             'category' => 'chat', 'is_enabled' => true, 'is_available' => true,
         ]);
-        $member = User::factory()->create();
+        $this->priceChatModel('last-known-chat');
+        $member = User::factory()->create(['is_active' => true, 'permissions' => ['chat' => true]]);
+        Wallet::credit($member->id, 1_000_000, 'Fixture balance');
         $this->actingAs($member)->getJson('/api/c/am')->assertOk()->assertJsonPath('models.0.id', 'last-known-chat');
         $this->postJson('/api/c/s', [
             'model' => 'last-known-chat', 'conversation_id' => 'curated-send',
@@ -266,5 +279,15 @@ class DashboardWorkflowTest extends TestCase
         $this->assertDatabaseHas('chat_history', [
             'user_id' => $member->id, 'conversation_id' => 'curated-send', 'content' => 'A real authorized request.',
         ]);
+    }
+
+    private function priceChatModel(string $model): void
+    {
+        foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'model' => $model, 'meter' => $meter, 'label' => $meter,
+                'unit' => '1M tokens', 'price_usd' => $price, 'price_idr' => 16000 * $price, 'is_active' => true,
+            ]);
+        }
     }
 }

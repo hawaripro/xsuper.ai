@@ -8,6 +8,7 @@ import { apiRequest } from "../../lib/api";
 import TokenPackageTable from "../../components/dashboard/TokenPackageTable";
 import RatePairSummary from "../../components/dashboard/RatePairSummary";
 import AutoPricingPanel from "../../components/admin/pricing/AutoPricingPanel";
+import { membershipBonusDrafts } from "../../lib/membershipBonuses";
 
 const emptyRate = { service: "api", meter: "input_tokens", model: "", label: "", unit: "1M tokens", price_idr: "", price_usd: "", is_active: false, sort_order: 0 };
 const apiMeters = ["input_tokens", "output_tokens", "cache_read", "cache_write"];
@@ -135,6 +136,7 @@ export default function Settings() {
     const [durationDrafts, setDurationDrafts] = useState({});
     const [benefitValuePct, setBenefitValuePct] = useState(107);
     const [benefitTokenPct, setBenefitTokenPct] = useState(60);
+    const [bonusLoading, setBonusLoading] = useState(false);
     const [rateSelection, setRateSelection] = useState([]);
     const [durationSelection, setDurationSelection] = useState([]);
     const [search, setSearch] = useState("");
@@ -162,8 +164,10 @@ export default function Settings() {
                 setCatalog(data);
                 setLoadErrors((current) => ({ ...current, pricing: "" }));
             }
+            return data;
         } catch (error) {
             if (error.name !== "AbortError" && request === requests.current.pricing) setLoadErrors((current) => ({ ...current, pricing: error.message }));
+            return null;
         } finally {
             if (!signal?.aborted && request === requests.current.pricing) setLoading((current) => ({ ...current, pricing: false }));
         }
@@ -219,28 +223,28 @@ export default function Settings() {
     const input = "ui-input min-h-10";
     const patchRate = (id, key, value) => setRateDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
     const patchDuration = (id, key, value) => setDurationDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
-    const fillMembershipBenefits = () => {
-        const tokenRevenue = Number(catalog?.valuation?.token_revenue_idr);
-        const walletRate = Number(catalog?.valuation?.wallet_idr_per_usd);
-        if (!(tokenRevenue > 0 && walletRate > 0) || !priceInRange(benefitValuePct, 0, 1000) || !priceInRange(benefitTokenPct, 0, 100)) {
-            setStatus({ error: t("Aktifkan paket token dan isi persentase yang valid."), success: "" });
-            return;
+    // The wallet conversion and token packages are saved on other tabs, so bonuses are priced from a fresh reload, never the page-load snapshot.
+    const fillMembershipBenefits = async () => {
+        setBusy(true);
+        setBonusLoading(true);
+        setStatus({ error: "", success: "" });
+        try {
+            const fresh = await loadPricing();
+            if (!fresh) {
+                setStatus({ error: t("Could not load the latest valuation. Bonuses were not calculated."), success: "" });
+                return;
+            }
+            const next = membershipBonusDrafts(fresh, durationDrafts, benefitValuePct, benefitTokenPct);
+            if (!next) {
+                setStatus({ error: t("Aktifkan paket token dan isi persentase yang valid."), success: "" });
+                return;
+            }
+            setDurationDrafts(next);
+            setStatus({ error: "", success: t("Bonus dihitung ke draf. Tinjau lalu simpan untuk menerapkan.") });
+        } finally {
+            setBusy(false);
+            setBonusLoading(false);
         }
-        const value = Number(benefitValuePct) / 100;
-        const share = Number(benefitTokenPct) / 100;
-        setDurationDrafts(current => {
-            const next = { ...current };
-            packages.forEach(([id, original]) => {
-                const price = Number(current[id]?.price_idr ?? original.price_idr);
-                next[id] = {
-                    ...next[id],
-                    bonus_tokens: Math.floor(price * value * share / tokenRevenue / 25) * 25,
-                    bonus_wallet_usd: (Math.floor(price * value * (1 - share) / walletRate * 4) / 4).toFixed(2),
-                };
-            });
-            return next;
-        });
-        setStatus({ error: "", success: t("Bonus dihitung ke draf. Tinjau lalu simpan untuk menerapkan.") });
     };
     const selectRates = (ids) => {
         if (ids.length > 200) { setStatus({ error: t("Pilih maksimal 200 baris dalam satu operasi."), success: "" }); return; }
@@ -390,7 +394,7 @@ export default function Settings() {
                 <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 p-4 dark:border-white/10">
                     <label className="text-xs">{t("Nilai bonus (% harga)")}<input className={`${input} mt-1 w-36`} type="number" min="0" max="1000" value={benefitValuePct} disabled={busy} onChange={event => setBenefitValuePct(event.target.value)} /></label>
                     <label className="text-xs">{t("Porsi token (%)")}<input className={`${input} mt-1 w-36`} type="number" min="0" max="100" value={benefitTokenPct} disabled={busy} onChange={event => setBenefitTokenPct(event.target.value)} /></label>
-                    <button className="ui-btn-secondary min-h-10" type="button" disabled={busy} onClick={fillMembershipBenefits}>{t("Hitung otomatis")}</button>
+                    <button className="ui-btn-secondary min-h-10" type="button" disabled={busy} aria-busy={bonusLoading} onClick={fillMembershipBenefits}>{t(bonusLoading ? "Loading the latest valuation…" : "Hitung otomatis")}</button>
                     <p className={`w-full text-xs ${muted}`}>{t("Mengisi bonus semua paket ke draf; penyimpanan tidak berubah. Token dibulatkan turun per 25 dan Saldo AI per $0.25.")}</p>
                 </div>
                 <div className="max-w-full overflow-x-auto"><table className="w-full text-left text-sm">

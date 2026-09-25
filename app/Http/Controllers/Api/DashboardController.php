@@ -47,6 +47,7 @@ class DashboardController extends Controller
                 'days_remaining' => $user->daysRemaining(),
                 'created_at' => $this->timestamp($user->created_at),
             ],
+            'membership' => $user->membershipSummary(),
             'usage' => $usage,
             'wallet' => $wallet,
             'activity' => [

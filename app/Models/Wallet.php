@@ -21,7 +21,8 @@ class Wallet extends Model
 
     public static function balance(int $userId): int
     {
-        return static::firstOrCreate(['user_id' => $userId], ['balance_microusd' => 0])->balance_microusd;
+        // A read never creates the wallet row: that insert would take the wallet before the owner row.
+        return (int) (static::query()->where('user_id', $userId)->value('balance_microusd') ?? 0);
     }
 
     public static function debit(
@@ -34,10 +35,7 @@ class Wallet extends Model
         }
 
         return DB::transaction(function () use ($userId, $amountMicrousd, $details): bool {
-            $wallet = static::query()->lockForUpdate()->firstOrCreate(
-                ['user_id' => $userId],
-                ['balance_microusd' => 0],
-            );
+            $wallet = static::lockAccount($userId);
 
             if ($wallet->balance_microusd < $amountMicrousd) {
                 return false;
@@ -76,8 +74,7 @@ class Wallet extends Model
     public static function settle(int $userId, array $reservation, int $actualMicrousd, array $details): bool
     {
         return DB::transaction(function () use ($userId, $reservation, $actualMicrousd, $details): bool {
-            $wallet = static::firstOrCreate(['user_id' => $userId], ['balance_microusd' => 0]);
-            static::query()->whereKey($wallet->id)->lockForUpdate()->first();
+            static::lockAccount($userId);
             $referenceId = $reservation['reference_id'];
             if (WalletTransaction::where('reference_id', $referenceId)->where('type', 'settlement')->exists()) {
                 return true;
@@ -115,8 +112,7 @@ class Wallet extends Model
         }
 
         DB::transaction(function () use ($userId, $reservation, $description): void {
-            $wallet = static::firstOrCreate(['user_id' => $userId], ['balance_microusd' => 0]);
-            static::query()->whereKey($wallet->id)->lockForUpdate()->first();
+            static::lockAccount($userId);
             $referenceId = $reservation['reference_id'];
             if (WalletTransaction::where('reference_id', $referenceId)->whereIn('type', ['release', 'settlement'])->exists()) {
                 return;
@@ -129,12 +125,7 @@ class Wallet extends Model
     public static function credit(int $userId, int $amountMicrousd, string $description, ?string $referenceId = null, string $type = 'credit'): int
     {
         return DB::transaction(function () use ($userId, $amountMicrousd, $description, $referenceId, $type): int {
-            // Serialize first-wallet creation as well as retries for this account.
-            User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
-            $wallet = static::query()->lockForUpdate()->firstOrCreate(
-                ['user_id' => $userId],
-                ['balance_microusd' => 0],
-            );
+            $wallet = static::lockAccount($userId);
             if ($referenceId !== null) {
                 $existing = WalletTransaction::query()->where('user_id', $userId)
                     ->where('reference_id', $referenceId)->where('type', $type)->first();
@@ -159,5 +150,17 @@ class Wallet extends Model
 
             return $wallet->balance_microusd;
         });
+    }
+
+    /**
+     * Every account write locks the owner user row, then the wallet row (then user_tokens when the same
+     * transaction also moves tokens). Membership approval and chat admission lock the owner first, so a
+     * wallet-first entry point deadlocks against them. The owner lock also serializes first-wallet creation.
+     */
+    private static function lockAccount(int $userId): static
+    {
+        User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+
+        return static::query()->lockForUpdate()->firstOrCreate(['user_id' => $userId], ['balance_microusd' => 0]);
     }
 }

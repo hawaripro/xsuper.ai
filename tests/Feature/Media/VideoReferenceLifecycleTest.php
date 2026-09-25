@@ -56,9 +56,11 @@ class VideoReferenceLifecycleTest extends TestCase
             'api_key' => 'fixture-only-key', 'is_enabled' => true,
         ]);
 
+        // A converted per-second tariff: every money assertion below is 200 tokens/second × duration.
         return AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => FalProtocol::VIDEO, 'upstream_model_id' => FalProtocol::VIDEO,
-            'display_name' => 'LongCat', 'category' => 'video', 'token_cost' => 200, 'is_enabled' => true, 'is_available' => true,
+            'display_name' => 'LongCat', 'category' => 'video', 'token_cost' => 200, 'token_cost_unit' => 'second',
+            'is_enabled' => true, 'is_available' => true,
         ]);
     }
 
@@ -93,13 +95,15 @@ class VideoReferenceLifecycleTest extends TestCase
         $videos = app(VideoGenerationService::class);
 
         [$job] = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo,
-            ['prompt' => 'A quiet garden', 'aspect_ratio' => '9:16', 'duration' => 5], 'studio-video',
-            ['expected_price_tokens' => 200, 'expected_capability_hash' => $this->hash($model, MediaOperation::TextToVideo)]);
+            ['prompt' => 'A quiet garden', 'aspect_ratio' => '9:16', 'duration' => 5, 'count' => 1, 'pro' => false], 'studio-video',
+            ['expected_price_tokens' => 1000, 'expected_capability_hash' => $this->hash($model, MediaOperation::TextToVideo)]);
 
         $this->assertSame('pending', $job->status);
         $this->assertNotNull($job->capability_revision_id);
         $this->assertNull($job->reference_asset_ids);
-        $this->assertSame(800, UserToken::getBalance($user->id));
+        // 200 tokens/second × 5 seconds × 1 Standard video exhausts the 1000-token budget.
+        $this->assertSame(1000, (int) $job->tokens_reserved);
+        $this->assertSame(0, UserToken::getBalance($user->id));
 
         $videos->process($job->id);
         Http::assertSent(fn (Request $r): bool => str_contains($r->url(), FalProtocol::VIDEO)
@@ -111,7 +115,8 @@ class VideoReferenceLifecycleTest extends TestCase
         $this->assertSame('completed', $job->status);
         $this->assertSame('/api/v/'.$job->job_id.'/asset', $job->video_url);
         $this->assertSame('settled', $job->billing_status);
-        $this->assertSame(800, UserToken::getBalance($user->id), 'settled once, not double-charged');
+        $videos->poll($job->id);
+        $this->assertSame(0, UserToken::getBalance($user->id), 'settled once, not double-charged');
     }
 
     public function test_image_to_video_inlines_private_data_uri_and_persists_stable_asset_id(): void
@@ -124,11 +129,12 @@ class VideoReferenceLifecycleTest extends TestCase
         $videos = app(VideoGenerationService::class);
 
         [$job] = app(MediaGenerationCoordinator::class)->startVideo($user, $model, MediaOperation::ImageToVideo,
-            ['prompt' => 'Animate it', 'reference_image' => $asset->id, 'duration' => 5], 'studio-video',
-            ['expected_capability_hash' => $this->hash($model, MediaOperation::ImageToVideo)]);
+            ['prompt' => 'Animate it', 'reference_image' => $asset->id, 'duration' => 5, 'count' => 1, 'pro' => false], 'studio-video',
+            ['expected_price_tokens' => 1000, 'expected_capability_hash' => $this->hash($model, MediaOperation::ImageToVideo)]);
 
         $this->assertSame([$asset->id], $job->reference_asset_ids, 'stable asset id persisted, not a URL');
-        $this->assertSame(800, UserToken::getBalance($user->id));
+        $this->assertSame(1000, (int) $job->tokens_reserved);
+        $this->assertSame(0, UserToken::getBalance($user->id));
 
         $videos->process($job->id);
         // Routed to the fal image-to-video model with an inline data-uri and no aspect ratio.
@@ -141,6 +147,7 @@ class VideoReferenceLifecycleTest extends TestCase
         $job->refresh();
         $this->assertSame('completed', $job->status);
         $this->assertSame('settled', $job->billing_status);
+        $this->assertSame(0, UserToken::getBalance($user->id));
     }
 
     public function test_missing_required_reference_is_rejected_before_reserve(): void
@@ -186,14 +193,14 @@ class VideoReferenceLifecycleTest extends TestCase
         $user = User::factory()->create();
         UserToken::topup($user->id, 1000);
         $coordinator = app(MediaGenerationCoordinator::class);
-        $inputs = ['prompt' => 'A quiet garden', 'aspect_ratio' => '16:9', 'duration' => 5];
-        $opts = ['idempotency_key' => 'vid-act-1'];
+        $inputs = ['prompt' => 'A quiet garden', 'aspect_ratio' => '16:9', 'duration' => 5, 'count' => 1, 'pro' => false];
+        $opts = ['idempotency_key' => 'vid-act-1', 'expected_price_tokens' => 1000];
 
         [$first] = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo, $inputs, 'studio-video', $opts);
         [$retry] = $coordinator->startVideo($user, $model, MediaOperation::TextToVideo, $inputs, 'studio-video', $opts);
 
         $this->assertSame($first->id, $retry->id, 'same key + same input is one job');
-        $this->assertSame(800, UserToken::getBalance($user->id), 'a retry never reserves twice');
+        $this->assertSame(0, UserToken::getBalance($user->id), 'a retry never reserves twice');
         $this->assertDatabaseCount('video_jobs', 1);
     }
 }

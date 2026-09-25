@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
@@ -8,6 +8,8 @@ function getCsrfToken() {
     const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : '';
 }
+
+const sameMembership = (a, b) => a?.active === b.active && a?.expires_at === b.expires_at && a?.days_remaining === b.days_remaining;
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -28,6 +30,12 @@ export function AuthProvider({ children }) {
         } catch { setUser(null); }
         finally { setLoading(false); }
     };
+
+    // Pages that load fresher account data (e.g. /api/dashboard) share its membership so every consumer shows the same state.
+    const syncMembership = useCallback((membership) => {
+        if (!membership) return;
+        setUser(current => (!current || sameMembership(current.membership, membership) ? current : { ...current, membership }));
+    }, []);
 
     const finishLogin = async () => {
         await checkAuth();
@@ -83,7 +91,7 @@ export function AuthProvider({ children }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, completeTwoFactor, logout, refreshUser: checkAuth }}>
+        <AuthContext.Provider value={{ user, loading, login, completeTwoFactor, logout, refreshUser: checkAuth, syncMembership }}>
             {children}
         </AuthContext.Provider>
     );

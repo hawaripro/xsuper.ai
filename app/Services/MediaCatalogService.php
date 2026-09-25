@@ -251,7 +251,8 @@ final class MediaCatalogService
                 $model = $models->get($item['model_id']);
                 $revision = $revisions->get($item['revision_id']);
                 $before = $model->token_cost;
-                $model->update(['token_cost' => $item['token_cost']]);
+                // The reviewed price and its catalog unit are written together.
+                $model->update(['token_cost' => $item['token_cost'], 'token_cost_unit' => $item['price_unit']]);
                 $revision->update(['curation_overrides' => [...($revision->curation_overrides ?? []), 'pricing' => [
                     'token_cost' => $item['token_cost'], 'unit' => $item['price_unit'], 'variable_configuration' => true,
                     'reviewed_by' => $actor->id, 'reviewed_at' => now()->toISOString(),
@@ -352,7 +353,7 @@ final class MediaCatalogService
                 // Pricing is curation, not contract: a published revision can be re-reviewed after tariff or
                 // session-cap drift without touching its definition, bindings or the model tariff.
                 if (! $reviewed || $revision->contract_version !== 2
-                    || ($pricing['unit'] ?? null) !== MediaModelConfig::catalogPriceUnit($model) || ($pricing['variable_configuration'] ?? false) !== true
+                    || ($pricing['unit'] ?? null) !== MediaModelConfig::appliedPriceUnit($model) || ($pricing['variable_configuration'] ?? false) !== true
                     || (int) ($pricing['token_cost'] ?? 0) !== $model->token_cost || $model->token_cost < 1) {
                     $this->blocked(['Acknowledge the current positive sale price and its existing billing unit on a v2 revision. Variable configuration costs must be reviewed.']);
                 }

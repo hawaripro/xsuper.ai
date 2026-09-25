@@ -4,6 +4,7 @@ import { useLocale } from '../contexts/LocaleContext';
 import { apiRequest } from '../lib/api';
 import { ANTHROPIC_BASE, OPENAI_BASE } from '../lib/apiAccess';
 import { Button, InlineAlert, MemberPage, Metric, PageHeader, Panel, SectionHeader, Spinner, StatePanel, controlClass, errorMessage, formatLocalDate } from '../components/member/MemberUI';
+import MediaApiGuide from '../components/api/MediaApiGuide';
 
 function CopyBlock({ label, value, onCopy, copied }) {
     const { t } = useLocale();
@@ -103,7 +104,7 @@ export default function ApiAccess() {
                 <form onSubmit={create} className="flex flex-col gap-3 sm:flex-row sm:items-end">
                     <div className="flex-1"><label htmlFor="api-key-name" className="mb-1.5 block font-medium text-slate-800 dark:text-slate-200">{t('Nama kunci')}</label>
                         <input id="api-key-name" className={controlClass} value={name} onChange={event => setName(event.target.value)} maxLength={100} placeholder={t('Contoh: Claude Code laptop')} autoComplete="off" required disabled={busy || activeCount >= 10} /></div>
-                    <Button type="submit" disabled={busy || activeCount >= 10 || !name.trim()}>{busy ? t('Memproses...') : t('Buat kunci API')}</Button>
+                    <Button type="submit" disabled={busy || activeCount >= 10 || !name.trim()}>{busy ? t('Memproses…') : t('Buat kunci API')}</Button>
                 </form>
                 {activeCount >= 10 && <InlineAlert tone="warning">{t('Batas kunci aktif tercapai. Cabut salah satu kunci untuk membuat yang baru.')}</InlineAlert>}
                 {confirm && <InlineAlert tone="warning"><div className="space-y-2"><p className="font-semibold">{confirm.action === 'revoke' ? t('Cabut kunci ini? Aplikasi yang memakainya akan kehilangan akses.') : t('Hapus kunci ini? Tindakan ini tidak dapat dibatalkan.')}</p><p>{confirm.name}</p><div className="flex gap-2"><Button variant="danger" disabled={busy} onClick={changeKey}>{t('Konfirmasi')}</Button><Button variant="secondary" disabled={busy} onClick={() => setConfirm(null)}>{t('Batal')}</Button></div></div></InlineAlert>}
@@ -138,6 +139,7 @@ export default function ApiAccess() {
                     })}</tr>)}
                 </tbody></table></div>}
             </Panel>
+            <MediaApiGuide baseUrl={ANTHROPIC_BASE} />
         </>}
     </MemberPage>;
 }

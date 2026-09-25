@@ -386,7 +386,15 @@ function Alert({ type, text, isDark }) {
 
 export default function Profile() {
     const { t } = useLocale();
-    const { user, refreshUser } = useAuth();
+    const { user, refreshUser, syncMembership } = useAuth();
+
+    // Membership can change after login (order approval, expiry, admin edit); show the server's current state.
+    useEffect(() => {
+        let active = true;
+        apiRequest('/api/user').then((data) => { if (active) syncMembership(data?.membership); }).catch(() => {});
+        return () => { active = false; };
+    }, [syncMembership]);
+
     const { theme } = useTheme();
     const isDark = theme === 'dark';
 

@@ -190,20 +190,23 @@ class ExternalApiController extends Controller
                 foreach ($events as $frame) {
                     $event = $native ? $frame['data'] : $frame;
                     if ($anthropic) {
-                        if (($event['type'] ?? null) === 'message_start') {
-                            // Bridged message_start is an estimate, not provider billing evidence.
-                            if ($native) { $usage = (array) ($event['message']['usage'] ?? []); }
-                        } elseif (($event['type'] ?? null) === 'message_delta') {
-                            $usage = array_replace($usage, (array) ($event['usage'] ?? []));
+                        $type = $event['type'] ?? null;
+                        if ($type === 'message_start') {
+                            // Bridged message_start is an estimate, not provider billing evidence. Native message_start
+                            // reports input and cache counts but only an initial output count.
+                            if ($native) { $usage = array_diff_key((array) ($event['message']['usage'] ?? []), ['output_tokens' => true]); }
+                        } elseif ($type === 'message_delta') {
+                            // Terminal counts are cumulative; a count left null keeps the message_start value.
+                            $usage = array_replace($usage, array_filter((array) ($event['usage'] ?? []), static fn (mixed $count): bool => $count !== null));
                         }
-                        $output = $output || in_array($event['type'] ?? null, ['content_block_delta'], true)
-                            || (($event['type'] ?? null) === 'content_block_start' && (($event['content_block']['type'] ?? null) === 'tool_use' || ! empty($event['content_block']['text'])));
-                        if (($event['type'] ?? null) === 'message_stop') { $stop = $frame; continue; }
+                        $output = $output || $type === 'content_block_delta'
+                            || ($type === 'content_block_start' && (($event['content_block']['type'] ?? null) === 'tool_use' || self::delivered($event['content_block']['text'] ?? null)));
+                        if ($type === 'message_stop') { $stop = $frame; continue; }
                     } else {
                         if (is_array($event['usage'] ?? null)) { $usage = $this->billing->normalizeUsage($event['usage']); $event['usage'] = $usage; }
                         foreach ($event['choices'] ?? [] as $choice) {
                             $delta = (array) ($choice['delta'] ?? []);
-                            $output = $output || ! empty($delta['content']) || ! empty($delta['tool_calls']) || ! empty($delta['refusal']);
+                            $output = $output || self::delivered($delta['content'] ?? null) || self::delivered($delta['tool_calls'] ?? null) || self::delivered($delta['refusal'] ?? null);
                         }
                     }
                     $this->emit($event, $anthropic, $native ? $frame['raw'] : null);
@@ -235,6 +238,12 @@ class ExternalApiController extends Controller
         echo $raw ?? (($anthropic ? 'event: '.$event['type']."\n" : '').'data: '.json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n");
         if (ob_get_level() > 0) { ob_flush(); }
         flush();
+    }
+
+    /** Whether a wire value reached the client as output; "0" counts although PHP's empty() says otherwise. */
+    private static function delivered(mixed $value): bool
+    {
+        return (is_string($value) && $value !== '') || (is_array($value) && $value !== []);
     }
 
     private function providerError(Throwable $exception, bool $anthropic): JsonResponse

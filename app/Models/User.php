@@ -166,6 +166,23 @@ class User extends Authenticatable
         return $this->expires_at?->copy();
     }
 
+    /**
+     * Member-facing membership state (`/api/user`, `/api/dashboard`, admin users list).
+     *
+     * @return array{active: bool, expires_at: ?string, days_remaining: ?int}
+     */
+    public function membershipSummary(): array
+    {
+        $endsAt = $this->membershipEndsAt();
+        $active = $this->hasActiveMembership();
+
+        return [
+            'active' => $active,
+            'expires_at' => $endsAt?->toISOString(),
+            'days_remaining' => $endsAt === null ? null : ($active ? (int) now()->diffInDays($endsAt) : 0),
+        ];
+    }
+
     public function daysRemaining(): ?int
     {
         if ($this->isAdmin()) return null;

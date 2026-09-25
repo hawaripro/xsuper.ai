@@ -76,7 +76,8 @@ final class VideoGenerationService
                     if (! ($referenceConfig['reference_required'] ?? false) || ($proMode && ! ($referenceConfig['supports_pro'] ?? false))) {
                         throw ValidationException::withMessages(['reference_image' => 'The selected reference-image mode is unavailable.']);
                     }
-                    $config = $referenceConfig;
+                    // The reference endpoint runs under this model's tariff, so it keeps the unit that tariff is charged in.
+                    $config = [...$referenceConfig, 'price_unit' => $config['price_unit']];
                 }
                 $quantity = (int) $input['count'];
                 $aspect = $hasReference ? null : ($input['aspect_ratio'] ?? null);
@@ -389,9 +390,10 @@ final class VideoGenerationService
     public function reconcileTerminalWalletReservation(int $id): bool
     {
         return DB::transaction(function () use ($id): bool {
-            $job = VideoJob::query()->whereIn('status', ['failed', 'completed'])
-                ->where('billing_mode', 'wallet')->where('billing_status', 'reserved')->lockForUpdate()->find($id);
-            if (! $job) {
+            // Owner before job, like every other video transition, so settlement cannot deadlock with them.
+            $job = $this->lockedJob($id);
+            if (! $job || ! in_array($job->status, ['failed', 'completed'], true)
+                || $job->billing_mode !== 'wallet' || $job->billing_status !== 'reserved') {
                 return false;
             }
             $reservation = ['reference_id' => $job->billing_reference_id, 'amount_microusd' => $job->billing_reserved_microusd];
@@ -413,8 +415,11 @@ final class VideoGenerationService
     public function cancel(User $user, string $jobId): VideoJob
     {
         return DB::transaction(function () use ($user, $jobId): VideoJob {
+            // Owner before job: the refund below takes the owner's balance rows.
+            $ownerId = VideoJob::query()->where('job_id', $jobId)->firstOrFail(['user_id'])->user_id;
+            abort_unless($user->isAdmin() || $ownerId === $user->id, 404);
+            User::query()->whereKey($ownerId)->lockForUpdate()->firstOrFail();
             $job = VideoJob::query()->where('job_id', $jobId)->lockForUpdate()->firstOrFail();
-            abort_unless($user->isAdmin() || $job->user_id === $user->id, 404);
             if (self::cancellation($job)['can_cancel']) {
                 $this->terminate($job, 'cancelled', 'Video generation was cancelled. Reserved credit has been returned.');
             }

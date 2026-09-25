@@ -159,7 +159,7 @@ class MediaApiController extends Controller
             $payloads = array_map(fn (Model $job): array => $this->media->payload($job->refresh(), $urls), $jobs);
             foreach ($payloads as $payload) {
                 if (in_array($payload['status'], ['failed', 'cancelled', 'save_failed', 'uncertain'], true)) {
-                    return ApiErrorResponse::openAi($payload['error'] ?: 'The image request could not be completed.', 'server_error', 'generation_failed', 502);
+                    return $this->imagesError($payloads, $payload['error'] ?: 'The image request could not be completed.', 'generation_failed', 502);
                 }
             }
             if (count(array_filter($payloads, static fn (array $payload): bool => $payload['status'] === 'completed')) === count($jobs)) {
@@ -179,8 +179,8 @@ class MediaApiController extends Controller
                     }
                 }
                 if (count($outputs) !== $count) {
-                    return ApiErrorResponse::openAi('The completed request did not retain the requested number of images. Check the generation status.',
-                        'server_error', 'incomplete_outputs', 502);
+                    return $this->imagesError($payloads, 'The completed request did not retain the requested number of images. Check the generation status.',
+                        'incomplete_outputs', 502);
                 }
 
                 return response()->json(['created' => $jobs[0]->created_at->getTimestamp(), 'data' => $outputs]);
@@ -190,11 +190,31 @@ class MediaApiController extends Controller
             }
             Sleep::usleep((int) min(250000, max(1, ($deadline - microtime(true)) * 1000000)));
         } while (true);
-        $id = $payloads[0]['id'];
-        $poll = route('api.media.generations.show', ['id' => $id]);
+        // Name a generation that really is still running; the error lists every generation of the request.
+        $running = $payloads[array_key_first(array_filter($payloads, static fn (array $payload): bool => $payload['status'] !== 'completed'))]['id'];
 
-        return ApiErrorResponse::openAi('Generation '.$id.' is still running. Poll '.$poll.' with your API key; do not resubmit with a new idempotency key.',
-            'server_error', 'generation_timeout', 504);
+        return $this->imagesError($payloads, 'Generation '.$running.' is still running. Poll '.$this->pollUrl($running)
+            .' with your API key; do not resubmit with a new idempotency key.', 'generation_timeout', 504);
+    }
+
+    /**
+     * OpenAI Images failures and timeouts name every generation of the request, in request order: each is a
+     * separately paid job, so an error must never leave a charged result unreachable.
+     */
+    private function imagesError(array $payloads, string $message, string $code, int $status): JsonResponse
+    {
+        $ids = array_column($payloads, 'id');
+        if (count($ids) > 1) {
+            $message .= ' This request created '.count($ids).' generations ('.implode(', ', $ids).'); the other generations may still complete or already be available at error.poll_urls.';
+        }
+
+        return response()->json(['error' => ['message' => $message, 'type' => 'server_error', 'code' => $code,
+            'generation_ids' => $ids, 'poll_urls' => array_map($this->pollUrl(...), $ids)]], $status);
+    }
+
+    private function pollUrl(string $id): string
+    {
+        return route('api.media.generations.show', ['id' => $id]);
     }
 
     private function submit(Request $request, array $data): array
@@ -222,6 +242,8 @@ class MediaApiController extends Controller
     {
         return ['object' => 'media.generation', ...array_intersect_key($payload,
             array_flip(['id', 'model', 'operation', 'status', 'stage', 'progress', 'error', 'price_tokens', 'billing_status', 'created_at'])),
+            // The owner's generations from the same multi-image request, in request order; null when this one stands alone.
+            'generation_ids' => $payload['batch']['jobs'] ?? null,
             'outputs' => array_map(static fn (array $output): array => array_intersect_key($output,
                 array_flip(['id', 'kind', 'mime', 'bytes', 'name', 'url', 'signed_url', 'signed_url_expires_at'])), $payload['outputs']),
             'result' => $payload['result_data']];

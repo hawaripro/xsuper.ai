@@ -3,17 +3,14 @@
 namespace Tests\Feature;
 
 use App\Exceptions\InsufficientBalanceException;
-use App\Http\Controllers\Api\ExternalApiController;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ApiKey;
 use App\Models\UsageRate;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\AiProxyService;
 use App\Services\UsageBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -174,24 +171,19 @@ class PricingBillingTest extends TestCase
                 'usage' => ['prompt_tokens' => 1_000_000, 'completion_tokens' => 500_000, 'total_tokens' => 1_500_000],
             ]),
         ]);
-        $proxy = app(AiProxyService::class);
-        $request = Request::create('/v1/chat/completions', 'POST', [
+        $key = ApiKey::generate($user->id);
+
+        $payload = $this->withToken($key->plainKey)->postJson('/v1/chat/completions', [
             'model' => 'model-a',
             'messages' => [['role' => 'user', 'content' => 'hello']],
             'max_tokens' => 1_000_000,
-        ]);
-        $request->attributes->set('api_user', $user);
-        $request->attributes->set('api_key', new ApiKey(['allowed_models' => null]));
-
-        $response = (new ExternalApiController($proxy, app(UsageBillingService::class)))->chatCompletions($request);
-        $this->assertSame(200, $response->getStatusCode());
-        $payload = $response->getData(true);
+        ])->assertOk()->json();
 
         $this->assertEquals(2.0, $payload['usage']['cost_usd']);
         $this->assertEquals(8.0, $payload['usage']['balance_usd']);
         $this->assertSame(8_000_000, Wallet::balance($user->id));
         $this->assertDatabaseHas('usage_logs', [
-            'user_id' => $user->id, 'model' => 'model-a', 'source' => 'api', 'cost_microusd' => 2_000_000,
+            'user_id' => $user->id, 'api_key_id' => $key->id, 'model' => 'model-a', 'source' => 'api', 'cost_microusd' => 2_000_000,
         ]);
         $this->assertDatabaseHas('wallet_transactions', [
             'user_id' => $user->id, 'model' => 'model-a', 'type' => 'settlement', 'amount_microusd' => 0,
@@ -284,7 +276,7 @@ class PricingBillingTest extends TestCase
                 'messages' => [['role' => 'user', 'content' => 'hello']],
                 'max_tokens' => 100,
                 'stream' => $stream,
-            ])->assertUnprocessable()->assertJsonValidationErrors('model');
+            ])->assertStatus(400)->assertJsonPath('error.code', 'model_not_found');
         }
 
         Http::assertNotSent(fn ($request): bool => str_ends_with($request->url(), '/chat/completions'));

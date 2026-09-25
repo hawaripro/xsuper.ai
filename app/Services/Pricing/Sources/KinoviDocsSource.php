@@ -3,6 +3,7 @@
 namespace App\Services\Pricing\Sources;
 
 use App\Models\AiProviderProfile;
+use App\Services\MediaModelConfig;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -26,7 +27,7 @@ final class KinoviDocsSource
                 continue;
             }
             $tier = match ($model->category) { 'image' => '1k', 'avatar' => '480p', 'video' => '720p', default => 'default' };
-            $unit = match ($model->category) { 'video', 'avatar' => 'second', 'audio' => 'request', default => 'generation' };
+            $unit = MediaModelConfig::catalogPriceUnit($model);
             $headers = [];
             $candidates = [];
             foreach (explode("\n", $section[1]) as $line) {

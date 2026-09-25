@@ -4,17 +4,23 @@ namespace Tests\Feature;
 
 use App\Models\AiProviderProfile;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ManualModelVisibilityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_a_manually_created_enabled_model_appears_in_the_chat_picker_immediately(): void
+    public function test_a_manually_created_enabled_model_appears_as_soon_as_paired_prices_are_published(): void
     {
+        Http::preventStrayRequests();
         $admin = User::factory()->create(['role' => 'admin']);
-        $member = User::factory()->create(['permissions' => ['chat' => true], 'expires_at' => now()->addDays(7)]);
+        $member = User::factory()->create([
+            'is_active' => true, 'permissions' => ['chat' => true], 'expires_at' => now()->subDay(),
+        ]);
+        Wallet::credit($member->id, 1_000_000, 'Fixture balance');
         $provider = AiProviderProfile::create([
             'name' => 'Manual QA', 'slug' => 'manual-qa', 'protocol' => 'openai',
             'base_url' => 'https://manual.test/v1', 'is_enabled' => true, 'status' => 'online',
@@ -30,11 +36,19 @@ class ManualModelVisibilityTest extends TestCase
             'is_enabled' => true,
         ])->assertCreated();
 
-        // The admin asserted the model exists; it must be available to features at once.
+        // Manual creation asserts upstream availability, not a sellable chat price.
         $this->assertTrue($created->json('model.is_available'));
 
         $models = $this->actingAs($member)->getJson('/api/c/am')->assertOk()->json('models');
+        $this->assertNotContains('manual-chat-model', array_column($models, 'id'));
+
+        $this->actingAs($admin)->patchJson('/api/admin/ai/models/'.$created->json('model.id'), [
+            'rates' => ['input_tokens' => 1, 'output_tokens' => 2],
+        ])->assertOk();
+
+        $models = $this->actingAs($member)->getJson('/api/c/am')->assertOk()->json('models');
         $this->assertContains('manual-chat-model', array_column($models, 'id'));
+        Http::assertNothingSent();
     }
 
     public function test_a_manually_created_media_model_appears_in_its_studio_picker(): void

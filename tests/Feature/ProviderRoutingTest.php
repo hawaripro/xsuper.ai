@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\ApiKey;
+use App\Models\ChatOperation;
 use App\Models\UsageRate;
 use App\Models\User;
 use App\Models\Wallet;
@@ -101,6 +102,7 @@ class ProviderRoutingTest extends TestCase
     {
         $provider = $this->provider('anthropic');
         $this->model($provider, 'public-stream', 'private-stream');
+        $this->priceChatModel('public-stream');
         $events = [
             ['type' => 'message_start', 'message' => ['id' => 'msg_stream', 'type' => 'message', 'role' => 'assistant', 'model' => 'private-stream', 'content' => [], 'stop_reason' => null, 'stop_sequence' => null, 'usage' => ['input_tokens' => 11, 'output_tokens' => 0]]],
             ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '']],
@@ -111,7 +113,8 @@ class ProviderRoutingTest extends TestCase
             ['type' => 'message_stop'],
         ];
         Http::fake(['https://anthropic.example.test/v1/messages' => Http::response($this->sse($events), 200, ['Content-Type' => 'text/event-stream'])]);
-        $user = User::factory()->create();
+        $user = User::factory()->create(['is_active' => true, 'permissions' => ['chat' => true]]);
+        Wallet::credit($user->id, 1_000_000, 'Fixture balance');
         $response = $this->actingAs($user)->postJson('/api/c/s', [
             'model' => 'public-stream', 'conversation_id' => 'provider-stream', 'messages' => [['role' => 'user', 'content' => 'Hello']],
         ])->assertOk();
@@ -120,15 +123,18 @@ class ProviderRoutingTest extends TestCase
         $this->assertStringNotContainsString('private-stream', $stream);
         $this->assertDatabaseHas('chat_history', ['user_id' => $user->id, 'conversation_id' => 'provider-stream', 'role' => 'assistant', 'content' => 'Hello dunia']);
         $this->assertDatabaseHas('usage_logs', ['user_id' => $user->id, 'model' => 'public-stream', 'prompt_tokens' => 11, 'completion_tokens' => 3]);
+        $this->assertSame(999983, Wallet::balance($user->id));
     }
 
     public function test_incomplete_stream_reports_error_and_preserves_partial_as_failed(): void
     {
         $provider = $this->provider('openai');
         $this->model($provider, 'public-partial', 'private-partial');
+        $this->priceChatModel('public-partial');
         $body = 'data: '.json_encode(['id' => 'chatcmpl-partial', 'model' => 'private-partial', 'choices' => [['index' => 0, 'delta' => ['content' => 'Incomplete answer'], 'finish_reason' => null]]])."\n\n";
         Http::fake(['https://openai.example.test/v1/chat/completions' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
-        $user = User::factory()->create();
+        $user = User::factory()->create(['is_active' => true, 'permissions' => ['chat' => true]]);
+        Wallet::credit($user->id, 1_000_000, 'Fixture balance');
         $response = $this->actingAs($user)->postJson('/api/c/s', [
             'model' => 'public-partial', 'conversation_id' => 'incomplete-stream', 'messages' => [['role' => 'user', 'content' => 'Hello']],
         ])->assertOk();
@@ -139,20 +145,32 @@ class ProviderRoutingTest extends TestCase
             'content' => 'Incomplete answer', 'status' => 'failed',
         ]);
         $this->assertDatabaseMissing('chat_history', ['conversation_id' => 'incomplete-stream', 'role' => 'assistant', 'status' => 'completed']);
-        $this->assertDatabaseMissing('usage_logs', ['user_id' => $user->id, 'model' => 'public-partial']);
+        $operation = ChatOperation::query()->where('user_id', $user->id)->where('conversation_id', 'incomplete-stream')->sole();
+        $cost = $operation->billing['input_estimate'] + 12; // 17 delivered characters estimate to six output tokens at $2/M.
+        $this->assertTrue($operation->billing['estimated']);
+        $this->assertSame('settled', $operation->billing['status']);
+        $this->assertDatabaseHas('usage_logs', [
+            'user_id' => $user->id, 'model' => 'public-partial', 'source' => 'web',
+            'prompt_tokens' => $operation->billing['input_estimate'], 'completion_tokens' => 6, 'cost_microusd' => $cost,
+        ]);
+        $this->assertSame(1_000_000 - $cost, Wallet::balance($user->id));
     }
 
     public function test_disabling_provider_removes_models_and_denies_send_without_upstream_request(): void
     {
         $provider = $this->provider('anthropic');
         $this->model($provider, 'public-disabled', 'private-disabled');
+        $this->priceChatModel('public-disabled');
         $provider->update(['is_enabled' => false]);
-        $user = User::factory()->create();
+        $user = User::factory()->create(['is_active' => true, 'permissions' => ['chat' => true]]);
+        Wallet::credit($user->id, 1_000_000, 'Fixture balance');
         $models = $this->actingAs($user)->getJson('/api/c/am')->assertOk()->json('models');
         $this->assertNotContains('public-disabled', array_column($models, 'id'));
         $this->postJson('/api/c/s', ['model' => 'public-disabled', 'messages' => [['role' => 'user', 'content' => 'Do not send']]])->assertForbidden();
         $this->get('/en/models')->assertOk()->assertDontSee('public-disabled');
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'anthropic.example.test'));
+        $this->assertSame(1_000_000, Wallet::balance($user->id));
+        $this->assertDatabaseCount('chat_operations', 0);
     }
 
     public function test_stream_redacts_split_internal_names_without_corrupting_tool_arguments(): void
@@ -249,6 +267,16 @@ class ProviderRoutingTest extends TestCase
             'provider_id' => $provider->id, 'model_id' => $publicId, 'upstream_model_id' => $upstreamId,
             'display_name' => $publicId, 'category' => 'chat', 'is_enabled' => true, 'is_available' => true,
         ]);
+    }
+
+    private function priceChatModel(string $model): void
+    {
+        foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'model' => $model, 'meter' => $meter, 'label' => $meter,
+                'unit' => '1M tokens', 'price_usd' => $price, 'price_idr' => 16000 * $price, 'is_active' => true,
+            ]);
+        }
     }
 
     private function sse(array $events): string

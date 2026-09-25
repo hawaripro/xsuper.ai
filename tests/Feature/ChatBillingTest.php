@@ -89,7 +89,7 @@ class ChatBillingTest extends TestCase
         $this->answer();
         $this->actingAs($user)->postJson('/api/c/s', $this->input())->assertOk()->streamedContent();
         $billing = ChatOperation::query()->sole()->billing;
-        $expected = (int) floor((2000 - ceil(0.34 * $billing['input_estimate'])) / 1.33);
+        $expected = (int) floor((2000 - ceil(0.5 * $billing['input_estimate']) - 2) / 1.33);
         $this->assertGreaterThanOrEqual(256, $expected);
         $this->assertLessThan(8192, $expected);
         Http::assertSent(fn ($request) => $request['max_tokens'] === $expected);
@@ -218,6 +218,19 @@ class ChatBillingTest extends TestCase
         $this->assertSame(1000000, Wallet::balance($user->id));
         $this->assertDatabaseHas('wallet_transactions', ['type' => 'release', 'reference_id' => 'chat:'.$operation->id]);
         $this->assertSame(0, DB::table('usage_logs')->sum('cost_microusd'));
+    }
+
+    public function test_a_lone_zero_text_before_interruption_is_charged_as_output_not_released(): void
+    {
+        $user = $this->member();
+        $interrupted = 'data: '.json_encode(['choices' => [['delta' => ['content' => '0'], 'finish_reason' => null]]])."\n\n";
+        Http::fake(['https://chat.example.test/v1/chat/completions' => Http::response($interrupted, 200, ['Content-Type' => 'text/event-stream'])]);
+        $this->actingAs($user)->postJson('/api/c/s', $this->input())->assertOk()->streamedContent();
+        $operation = ChatOperation::query()->sole();
+        $this->assertSame(['failed', '0', 'settled'], [$operation->status, $operation->partial_content, $operation->billing['status']]);
+        $cost = (int) ceil(0.34 * $operation->billing['input_estimate']) + 2; // 1 character -> 1 estimated output token -> ceil(1.33).
+        $this->assertSame(1000000 - $cost, Wallet::balance($user->id));
+        $this->assertDatabaseMissing('wallet_transactions', ['type' => 'release']);
     }
 
     public function test_expiry_and_deletion_release_queued_reservations_without_waiting_for_a_stream(): void
