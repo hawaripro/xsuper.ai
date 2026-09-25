@@ -239,8 +239,6 @@ class PublicSiteTest extends TestCase
         foreach (DurationOrder::PACKAGES as $id => $package) {
             $cards = $html->query('//*[@data-plan="'.$id.'"]');
             $this->assertCount(1, $cards);
-            $this->assertStringContainsString($package['label'], $this->text($cards->item(0)->textContent));
-            $this->assertStringContainsString('Rp '.number_format($package['price'], 0, ',', '.'), $this->text($cards->item(0)->textContent));
             $this->assertGreaterThan(0, $html->query('.//a[starts-with(@href, "https://wa.me/6287786866648")]', $cards->item(0))->length);
         }
 

@@ -137,6 +137,8 @@ class AnthropicProtocolTest extends TestCase
             'prompt_tokens' => 12,
             'completion_tokens' => 5,
             'total_tokens' => 17,
+            'cache_read_tokens' => 2,
+            'cache_write_tokens' => 3,
             'prompt_tokens_details' => ['cached_tokens' => 2, 'cache_creation_tokens' => 3],
         ], $result['usage']);
     }
@@ -189,6 +191,7 @@ class AnthropicProtocolTest extends TestCase
         $this->assertSame('{"city":', $events[3]['choices'][0]['delta']['tool_calls'][0]['function']['arguments']);
         $this->assertSame('tool_calls', $events[5]['choices'][0]['finish_reason']);
         $this->assertSame(15, $events[5]['usage']['total_tokens']);
+        $this->assertSame([2, 1], [$events[5]['usage']['cache_read_tokens'], $events[5]['usage']['cache_write_tokens']]);
     }
 
     #[DataProvider('incompleteStreams')]

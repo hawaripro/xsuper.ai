@@ -242,8 +242,9 @@ class DashboardController extends Controller
     private function actions(User $user): array
     {
         $actions = [];
-        // Same rule as EnsureActive/CheckExpiry: only an explicit false is inactive (an unloaded column is null).
-        $hasAccess = $user->is_active !== false && ! $user->isExpired();
+        // Same rule as EnsureActive: only an explicit false is inactive (an unloaded column is null).
+        // Membership expiry never locks tools; usage is gated by permission and balance.
+        $hasAccess = $user->is_active !== false;
 
         if ($hasAccess && $user->hasPermission('chat')) {
             $actions[] = ['key' => 'chat', 'label' => 'Chat AI', 'href' => '/chat'];

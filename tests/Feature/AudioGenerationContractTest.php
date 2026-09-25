@@ -64,6 +64,10 @@ class AudioGenerationContractTest extends TestCase
         $url = $this->getJson('/api/audio/'.$job->job_id)->assertOk()->assertJsonPath('job.billing_status', 'settled')
             ->assertJsonCount(1, 'job.outputs')->json('job.outputs.0.url');
         $this->get($url)->assertOk()->assertHeader('Content-Type', 'audio/wav');
+        // Membership expiry never blocks usage: the expired owner generates again, paid from the token balance.
+        $this->postJson('/api/audio', [
+            'model' => $model->model_id, 'mode' => 'speech', 'prompt' => 'Welcome back to the studio.', 'voice' => 'af_heart', 'speed' => 1,
+        ])->assertAccepted()->assertJsonPath('balance', 150);
         $other = User::factory()->create(['is_active' => true]);
         $this->actingAs($other)->getJson('/api/audio/'.$job->job_id)->assertNotFound();
         $this->get($url)->assertNotFound();

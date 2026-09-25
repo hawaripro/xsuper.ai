@@ -6,23 +6,18 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class CheckExpiry
+/**
+ * Per-feature permission gate for member routes. Membership expiry never blocks usage:
+ * access is decided by the account being active, the feature permission and, at the
+ * point of use, the balance that pays for the work.
+ */
+class EnsureFeatureAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
 
         if ($user && ! $user->isAdmin()) {
-            // Check expired
-            if ($user->isExpired()) {
-                if ($request->expectsJson() || $request->is('api/*')) {
-                    return response()->json([
-                        'message' => 'Akun Anda telah expired. Hubungi administrator untuk perpanjangan.',
-                        'expired' => true,
-                    ], 403);
-                }
-            }
-
             // Check route-specific permissions
             $path = $request->path();
 

@@ -448,7 +448,7 @@ class RealtimeMediaService
         }
         $this->activation->assertNotPaused();
         $price = $model->token_cost;
-        if ($user->is_active === false || $user->isExpired() || ! $this->activation->usesCoordinator($user)
+        if ($user->is_active === false || ! $this->activation->usesCoordinator($user)
             || ! $user->hasPermission('video_generator') || ! is_int($price) || $price < 1 || $price > 2_147_483_647
             || ! in_array(MediaOperation::RealtimeVideo->value, MediaModelConfig::workspaceOperations($user, $model), true)) {
             throw new ImageGenerationException('This operation is unavailable or not permitted for your account.', 403);
