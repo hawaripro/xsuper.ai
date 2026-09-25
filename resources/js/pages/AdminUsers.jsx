@@ -15,9 +15,9 @@ const PERMISSION_LABELS = {
 };
 
 const DEFAULT_PERMS = {
-    chat: true, chat_history: true, image_generator: true, video_generator: false,
+    chat: true, chat_history: true, image_generator: true, video_generator: true,
     audio_generator: true, video_downloader: true, media_converter: true,
-    ai_api: false,
+    ai_api: true,
 };
 
 export default function AdminUsers() {

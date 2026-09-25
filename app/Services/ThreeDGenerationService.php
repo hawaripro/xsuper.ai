@@ -60,7 +60,7 @@ final class ThreeDGenerationService
         $job = DB::transaction(function () use ($user, $model, $operation, $rawInputs, $options, $dedup, $fingerprint): ThreeDJob {
             // Serialize admission and idempotent replay, including terminal jobs, before any debit.
             $owner = User::query()->lockForUpdate()->findOrFail($user->id);
-            if ($owner->is_active === false || $owner->isExpired() || ! $owner->hasPermission('image_generator')) {
+            if ($owner->is_active === false || ! $owner->hasPermission('image_generator')) {
                 throw new ImageGenerationException('3D generation is not available for your account.', 403);
             }
             if (! $this->activation->usesCoordinator($owner)) {

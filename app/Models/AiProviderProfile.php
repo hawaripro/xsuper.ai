@@ -6,12 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class AiProviderProfile extends Model
 {
-    protected $hidden = ['api_key', 'base_url', 'last_error'];
+    protected $hidden = ['api_key', 'base_url', 'last_error', 'cost_currency', 'cost_idr_per_unit', 'cost_note'];
 
     protected $fillable = [
         'slug', 'name', 'status', 'is_enabled', 'capabilities', 'last_checked_at', 'last_error',
         'protocol', 'base_url', 'api_key', 'api_version',
         'catalog_discovered_at', 'authenticated_at',
+        'cost_currency', 'cost_idr_per_unit', 'cost_note',
     ];
 
     protected $attributes = ['protocol' => 'openai', 'api_version' => '2023-06-01'];
@@ -25,6 +26,7 @@ class AiProviderProfile extends Model
             'api_key' => 'encrypted',
             'catalog_discovered_at' => 'datetime',
             'authenticated_at' => 'datetime',
+            'cost_idr_per_unit' => 'decimal:4',
         ];
     }
 
@@ -57,6 +59,9 @@ class AiProviderProfile extends Model
             'configuration_source' => $saved ? 'admin' : 'environment',
             // Runware exposes balance/usage through the admin-only account endpoint; the key itself never leaves the server.
             'supports_account_balance' => $saved && $this->protocol === 'runware',
+            'cost_currency' => $this->cost_currency ?? 'usd',
+            'cost_idr_per_unit' => $this->cost_idr_per_unit === null ? null : (float) $this->cost_idr_per_unit,
+            'cost_note' => $this->cost_note,
             'last_error' => $this->sanitizedLastError(),
         ];
     }

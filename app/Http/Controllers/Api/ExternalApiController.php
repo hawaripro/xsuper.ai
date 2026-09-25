@@ -94,6 +94,7 @@ class ExternalApiController extends Controller
         $model = $body['model'];
         if ($error = $this->modelError($request, $model, true)) { return $error; }
         $user = $request->attributes->get('api_user');
+
         try {
             $protocol = $this->aiProxy->protocolForModel($model);
             if ($protocol === 'fal' && ! empty($body['tools'])) {

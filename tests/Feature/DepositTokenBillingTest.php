@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AuditEvent;
 use App\Models\DepositOrder;
+use App\Models\PricingSetting;
 use App\Models\TokenPackage;
 use App\Models\TokenReservation;
 use App\Models\TokenTransaction;
@@ -151,10 +152,12 @@ class DepositTokenBillingTest extends TestCase
         ])->assertUnprocessable();
     }
 
-    public function test_wallet_checkout_validates_integer_limits_and_snapshots_conversion(): void
+    public function test_wallet_checkout_validates_integer_limits_and_snapshots_the_pricing_wallet_rate(): void
     {
         $user = User::factory()->create();
-        config(['deposits.idr_per_usd' => 16000]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        PricingSetting::current()->update(['wallet_idr_per_usd' => 16000]);
+        $this->actingAs($user)->getJson('/api/deposits/catalog')->assertOk()->assertJsonPath('conversion.idr_per_usd', 16000);
 
         $this->actingAs($user)->postJson('/api/deposits/checkout', [
             'kind' => 'wallet',
@@ -177,12 +180,24 @@ class DepositTokenBillingTest extends TestCase
             ->assertJsonPath('checkout.credit_microusd', 1812500)
             ->json('checkout');
 
-        config(['deposits.idr_per_usd' => 20000]);
-        $this->actingAs($user)->postJson('/api/deposits', [
+        // A new wallet rate prices new checkouts only; the confirmed checkout keeps and credits its snapshot.
+        PricingSetting::current()->update(['wallet_idr_per_usd' => 20000]);
+        $orderId = $this->actingAs($user)->postJson('/api/deposits', [
             'payment_reference' => $checkout['payment_reference'],
         ])->assertCreated()
             ->assertJsonPath('order.idr_per_usd', 16000)
-            ->assertJsonPath('order.credit_microusd', 1812500);
+            ->assertJsonPath('order.credit_microusd', 1812500)
+            ->json('order.id');
+        $this->actingAs($user)->getJson('/api/deposits/catalog')->assertOk()->assertJsonPath('conversion.idr_per_usd', 20000);
+        $this->actingAs($user)->postJson('/api/deposits/checkout', [
+            'kind' => 'wallet',
+            'amount_idr' => 29000,
+        ])->assertCreated()
+            ->assertJsonPath('checkout.idr_per_usd', 20000)
+            ->assertJsonPath('checkout.credit_microusd', 1450000);
+
+        $this->actingAs($admin)->postJson("/api/admin/deposits/{$orderId}/approve")->assertOk();
+        $this->assertSame(1812500, Wallet::balance($user->id));
     }
 
     public function test_admin_approval_credits_snapshot_exactly_once_and_audits_idempotent_replay(): void

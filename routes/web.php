@@ -136,8 +136,8 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/support/tickets', [SupportController::class, 'store']);
         Route::get('/support/tickets/{ticket}', [SupportController::class, 'show']);
         Route::post('/support/tickets/{ticket}/replies', [SupportController::class, 'reply']);
-        // Chat (check expiry)
-        Route::middleware('check.expiry')->group(function () {
+        // Chat (feature permission)
+        Route::middleware('feature.access')->group(function () {
             Route::get('/c/m', [ChatController::class, 'models']);
             Route::get('/c/am', [ChatController::class, 'allModels']);
             Route::post('/c/s', [ChatController::class, 'send']);
@@ -163,7 +163,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::get('/c/artifacts/{artifact}/download', [ChatArtifactController::class, 'download'])->whereUuid('artifact');
             Route::get('/c/artifacts/{artifact}/preview', [ChatArtifactController::class, 'preview'])->whereUuid('artifact');
         });
-        // A running chat response stays observable and stoppable if the subscription expires mid-stream.
+        // A running chat response stays observable and stoppable even if chat access is revoked mid-stream.
         Route::get('/c/operations/{operationId}', [ChatController::class, 'operation'])->whereUuid('operationId');
         Route::post('/c/operations/{operationId}/stop', [ChatController::class, 'stop'])->whereUuid('operationId');
 
@@ -171,7 +171,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/v/{jobId}/cancel', [VideoController::class, 'cancel']);
         Route::get('/v/{jobId}/reference', [VideoController::class, 'reference']);
         Route::delete('/v/{jobId}/reference', [VideoController::class, 'destroyReference']);
-        Route::middleware('check.expiry')->group(function () {
+        Route::middleware('feature.access')->group(function () {
             Route::get('/v/models', [VideoController::class, 'models']);
             Route::post('/v/gen', [VideoController::class, 'generate'])->middleware('storage.available');
             Route::get('/v/history', [VideoController::class, 'history']);
@@ -196,7 +196,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::delete('/media/assets/{asset}', [MediaAssetController::class, 'destroy']);
 
         // Unified capability workspace for every provider operation, plus realtime sessions.
-        Route::middleware('check.expiry')->group(function () {
+        Route::middleware('feature.access')->group(function () {
             Route::get('/media/workspace/models', [WorkspaceMediaController::class, 'models']);
             Route::get('/media/workspace/capabilities', [WorkspaceMediaController::class, 'capabilities']);
             // Storage is checked by the service after replay: a lost response for paid work must stay recoverable.
@@ -205,7 +205,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::post('/media/realtime/sessions', [RealtimeMediaController::class, 'store'])->middleware('throttle:10,1,realtime-session');
             Route::post('/media/realtime/sessions/{session}/input', [RealtimeMediaController::class, 'input'])->whereUuid('session')->middleware('throttle:60,1,realtime-input');
         });
-        // Existing results, cancellation and live-session shutdown remain available after expiry.
+        // Existing results, cancellation and live-session shutdown stay available without the feature permission.
         Route::get('/media/workspace/jobs', [WorkspaceMediaController::class, 'index']);
         Route::delete('/media/workspace/jobs', [WorkspaceMediaController::class, 'clear']);
         Route::get('/media/workspace/jobs/{id}', [WorkspaceMediaController::class, 'show'])->where('id', '[A-Za-z0-9:_-]{1,100}');
@@ -220,25 +220,25 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::post('/media/realtime/sessions/{session}/close', [RealtimeMediaController::class, 'close'])->whereUuid('session');
         Route::post('/media/realtime/sessions/{session}/recording', [RealtimeMediaController::class, 'recording'])->whereUuid('session')->middleware(['storage.available', 'throttle:10,1,realtime-recording']);
 
-        Route::get('/avatar/models', [AvatarController::class, 'models'])->middleware('check.expiry');
-        Route::post('/avatar', [AvatarController::class, 'generate'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
+        Route::get('/avatar/models', [AvatarController::class, 'models'])->middleware('feature.access');
+        Route::post('/avatar', [AvatarController::class, 'generate'])->middleware(['feature.access', 'storage.available', 'throttle:10,1']);
         Route::get('/avatar', [AvatarController::class, 'history']);
         Route::get('/avatar/{jobId}', [VideoController::class, 'status']);
         Route::get('/avatar/{jobId}/asset', [VideoController::class, 'asset']);
         Route::post('/avatar/{jobId}/cancel', [VideoController::class, 'cancel']);
         Route::delete('/avatar/{jobId}', [VideoController::class, 'destroy']);
 
-        Route::get('/3d/models', [ThreeDController::class, 'models'])->middleware('check.expiry');
-        Route::post('/3d', [ThreeDController::class, 'generate'])->middleware(['check.expiry', 'throttle:10,1']);
+        Route::get('/3d/models', [ThreeDController::class, 'models'])->middleware('feature.access');
+        Route::post('/3d', [ThreeDController::class, 'generate'])->middleware(['feature.access', 'throttle:10,1']);
         Route::get('/3d', [ThreeDController::class, 'history']);
         Route::get('/3d/{jobId}', [ThreeDController::class, 'show']);
         Route::get('/3d/{jobId}/asset', [ThreeDController::class, 'asset']);
         Route::post('/3d/{jobId}/cancel', [ThreeDController::class, 'cancel']);
         Route::delete('/3d/{jobId}', [ThreeDController::class, 'destroy']);
 
-        // Existing outputs and cancellation remain recoverable after subscription expiry.
-        Route::get('/audio/models', [AudioController::class, 'models'])->middleware('check.expiry');
-        Route::post('/audio', [AudioController::class, 'generate'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
+        // Existing outputs and cancellation stay recoverable without the generation permission.
+        Route::get('/audio/models', [AudioController::class, 'models'])->middleware('feature.access');
+        Route::post('/audio', [AudioController::class, 'generate'])->middleware(['feature.access', 'storage.available', 'throttle:10,1']);
         Route::get('/audio', [AudioController::class, 'history']);
         Route::get('/audio/{jobId}', [AudioController::class, 'show']);
         Route::post('/audio/{jobId}/cancel', [AudioController::class, 'cancel']);
@@ -249,10 +249,10 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::get('/media-tools/capabilities', [MediaToolController::class, 'capabilities']);
         Route::get('/media-tools', [MediaToolController::class, 'history']);
         Route::delete('/media-tools', [MediaToolController::class, 'destroyAll']);
-        Route::post('/media-tools/inspect', [MediaToolController::class, 'inspect'])->middleware(['check.expiry', 'throttle:20,1']);
-        Route::post('/media-tools/download', [MediaToolController::class, 'download'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
-        Route::post('/media-tools/convert', [MediaToolController::class, 'convert'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
-        Route::post('/media-tools/rembg', [MediaToolController::class, 'removeBackground'])->middleware(['check.expiry', 'storage.available', 'throttle:10,1']);
+        Route::post('/media-tools/inspect', [MediaToolController::class, 'inspect'])->middleware(['feature.access', 'throttle:20,1']);
+        Route::post('/media-tools/download', [MediaToolController::class, 'download'])->middleware(['feature.access', 'storage.available', 'throttle:10,1']);
+        Route::post('/media-tools/convert', [MediaToolController::class, 'convert'])->middleware(['feature.access', 'storage.available', 'throttle:10,1']);
+        Route::post('/media-tools/rembg', [MediaToolController::class, 'removeBackground'])->middleware(['feature.access', 'storage.available', 'throttle:10,1']);
         Route::get('/media-tools/{jobId}', [MediaToolController::class, 'show']);
         Route::delete('/media-tools/{jobId}', [MediaToolController::class, 'destroy']);
         Route::post('/media-tools/{jobId}/cancel', [MediaToolController::class, 'cancel']);

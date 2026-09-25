@@ -378,6 +378,15 @@ Bagian ini adalah prosedur saat deployment disetujui.
 - **Tata letak**: pengumuman CMS selalu paling atas di dashboard, Chat, Studio, dan situs publik; topbar/header turun tepat di bawahnya, dan drawer/menu mobile mulai di bawah pengumuman (sama dengan desktop). Pencarian dashboard berada di tengah topbar.
 - **Aktivitas perangkat (koreksi atas perubahan QA)**: kunci baris user kini hanya dipakai saat perangkat BARU diterima, sehingga admisi perangkat tetap terserialisasi. Aktivitas perangkat yang sudah dikenal ditulis tanpa transaksi, maksimal sekali per menit atau segera saat alamat IP berubah. Sebelumnya setiap request login mengunci baris user dan request paralel satu akun saling antre.
 
+## Harga dan akses berbasis saldo
+
+- `pricing_settings` (baris `id=1`) menyimpan margin, buffer, fee, dan kurs jual dompet. `DEPOSIT_IDR_PER_USD` hanya dipakai untuk nilai awal saat migrasi; checkout berikutnya membaca `wallet_idr_per_usd`. Order deposit lama tetap memakai snapshot kursnya.
+- Modal USD provider yang belum diisi memakai default **Rp19.000/$ sebagai estimasi**, bukan jaminan margin aktual. Biaya berdenominasi kredit tanpa modal per kredit tetap tidak diketahui. Biaya/modal provider hanya muncul dalam payload admin.
+- Membership yang habis tidak mengunci Chat, Studio, API, atau saldo. Akun aktif, verifikasi email, izin fitur, serta saldo/kuota tetap diperiksa.
+- Wallet menyimpan integer micro-USD. Reservasi menyimpan tarif input/output/cache; settlement memakai snapshot tersebut, bukan tarif terbaru. Cache Anthropic adalah bagian dari total input, bukan tambahan yang ditagih dua kali. Cache tanpa tarif tersendiri memakai tarif input.
+- Saldo tidak cukup sebelum panggilan LLM menghasilkan HTTP **402**, tanpa request provider. Usage final hilang/tidak valid atau shortfall tetap menahan reservasi untuk pemeriksaan; jangan mengembalikan saldo seolah-olah provider belum menghasilkan jawaban.
+- Migrasi benefit membership mempertahankan harga yang dikustomisasi. Hanya harga enam bulan lama Rp299.000 diturunkan menjadi Rp259.000; kolom snapshot order lama bernilai nol, tanpa bonus retroaktif.
+
 ## Checklist verifikasi setelah deploy
 - `https://xsuper.dev/up` → 200.
 - Halaman login render (bundel `app-*.js` terbaru terpakai).

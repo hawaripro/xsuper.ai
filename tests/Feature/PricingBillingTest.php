@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Api\ExternalApiController;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
@@ -375,8 +376,8 @@ class PricingBillingTest extends TestCase
         try {
             app(UsageBillingService::class)->reserveApi($admin->id, 'paid-model', 100, 100, 'admin-insufficient-wallet');
             $this->fail('Expected insufficient wallet balance to refuse the reservation.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('wallet', $exception->errors());
+        } catch (InsufficientBalanceException $exception) {
+            $this->assertSame(['wallet', 300, 299], [$exception->kind, $exception->required, $exception->balance]);
         }
 
         $this->assertSame(299, Wallet::balance($admin->id));
