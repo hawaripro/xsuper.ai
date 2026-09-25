@@ -15,9 +15,11 @@ final class FalPricingSource
         $endpoints = [];
         foreach ($models as $model) {
             $native = MediaCostBounds::native($model);
-            $source = $model->capabilityRevisions->sortByDesc('id')->first()?->source_metadata ?? [];
-            $id = $source['endpoint_id'] ?? $model->upstream_model_id ?: $model->model_id;
-            $endpoints[$model->id] = array_values(array_unique(array_filter([$id, $native['reference_model'] ?? null])));
+            $ids = MediaCostBounds::revisions($model)->map(fn ($revision) => $revision->source_metadata['endpoint_id'] ?? null)->filter()->values()->all();
+            if ($ids === []) {
+                $ids[] = $model->upstream_model_id ?: $model->model_id;
+            }
+            $endpoints[$model->id] = array_values(array_unique(array_filter([...$ids, $native['reference_model'] ?? null])));
         }
         $prices = [];
         foreach (array_chunk(array_values(array_unique(array_merge([], ...array_values($endpoints)))), 50) as $batch) {

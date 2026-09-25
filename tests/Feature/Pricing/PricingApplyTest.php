@@ -28,7 +28,7 @@ class PricingApplyTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $member = User::factory()->create();
         TokenPackage::query()->update(['is_active' => false]);
-        TokenPackage::create(['key' => 'pricing-floor', 'name' => 'Pricing floor', 'base_tokens' => 4500, 'bonus_tokens' => 0, 'price_idr' => 399000, 'is_active' => true, 'sort_order' => 1]);
+        TokenPackage::create(['code' => 'pricing-floor', 'name' => 'Pricing floor', 'base_tokens' => 4500, 'bonus_tokens' => 0, 'price_idr' => 399000, 'is_active' => true, 'sort_order' => 1]);
         $provider = AiProviderProfile::create(['name' => 'Fal', 'slug' => 'fal-price', 'protocol' => 'fal', 'base_url' => 'https://fal.run', 'is_enabled' => true, 'status' => 'healthy', 'authenticated_at' => now(), 'cost_currency' => 'usd', 'cost_idr_per_unit' => 19000]);
         $model = $this->model($provider, 'chat-priced', 'chat');
         ModelCost::create(['ai_model_profile_id' => $model->id, 'source' => 'reference', 'currency' => 'usd', 'status' => 'estimate', 'input_per_million' => 3, 'output_per_million' => 15, 'cache_read_per_million' => 0.3]);
@@ -63,7 +63,7 @@ class PricingApplyTest extends TestCase
         $this->assertSame(10, $media->fresh()->token_cost);
         $this->assertSame(10, $revision->fresh()->curation_overrides['pricing']['token_cost']);
         $this->assertTrue($revision->fresh()->hasReviewedPrice(10));
-        $this->assertContains($media->model_id, array_column(app(WorkspaceMediaService::class)->models($member), 'model_id'));
+        $this->assertContains($media->model_id, array_column(app(WorkspaceMediaService::class)->models($member)['models'], 'model_id'));
         $this->assertSame(30, $music->fresh()->token_cost);
         $this->assertEquals(3.44, DurationPackagePrice::where('package', '1_month')->value('price_usd'));
         $this->assertDatabaseHas('pricing_runs', ['id' => $run->id, 'actor_id' => $admin->id]);

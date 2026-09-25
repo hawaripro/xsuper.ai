@@ -132,6 +132,7 @@ final class AutoPricingController extends Controller
             $audit->record($request->user(), 'pricing.model.updated', $model, ['before' => $before, 'after' => $cost->toArray()]);
             return $cost;
         });
+        Cache::forget('public-model-catalog-v3');
         return response()->json(['cost' => $cost]);
     }
 
@@ -146,6 +147,7 @@ final class AutoPricingController extends Controller
             }
         });
         $collector->refreshModels($model->provider, new \Illuminate\Database\Eloquent\Collection([$model->fresh()]));
+        Cache::forget('public-model-catalog-v3');
         return response()->json(['cost' => $model->cost()->first()]);
     }
 

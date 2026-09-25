@@ -88,6 +88,7 @@ class CostCollectorTest extends TestCase
             ['endpoint_id' => FalProtocol::IMAGE_PRO, 'unit_price' => 0.03, 'unit' => 'megapixel', 'currency' => 'USD'],
             ['endpoint_id' => FalProtocol::VIDEO, 'unit_price' => 0.2, 'unit' => 'video', 'currency' => 'USD'],
             ['endpoint_id' => FalProtocol::VIDEO_REFERENCE, 'unit_price' => 0.3, 'unit' => 'video', 'currency' => 'USD'],
+            ['endpoint_id' => FalProtocol::VIDEO, 'unit_price' => 0.8, 'unit' => 'video', 'currency' => 'USD', 'pro' => true],
             ['endpoint_id' => FalProtocol::AVATAR, 'unit_price' => 0.02, 'unit' => 'second', 'currency' => 'USD'],
             ['endpoint_id' => 'fal-ai/gpu', 'unit_price' => 0.01, 'unit' => 'GPU-second', 'currency' => 'USD'],
         ]])]);
@@ -95,7 +96,7 @@ class CostCollectorTest extends TestCase
         $this->assertEquals(0.025, $image->cost()->first()->unit_cost);
         $this->assertGreaterThanOrEqual(0.03 * 1024 * 1792 / 1_000_000, (float) $mp->cost()->first()->unit_cost);
         $this->assertSame('second', $video->cost()->first()->unit);
-        $this->assertEquals(0.15, $video->cost()->first()->unit_cost); // reference option: $0.30 / shortest selectable 2s
+        $this->assertEquals(0.2, $video->cost()->first()->unit_cost); // Pro tier: $0.80 / shortest 2s / Pro ×2
         $this->assertEquals(0.02, $avatar->cost()->first()->unit_cost);
         $this->assertSame('unknown', $gpu->cost()->first()->status);
         Http::assertSent(fn ($request) => $request->hasHeader('Authorization', 'Key test-key') && count(explode(',', $request['endpoint_id'])) <= 50);

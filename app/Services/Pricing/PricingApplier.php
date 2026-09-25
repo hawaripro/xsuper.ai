@@ -117,7 +117,7 @@ final class PricingApplier
                                 }
                             } else {
                                 $rate ??= new UsageRate(['service' => 'api', 'model' => $model->model_id, 'meter' => $meter]);
-                                $rate->fill(['label' => $model->display_name.' '.str_replace('_', ' ', $meter), 'unit' => '1M tokens',
+                                $rate->fill(['label' => mb_substr($model->display_name.' '.str_replace('_', ' ', $meter), 0, 160), 'unit' => '1M tokens',
                                     'price_usd' => number_format($usd, 8, '.', ''), 'price_idr' => number_format($this->engine->idrForUsd($usd), 6, '.', ''),
                                     'is_active' => $model->is_enabled, 'sort_order' => $rate->sort_order ?? $model->sort_order ?? 0]);
                                 $rates->put($meter, $rate);
@@ -176,7 +176,10 @@ final class PricingApplier
 
     private function query(): Builder
     {
-        return AiModelProfile::query()->with(['provider', 'cost', 'capabilityRevisions']);
+        return AiModelProfile::query()->with(['provider', 'cost', 'capabilityRevisions' => fn ($q) => $q
+            ->select(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'status', 'curation_overrides', 'reviewed_at', 'published_at',
+                'provider_bindings->adapter as adapter', 'source_metadata->pricing->catalog_unit as catalog_unit'])
+            ->selectRaw('source_schema IS NOT NULL as source_backed')]);
     }
 
     private function emptySummary(): array

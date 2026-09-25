@@ -15,6 +15,13 @@ class DashboardLocaleCatalogTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+        Http::preventStrayRequests();
+    }
+
     public function test_all_english_dashboard_entry_routes_return_the_spa(): void
     {
         $paths = [
@@ -134,11 +141,17 @@ class DashboardLocaleCatalogTest extends TestCase
     {
         config()->set(['services.ai_proxy.url' => 'https://catalog.example.test', 'services.ai_proxy.key' => 'fixture-secret']);
         $provider = AiProviderProfile::create(['slug' => 'ai-proxy', 'name' => 'AI Proxy', 'is_enabled' => true]);
-        Http::fake(['*' => Http::response(['data' => [[
-            'id' => 'vision-context-model', 'name' => 'Vision Context Model', 'owned_by' => 'Model Maker',
-            'category' => 'chat', 'context_length' => 128000,
-            'max_output_tokens' => 8192, 'input_modalities' => ['text', 'image'], 'output_modalities' => ['text'],
-        ]]])]);
+        Http::fake([
+            'https://catalog.example.test/v1/models' => Http::response(['data' => [[
+                'id' => 'vision-context-model', 'name' => 'Vision Context Model', 'owned_by' => 'Model Maker',
+                'category' => 'chat', 'context_length' => 128000,
+                'max_output_tokens' => 8192, 'input_modalities' => ['text', 'image'], 'output_modalities' => ['text'],
+            ]]]),
+            'https://openrouter.ai/api/v1/models' => Http::response(['data' => [
+                ['id' => 'vision-context-model', 'architecture' => ['output_modalities' => ['text']], 'pricing' => ['prompt' => '0.000003', 'completion' => '0.000015']],
+            ]]),
+            '*litellm*' => Http::response([]),
+        ]);
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->postJson('/api/admin/ai/providers/'.$provider->id.'/sync')->assertOk();
         $model = AiModelProfile::where('model_id', 'vision-context-model')->firstOrFail();

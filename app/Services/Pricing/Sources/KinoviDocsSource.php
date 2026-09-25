@@ -47,6 +47,14 @@ final class KinoviDocsSource
                     continue;
                 }
                 $column = array_search($tier, array_map('strtolower', $headers), true);
+                if ($column === false && $model->category === 'image') {
+                    foreach (['2k', '4k', '8k'] as $floorTier) {
+                        $column = array_search($floorTier, array_map('strtolower', $headers), true);
+                        if ($column !== false) {
+                            break;
+                        }
+                    }
+                }
                 $creditsColumn = array_search('credits', array_map('strtolower', $headers), true);
                 if ($column !== false) {
                     $cell = $cells[$column] ?? '';

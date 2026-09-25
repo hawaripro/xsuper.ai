@@ -37,12 +37,12 @@ final class CostCollector
     /** Sync refreshes new models only; existing manual and automatically curated prices stay intact. */
     public function refreshModels(AiProviderProfile $provider, Collection $models): array
     {
-        $models->loadMissing(['cost', 'provider', 'capabilityRevisions']);
+        $models = (new \Illuminate\Database\Eloquent\Collection($models->all()))->loadMissing(['cost', 'provider', 'capabilityRevisions']);
         $summary = ['ok' => 0, 'estimate' => 0, 'unknown' => 0, 'manual_skipped' => $models->filter(fn ($model) => $model->cost?->isManual())->count()];
         $models = $models->reject(fn ($model) => $model->cost?->isManual());
         $chat = $models->where('category', 'chat');
         $media = $models->where('category', '!=', 'chat');
-        $runwareChat = $provider->protocol === 'openai' && strtolower((string) parse_url($provider->base_url, PHP_URL_HOST)) === 'api.runware.ai';
+        $runwareChat = $provider->protocol === 'openai' && strtolower((string) parse_url((string) $provider->base_url, PHP_URL_HOST)) === 'api.runware.ai';
         $costs = $runwareChat ? $this->runware->collect($provider, $chat) : $this->reference->collect($provider, $chat);
         $costs += match ($provider->protocol) {
             'fal' => $this->fal->collect($provider, $media),

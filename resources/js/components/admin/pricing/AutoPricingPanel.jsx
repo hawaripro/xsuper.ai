@@ -43,7 +43,7 @@ export default function AutoPricingPanel({ onApplied }) {
         const result = await apiRequest("/api/admin/pricing/auto", { signal });
         if (signal?.aborted) return;
         setData(result);
-        setDraft(draftOf(result.settings));
+        setDraft((current) => current ?? draftOf(result.settings));
         setLoadError("");
     }, []);
     const preview = useCallback(async (signal) => {
@@ -83,7 +83,8 @@ export default function AutoPricingPanel({ onApplied }) {
     const saveSettings = async (event) => {
         event.preventDefault();
         const body = Object.fromEntries(settingFields.map(([key]) => [key, draft[key] === "" ? null : Number(draft[key])]));
-        await mutate("/api/admin/pricing/auto/settings", { ...body, round_tokens: draft.round_tokens }, "Settings saved. Review the updated preview.", "PUT");
+        const result = await mutate("/api/admin/pricing/auto/settings", { ...body, round_tokens: draft.round_tokens }, "Settings saved. Review the updated preview.", "PUT");
+        if (result) setDraft(draftOf(result.settings));
     };
     const apply = async () => {
         const result = await mutate("/api/admin/pricing/auto/apply", { confirm: true }, "Sale prices applied.");

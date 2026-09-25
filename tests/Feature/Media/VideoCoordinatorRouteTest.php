@@ -37,7 +37,7 @@ class VideoCoordinatorRouteTest extends TestCase
 
         return AiModelProfile::create([
             'provider_id' => $provider->id, 'model_id' => FalProtocol::VIDEO, 'upstream_model_id' => FalProtocol::VIDEO,
-            'display_name' => 'LongCat', 'category' => 'video', 'token_cost' => 200, 'is_enabled' => true, 'is_available' => true,
+            'display_name' => 'LongCat', 'category' => 'video', 'token_cost' => 40, 'is_enabled' => true, 'is_available' => true,
         ]);
     }
 
@@ -130,6 +130,21 @@ class VideoCoordinatorRouteTest extends TestCase
         }
         $this->assertStringNotContainsString('Create variation', $jobs[0]->prompt);
         $this->assertStringContainsString('Create variation 2', $jobs[1]->prompt, 'variation only differentiates the later videos');
+    }
+
+    public function test_kinovi_native_video_charges_the_selected_seconds(): void
+    {
+        Queue::fake();
+        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        $provider = AiProviderProfile::create(['name' => 'Kinovi', 'slug' => 'kinovi', 'protocol' => 'kinovi', 'base_url' => 'https://kinovi.ai', 'api_key' => 'fake', 'is_enabled' => true]);
+        AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'seedance-20', 'upstream_model_id' => 'seedance-20',
+            'display_name' => 'Seedance', 'category' => 'video', 'token_cost' => 7, 'is_enabled' => true, 'is_available' => true]);
+        $user = $this->member();
+        $body = ['operation' => 'text_to_video', 'model' => 'seedance-20', 'prompt' => 'A garden', 'aspect_ratio' => '16:9'];
+        $this->actingAs($user)->postJson('/api/v/gen', [...$body, 'duration' => 5, 'expected_price_tokens' => 35])
+            ->assertAccepted()->assertJsonPath('tokens_used', 35);
+        $this->postJson('/api/v/gen', [...$body, 'duration' => 10, 'expected_price_tokens' => 70])
+            ->assertAccepted()->assertJsonPath('tokens_used', 70)->assertJsonPath('balance', 895);
     }
 
     public function test_coordinator_reference_stays_viewable_and_owner_gated(): void

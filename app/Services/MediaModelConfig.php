@@ -175,7 +175,7 @@ final class MediaModelConfig
         }
         $nativeVideo = $model->provider?->protocol === 'fal'
             ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
-        if ($model->category === 'video' && ($nativeVideo['price_unit'] ?? null) === 'second') {
+        if (($nativeVideo['price_unit'] ?? null) === 'second') {
             return 'second';
         }
         if ($model->provider?->protocol !== 'fal') {

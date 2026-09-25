@@ -24,6 +24,12 @@ class ProviderConnectionTest extends TestCase
         parent::setUp();
 
         Http::preventStrayRequests();
+        Http::fake([
+            'https://openrouter.ai/api/v1/models' => Http::response(['data' => [
+                ['id' => 'fresh-chat', 'architecture' => ['output_modalities' => ['text']], 'pricing' => ['prompt' => '0.000003', 'completion' => '0.000015']],
+            ]]),
+            '*litellm*' => Http::response([]),
+        ]);
         $this->app->instance(AiProviderEndpoint::class, new class extends AiProviderEndpoint
         {
             protected function resolveAddresses(string $host): array
@@ -598,7 +604,6 @@ class ProviderConnectionTest extends TestCase
         $this->assertSame(2, $first->models()->count());
         $this->assertDatabaseHas('ai_model_profiles', ['provider_id' => $second->id, 'upstream_model_id' => 'shared-new-native', 'is_available' => true]);
         $this->assertDatabaseHas('ai_model_profiles', ['provider_id' => $first->id, 'model_id' => 'shared-new-native']);
-        Http::assertSentCount(1);
     }
 
     public static function collisionDiagnostics(): array

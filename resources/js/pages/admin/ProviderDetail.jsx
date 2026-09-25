@@ -8,6 +8,7 @@ import GenerationConfigFields, { generationConfigDraft, parseGenerationConfig } 
 import { LoadingState, ErrorState } from "../../components/dashboard/AsyncState";
 import MediaActionDialog from "../../components/MediaActionDialog";
 import { capabilityStatuses } from "../../components/dashboard/CatalogRevisionPanel";
+import ProviderCostCard from "../../components/admin/pricing/ProviderCostCard";
 
 const mediaCategories = ["image", "video", "audio", "avatar", "model3d", "other"];
 const count = (value) => new Intl.NumberFormat("id-ID").format(Number(value || 0));
@@ -180,8 +181,6 @@ export default function ProviderDetail() {
     const [confirmation, setConfirmation] = useState(null);
     const [modelEditor, setModelEditor] = useState(null);
     const [providerOp, setProviderOp] = useState({ busy: false, error: "", success: "" });
-    const [autoPrice, setAutoPrice] = useState({ margin: "40", idr: "16000", overwrite: false });
-    const [autoState, setAutoState] = useState({ busy: false, error: "", success: "" });
     const [mutation, setMutation] = useState({ busy: false, error: "", success: "", fields: {} });
     const discoveryInFlight = useRef(false);
     const currentProviderId = useRef(providerId);
@@ -476,23 +475,6 @@ export default function ProviderDetail() {
         }
     };
 
-    const runAutoPrice = async () => {
-        setAutoState({ busy: true, error: "", success: "" });
-        try {
-            const result = await apiRequest("/api/pricing/rates/auto", {
-                method: "POST",
-                body: {
-                    margin: 1 + (Number(autoPrice.margin) / 100),
-                    idr_per_usd: Number(autoPrice.idr),
-                    overwrite: autoPrice.overwrite,
-                },
-            });
-            setAutoState({ busy: false, error: "", success: `${t("Harga input & output dibuat otomatis.")} ${count(result?.updated_count ?? 0)} ${t("tarif ditulis.")}` });
-            await loadCatalog();
-        } catch (error) {
-            setAutoState({ busy: false, success: "", error: t(error.message || "Gagal membuat harga otomatis.") });
-        }
-    };
 
     if (catalog.loading && !catalog.data) return <div className="ui-card-flat p-6"><LoadingState label={t("Memuat penyedia…")} /></div>;
     if (catalog.error && !catalog.data) return <div className="ui-card-flat p-6"><ErrorState message={catalog.error} onRetry={() => loadCatalog()} /></div>;
@@ -698,32 +680,7 @@ export default function ProviderDetail() {
                         </div>
                     </div>
 
-                    <div className="ui-card-flat p-4">
-                        <h2 className="ui-section-title">{t("Harga otomatis")}</h2>
-                        <p className="mt-1 max-w-prose text-xs leading-5 text-slate-600 dark:text-slate-400">
-                            {t("Isi harga input dan output untuk semua model chat sekaligus, dihitung dari tarif dasar ditambah margin. Tidak perlu mengetik satu per satu.")}
-                        </p>
-                        <div className="mt-3 grid max-w-md grid-cols-2 gap-3">
-                            <label className="text-xs font-medium">{t("Margin (%)")}
-                                <input className="ui-input mt-1 min-h-10" type="number" min="0" max="500" value={autoPrice.margin}
-                                    onChange={(event) => setAutoPrice((current) => ({ ...current, margin: event.target.value }))} />
-                            </label>
-                            <label className="text-xs font-medium">{t("Kurs IDR per USD")}
-                                <input className="ui-input mt-1 min-h-10" type="number" min="1" value={autoPrice.idr}
-                                    onChange={(event) => setAutoPrice((current) => ({ ...current, idr: event.target.value }))} />
-                            </label>
-                        </div>
-                        <label className="mt-3 flex items-center gap-2 text-xs">
-                            <input type="checkbox" checked={autoPrice.overwrite}
-                                onChange={(event) => setAutoPrice((current) => ({ ...current, overwrite: event.target.checked }))} />
-                            {t("Timpa harga yang sudah ada")}
-                        </label>
-                        {autoState.error && <p className="ui-alert mt-3" data-tone="bad">{autoState.error}</p>}
-                        {autoState.success && <p className="ui-alert mt-3" data-tone="good">{autoState.success}</p>}
-                        <button type="button" className="ui-btn-primary mt-3" disabled={autoState.busy} onClick={runAutoPrice}>
-                            {autoState.busy ? t("Memproses...") : t("Buat harga otomatis")}
-                        </button>
-                    </div>
+                    <ProviderCostCard providerId={provider.id} />
                 </section>
             )}
 

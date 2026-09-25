@@ -212,7 +212,7 @@ class AiCatalogController extends Controller
         $publish = $request->boolean('publish', true);
 
         $newIds = [];
-        $provider = DB::transaction(function () use ($models, $provider, $connection, $publish, &$newIds): AiProviderProfile {
+        $provider = DB::transaction(function () use ($models, $provider, $connection, $publish, $request, $audit, &$newIds): AiProviderProfile {
             $provider = $this->lockConnection($provider, $connection);
             $provider->update([
                 'status' => $provider->protocol === 'kinovi' ? 'discovered' : 'healthy',
@@ -263,15 +263,16 @@ class AiCatalogController extends Controller
                 $missingModels->whereNotIn('id', $seenIds);
             }
             $missingModels->update(['is_available' => false]);
+            $audit->record($request->user(), 'ai_catalog.synced', $provider, [
+                'models_synced' => count($models), 'new_model_ids' => $newIds,
+            ]);
 
             return $provider;
         });
         $newModels = AiModelProfile::query()->whereKey($newIds)->with(['provider', 'capabilityRevisions', 'cost'])->get();
         app(CostCollector::class)->refreshModels($provider, $newModels);
         $pricing = app(PricingApplier::class)->applyTo($newModels, $request->user());
-        $audit->record($request->user(), 'ai_catalog.synced', $provider, [
-            'models_synced' => count($models), 'pricing' => $pricing,
-        ]);
+        $audit->record($request->user(), 'pricing.sync.applied', $provider, $pricing);
 
         Cache::forget('public-model-catalog-v3');
 
