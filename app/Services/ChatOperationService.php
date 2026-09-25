@@ -55,7 +55,7 @@ You can honestly say your model name (Claude, GPT, etc) and creator (Anthropic, 
     /** Admission is the only place that inserts messages or permits a provider attempt. */
     public function admit(User $user, array $input): array
     {
-        abort_unless($user->hasPermission('chat') && ($user->isAdmin() || ($user->is_active !== false && ! $user->isExpired())), 403, 'Chat access is unavailable.');
+        abort_unless($user->hasPermission('chat') && ($user->isAdmin() || $user->is_active !== false), 403, 'Chat access is unavailable.');
         $requestId = $input['client_request_id'] ?? (string) Str::uuid();
         $conversationKey = $input['conversation_id'] ?? 'request-'.$requestId;
         $selectedTools = $input['tools'] ?? [];

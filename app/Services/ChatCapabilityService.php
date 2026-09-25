@@ -55,8 +55,8 @@ class ChatCapabilityService
 
     public function resolve(User $user, string $model): array
     {
-        // `is_active === false` mirrors EnsureActive/CheckExpiry: an unloaded column is null, not inactive.
-        abort_unless($user->hasPermission('chat') && ($user->isAdmin() || ($user->is_active !== false && ! $user->isExpired())), 403, 'Chat access is unavailable.');
+        // `is_active === false` mirrors EnsureActive: an unloaded column is null, not inactive.
+        abort_unless($user->hasPermission('chat') && ($user->isAdmin() || $user->is_active !== false), 403, 'Chat access is unavailable.');
         abort_if(! $user->isAdmin() && ! in_array($model, UsageRate::sellableModelIds(), true), 422, 'Harga model ini belum tersedia.');
         $public = collect($this->models($user))->firstWhere('id', $model);
         abort_unless($public, 403, 'The selected chat model is unavailable.');

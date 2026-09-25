@@ -31,9 +31,10 @@ class VerifyApiKey
         }
 
         $user = $apiKey->user;
-        if (! $user || $user->isExpired() || $user->is_active === false) {
+        // Membership expiry never blocks the API: usage is paid from Saldo AI at request time.
+        if (! $user || $user->is_active === false) {
             return response()->json([
-                'error' => ['message' => 'Account expired or disabled', 'type' => 'authentication_error'],
+                'error' => ['message' => 'Account disabled', 'type' => 'authentication_error'],
             ], 403);
         }
 

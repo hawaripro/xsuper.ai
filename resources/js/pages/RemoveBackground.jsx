@@ -55,7 +55,6 @@ export default function RemoveBackground() {
     const uploadLimit = Number(queue.capabilities?.limits?.max_upload_bytes ?? 128 * 1024 * 1024);
     const busy = queue.submitting;
     const account = user;
-    const expired = !isAdmin && account?.is_expired;
     const canUse = isAdmin || account?.permissions?.media_converter !== false;
 
     const chooseFile = (event) => {
@@ -112,7 +111,6 @@ export default function RemoveBackground() {
             </header>
 
             {!canUse && <div className="mt-notice mt-notice--error" role="alert">{t("Akun Anda tidak memiliki izin untuk membuat pekerjaan baru di alat ini. Riwayat milik Anda tetap dapat diperiksa.")}</div>}
-            {expired && <div className="mt-notice mt-notice--warning" role="status">{t("Masa aktif akun berakhir. Perpanjang akses untuk membuat pekerjaan baru; hasil lama tetap dapat diperiksa.")}</div>}
             {queue.capabilityError && <div className="mt-notice mt-notice--error" role="alert">{t(errorMessage(queue.capabilityError))} <button type="button" className="mt-text-button" onClick={queue.loadCapabilities}>{t("Coba periksa lagi")}</button></div>}
             {runtimeUnavailable && <div className="mt-notice" role="status"><strong>{t("Alat belum tersedia di server ini.")}</strong> <button type="button" className="mt-text-button" onClick={queue.loadCapabilities}>{t("Periksa ketersediaan")}</button></div>}
 
@@ -134,7 +132,7 @@ export default function RemoveBackground() {
                         <div className="mt-submit-area">
                             {queue.submitError && !queue.recovery && <div className="mt-notice mt-notice--error" role="alert">{t(errorMessage(queue.submitError))}</div>}
                             {queue.submitting && <div className="mt-upload-status" role="status"><strong>{t("Mengunggah gambar…")}</strong><progress aria-label={t("Mengunggah gambar")} /></div>}
-                            <button type="submit" className="mt-button mt-button--primary mt-submit-button" disabled={!available || busy || !file || !canUse || expired}>
+                            <button type="submit" className="mt-button mt-button--primary mt-submit-button" disabled={!available || busy || !file || !canUse}>
                                 <Icon path={<><path d="M3 3l18 18M9 4h9a2 2 0 0 1 2 2v9M4 9v9a2 2 0 0 0 2 2h9" /></>} />{t(busy ? "Menunggu konfirmasi…" : "Hapus latar")}
                             </button>
                             <p className="mt-submit-note">{isAdmin ? t("Generasi admin gratis, tanpa token.") : `${t("Menggunakan")} ${tokens} ${t("token generator per gambar. Token dikembalikan bila gagal.")}`}</p>

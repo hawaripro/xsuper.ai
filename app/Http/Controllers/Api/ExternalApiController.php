@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\AiProxyException;
+use App\Exceptions\InsufficientBalanceException;
+use App\Http\Api\ApiErrorResponse;
 use App\Http\Controllers\Controller;
 use App\Models\UsageLog;
 use App\Models\Wallet;
@@ -104,13 +106,17 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         // Providers differ in which forwarded output limit they honor, so reserve for the larger one.
         $maximumOutput = max((int) ($validated['max_completion_tokens'] ?? 0), (int) ($validated['max_tokens'] ?? 0)) ?: 4096;
         $options = array_diff_key($validated, array_flip(['model', 'messages', 'stream']));
-        $reservation = $this->billing->reserveApi(
-            $user->id,
-            $requestedModel,
-            $this->billing->estimateInputTokens($messages, $options),
-            $maximumOutput,
-            'api:'.Str::uuid(),
-        );
+        try {
+            $reservation = $this->billing->reserveApi(
+                $user->id,
+                $requestedModel,
+                $this->billing->estimateInputTokens($messages, $options),
+                $maximumOutput,
+                'api:'.Str::uuid(),
+            );
+        } catch (InsufficientBalanceException $exception) {
+            return ApiErrorResponse::insufficientBalance($exception, ApiErrorResponse::OPENAI);
+        }
         if ($validated['stream'] ?? false) {
             return $this->handleStreamingRequest($user, $requestedModel, $messages, $options, $reservation, $maximumOutput);
         }
@@ -269,13 +275,17 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
             'stop' => $validated['stop_sequences'] ?? null,
         ], static fn ($value) => $value !== null);
 
-        $reservation = $this->billing->reserveApi(
-            $user->id,
-            $requestedModel,
-            $this->billing->estimateInputTokens($messages, $options),
-            $maximumOutput,
-            'api:'.Str::uuid(),
-        );
+        try {
+            $reservation = $this->billing->reserveApi(
+                $user->id,
+                $requestedModel,
+                $this->billing->estimateInputTokens($messages, $options),
+                $maximumOutput,
+                'api:'.Str::uuid(),
+            );
+        } catch (InsufficientBalanceException $exception) {
+            return ApiErrorResponse::insufficientBalance($exception, ApiErrorResponse::ANTHROPIC);
+        }
 
         if ($validated['stream'] ?? false) {
             return $this->handleAnthropicStream($user, $requestedModel, $messages, $options, $reservation, $maximumOutput);
