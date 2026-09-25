@@ -27,9 +27,9 @@ class ApiKeyAccessTest extends TestCase
     public function test_unverified_disabled_and_revoked_credentials_use_endpoint_envelopes(): void
     {
         [$user, $key] = $this->apiFixture();
-        $user->update(['email_verified_at' => null]);
+        $user->forceFill(['email_verified_at' => null])->save();
         $this->withToken($key->plainKey)->postJson('/v1/messages', [])->assertForbidden()->assertJsonPath('type', 'error')->assertJsonPath('error.type', 'permission_error');
-        $user->update(['email_verified_at' => now(), 'is_active' => false]);
+        $user->forceFill(['email_verified_at' => now(), 'is_active' => false])->save();
         $this->getJson('/v1/models')->assertForbidden()->assertJsonStructure(['error' => ['message', 'type', 'code']]);
         $user->update(['is_active' => true]);
         $key->update(['is_active' => false]);

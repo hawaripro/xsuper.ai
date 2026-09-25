@@ -510,8 +510,10 @@ final class AiProviderTransport
             throw new AiProxyException('The selected model does not support native Messages.', 400);
         }
         $response = $this->send('POST', $connection['base_url'].'/messages', $connection, $payload, headers: $headers);
-        $data = $response->json();
-        if (! is_array($data) || ($data['type'] ?? null) !== 'message' || ! is_array($data['content'] ?? null)) {
+        // Decode only the envelope as an array; native tool input {} must not become [] in our response.
+        $data = (array) json_decode($response->body());
+        if (($data['type'] ?? null) !== 'message' || ! is_array($data['content'] ?? null)
+            || ! is_string($data['stop_reason'] ?? null) || $data['stop_reason'] === '') {
             throw new AiProxyException('The AI provider returned an invalid response.', 502);
         }
 

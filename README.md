@@ -68,11 +68,21 @@ An earlier QA run inherited Windows database settings and reset the former worki
 
 ### Paid usage and admin earnings
 
-New image and video generation charges generator tokens for admins and members alike. PAYG API requests require an active price snapshot, reserve wallet credit before provider execution, and settle from reported usage. Explicitly published zero API rates remain valid; a missing rate is not treated as free. Historical admin-free reservations keep their original billing snapshots and are not retroactively charged.
+New image and video generation charges generator tokens for admins and members alike. PAYG API requests require active positive input and output prices, reserve wallet credit before provider execution, and settle from cache-aware reported usage. Missing or zero price references are not sellable. Historical admin-free reservations keep their original billing snapshots and are not retroactively charged.
 
 **Admin → Overview → Usage earnings** reports settled PAYG API charges in USD and consumed generator tokens separately, with month selection and model breakdowns. Deposits and subscription payments are not usage earnings. Reserved, released, refunded, and historical admin-free generator amounts are excluded. Token consumption is not converted into invented fiat revenue or net profit.
 
-Completed API responses with missing/invalid usage or insufficient final balance keep their original reservation; they are not converted into free answers or silently capped charges. JSON returns a billing error; SSE emits a billing error without a successful terminal event. Explicit zero usage remains valid. Genuine upstream failures and incomplete streams release the reservation. Rates are snapshotted in the reservation ledger. Held cases require operator investigation of the ledger and provider usage before settlement or release; there is no automatic reconciliation screen or paid resubmission.
+Completed API responses with missing/invalid usage or insufficient final balance keep their original reservation; they are not converted into free answers or silently capped charges. JSON returns a billing error; SSE emits a billing error without a successful terminal event. Explicit zero usage remains valid. An upstream failure before any output releases the reservation; an interrupted stream after output retains it. Rates are snapshotted in the reservation ledger. Held cases require operator investigation of the ledger and provider usage before settlement or release; there is no automatic reconciliation screen or paid resubmission.
+
+### Member developer API
+
+Verified, active members with the `ai_api` permission manage up to ten active keys from **API** (`/api-access`, `/en/api-access`). Creation shows the plaintext key once; later lists expose only its prefix, request count, and 30-day usage charges. Revoke stops access immediately, while deletion preserves historical usage with a null key reference. Apply additive migration `2026_09_26_000300_add_api_key_to_usage_logs` with the pricing foundation before deploying these endpoints. Neither membership expiry nor browser-device limits apply to API-key requests.
+
+Use `Authorization: Bearer <key>` or `x-api-key: <key>`. Claude Code uses `ANTHROPIC_BASE_URL=https://api.xsuper.dev`, `ANTHROPIC_AUTH_TOKEN=<key>`, and a public model ID from `/v1/models`. OpenAI-compatible clients use `https://api.xsuper.dev/v1`. The member page includes model selection, copyable Claude Code/Cursor/Cline/Roo/Kilo setup, curl examples, and sellable model prices in USD and IDR.
+
+`POST /v1/messages` supports tool-use/tool-result round trips, images, native cache controls and thinking signatures, and incremental tool JSON deltas. Native Anthropic requests bypass translation; native SSE keeps protocol events intact except for private routing/metadata removal. OpenAI-compatible routes bridge to Messages, omitting thinking blocks and unsupported `top_k`. No API endpoint injects an XSuper system prompt, trims client text, or rewrites empty JSON objects/results. `POST /v1/messages/count_tokens` estimates input without charging. `/v1/models` includes only available, sellable models allowed by the key; `anthropic-version` selects its Anthropic list shape.
+
+Validation errors return HTTP 400 in the endpoint family's envelope; unknown/unsellable OpenAI model IDs use `model_not_found`. Insufficient Saldo AI returns HTTP 402 (`billing_error` for Messages, `insufficient_quota` / `insufficient_balance` for OpenAI). OpenAI usage responses include `cost_usd` and `balance_usd`. Both families bill cached input at the snapshot's cache rate, falling back to the input rate when no cache rate is configured.
 
 ### Account and device security
 

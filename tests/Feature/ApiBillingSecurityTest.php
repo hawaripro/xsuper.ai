@@ -93,6 +93,8 @@ class ApiBillingSecurityTest extends TestCase
                 $body .= "data: [DONE]\n\n";
             }
         }
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::preventStrayRequests();
         Http::fake([self::COMPLETION_URL => Http::response($body, 200, ['Content-Type' => $stream ? 'text/event-stream' : 'application/json'])]);
     }
 
@@ -156,7 +158,7 @@ class ApiBillingSecurityTest extends TestCase
             $this->assertStringNotContainsString('data: [DONE]', $body);
             $this->assertStringNotContainsString('event: message_stop', $body);
         } else {
-            $response->assertUnprocessable()->assertJsonValidationErrors('wallet');
+            $response->assertStatus(502)->assertJsonPath('error.type', 'billing_error');
         }
         $this->assertReservationHeld($user, 10000);
     }
@@ -174,7 +176,7 @@ class ApiBillingSecurityTest extends TestCase
             $this->assertStringNotContainsString('data: [DONE]', $body);
             $this->assertStringNotContainsString('event: message_stop', $body);
         } else {
-            $response->assertUnprocessable()->assertJsonValidationErrors('usage');
+            $response->assertStatus(502)->assertJsonPath('error.type', 'billing_error');
         }
         $this->assertReservationHeld($user, 10000);
     }
@@ -255,7 +257,7 @@ class ApiBillingSecurityTest extends TestCase
                 $this->assertStringNotContainsString('data: [DONE]', $body);
                 $this->assertStringNotContainsString('event: message_stop', $body);
             } else {
-                $response->assertUnprocessable()->assertJsonValidationErrors('usage');
+                $response->assertStatus(502)->assertJsonPath('error.type', 'billing_error');
             }
             $this->assertReservationHeld($user, 10000);
         }
@@ -279,7 +281,7 @@ class ApiBillingSecurityTest extends TestCase
     }
 
     #[DataProvider('nativeVariants')]
-    public function test_native_upstream_failures_and_incomplete_results_still_refund(string $protocol, string $path, bool $stream): void
+    public function test_native_failures_release_only_before_output(string $protocol, string $path, bool $stream): void
     {
         foreach ([true, false] as $httpFailure) {
             $user = $this->account(10000);
@@ -293,8 +295,12 @@ class ApiBillingSecurityTest extends TestCase
             } else {
                 $response->assertStatus(502);
             }
-            $this->assertSame(10000, Wallet::balance($user->id));
-            $this->assertSame(1, WalletTransaction::where('user_id', $user->id)->where('type', 'release')->count());
+            if ($stream && ! $httpFailure && $protocol === 'anthropic') {
+                $this->assertReservationHeld($user, 10000);
+            } else {
+                $this->assertSame(10000, Wallet::balance($user->id));
+                $this->assertSame(1, WalletTransaction::where('user_id', $user->id)->where('type', 'release')->count());
+            }
             $this->assertDatabaseMissing('wallet_transactions', ['user_id' => $user->id, 'type' => 'settlement']);
         }
     }
@@ -346,7 +352,7 @@ class ApiBillingSecurityTest extends TestCase
         $this->assertDatabaseMissing('usage_logs', ['user_id' => $user->id]);
     }
 
-    public function test_incomplete_provider_streams_still_release_the_reservation(): void
+    public function test_incomplete_provider_streams_hold_the_reservation_after_output(): void
     {
         foreach (['/v1/chat/completions', '/v1/messages'] as $path) {
             $user = $this->account(10000);
@@ -355,8 +361,7 @@ class ApiBillingSecurityTest extends TestCase
             $this->assertStringContainsString('"error"', $body);
             $this->assertStringNotContainsString('data: [DONE]', $body);
             $this->assertStringNotContainsString('event: message_stop', $body);
-            $this->assertSame(10000, Wallet::balance($user->id));
-            $this->assertSame(1, WalletTransaction::where('user_id', $user->id)->where('type', 'release')->count());
+            $this->assertReservationHeld($user, 10000);
         }
     }
 

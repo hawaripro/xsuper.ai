@@ -42,7 +42,7 @@ final class AnthropicBridge
                     case 'tool_use':
                         if ($message['role'] !== 'assistant') { throw $this->invalid('Tool use requires the assistant role.'); }
                         $input = $block['input'] ?? null;
-                        if (! is_array($input) || ($input !== [] && array_is_list($input))) { throw $this->invalid('Tool input must be an object.'); }
+                        if (! $input instanceof stdClass && (! is_array($input) || ($input !== [] && array_is_list($input)))) { throw $this->invalid('Tool input must be an object.'); }
                         $calls[] = ['id' => $this->string($block, 'id'), 'type' => 'function', 'function' => [
                             'name' => $this->string($block, 'name'), 'arguments' => json_encode((object) $input, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
                         ]];
@@ -65,7 +65,8 @@ final class AnthropicBridge
         }
         $options = array_intersect_key($body, array_flip(['max_tokens', 'top_p', 'temperature']));
         if (isset($body['stop_sequences'])) { $options['stop'] = $body['stop_sequences']; }
-        if (isset($body['metadata']['user_id'])) { $options['user'] = $body['metadata']['user_id']; }
+        $metadata = (array) ($body['metadata'] ?? []);
+        if (isset($metadata['user_id'])) { $options['user'] = $metadata['user_id']; }
         if (isset($body['tools'])) {
             $options['tools'] = array_map(function (array $tool): array {
                 $function = ['name' => $this->string($tool, 'name')];
@@ -168,7 +169,7 @@ final class AnthropicBridge
     public function usage(array $raw): array
     {
         $usage = $this->billing->normalizeUsage($raw);
-        if ($usage === []) { return []; }
+        if (! isset($usage['prompt_tokens'], $usage['completion_tokens'])) { return []; }
         $read = $usage['cache_read_tokens'] ?? 0;
         $write = $usage['cache_write_tokens'] ?? 0;
 

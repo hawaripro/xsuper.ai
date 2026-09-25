@@ -119,6 +119,31 @@ class AnthropicMessagesBridgeTest extends TestCase
         $this->assertLessThan(1_000_000, Wallet::balance($user->id));
     }
 
+    public function test_empty_tool_objects_results_and_metadata_remain_valid_for_coding_clients(): void
+    {
+        [, $key] = $this->apiFixture();
+        Http::fake(['*' => Http::response($this->openAiAnswer())]);
+        $this->withToken($key->plainKey)->postJson('/v1/messages', [
+            'model' => 'public-model', 'metadata' => new \stdClass,
+            'tools' => [['name' => 'status', 'input_schema' => ['type' => 'object', 'properties' => new \stdClass]]],
+            'tool_choice' => ['type' => 'tool', 'name' => 'status'],
+            'messages' => [
+                ['role' => 'assistant', 'content' => [['type' => 'tool_use', 'id' => 'call_empty', 'name' => 'status', 'input' => new \stdClass]]],
+                ['role' => 'user', 'content' => [['type' => 'tool_result', 'tool_use_id' => 'call_empty', 'content' => '']]],
+            ],
+        ])->assertOk();
+        Http::assertSent(function ($request): bool {
+            $wire = json_decode($request->body());
+            $this->assertInstanceOf(\stdClass::class, $wire->tools[0]->function->parameters->properties);
+            $this->assertSame('{}', $wire->messages[0]->tool_calls[0]->function->arguments);
+            $this->assertSame('', $wire->messages[1]->content);
+            $this->assertSame('call_empty', $wire->messages[1]->tool_call_id);
+            $this->assertEquals(['type' => 'function', 'function' => ['name' => 'status']], $request['tool_choice']);
+            $this->assertArrayNotHasKey('user', $request->data());
+            return true;
+        });
+    }
+
     private function parseEvents(string $stream): array
     {
         $events = [];

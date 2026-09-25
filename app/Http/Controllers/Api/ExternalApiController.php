@@ -57,6 +57,7 @@ class ExternalApiController extends Controller
             'top_logprobs' => 'sometimes|integer|min:0|max:20', 'service_tier' => 'sometimes|string', 'modalities' => 'sometimes|array',
             'audio' => 'sometimes|array', 'prediction' => 'sometimes|array',
         ]);
+        $body = $this->restoreJsonObjects($body, json_decode($request->getContent()));
         if ($error = $this->modelError($request, $body['model'], false)) { return $error; }
         $options = array_diff_key($body, array_flip(['model', 'messages', 'stream']));
         $maximum = max((int) ($body['max_tokens'] ?? 0), (int) ($body['max_completion_tokens'] ?? 0)) ?: 4096;
@@ -90,7 +91,7 @@ class ExternalApiController extends Controller
     {
         $this->validateMessages($request);
         // Native Anthropic fields (including cache_control and thinking signatures) are not round-tripped through OpenAI.
-        $body = [...$request->all(), 'max_tokens' => $request->input('max_tokens', 4096)];
+        $body = $this->restoreJsonObjects([...$request->all(), 'max_tokens' => $request->input('max_tokens', 4096)], json_decode($request->getContent()));
         $model = $body['model'];
         if ($error = $this->modelError($request, $model, true)) { return $error; }
         $user = $request->attributes->get('api_user');
@@ -241,9 +242,21 @@ class ExternalApiController extends Controller
         $status = $exception instanceof AiProxyException ? $exception->responseStatus() : 502;
         $invalid = in_array($status, [400, 422], true);
         if ($invalid) { $status = 400; }
-        $message = $exception instanceof AiProxyException ? $exception->getMessage() : 'The AI provider is unavailable. Please try again later.';
+        $message = $invalid ? 'The request contains content or options that this model does not support.' : 'The AI provider is unavailable. Please try again later.';
         return $anthropic ? ApiErrorResponse::anthropic($invalid ? 'invalid_request_error' : 'api_error', $message, $status)
             : ApiErrorResponse::openAi($message, $invalid ? 'invalid_request_error' : 'upstream_error', $invalid ? 'invalid_request_error' : 'upstream_error', $status);
+    }
+
+    /** Laravel validates associative arrays; preserve {} versus [] when serializing coding-tool schemas and inputs. */
+    private function restoreJsonObjects(mixed $value, mixed $wire): mixed
+    {
+        if (! is_array($value)) { return $value; }
+        if ($value === [] && $wire instanceof \stdClass) { return new \stdClass; }
+        $wire = (array) $wire;
+        foreach ($value as $key => $child) {
+            $value[$key] = $this->restoreJsonObjects($child, $wire[$key] ?? null);
+        }
+        return $value;
     }
 
     public static function clean(string $text): string

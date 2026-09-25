@@ -26,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'storage.available' => \App\Http\Middleware\EnsureStorageAvailable::class,
         ]);
 
+        // Protocol payloads are data: whitespace and empty tool results must not be rewritten by web form normalization.
+        $middleware->trimStrings(except: [fn (Request $request) => $request->is('v1/*')]);
+        $middleware->convertEmptyStringsToNull(except: [fn (Request $request) => $request->is('v1/*')]);
+
         // Make auth middleware return JSON 401 for AJAX/API requests
         // instead of redirecting to login page
         $middleware->redirectGuestsTo(function (Request $request) {
