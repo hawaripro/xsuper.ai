@@ -381,9 +381,11 @@ Bagian ini adalah prosedur saat deployment disetujui.
 ## Harga dan akses berbasis saldo
 
 - `pricing_settings` (baris `id=1`) menyimpan margin, buffer, fee, dan kurs jual dompet. `DEPOSIT_IDR_PER_USD` hanya dipakai untuk nilai awal saat migrasi; checkout berikutnya membaca `wallet_idr_per_usd`. Order deposit lama tetap memakai snapshot kursnya.
+- Persentase dinormalisasi ke dua angka desimal sebelum batas margin + fee ≤95% diperiksa, sama dengan presisi PostgreSQL.
 - Modal USD provider yang belum diisi memakai default **Rp19.000/$ sebagai estimasi**, bukan jaminan margin aktual. Biaya berdenominasi kredit tanpa modal per kredit tetap tidak diketahui. Biaya/modal provider hanya muncul dalam payload admin.
 - Membership yang habis tidak mengunci Chat, Studio, API, atau saldo. Akun aktif, verifikasi email, izin fitur, serta saldo/kuota tetap diperiksa.
 - Wallet menyimpan integer micro-USD. Reservasi menyimpan tarif input/output/cache; settlement memakai snapshot tersebut, bukan tarif terbaru. Cache Anthropic adalah bagian dari total input, bukan tambahan yang ditagih dua kali. Cache tanpa tarif tersendiri memakai tarif input.
+- Batas output dan reservasi memakai tarif input/cache tertinggi, termasuk headroom pembulatan paling banyak dua micro-USD untuk pemisahan meter input. Settlement tetap memakai pemakaian dan tarif asli; sisa cadangan dikembalikan, bukan dianggap biaya.
 - Saldo tidak cukup sebelum panggilan LLM menghasilkan HTTP **402**, tanpa request provider. Usage final hilang/tidak valid atau shortfall tetap menahan reservasi untuk pemeriksaan; jangan mengembalikan saldo seolah-olah provider belum menghasilkan jawaban.
 - Migrasi benefit membership mempertahankan harga yang dikustomisasi. Hanya harga enam bulan lama Rp299.000 diturunkan menjadi Rp259.000; kolom snapshot order lama bernilai nol, tanpa bonus retroaktif.
 

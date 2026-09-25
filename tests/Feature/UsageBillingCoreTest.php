@@ -13,6 +13,7 @@ use App\Services\AiProviderEndpoint;
 use App\Services\UsageBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -86,13 +87,73 @@ class UsageBillingCoreTest extends TestCase
         Wallet::credit($user->id, 1000000, 'Fixture');
         $billing = app(UsageBillingService::class);
         $reservation = $billing->reserveApi($user->id, self::MODEL, 100, 40, 'chat:cache-snapshot', 'chat');
-        $this->assertSame(999100, Wallet::balance($user->id));
+        $this->assertSame(999024, Wallet::balance($user->id));
         UsageRate::where('model', self::MODEL)->update(['price_usd' => 100]);
         $usage = ['input_tokens' => 50, 'cache_read_input_tokens' => 40, 'cache_creation_input_tokens' => 10, 'output_tokens' => 20];
         $this->assertSame(500, $billing->settleApi($user->id, self::MODEL, $usage, $reservation, 'chat'));
         $this->assertSame(500, $billing->settleApi($user->id, self::MODEL, $usage, $reservation, 'chat'));
         $this->assertSame(999500, Wallet::balance($user->id));
         $this->assertDatabaseHas('wallet_transactions', ['user_id' => $user->id, 'service' => 'chat', 'reference_id' => 'chat:cache-snapshot']);
+    }
+
+    public function test_cache_write_premium_is_covered_before_dispatch_even_with_a_tight_wallet(): void
+    {
+        $this->rates();
+        $user = User::factory()->create();
+        Wallet::credit($user->id, 41341, 'Fixture');
+        $billing = app(UsageBillingService::class);
+
+        $this->assertSame(256, $billing->affordableOutputTokens($user->id, self::MODEL, 10000, 8192));
+        $reservation = $billing->reserveApi($user->id, self::MODEL, 10000, 256, 'cache-premium');
+        $this->assertSame(0, Wallet::balance($user->id));
+        $this->assertSame(41340, $billing->settleApi($user->id, self::MODEL, [
+            'input_tokens' => 0, 'cache_creation_input_tokens' => 10000, 'output_tokens' => 256,
+        ], $reservation));
+        $this->assertSame(1, Wallet::balance($user->id));
+    }
+
+    public function test_reservation_covers_separate_rounding_for_three_input_meters(): void
+    {
+        $this->rates();
+        UsageRate::where('model', self::MODEL)->update(['price_usd' => 0.15]);
+        $user = User::factory()->create();
+        Wallet::credit($user->id, 4, 'Fixture');
+        $billing = app(UsageBillingService::class);
+        $reservation = $billing->reserveApi($user->id, self::MODEL, 4, 1, 'cache-rounding');
+
+        $this->assertSame(0, Wallet::balance($user->id));
+        $this->assertSame(4, $billing->settleApi($user->id, self::MODEL, [
+            'prompt_tokens' => 4, 'completion_tokens' => 1, 'cache_read_tokens' => 1, 'cache_write_tokens' => 1,
+        ], $reservation));
+        $this->assertSame(0, Wallet::balance($user->id));
+    }
+
+    public static function malformedUsageCounts(): array
+    {
+        return [
+            'boolean primary counts' => [['prompt_tokens' => true, 'completion_tokens' => true]],
+            'boolean cache read' => [['prompt_tokens' => 4, 'completion_tokens' => 1, 'prompt_tokens_details' => ['cached_tokens' => true]]],
+            'boolean cache write' => [['prompt_tokens' => 4, 'completion_tokens' => 1, 'cache_write_tokens' => true]],
+        ];
+    }
+
+    #[DataProvider('malformedUsageCounts')]
+    public function test_malformed_usage_counts_leave_the_reservation_held(array $usage): void
+    {
+        $this->rates();
+        $user = User::factory()->create();
+        Wallet::credit($user->id, 1000000, 'Fixture');
+        $billing = app(UsageBillingService::class);
+        $reservation = $billing->reserveApi($user->id, self::MODEL, 100, 40, 'invalid-counts');
+        $heldBalance = Wallet::balance($user->id);
+
+        try {
+            $billing->settleApi($user->id, self::MODEL, $usage, $reservation);
+            $this->fail('Malformed usage must not release the reservation.');
+        } catch (ValidationException $error) {
+            $this->assertArrayHasKey('usage', $error->errors());
+        }
+        $this->assertSame($heldBalance, Wallet::balance($user->id));
     }
 
     public function test_cache_without_its_own_rate_bills_at_the_input_rate(): void

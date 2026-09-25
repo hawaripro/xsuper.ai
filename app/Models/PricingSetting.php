@@ -9,6 +9,7 @@ class PricingSetting extends Model
     public const SINGLETON_ID = 1;
 
     protected $fillable = [
+        'id',
         'margin_pct', 'llm_margin_pct', 'buffer_pct', 'payment_fee_pct', 'wallet_idr_per_usd',
         'default_cost_idr_per_usd', 'round_tokens', 'chat_output_cap', 'last_applied_at', 'last_applied_by',
     ];

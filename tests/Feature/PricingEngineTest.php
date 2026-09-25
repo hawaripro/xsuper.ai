@@ -152,6 +152,21 @@ class PricingEngineTest extends TestCase
         );
     }
 
+    public function test_percentage_precision_cannot_bypass_the_persisted_margin_guard(): void
+    {
+        foreach (['margin_pct', 'llm_margin_pct'] as $margin) {
+            $this->assertSame([$margin], array_keys($this->errors(fn () => app(PricingEngine::class)->validateSettings([
+                $margin => 94.995, 'payment_fee_pct' => 0.005,
+            ]))));
+        }
+
+        $values = app(PricingEngine::class)->validateSettings([
+            'margin_pct' => 40.004, 'llm_margin_pct' => 20.005, 'buffer_pct' => 10.005, 'payment_fee_pct' => 1.004,
+        ]);
+        PricingSetting::current()->update($values);
+        $this->assertSame([40.0, 20.01, 10.01, 1.0], array_values(PricingSetting::current()->only(array_keys($values))));
+    }
+
     public function test_media_pricing_requires_an_active_token_package(): void
     {
         TokenPackage::query()->update(['is_active' => false]);

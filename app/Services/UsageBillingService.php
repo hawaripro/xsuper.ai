@@ -80,7 +80,7 @@ class UsageBillingService
             $cacheWrite = self::tokenCount($raw['cache_write_tokens'] ?? $details['cache_creation_tokens'] ?? $details['cache_write_tokens'] ?? 0);
         }
         // A sum beyond the integer range is not verifiable billing evidence either.
-        if (! is_int($prompt)) {
+        if (! is_int($prompt) || $cacheRead === null || $cacheWrite === null) {
             $prompt = null;
         }
         if ($prompt !== null && $completion !== null && ! is_int($prompt + $completion)) {
@@ -137,12 +137,12 @@ class UsageBillingService
         return $cost;
     }
 
-    /** Hold the maximum cost of a request (estimated input at the input rate plus every allowed output token). */
+    /** Hold conservatively across input/cache prices plus every allowed output token. */
     public function reserveApi(int $userId, string $model, int $estimatedInputTokens, int $maximumOutputTokens, string $referenceId, string $service = 'api'): array
     {
         $rates = $this->apiRates($model);
         $snapshot = $this->rateSnapshot($rates);
-        $cost = $this->usageCost($rates, $estimatedInputTokens, $maximumOutputTokens);
+        $cost = $this->reservationCost($rates, $estimatedInputTokens, $maximumOutputTokens);
         $reservation = Wallet::reserve($userId, $cost, $referenceId, [
             'service' => $service,
             'model' => $model,
@@ -200,19 +200,19 @@ class UsageBillingService
     {
         $rates = $this->apiRates($model);
         $balance = Wallet::balance($userId);
-        $budget = $balance - $this->usageCost($rates, $estimatedInputTokens, 0);
+        $budget = $balance - $this->reservationCost($rates, $estimatedInputTokens, 0);
         $affordable = match (true) {
             $budget < 0 => -1,
             $rates['output_tokens'] <= 0 => $desiredOutputTokens,
             default => (int) min($desiredOutputTokens, floor(round($budget / $rates['output_tokens'], 8))),
         };
         // A reservation for the returned count must fit the same balance despite float division.
-        while ($affordable > 0 && $this->usageCost($rates, $estimatedInputTokens, $affordable) > $balance) {
+        while ($affordable > 0 && $this->reservationCost($rates, $estimatedInputTokens, $affordable) > $balance) {
             $affordable--;
         }
         $required = $minimumOutputTokens;
         if ($affordable < $required) {
-            throw InsufficientBalanceException::wallet($this->usageCost($rates, $estimatedInputTokens, max(0, $required)), $balance);
+            throw InsufficientBalanceException::wallet($this->reservationCost($rates, $estimatedInputTokens, max(0, $required)), $balance);
         }
 
         return $affordable;
@@ -320,6 +320,29 @@ class UsageBillingService
         ];
     }
 
+    private function reservationCost(array $rates, int $promptTokens, int $completionTokens): int
+    {
+        $inputRates = [
+            $rates['input_tokens'],
+            $rates['cache_read'] ?? $rates['input_tokens'],
+            $rates['cache_write'] ?? $rates['input_tokens'],
+        ];
+        $fractionalMeters = 0;
+        foreach ($inputRates as $rate) {
+            $fractionalMeters += $rate > floor($rate) ? 1 : 0;
+        }
+        $rates['input_tokens'] = max($inputRates);
+        // Splitting input across fractional meters can add at most one extra micro-USD
+        // per additional nonempty fractional meter compared with rounding their sum.
+        $headroom = min(max(0, $promptTokens - 1), max(0, $fractionalMeters - 1));
+        $cost = $this->usageCost($rates, $promptTokens, $completionTokens);
+        if ($cost > PHP_INT_MAX - $headroom) {
+            throw ValidationException::withMessages(['usage' => 'The usage cost exceeds supported billing limits.']);
+        }
+
+        return $cost + $headroom;
+    }
+
     /**
      * Micro-USD for token usage: uncached input at the input rate, cache reads and writes at their own
      * rates (the input rate when unpriced) and output at the output rate, each meter rounded up.
@@ -413,8 +436,6 @@ class UsageBillingService
 
     private static function tokenCount(mixed $value): ?int
     {
-        $count = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
-
-        return is_int($count) ? $count : null;
+        return is_int($value) && $value >= 0 ? $value : null;
     }
 }

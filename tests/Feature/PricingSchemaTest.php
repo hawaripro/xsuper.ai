@@ -40,6 +40,17 @@ class PricingSchemaTest extends TestCase
         $this->assertSame(15500, $settings->wallet_idr_per_usd);
     }
 
+    public function test_recreated_settings_keep_the_saved_wallet_rate(): void
+    {
+        PricingSetting::query()->delete();
+        // Advance the generated ID on both SQLite and PostgreSQL before recreating the singleton.
+        PricingSetting::create(['wallet_idr_per_usd' => 18000])->delete();
+        PricingSetting::current()->update(['wallet_idr_per_usd' => 18500]);
+
+        $this->assertSame(18500, PricingSetting::current()->wallet_idr_per_usd);
+        $this->assertSame(1, PricingSetting::query()->count());
+    }
+
     public function test_provider_acquisition_defaults_feed_pricing_without_leaking_to_members(): void
     {
         foreach (['kinovi', 'fal', 'openai'] as $protocol) {

@@ -37,11 +37,12 @@ class PricingEngine
             'round_tokens' => ['sometimes', 'required', 'boolean'],
             'chat_output_cap' => ['sometimes', 'required', 'integer', 'between:256,131072'],
         ])->validate();
+        // Match decimal(5,2) storage before checking the combined margin/fee boundary.
         foreach ($values as $key => $value) {
             $values[$key] = match ($key) {
                 'round_tokens' => (bool) $value,
                 'wallet_idr_per_usd', 'default_cost_idr_per_usd', 'chat_output_cap' => (int) $value,
-                default => $value === null ? null : (float) $value,
+                default => $value === null ? null : round((float) $value, 2),
             };
         }
         $combined = array_replace($this->settings()->only(['margin_pct', 'llm_margin_pct', 'payment_fee_pct']), $values);
