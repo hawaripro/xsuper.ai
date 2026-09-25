@@ -1,15 +1,15 @@
 // Model palette: categories, local "recent" and "favorite" lists and their filtering. The lists are
 // display hints kept per member in this browser; the server re-checks every selected model.
 export const PALETTE_CATEGORIES = [
-    { id: "recent", label: "Terakhir dipakai" },
-    { id: "favorites", label: "Favorit" },
-    { id: "all", label: "Semua", kind: "" },
-    { id: "image", label: "Gambar", kind: "image" },
-    { id: "video", label: "Video", kind: "video" },
-    { id: "audio", label: "Audio", kind: "audio" },
-    { id: "avatar", label: "Avatar", kind: "avatar" },
-    { id: "model3d", label: "3D", kind: "model3d" },
-    { id: "other", label: "Lainnya", kind: "other" },
+    { id: "recent", label: "Terakhir dipakai", icon: "history" },
+    { id: "favorites", label: "Favorit", icon: "star" },
+    { id: "all", label: "Semua", kind: "", icon: "spark" },
+    { id: "image", label: "Gambar", kind: "image", icon: "image" },
+    { id: "video", label: "Video", kind: "video", icon: "video" },
+    { id: "audio", label: "Audio", kind: "audio", icon: "audio" },
+    { id: "avatar", label: "Avatar", kind: "avatar", icon: "ugc" },
+    { id: "model3d", label: "3D", kind: "model3d", icon: "model3d" },
+    { id: "other", label: "Lainnya", kind: "other", icon: "code" },
 ];
 export const LOCAL_CATEGORIES = ["recent", "favorites"];
 export const RECENT_LIMIT = 12;

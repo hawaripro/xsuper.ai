@@ -4,6 +4,8 @@ import { StudioButton, StudioIcon, mediaError } from "./StudioUI";
 import { axisBounds } from "./studioSizing";
 import "./studio-form.css";
 
+const SECTION_ICONS = { input: "upload", core: "spark", features: "layers", advanced: "settings" };
+
 export function FieldInfo({ id, label, description }) {
     const { t } = useLocale();
     const [open, setOpen] = useState(false);
@@ -58,7 +60,7 @@ export function FieldSection({ group, count, flagged = false, children }) {
     const { t } = useLocale();
     const id = useId();
     const [expanded, setExpanded] = useState(false);
-    const heading = <><h3 id={id}>{t(group.label)}</h3><span className="sw-form-count">{count}<span className="studio-visually-hidden"> {t("bidang")}</span></span></>;
+    const heading = <><h3 id={id}><StudioIcon name={SECTION_ICONS[group.id] || "settings"} />{t(group.label)}</h3><span className="sw-form-count">{count}<span className="studio-visually-hidden"> {t("bidang")}</span></span></>;
     return <section className={`sw-form-section sw-form-section-${group.id}`} aria-labelledby={id}>
         {group.id === "advanced" ? <details open={expanded || flagged}>
             <summary className="sw-form-heading" onClick={(event) => { event.preventDefault(); if (!flagged) setExpanded(!expanded); }}>{heading}<span className="sw-form-chevron" aria-hidden="true" /></summary>

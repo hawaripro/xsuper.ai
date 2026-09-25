@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { errorMessage } from "../member/MemberUI";
 import { useLocale } from "../../contexts/LocaleContext";
+import { modelBrand, modelKind } from "./modelBrands";
 import { safeLogoUrl } from "./studioPalette";
 import "./studios.css";
 
@@ -81,6 +82,11 @@ export function StudioIcon({ name, className = "" }) {
         back: <path d="M20 12H4m6-6-6 6 6 6" />,
         trash: <path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
         search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+        spark: <><path d="M12 3c.5 3.9 2.1 5.5 6 6-3.9.5-5.5 2.1-6 6-.5-3.9-2.1-5.5-6-6 3.9-.5 5.5-2.1 6-6Z" /><path d="M19 14.5c.2 1.6.9 2.3 2.5 2.5-1.6.2-2.3.9-2.5 2.5-.2-1.6-.9-2.3-2.5-2.5 1.6-.2 2.3-.9 2.5-2.5ZM5 15c.2 1.3.7 1.8 2 2-1.3.2-1.8.7-2 2-.2-1.3-.7-1.8-2-2 1.3-.2 1.8-.7 2-2Z" /></>,
+        wand: <><path d="m4 20 11-11m-2-2 2 2M17 3v3m-1.5-1.5h3M20 8v2m-1-1h2M9 3v2M8 4h2" /></>,
+        layers: <><path d="m12 3 9 5-9 5-9-5Z" /><path d="m3 13 9 5 9-5" /></>,
+        bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7Z" />,
+        alert: <><path d="M12 3 2 20h20Z" /><path d="M12 10v4m0 3v.5" /></>,
     };
     return <svg className={`studio-icon ${className}`} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name === "avatar" ? "video" : name] || paths.settings}</svg>;
 }
@@ -88,13 +94,23 @@ export function StudioIcon({ name, className = "" }) {
 export function StudioButton({ children, icon, primary = false, className = "", type = "button", ...props }) {
     return <button type={type} className={`studio-button ${primary ? "studio-button-primary" : ""} ${className}`} {...props}>{icon && <StudioIcon name={icon} />}{children}</button>;
 }
-// A model's logo (https only, never sending a referrer) or the initial of its provider.
-export function ModelMark({ model, className = "" }) {
+const MARK_ICONS = { image: "image", video: "video", audio: "audio", avatar: "ugc", model3d: "model3d", other: "spark" };
+// Runware fills catalog logos with its creator images; the maker's vector mark reads better at these sizes.
+const importedLogo = (url) => url.startsWith("https://assets.runware.ai/");
+// A model's mark: a logo an administrator set, else the maker's official mark, else its studio kind's icon.
+// Monochrome marks are masks so they take the theme's ink (white in dark mode); colored marks stay as drawn.
+export function ModelMark({ model, kind = "", className = "" }) {
     const [failed, setFailed] = useState("");
-    const logo = safeLogoUrl(model?.logo_url);
-    const initial = String(model?.provider_name || model?.name || model?.model_id || "?").trim().charAt(0).toUpperCase() || "?";
-    return <span className={`sw-model-mark ${className}`} aria-hidden="true">{logo && failed !== logo
-        ? <img src={logo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(logo)} /> : initial}</span>;
+    const brand = modelBrand(model);
+    const custom = safeLogoUrl(model?.logo_url);
+    const logo = custom && failed !== custom && !(brand && importedLogo(custom)) ? custom : null;
+    const markKind = modelKind(model, kind);
+    const variant = logo ? "image" : brand ? (brand.mono ? "mono" : "color") : "kind";
+    return <span className={`sw-model-mark ${className}`} data-kind={markKind} data-mark={variant} aria-hidden="true">
+        {logo ? <img src={logo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(logo)} />
+            : brand ? (brand.mono ? <span className="sw-mark-glyph" style={{ "--mark": `url("${brand.logo}")` }} /> : <img src={brand.logo} alt="" loading="lazy" />)
+                : <StudioIcon name={MARK_ICONS[markKind] || "spark"} />}
+    </span>;
 }
 export function StudioField({ id, label, hint, error, children, className = "" }) {
     const { t } = useLocale();

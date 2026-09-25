@@ -4,11 +4,13 @@ import { mediaJobPending } from "./workspaceMedia";
 // Workbench views of member jobs: filters, sets of variations, reusable drafts and seeds. Only the
 // member's own request data is read; provider costs never reach these payloads.
 export const HISTORY_KINDS = [
-    { id: "", label: "Semua" }, { id: "image", label: "Gambar" }, { id: "video", label: "Video" }, { id: "audio", label: "Audio" },
-    { id: "avatar", label: "Avatar" }, { id: "model3d", label: "3D" }, { id: "other", label: "Lainnya" },
+    { id: "", label: "Semua", icon: "spark" }, { id: "image", label: "Gambar", icon: "image" }, { id: "video", label: "Video", icon: "video" },
+    { id: "audio", label: "Audio", icon: "audio" }, { id: "avatar", label: "Avatar", icon: "ugc" }, { id: "model3d", label: "3D", icon: "model3d" },
+    { id: "other", label: "Lainnya", icon: "code" },
 ];
 export const STATUS_FILTERS = [
-    { id: "", label: "Semua status" }, { id: "running", label: "Berjalan" }, { id: "done", label: "Selesai" }, { id: "failed", label: "Gagal" },
+    { id: "", label: "Semua status", icon: "layers" }, { id: "running", label: "Berjalan", icon: "bolt" }, { id: "done", label: "Selesai", icon: "check" },
+    { id: "failed", label: "Gagal", icon: "alert" },
 ];
 const STUDIO = ["image", "video", "audio", "model3d"];
 

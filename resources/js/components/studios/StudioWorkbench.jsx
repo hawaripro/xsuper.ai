@@ -5,7 +5,8 @@ import MediaActionDialog from "../MediaActionDialog";
 import { formatLocalDate } from "../member/MemberUI";
 import JobDetailDialog from "./JobDetailDialog";
 import { UNIT_LABELS, quoteBreakdown } from "./RequestPanel";
-import { StudioButton, StudioEmpty, StudioIcon, StudioNotice, StudioProgressBar, StudioStatus, jobProgress, mediaError, stageLabel } from "./StudioUI";
+import { ModelMark, StudioButton, StudioEmpty, StudioIcon, StudioNotice, StudioProgressBar, StudioStatus, jobProgress, mediaError, stageLabel } from "./StudioUI";
+import { modelKind } from "./modelBrands";
 import { schemaDocs } from "./studioForm";
 import { BILLING_LABELS, HISTORY_KINDS, STATUS_FILTERS, groupJobs, jobDraft, jobPrompt, jobStatusGroup, jobThumbnail, jobTokens, jobVideoPreview, timeAgo } from "./studioJobs";
 import { CLEARABLE_KINDS } from "./useGlobalMediaWorkspace";
@@ -89,11 +90,24 @@ function CardMedia({ job, members, jobsById }) {
     </span>;
 }
 
-function JobCard({ item, jobsById, display, active, busy, onOpen, onLoad, onDelete }) {
+function JobCard({ item, index, jobsById, display, active, busy, onOpen, onLoad, onDelete }) {
     const { t, locale } = useLocale();
     const ago = useRelativeTime();
     const { job, members } = item;
     const set = members.length > 1;
+    // A result that finishes while on screen is revealed once; loaded history simply appears.
+    const pendingNow = mediaJobPending(job);
+    const wasPending = useRef(pendingNow);
+    const [fresh, setFresh] = useState(false);
+    useEffect(() => {
+        if (wasPending.current && !pendingNow && job.status === "completed") setFresh(true);
+        wasPending.current = pendingNow;
+    }, [pendingNow, job.status]);
+    useEffect(() => {
+        if (!fresh) return undefined;
+        const timer = setTimeout(() => setFresh(false), 1600);
+        return () => clearTimeout(timer);
+    }, [fresh]);
     const title = jobPrompt(job) || job.details?.model_label || job.model || job.id;
     const tokens = set ? members.reduce((sum, id) => sum + (jobTokens(jobsById.get(id)) || 0), 0) : jobTokens(job);
     const download = !set && job.outputs?.length === 1 ? ownedMediaUrl(job.outputs[0].download_url) : null;
@@ -103,11 +117,11 @@ function JobCard({ item, jobsById, display, active, busy, onOpen, onLoad, onDele
     const label = `${title.length > 90 ? `${title.slice(0, 90)}…` : title}${status ? ` — ${status}` : ""}`;
     const meta = [t(operationLabel(job.operation)), job.details?.model_label || job.model, ago(job.created_at)].filter(Boolean).join(" · ");
     const cost = tokens != null ? `${format(tokens)} ${t("token")}${job.billing_status && BILLING_LABELS[job.billing_status] ? ` · ${t(BILLING_LABELS[job.billing_status])}` : ""}` : null;
-    return <li className="sw-card" data-status={jobStatusGroup(job)} aria-current={active ? "true" : undefined}>
+    return <li className={`sw-card${fresh ? " is-fresh" : ""}`} data-status={jobStatusGroup(job)} data-kind={modelKind(job)} style={{ "--i": Math.min(index, 12) }} aria-current={active ? "true" : undefined}>
         <button type="button" className="sw-card-open" onClick={onOpen} aria-label={`${t("Buka detail")}: ${label}`} title={title}>
             <CardMedia job={job} members={members} jobsById={jobsById} />
             {display.view !== "thumbs" && (display.prompt || display.view === "list") && <span className="sw-card-title" dir="auto">{title}</span>}
-            {display.view !== "thumbs" && display.meta && <span className="sw-card-meta">{meta}</span>}
+            {display.view !== "thumbs" && display.meta && <span className="sw-card-meta"><ModelMark model={job} kind={job.output_kind} className="is-small" /><span>{meta}</span></span>}
             {display.view !== "thumbs" && display.meta && cost && <span className="sw-card-cost"><StudioIcon name="tokens" />{cost}</span>}
             {display.view === "list" && <StudioStatus job={job} />}
         </button>
@@ -150,11 +164,11 @@ function ResultsPanel({ studio, realtime, capability, canSubmit, realtimeProps, 
     const dialogError = pending === "all" ? studio.clearError : studio.actionError;
     return <>
         <div className="sw-results-tools">
-            <div className="sw-chips" role="group" aria-label={t("Jenis hasil")}>{HISTORY_KINDS.map((entry) => <button type="button" key={entry.id || "all"}
-                aria-pressed={studio.historyKind === entry.id} onClick={() => studio.setHistoryKind(entry.id)}>{t(entry.label)}</button>)}</div>
+            <div className="sw-chips" role="group" aria-label={t("Jenis hasil")}>{HISTORY_KINDS.map((entry) => <button type="button" key={entry.id || "all"} data-kind={entry.id || "all"}
+                aria-pressed={studio.historyKind === entry.id} onClick={() => studio.setHistoryKind(entry.id)}><StudioIcon name={entry.icon} /><span>{t(entry.label)}</span></button>)}</div>
             <div className="sw-results-row">
-                <div className="sw-chips" role="group" aria-label={t("Status hasil")}>{STATUS_FILTERS.map((entry) => <button type="button" key={entry.id || "all"}
-                    aria-pressed={statusFilter === entry.id} onClick={() => setStatusFilter(entry.id)}>{t(entry.label)}</button>)}</div>
+                <div className="sw-chips" role="group" aria-label={t("Status hasil")}>{STATUS_FILTERS.map((entry) => <button type="button" key={entry.id || "all"} data-filter={entry.id || "all"}
+                    aria-pressed={statusFilter === entry.id} onClick={() => setStatusFilter(entry.id)}><StudioIcon name={entry.icon} /><span>{t(entry.label)}</span></button>)}</div>
                 <div className="sw-view-tools">
                     <div className="sw-view-switch" role="radiogroup" aria-label={t("Tampilan hasil")}>{VIEWS.map((entry, index) => <button type="button" role="radio" key={entry.id}
                         aria-checked={display.view === entry.id} tabIndex={display.view === entry.id ? 0 : -1} aria-label={t(entry.label)} title={t(entry.label)}
@@ -177,9 +191,9 @@ function ResultsPanel({ studio, realtime, capability, canSubmit, realtimeProps, 
         {studio.detailLoading && !studio.job && studio.activeId && <p role="status" className="studio-loading">{t("Memuat hasil…")}</p>}
         {retained > 0 && !pending && <StudioNotice>{t("Sebagian hasil dipertahankan karena masih dipakai artefak chat atau referensi tersimpan.")} ({retained})</StudioNotice>}
         {(items.length > 0 || studio.submitting) && <ul className={`sw-results is-${display.view} size-${display.size}`} aria-label={t("Hasil dan riwayat")} aria-busy={studio.historyLoading}>
-            {studio.submitting && <li className="sw-card is-submitting" aria-live="polite"><span className="sw-card-media"><span className="sw-card-running"><span className="studio-spinner" aria-hidden="true" />
+            {studio.submitting && <li className="sw-card is-submitting" data-status="running" data-kind={studio.kind || "all"} aria-live="polite"><span className="sw-card-media"><span className="sw-card-running"><span className="studio-spinner" aria-hidden="true" />
                 <span>{t("Mengirim permintaan…")}</span></span></span>{display.view !== "thumbs" && <span className="sw-card-title">{t("Permintaan baru")}</span>}</li>}
-            {items.map((item) => <JobCard key={item.key} item={item} jobsById={jobsById} display={display} active={item.members.includes(studio.activeId)} busy={busy}
+            {items.map((item, index) => <JobCard key={item.key} item={item} index={index} jobsById={jobsById} display={display} active={item.members.includes(studio.activeId)} busy={busy}
                 onOpen={() => onOpen(item.job.id)} onLoad={() => onLoadJob(item.job)} onDelete={() => { setRetained(0); setPending(item.job); }} />)}
         </ul>}
         {studio.historyLoading && !items.length && <p role="status" className="studio-loading">{t("Memuat riwayat…")}</p>}

@@ -14,6 +14,7 @@ import "../components/studios/studio-form.css";
 import "../components/studios/studio-palette.css";
 import "../components/studios/studio-detail.css";
 import "./studio-workspace.css";
+import "./studio-premium.css";
 
 const apple = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
 
@@ -43,7 +44,8 @@ function StudioApp({ user }) {
     const modelKey = studio.model ? `${studio.model.model_id}:${studio.model.name}:${studio.model.logo_url || ""}` : "";
     useEffect(() => { if (studio.model) remember(studio.model); }, [modelKey]);
     const summary = studio.summary;
-    return <div className={`media-studio sw-root${isDark ? " is-dark" : ""}`}>
+    const chipModel = summary || (studio.modelId ? { model_id: studio.modelId } : null);
+    return <div className={`media-studio sw-root${isDark ? " is-dark" : ""}`} data-kind={studio.kind || "all"}>
         <div className="sw-ribbon"><AnnouncementRibbon surface="dashboard" /></div>
         <header className="sw-topbar">
             <div className="sw-topbar-start">
@@ -55,7 +57,7 @@ function StudioApp({ user }) {
                 </nav>
                 <button type="button" className="sw-model-chip" onClick={() => setPaletteOpen(true)} disabled={locked} aria-haspopup="dialog" aria-keyshortcuts="Control+/ Meta+/"
                     title={t(locked ? "Model terkunci selama permintaan atau sesi berjalan." : "Pilih model")}>
-                    <ModelMark model={summary} /><span className="sw-model-chip-name">{summary?.name || studio.modelId || t("Pilih model")}</span>
+                    <ModelMark model={chipModel} kind={studio.kind} /><span className="sw-model-chip-name">{summary?.name || studio.modelId || t("Pilih model")}</span>
                     <kbd>{shortcut}</kbd><StudioIcon name="chevron" />
                 </button>
             </div>

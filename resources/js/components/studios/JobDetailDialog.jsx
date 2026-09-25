@@ -6,7 +6,7 @@ import { JobBilling, MediaOutputs, SavedReferences } from "./MediaOutputs";
 import { ownedMediaUrl } from "./mediaOutput";
 import { jobDraft, jobParameters, jobPrompt, jobSeed, jobThumbnail } from "./studioJobs";
 import { mediaJobPending, operationLabel, outputKindLabel } from "./workspaceMedia";
-import { StudioButton, StudioIcon, StudioNotice, StudioProgress, StudioStatus, mediaError } from "./StudioUI";
+import { ModelMark, StudioButton, StudioIcon, StudioNotice, StudioProgress, StudioStatus, mediaError } from "./StudioUI";
 import "./studio-detail.css";
 
 const parameterLabels = { size: "Ukuran", aspect_ratio: "Rasio aspek", duration: "Durasi", voice: "Suara", speed: "Kecepatan", tempo: "Tempo", instrumental: "Instrumental", custom: "Kustom", pro: "Pro" };
@@ -103,7 +103,7 @@ function DetailContent({ job, batch, items, initialOutput, loading, error, actio
             </section>
             <aside className="sw-detail-aside" aria-label={t("Detail hasil")}>
                 <dl className="sw-detail-metadata">
-                    <div><dt>{t("Model")}</dt><dd dir="auto">{model || "—"}</dd></div>
+                    <div><dt>{t("Model")}</dt><dd dir="auto" className="sw-detail-model">{model && <ModelMark model={job} kind={job.output_kind} className="is-small" />}<span>{model || "—"}</span></dd></div>
                     <div><dt>{t("Operasi")}</dt><dd>{t(operationLabel(job.operation))}</dd></div>
                     {prompt && <div className="sw-detail-metadata-block"><dt>{t("Prompt")}</dt><dd className="sw-detail-prompt" dir="auto" tabIndex={0}>{prompt}</dd></div>}
                     {parameters.length > 0 && <div className="sw-detail-metadata-block"><dt>{t("Parameter")}</dt><dd><dl className="sw-detail-parameters">{parameters.map(([name, value]) => <div key={name}><dt>{t(parameterLabels[name] || name)}</dt><dd dir="auto">{value}</dd></div>)}</dl></dd></div>}

@@ -1,21 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale } from "../../contexts/LocaleContext";
 import { apiRequest } from "../../lib/api";
-import { StudioButton, StudioIcon, StudioNotice, mediaError } from "./StudioUI";
-import { LOCAL_CATEGORIES, PALETTE_CATEGORIES, categoryKind, defaultCategory, localModels, safeLogoUrl, startingPrice } from "./studioPalette";
+import { ModelMark, StudioButton, StudioIcon, StudioNotice, mediaError } from "./StudioUI";
+import { LOCAL_CATEGORIES, PALETTE_CATEGORIES, categoryKind, defaultCategory, localModels, startingPrice } from "./studioPalette";
+import { modelKind } from "./modelBrands";
 import { operationLabel } from "./workspaceMedia";
 import "./studio-palette.css";
-
-function ModelLogo({ model }) {
-    const [failedUrl, setFailedUrl] = useState(null);
-    const url = safeLogoUrl(model.logo_url);
-    const kind = model.category === "avatar" ? "avatar" : model.operations?.[0]?.output_kind;
-    return <span className="sw-palette-logo" data-kind={kind} aria-hidden="true">
-        {url && url !== failedUrl
-            ? <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedUrl(url)} />
-            : <span>{Array.from((model.name || model.model_id).trim())[0]?.toUpperCase()}</span>}
-    </span>;
-}
 
 export default function ModelPalette({ kind = "", selectedId = "", recent = [], favorites = [], onSelect, onClose }) {
     const { t, locale } = useLocale();
@@ -177,10 +167,11 @@ export default function ModelPalette({ kind = "", selectedId = "", recent = [], 
                 {PALETTE_CATEGORIES.map((entry) => <button
                     key={entry.id}
                     type="button"
+                    data-kind={entry.kind === undefined || entry.kind === "" ? "all" : entry.kind}
                     aria-pressed={category === entry.id}
                     onClick={() => { setCategory(entry.id); resetActive(); }}
                 >
-                    <span>{t(entry.label)}</span>
+                    <span className="sw-palette-category"><StudioIcon name={entry.icon} /><span>{t(entry.label)}</span></span>
                     {LOCAL_CATEGORIES.includes(entry.id) && <span className="sw-palette-category-count">{number.format(entry.id === "recent" ? recent.length : favorites.length)}</span>}
                 </button>)}
             </nav>
@@ -203,11 +194,13 @@ export default function ModelPalette({ kind = "", selectedId = "", recent = [], 
                                 aria-selected={model.model_id === selectedId}
                                 aria-disabled={refreshing || undefined}
                                 className={`sw-palette-option${active === index ? " is-active" : ""}`}
+                                style={{ "--i": Math.min(index, 12) }}
+                                data-kind={modelKind(model)}
                                 onMouseEnter={() => { if (!refreshing) setActiveIndex(index); }}
                                 onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => { if (!refreshing) onSelect(model); }}
                             >
-                                <ModelLogo model={model} />
+                                <ModelMark model={model} className="is-palette" />
                                 <div className="sw-palette-model">
                                     <div className="sw-palette-name">
                                         {model.provider_name && <><span className="sw-palette-provider">{model.provider_name}</span><span className="sw-palette-separator" aria-hidden="true">/</span></>}
