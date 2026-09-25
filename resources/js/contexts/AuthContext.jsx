@@ -29,9 +29,7 @@ export function AuthProvider({ children }) {
         finally { setLoading(false); }
     };
 
-    const finishLogin = async (data) => {
-        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-        if (csrfMeta && typeof data.csrf_token === 'string') csrfMeta.content = data.csrf_token;
+    const finishLogin = async () => {
         await checkAuth();
         return true;
     };
@@ -53,6 +51,8 @@ export function AuthProvider({ children }) {
             error.status = r.status;
             throw error;
         }
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta && typeof data.csrf_token === 'string') csrfMeta.content = data.csrf_token;
         return data;
     };
 
@@ -60,12 +60,12 @@ export function AuthProvider({ children }) {
     const login = async (email, password) => {
         const data = await postAuth('/api/login', { email, password });
         if (data.two_factor === true) return { twoFactor: true };
-        return finishLogin(data);
+        return finishLogin();
     };
 
     const completeTwoFactor = async ({ code, recoveryCode }) => {
-        const data = await postAuth('/api/login/two-factor', recoveryCode ? { recovery_code: recoveryCode } : { code });
-        return finishLogin(data);
+        await postAuth('/api/login/two-factor', recoveryCode ? { recovery_code: recoveryCode } : { code });
+        return finishLogin();
     };
 
     const logout = async () => {

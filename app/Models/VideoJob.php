@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class VideoJob extends Model
 {
-    protected $hidden = ['provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint', 'generation_config', 'reference_path', 'reference_mime_type', 'reference_asset_ids'];
+    protected $hidden = ['provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint', 'generation_config', 'reference_path', 'reference_mime_type', 'reference_asset_ids', 'provider_result_url'];
 
     protected $fillable = [
         'user_id', 'job_id', 'mode', 'prompt', 'model', 'aspect_ratio',
@@ -15,6 +15,7 @@ class VideoJob extends Model
         'provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint', 'stage',
         'improved_prompt', 'moderation_reason_code', 'billing_mode', 'tokens_reserved',
         'generation_config', 'submitted_at', 'next_poll_at', 'processing_started_at',
+        'provider_result_url',
         'completed_at', 'poll_attempts',
         'pro_mode', 'has_reference', 'reference_path', 'reference_mime_type',
         'capability_revision_id', 'routing_identity', 'price_tokens', 'dedup_key', 'payload_fingerprint', 'reference_asset_ids',

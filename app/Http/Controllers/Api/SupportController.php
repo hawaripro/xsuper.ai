@@ -3,20 +3,38 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\AdminIpAllowlist;
 use App\Models\Notification;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Services\AuditService;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 
-class SupportController extends Controller
+class SupportController extends Controller implements HasMiddleware
 {
     public function __construct(private readonly AuditService $audit) {}
+
+    public static function middleware(): array
+    {
+        return [
+            // Both aliases enter the same cross-owner/staff branches. Reuse the admin
+            // policy for admins without imposing its IP restrictions on ticket owners.
+            new Middleware(function (Request $request, Closure $next): Response {
+                return $request->user()?->isAdmin()
+                    ? app(AdminIpAllowlist::class)->handle($request, $next)
+                    : $next($request);
+            }, only: ['show', 'reply']),
+        ];
+    }
 
     public function index(Request $request): JsonResponse
     {

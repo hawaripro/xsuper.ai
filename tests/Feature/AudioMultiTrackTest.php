@@ -23,6 +23,8 @@ class AudioMultiTrackTest extends TestCase
 {
     use RefreshDatabase;
 
+    private bool $failNextDownload = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -202,6 +204,40 @@ class AudioMultiTrackTest extends TestCase
         Storage::disk('local')->assertMissing($path);
     }
 
+    public function test_all_audio_tracks_share_the_remaining_quota_and_retry_the_original_result_only(): void
+    {
+        [$user, $job] = $this->submitMusic();
+        $this->providerResults();
+        $size = strlen($this->wave(1)) + strlen($this->wave(2));
+        $service = app(AudioGenerationService::class);
+        $service->process($job->id);
+        config(['storage_quota.base_bytes' => $size - 1]);
+        $this->travel(9)->seconds();
+        $service->poll($job->id);
+        $this->assertSame('save_failed', $job->fresh()->stage);
+        $this->assertSame('reserved', $job->fresh()->billing_status);
+        $this->assertSame([], Storage::disk('local')->allFiles(GeneratedAudioStore::directory($job->job_id)));
+        $this->travel(1)->hours();
+        $service->reconcile();
+        $this->assertSame(440, UserToken::getBalance($user->id));
+        AiProviderProfile::whereKey($job->provider_id)->update(['is_enabled' => false]);
+        config(['storage_quota.base_bytes' => $size]);
+        $this->failNextDownload = true;
+        $this->postJson('/api/media/workspace/jobs/audio:'.$job->job_id.'/retry-save')->assertAccepted();
+        $service->poll($job->id);
+        $this->assertSame('save_failed', $job->fresh()->stage);
+        $this->assertSame('reserved', $job->fresh()->billing_status);
+        $this->postJson('/api/media/workspace/jobs/audio:'.$job->job_id.'/retry-save')->assertAccepted();
+        $service->poll($job->id);
+        $this->assertSame('completed', $job->fresh()->status);
+        $this->assertSame('settled', $job->fresh()->billing_status);
+        $this->assertSame($size, app(StorageQuotaService::class)->usedBytes($user));
+        foreach ($job->fresh()->outputs as $index => $output) {
+            $this->assertSame($this->wave($index + 1), Storage::disk('local')->get($output['path']));
+        }
+        $this->assertCount(1, Http::recorded(fn (Request $request): bool => $request->method() === 'POST'));
+    }
+
     private function submitMusic(): array
     {
         $provider = AiProviderProfile::create(['name' => 'Kinovi', 'slug' => 'kinovi-ai', 'protocol' => 'kinovi', 'base_url' => 'https://kinovi.ai/api/v1', 'api_key' => 'fixture-only', 'is_enabled' => true]);
@@ -224,11 +260,19 @@ class AudioMultiTrackTest extends TestCase
         Http::fake([
             'https://kinovi.ai/api/v1/jobs/createTask' => Http::response(['taskId' => 'two-tracks']),
             'https://kinovi.ai/api/v1/jobs/recordInfo*' => Http::response(['status' => 'success', 'output' => $outputs]),
-            'https://cdn.example.com/first.wav' => Http::response($this->wave(1), 200, ['Content-Type' => 'audio/wav']),
-            'https://cdn.example.com/second.wav' => $failSecond
+            'https://cdn.example.com/first.wav' => function () {
+                if ($this->failNextDownload) {
+                    $this->failNextDownload = false;
+
+                    return Http::response('Temporary asset outage', 503);
+                }
+
+                return Http::response($this->wave(1), 200, ['Content-Type' => 'audio/wav']);
+            },
+            'https://cdn.example.com/second.wav' => fn () => $failSecond
                 ? Http::response('interrupted download', 502)
                 : Http::response($this->wave(2), 200, ['Content-Type' => 'audio/wav']),
-            'https://cdn.example.com/third.wav' => Http::response($this->wave(3), 200, ['Content-Type' => 'audio/wav']),
+            'https://cdn.example.com/third.wav' => fn () => Http::response($this->wave(3), 200, ['Content-Type' => 'audio/wav']),
         ]);
     }
 

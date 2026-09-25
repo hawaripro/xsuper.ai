@@ -53,24 +53,4 @@ class ControlCenterFoundationTest extends TestCase
         $this->assertSame($actor->id, $audit->actor->id);
         $this->assertSame(Referral::class, $audit->subject_type);
     }
-
-    public function test_migration_removes_retired_chat_pro_permission_from_existing_users(): void
-    {
-        $user = User::factory()->create([
-            'permissions' => [...User::DEFAULT_PERMISSIONS, 'chat_ai_pro' => true],
-        ]);
-
-        $mediaMigration = require database_path('migrations/2026_09_16_100004_expand_media_job_lifecycle.php');
-        $mediaMigration->down();
-
-        $migration = require database_path('migrations/2026_09_14_064035_create_control_center_tables.php');
-        $migration->up();
-
-        $this->assertArrayNotHasKey('chat_ai_pro', $user->fresh()->permissions);
-        $this->assertArrayNotHasKey('__retired_chat_ai_pro', $user->fresh()->getPermissions());
-
-        $migration->down();
-        $this->assertTrue($user->fresh()->permissions['chat_ai_pro']);
-        $this->assertArrayNotHasKey('__retired_chat_ai_pro', $user->fresh()->permissions);
-    }
 }

@@ -6,9 +6,12 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
+use App\Services\LoginAdmission;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Str;
@@ -18,7 +21,10 @@ class FortifyServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(
+            \Laravel\Fortify\Http\Requests\TwoFactorLoginRequest::class,
+            \App\Http\Requests\NativeTwoFactorLoginRequest::class,
+        );
     }
 
     public function boot(): void
@@ -28,6 +34,23 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
+
+        Fortify::authenticateUsing(function (Request $request) {
+            $provider = Auth::guard(config('fortify.guard'))->getProvider();
+            $credentials = $request->only(Fortify::username(), 'password');
+            $user = $provider->retrieveByCredentials($credentials);
+            if (! $user || ! $provider->validateCredentials($user, $credentials)) {
+                return null;
+            }
+            if ($denied = app(LoginAdmission::class)->denial($request, $user, admitDevice: ! $user->hasEnabledTwoFactorAuthentication())) {
+                throw new HttpResponseException($denied);
+            }
+            if (config('hashing.rehash_on_login', true) && method_exists($provider, 'rehashPasswordIfRequired')) {
+                $provider->rehashPasswordIfRequired($user, $credentials);
+            }
+
+            return $user;
+        });
 
         // SPA mode: views are disabled in config/fortify.php (views => false).
         // All auth screens are the React SPA; point the reset email at its route.

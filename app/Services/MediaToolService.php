@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -44,6 +45,7 @@ final class MediaToolService
         'incompatible' => 'The source does not contain the audio or visual stream required by this output format.',
         'input_limit' => 'The source exceeds the 128 MiB input limit.',
         'output_limit' => 'The result exceeds the 256 MiB output limit.',
+        'storage_full' => 'Library storage is full. Download and delete items or upgrade storage before saving.',
         'duration_limit' => 'Media must have a known duration of no more than 10 minutes.',
         'dimensions' => 'Media dimensions exceed the supported limit of 4096 pixels per side.',
         'timeout' => 'Processing exceeded the allowed runtime. No output was retained.',
@@ -500,10 +502,12 @@ final class MediaToolService
                 throw new RuntimeException('failed');
             }
             $completed = DB::transaction(function () use ($job, $directory, $output, $result): bool {
+                $owner = User::query()->whereKey($job->user_id)->lockForUpdate()->firstOrFail();
                 $current = MediaToolJob::query()->lockForUpdate()->find($job->id);
                 if (! $current || $current->status !== 'processing' || $current->lease_token !== $job->lease_token || $current->cancel_requested_at !== null) {
                     return false;
                 }
+                app(StorageQuotaService::class)->assertCanStore($owner, filesize($output));
                 if (! rename($output, $directory.'/result.'.$job->format)) {
                     throw new RuntimeException('failed');
                 }
@@ -526,7 +530,9 @@ final class MediaToolService
                 $process->stop(2);
             }
             if ($job) {
-                $code = $exception instanceof \Symfony\Component\Process\Exception\ProcessTimedOutException ? 'timeout' : $exception->getMessage();
+                $code = $exception instanceof HttpException && $exception->getStatusCode() === 413
+                    ? 'storage_full'
+                    : ($exception instanceof \Symfony\Component\Process\Exception\ProcessTimedOutException ? 'timeout' : $exception->getMessage());
                 $this->finish($id, 'failed', self::ERRORS[$code] ?? self::ERRORS['failed'], $job->lease_token);
             } else {
                 $this->finish($id, 'failed', self::ERRORS['runtime']);

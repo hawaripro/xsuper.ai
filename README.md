@@ -1,12 +1,16 @@
 ## XSuper.ai dashboard QA
 
-Run `npm run qa` after installing Composer and npm dependencies. It executes ESLint's undefined-identifier gate, Laravel regressions, the Vite production build, and real Chrome/Playwright workflows. Chrome must be installed locally; CI installs Playwright Chromium.
+Run `npm run qa` after installing Composer and npm dependencies. It validates the Composer lock, audits Composer/npm dependencies, runs ESLint's undefined-identifier gate, Vitest, Laravel regressions, the Vite production build, and real Chrome/Playwright workflows. Chrome must be installed locally; CI installs Playwright Chromium. Audit steps need access to the package registries; unavailable audit data is a failed gate, not a clean security result.
 
 - Laravel tests require `testing` and SQLite `:memory:`. `phpunit.xml` uses `<server>` values because Laravel reads `$_SERVER` before `$_ENV`; `Tests\TestCase` refuses any other database before migration traits execute.
-- Browser tests reset only `storage/framework/testing/dashboard-e2e.sqlite`, then start their own Laravel PHP server on `http://127.0.0.1:8017`. The port must be free; an existing server is never reused. Seeded `@dashboard-e2e.test` accounts exercise application APIs without intercepted responses and tests inspect persisted rows.
+- Browser tests reset only `storage/framework/testing/dashboard-e2e.sqlite`, then start their own Laravel PHP server on `http://127.0.0.1:8017`. The port must be free; an existing server is never reused. The fixture explicitly sets `SESSION_PATH=/` so inherited Windows/Git environment values cannot corrupt session cookies. Seeded `@dashboard-e2e.test` accounts exercise application APIs without intercepted responses and tests inspect persisted rows.
 - The browser environment always disables external AI calls. Chat provider errors and image reservation refunds are covered; successful paid AI/video generation is not proven by this suite.
 - `npm run test:e2e -- tests/e2e/support.spec.js` runs one workflow. Results are written to `storage/framework/testing/playwright-report.json`; failure screenshots and traces are under `storage/framework/testing/playwright-results/`.
+- Route coverage exercises both languages, member/admin access boundaries, and accessible primary page headings, including the native media queue, API-key/security pages, and provider details.
 - `.github/workflows/dashboard-qa.yml` uses pinned actions, read-only repository permission, no application secrets, and no deployment step. Adding the file locally does not execute remote CI.
+- Composer resolves dependencies against the declared minimum PHP 8.3; keep `config.platform.php` and the stable Carbon constraint when updating the lock. Production deployment still validates the actual PHP extensions/platform.
+- `DatabaseSeeder` and `OperationalDataSeeder` create local demo credentials and therefore refuse every environment except `local` and `testing`. Never use them to bootstrap production or staging; follow the verified-owner setup in `docs/DEPLOYMENT.md`.
+- Security regressions cover cross-owner resources, untrusted provider paths, admin policy, credential/session invalidation, 2FA/device admission, order/referral transitions, and completed-response billing. Controlled upstream fixtures prove application behavior, not a successful transaction against a live paid provider. Passing QA is not a guarantee of zero vulnerabilities.
 
 ### OpenAI, Anthropic, and fal.ai provider connections
 
@@ -56,6 +60,8 @@ The media connection reserves queue entries for 600 seconds; submission jobs all
 
 PostgreSQL integration tests use `php vendor/phpunit/phpunit/phpunit --configuration phpunit.postgres.xml`. Supply `ULTRAI_PG_TEST_PASSWORD` privately for the dedicated `xsuper_pg_test` role/database on port 2209. The guard rejects any other identity before migrations. Never use the application database or its role for destructive tests. Browser tests remain on their guarded SQLite database; they do not replace owner-authorized real-account and paid-provider verification.
 
+SQLite intentionally skips the PostgreSQL-only chat-column collation check. Run the guarded PostgreSQL profile to exercise that assertion; a SQLite-only pass is not a PostgreSQL compatibility result.
+
 ### Recovery history and artifact retention
 
 An earlier QA run inherited Windows database settings and reset the former working MySQL schema. The application was restored from a verified pre-incident shadow copy after owner approval. Forced test settings and pre-migration database guards now prevent that target confusion. Selected historical receipts and source baselines are retained with the external consolidation backups; old recovery clusters, temporary browser profiles, redundant dumps, and generated QA media were removed from the repository. Production private generated assets and worktrees with unique branch history were retained.
@@ -66,13 +72,29 @@ New image and video generation charges generator tokens for admins and members a
 
 **Admin → Overview → Usage earnings** reports settled PAYG API charges in USD and consumed generator tokens separately, with month selection and model breakdowns. Deposits and subscription payments are not usage earnings. Reserved, released, refunded, and historical admin-free generator amounts are excluded. Token consumption is not converted into invented fiat revenue or net profit.
 
+Completed API responses with missing/invalid usage or insufficient final balance keep their original reservation; they are not converted into free answers or silently capped charges. JSON returns a billing error; SSE emits a billing error without a successful terminal event. Explicit zero usage remains valid. Genuine upstream failures and incomplete streams release the reservation. Rates are snapshotted in the reservation ledger. Held cases require operator investigation of the ledger and provider usage before settlement or release; there is no automatic reconciliation screen or paid resubmission.
+
+### Account and device security
+
+Custom, Fortify, and Google login share active-account, admin-IP, and device policies. Google sign-in does not bypass enrolled local 2FA or link an unverified pre-existing local account. Trusted provider email verification is required to skip the initial email OTP.
+
+First-factor challenges cannot allocate device slots or refresh device activity. Admission is serialized per owner after a valid factor; a denied new device becomes pending without consuming its recovery code. Password changes/resets, including admin resets, rotate remember credentials and revoke stored sessions, including legacy sessions without a password hash. Email changes invalidate earlier verification and OTP evidence; OTP verifiers and internal account fields are not public profile data.
+
+### Private output storage and save-only recovery
+
+Image outputs are restricted to their job's canonical private directory. Native images/video/audio/3D and local tools enforce remaining storage against actual output bytes at finalization under the owner lock, not just the upload or an estimated result size. Every audio track shares that quota.
+
+A native result that exceeds quota becomes `save_failed` with its provider checkpoint and token reservation retained. After freeing storage, **Media Studio → Retry saving the result** saves the original without another generation request or reservation. A transient retry download/queue failure remains retryable. The scheduler recovers lost native video save enqueues. An already-checkpointed workspace result can finish settlement at exact quota without writing duplicate bytes. Local conversion/background-removal failures remove their temporary output and release any local-tool reservation instead.
+
+Apply additive migration `2026_09_25_000002_checkpoint_native_media_results` before running the updated web/worker code, and restart workers after deployment. It stores private video/audio result checkpoints; image/3D checkpoints use their existing columns. No paid provider retry, failover, or guaranteed retention of an expiring upstream URL is implied.
+
 ### Image and video cancellation
 
 Video cancellation is available only while a job is queued and no provider submission has begun. `POST /api/v/{jobId}/cancel` accepts the owner or an admin, including an owner whose subscription expired. A successful cancellation preserves the history row, releases the reservation once, and records `status=failed`, `stage=cancelled`. Repeating the request cannot refund twice.
 
 Once a video is submitting, rendering, saving, or terminal, cancellation is refused with HTTP 409 and authoritative job/balance data. The page displays a warning modal instead of claiming that provider work stopped or refunding it as cancelled. No upstream cancel endpoint, paid retry, or provider failover is invented. Provider failures remain separately reconciled by the media worker and scheduler.
 
-Image generation is synchronous. Its confirmation modal warns before the request is sent; Back or Escape sends no generation request. After confirmation, the in-flight control explains that cancellation is unavailable. Closing the browser is not an upstream cancellation or refund guarantee.
+Legacy non-coordinator image requests may complete synchronously; coordinator/native queued requests return jobs. The confirmation modal warns before submission; Back or Escape sends no generation request. After confirmation, closing the browser is not an upstream cancellation or refund guarantee. The media kill switch and replay/price checks apply to both admission paths; replaying an admitted request never submits it again.
 
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 

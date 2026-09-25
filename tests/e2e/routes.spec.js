@@ -4,10 +4,12 @@ import { login, captureErrors, databaseRows } from './helpers.js';
 const memberRoutes = [
     '/dashboard', '/profile', '/chat', '/video', '/audio', '/downloads', '/converter', '/templates', '/library',
     '/generate-image', '/media', '/token-usage', '/deposit', '/paket', '/referral', '/bantuan', '/notifications',
+    '/avatar', '/3d', '/remove-background', '/history',
 ];
 const adminRoutes = [
     '/admin/overview', '/admin/users', '/admin/operations', '/admin/token-usage',
     '/admin/ai', '/admin/content', '/admin/system', '/admin/settings',
+    '/admin/ai/queue', '/admin/api-keys', '/admin/security',
 ];
 
 for (const locale of ['id', 'en']) {
@@ -16,7 +18,8 @@ for (const locale of ['id', 'en']) {
         const errors = captureErrors(page);
         await login(page, 'admin', locale);
         const prefix = locale === 'en' ? '/en' : '';
-        for (const route of [...memberRoutes, ...adminRoutes]) {
+        const provider = databaseRows('ai_provider_profiles', { slug: 'qa-local' })[0];
+        for (const route of [...memberRoutes, ...adminRoutes, `/admin/ai/${provider.id}`]) {
             const response = await page.goto(`${prefix}${route}`);
             expect(response.status(), route).toBe(200);
             await expect(page.locator('html')).toHaveAttribute('lang', locale);
@@ -36,8 +39,10 @@ test('member navigation enforces admin access while keeping member pages usable'
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Page could not be displayed' })).toHaveCount(0);
     }
-    await page.goto('/en/admin/system');
-    await expect(page.getByRole('heading', { name: 'Access Denied' })).toBeVisible();
+    for (const route of adminRoutes) {
+        await page.goto(`/en${route}`);
+        await expect(page.getByRole('heading', { name: 'Access Denied' }), route).toBeVisible();
+    }
     expect((await page.request.get('/api/admin/audit')).status()).toBe(403);
     expect((await page.request.get('/api/admin/content')).status()).toBe(403);
     expect(errors).toEqual([]);

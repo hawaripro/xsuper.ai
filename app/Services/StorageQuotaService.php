@@ -408,7 +408,10 @@ class StorageQuotaService
 
     private function jobPaths(Model $job): array
     {
-        if ($job instanceof ImageJob || $job instanceof WorkspaceMediaJob) {
+        if ($job instanceof ImageJob) {
+            return array_column(GeneratedImageStore::outputs($job), 'path');
+        }
+        if ($job instanceof WorkspaceMediaJob) {
             return array_values(array_filter(array_map(static fn ($asset): ?string => is_array($asset) && is_string($asset['path'] ?? null) ? $asset['path'] : null, $job->asset_paths ?? [])));
         }
         if ($job instanceof AudioJob) {

@@ -36,11 +36,13 @@ class StorageQuotaTest extends TestCase
         return $job;
     }
 
-    private function completedImage(User $user, string $path, Carbon $createdAt): ImageJob
+    private function completedImage(User $user, Carbon $createdAt): ImageJob
     {
+        $id = (string) Str::uuid();
+        $path = "generated/images/{$id}/0.png";
         Storage::disk('local')->put($path, str_repeat('x', 32));
         $job = ImageJob::create([
-            'user_id' => $user->id, 'job_id' => (string) Str::uuid(), 'model' => 'm', 'prompt' => 'p',
+            'user_id' => $user->id, 'job_id' => $id, 'model' => 'm', 'prompt' => 'p',
             'status' => 'completed', 'asset_paths' => [['path' => $path, 'mime' => 'image/png']],
         ]);
         $job->forceFill(['created_at' => $createdAt])->saveQuietly();
@@ -94,26 +96,26 @@ class StorageQuotaTest extends TestCase
         config(['storage_quota.retention_days' => 7]);
         $member = User::factory()->create();
         $admin = User::factory()->create(['role' => 'admin']);
-        $old = $this->completedImage($member, 'generated/images/old/0.png', now()->subDays(10));
-        $recent = $this->completedImage($member, 'generated/images/new/0.png', now()->subDays(2));
-        $adminOld = $this->completedImage($admin, 'generated/images/adm/0.png', now()->subDays(10));
+        $old = $this->completedImage($member, now()->subDays(10));
+        $recent = $this->completedImage($member, now()->subDays(2));
+        $adminOld = $this->completedImage($admin, now()->subDays(10));
 
         app(StorageQuotaService::class)->purge(now()->subDays(7));
 
         $this->assertDatabaseMissing('image_jobs', ['id' => $old->id]);
-        $this->assertFalse(Storage::disk('local')->exists('generated/images/old/0.png'));
+        $this->assertFalse(Storage::disk('local')->exists($old->asset_paths[0]['path']));
         $this->assertDatabaseHas('image_jobs', ['id' => $recent->id]);
-        $this->assertTrue(Storage::disk('local')->exists('generated/images/new/0.png'));
+        $this->assertTrue(Storage::disk('local')->exists($recent->asset_paths[0]['path']));
         $this->assertDatabaseHas('image_jobs', ['id' => $adminOld->id]);
-        $this->assertTrue(Storage::disk('local')->exists('generated/images/adm/0.png'));
+        $this->assertTrue(Storage::disk('local')->exists($adminOld->asset_paths[0]['path']));
     }
 
     public function test_reference_quota_counts_real_files_once_even_when_registry_and_history_share_a_path(): void
     {
         Storage::fake('local');
         $member = User::factory()->create();
-        $this->completedImage($member, 'generated/images/shared/0.png', now());
-        foreach (['generated/images/shared/0.png', 'media-assets/missing.png', 'media-assets/separate.png'] as $path) {
+        $image = $this->completedImage($member, now());
+        foreach ([$image->asset_paths[0]['path'], 'media-assets/missing.png', 'media-assets/separate.png'] as $path) {
             MediaAsset::create([
                 'user_id' => $member->id, 'media_type' => 'image', 'role' => 'image_ref',
                 'storage_disk' => 'local', 'storage_path' => $path, 'size_bytes' => 999999,

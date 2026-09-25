@@ -92,10 +92,11 @@ class ProviderDeletionTest extends TestCase
             'service' => 'video', 'model' => $videoModel->model_id,
         ]);
         Wallet::settle($user->id, $wallet, 250_000, ['service' => 'video', 'model' => $videoModel->model_id]);
-        $imagePath = 'generated-images/retired-image.png';
+        $imageId = (string) Str::uuid();
+        $imagePath = 'generated/images/'.$imageId.'/0.png';
         Storage::disk('local')->put($imagePath, 'retained-image-bytes');
         $image = ImageJob::create([
-            'user_id' => $user->id, 'job_id' => (string) Str::uuid(), 'model' => $imageModel->model_id,
+            'user_id' => $user->id, 'job_id' => $imageId, 'model' => $imageModel->model_id,
             'prompt' => 'Historical image', 'status' => 'completed', 'stage' => 'completed',
             'billing_status' => 'settled', 'billing_mode' => 'tokens', 'tokens_reserved' => 15,
             'billing_reference_id' => $tokens['reference_id'],

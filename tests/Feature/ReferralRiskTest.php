@@ -56,9 +56,11 @@ class ReferralRiskTest extends TestCase
         $this->assertSame('flagged', $referral->fresh()->status);
 
         $member = User::query()->find($referral->referred_id);
+        $this->flushSession();
         $this->actingAs($referrer)->getJson('/api/referrals/me')
             ->assertOk()->assertJsonPath('stats.under_review', 1)->assertJsonPath('recent_referrals.0.status', 'flagged')
             ->assertJsonMissing(['referred_ip' => '203.0.113.10']);
+        $this->flushSession();
         $this->actingAs($member)->getJson('/api/admin/referrals/review')->assertForbidden();
     }
 
@@ -87,6 +89,7 @@ class ReferralRiskTest extends TestCase
         $this->assertSame(['shared_ip'], $referral->fresh()->risk_reasons);
         $this->assertDatabaseCount('referral_rewards', 0);
 
+        $this->flushSession();
         $review = $this->actingAs($admin)->getJson('/api/admin/referrals/review')->assertOk();
         $this->assertSame(1, $review->json('flagged_count'));
         $this->assertSame('198.51.100.7', $review->json('referrals.0.referred_ip'));

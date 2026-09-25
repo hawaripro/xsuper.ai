@@ -30,6 +30,8 @@ class ThreeDGenerationContractTest extends TestCase
 {
     use RefreshDatabase;
 
+    private bool $failNextDownload = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -260,6 +262,38 @@ class ThreeDGenerationContractTest extends TestCase
         Http::assertNotSent(fn (Request $request): bool => $request->method() === 'GET');
     }
 
+    public function test_model_output_quota_failure_preserves_the_paid_result_for_save_only_retry(): void
+    {
+        [$user, $model, $asset, $input] = $this->fixture();
+        $bytes = $this->glb();
+        $this->fakeProvider($bytes);
+        $quota = app(\App\Services\StorageQuotaService::class);
+        $baseline = $quota->usedBytes($user);
+        config(['storage_quota.base_bytes' => $baseline + strlen($bytes) - 1]);
+        $job = $this->submitAndPoll($user, $input);
+        $this->assertSame('save_failed', $job->stage);
+        $this->assertSame('reserved', $job->billing_status);
+        $this->assertSame($baseline, $quota->usedBytes($user));
+        $this->assertSame([], Storage::disk('local')->allFiles(dirname(GeneratedModel3dStore::path($job->job_id))));
+        $this->travel(1)->hours();
+        app(ThreeDGenerationService::class)->reconcile();
+        $this->assertSame(450, UserToken::getBalance($user->id));
+        $model->provider()->update(['is_enabled' => false]);
+        config(['storage_quota.base_bytes' => $baseline + strlen($bytes)]);
+        $this->failNextDownload = true;
+        $this->postJson('/api/media/workspace/jobs/model3d:'.$job->job_id.'/retry-save')->assertAccepted();
+        app(ThreeDGenerationService::class)->poll($job->id);
+        $this->assertSame('save_failed', $job->fresh()->stage);
+        $this->assertSame('reserved', $job->fresh()->billing_status);
+        $this->postJson('/api/media/workspace/jobs/model3d:'.$job->job_id.'/retry-save')->assertAccepted();
+        app(ThreeDGenerationService::class)->poll($job->id);
+        $this->assertSame('completed', $job->fresh()->status);
+        $this->assertSame('settled', $job->fresh()->billing_status);
+        $this->assertSame($bytes, Storage::disk('local')->get($job->fresh()->model_path));
+        $this->assertSame($baseline + strlen($bytes), $quota->usedBytes($user));
+        $this->assertCount(1, Http::recorded(fn (Request $request): bool => $request->method() === 'POST'));
+    }
+
     private function fixture(): array
     {
         $provider = AiProviderProfile::create(['name' => '3D fixture', 'slug' => 'fal-3d-fixture', 'protocol' => 'fal',
@@ -299,6 +333,11 @@ class ThreeDGenerationContractTest extends TestCase
             'https://queue.fal.run/fal-ai/trellis-2/requests/*' => Http::response(['model_glb' => ['url' => 'https://v3.fal.media/model.glb']]),
             'https://v3.fal.media/model.glb' => function (Request $request) use ($bytes) {
                 $this->assertFalse($request->hasHeader('Authorization'));
+                if ($this->failNextDownload) {
+                    $this->failNextDownload = false;
+
+                    return Http::response('Original temporarily unavailable', 404);
+                }
 
                 return Http::response($bytes, 200, ['Content-Type' => 'application/octet-stream']);
             },

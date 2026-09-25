@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\VideoJob;
 use App\Models\WorkspaceMediaJob;
 use App\Services\GeneratedAudioStore;
+use App\Services\GeneratedImageStore;
 use App\Services\GeneratedModel3dStore;
 use App\Services\GeneratedVideoStore;
 use App\Services\StorageQuotaService;
@@ -86,8 +87,8 @@ class LibraryController extends Controller
         ImageJob::query()->where('user_id', $user->id)->where('status', 'completed')
             ->latest('id')->limit(self::SOURCE_LIMIT)->get(['job_id', 'model', 'prompt', 'asset_paths', 'created_at'])
             ->each(function (ImageJob $job) use (&$items, $disk): void {
-                foreach ((array) $job->asset_paths as $index => $asset) {
-                    if (! is_array($asset) || ! is_string($asset['path'] ?? null) || ! $disk->exists($asset['path'])) {
+                foreach (GeneratedImageStore::outputs($job) as $index => $asset) {
+                    if (! $disk->exists($asset['path'])) {
                         continue;
                     }
                     $items[] = $this->item('image', $job->job_id.':'.$index, mb_substr(trim($job->prompt), 0, 120) ?: 'Gambar', [

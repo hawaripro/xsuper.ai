@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Fortify\UpdateUserPassword;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -32,27 +33,26 @@ class ProfileController extends Controller
         $user->email = $validated['email'];
         $user->save();
 
-        return response()->json(['message' => 'Profil berhasil diperbarui', 'user' => $user]);
+        return response()->json([
+            'message' => 'Profil berhasil diperbarui',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'email_verified' => $user->email_verified_at !== null,
+                'role' => $user->role,
+                'avatar' => $user->avatar,
+                'created_at' => $user->created_at,
+            ],
+        ]);
     }
 
     /**
      * Update password
      */
-    public function updatePassword(Request $request)
+    public function updatePassword(Request $request, UpdateUserPassword $updater)
     {
-        $request->validate([
-            'current_password' => 'required|string',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        $user = Auth::user();
-
-        if (! Hash::check($request->current_password, $user->password)) {
-            return response()->json(['message' => 'Password saat ini salah'], 422);
-        }
-
-        $user->password = Hash::make($request->password);
-        $user->save();
+        $updater->update($request->user(), $request->all());
 
         return response()->json(['message' => 'Password berhasil diperbarui']);
     }

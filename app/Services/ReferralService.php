@@ -201,14 +201,34 @@ class ReferralService
             return $locked;
         });
         if ($decision === 'approve') {
-            $order = DurationOrder::query()->where('user_id', $referral->referred_id)->where('status', 'approved')
-                ->where('package', '!=', 'manual')->where('price', '>', 0)->orderBy('approved_at')->first();
+            $order = $this->firstQualifyingOrder((int) $referral->referred_id);
             if ($order) {
                 $this->rewardFirstPurchase($order, $reviewer, true);
             }
         }
 
         return $referral->refresh();
+    }
+
+    /**
+     * Call inside the order transaction, after locking the order and before changing any participant.
+     *
+     * @return array{0: ?Referral, 1: \Illuminate\Database\Eloquent\Collection<int, User>}
+     */
+    public function lockPurchaseParticipants(DurationOrder $order): array
+    {
+        $referral = Referral::query()
+            ->where('referred_id', $order->user_id)
+            ->lockForUpdate()
+            ->first();
+        $users = User::query()
+            ->whereKey($referral ? [$referral->referrer_id, $referral->referred_id] : [$order->user_id])
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        return [$referral, $users];
     }
 
     public function rewardFirstPurchase(DurationOrder $order, ?User $actor = null, bool $reviewed = false): bool
@@ -226,22 +246,14 @@ class ReferralService
                 return false;
             }
 
-            $referral = Referral::query()
-                ->where('referred_id', $order->user_id)
-                ->lockForUpdate()
-                ->first();
+            [$referral, $users] = $this->lockPurchaseParticipants($order);
 
             if (! $referral || $referral->status !== 'attributed') {
                 return false;
             }
 
-            if (DurationOrder::query()
-                ->where('user_id', $order->user_id)
-                ->where('status', 'approved')
-                ->where('package', '!=', 'manual')
-                ->where('price', '>', 0)
-                ->whereKeyNot($order)
-                ->exists()) {
+            // However late the referral is released, only the earliest paid purchase can qualify it.
+            if (! $order->is($this->firstQualifyingOrder((int) $order->user_id))) {
                 return false;
             }
 
@@ -258,13 +270,6 @@ class ReferralService
 
                 return false;
             }
-
-            $users = User::query()
-                ->whereKey([$referral->referrer_id, $referral->referred_id])
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
 
             $referrer = $users->get($referral->referrer_id);
             $referred = $users->get($referral->referred_id);
@@ -306,6 +311,20 @@ class ReferralService
 
             return true;
         });
+    }
+
+    /** Earliest approved paid purchase (approval time, then id); manual grants and free orders never count. */
+    private function firstQualifyingOrder(int $userId): ?DurationOrder
+    {
+        return DurationOrder::query()
+            ->where('user_id', $userId)
+            ->where('status', 'approved')
+            ->whereNotNull('approved_at')
+            ->where('package', '!=', 'manual')
+            ->where('price', '>', 0)
+            ->orderBy('approved_at')
+            ->orderBy('id')
+            ->first();
     }
 
     public function enabled(): bool

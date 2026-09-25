@@ -18,10 +18,20 @@ final class GeneratedImageStore
 
     public function persist(ImageJob $job, array $items, ?\Closure $heartbeat = null): array
     {
+        if (! array_is_list($items) || $items === [] || count($items) > 10
+            || preg_match('/^[A-Za-z0-9_-]+$/D', (string) $job->job_id) !== 1) {
+            throw new AiProxyException('The provider returned an invalid image collection.', 502);
+        }
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                throw new AiProxyException('The provider returned an invalid image collection.', 502);
+            }
+        }
         $urls = [];
         $paths = [];
         try {
-            foreach ($items as $index => $item) {
+            foreach ($items as $item) {
+                $index = count($paths);
                 $heartbeat?->__invoke();
                 if (is_string($item['b64_json'] ?? null)) {
                     $encoded = $item['b64_json'];
@@ -61,6 +71,38 @@ final class GeneratedImageStore
         $job->asset_paths = $paths;
 
         return $urls;
+    }
+
+    /** Only server-owned canonical output paths may be served, counted or deleted. */
+    public static function outputs(ImageJob $job): array
+    {
+        if (preg_match('/^[A-Za-z0-9_-]+$/D', (string) $job->job_id) !== 1) {
+            return [];
+        }
+        $outputs = [];
+        foreach ($job->asset_paths ?? [] as $index => $asset) {
+            if (! is_int($index) || $index < 0 || ! is_array($asset)) {
+                continue;
+            }
+            $extension = match ($asset['mime'] ?? null) {
+                'image/png' => 'png',
+                'image/jpeg' => 'jpg',
+                'image/webp' => 'webp',
+                default => null,
+            };
+            if ($extension !== null && ($asset['path'] ?? null) === 'generated/images/'.$job->job_id.'/'.$index.'.'.$extension) {
+                $outputs[$index] = ['path' => $asset['path'], 'mime' => $asset['mime']];
+            }
+        }
+
+        return $outputs;
+    }
+
+    public static function discard(ImageJob $job): void
+    {
+        foreach (self::outputs($job) as $asset) {
+            Storage::disk('local')->delete($asset['path']);
+        }
     }
 
     private function download(string $url): string

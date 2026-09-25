@@ -28,6 +28,10 @@ class OperationalDataSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \RuntimeException('Operational demo data may only be seeded in local or testing environments.');
+        }
+
         $admin = User::firstOrCreate(
             ['email' => 'ops.admin@xsuper.test'],
             [

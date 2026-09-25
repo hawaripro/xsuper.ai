@@ -187,10 +187,14 @@ class StorageUpgradeController extends Controller
 
     public function reject(Request $request, StorageUpgradeOrder $order): JsonResponse
     {
-        if ($order->status !== 'pending') {
-            return response()->json(['message' => 'Order sudah diproses.'], 422);
-        }
-        $order->update(['status' => 'rejected', 'note' => $request->input('note', 'Ditolak oleh admin.')]);
+        // Re-read under lock: the route-bound model may predate a concurrent approval or cancellation.
+        DB::transaction(function () use ($request, $order): void {
+            $locked = StorageUpgradeOrder::query()->lockForUpdate()->findOrFail($order->id);
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages(['order' => 'Order sudah diproses.']);
+            }
+            $locked->update(['status' => 'rejected', 'note' => $request->input('note', 'Ditolak oleh admin.')]);
+        });
 
         return response()->json(['message' => 'Order ditolak.']);
     }

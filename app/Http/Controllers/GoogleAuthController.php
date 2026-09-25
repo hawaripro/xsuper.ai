@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\EmailIntelligence;
+use App\Services\EmailOtpService;
+use App\Services\LoginAdmission;
 use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,7 +30,7 @@ class GoogleAuthController extends Controller
      * Handle callback from Google. Existing accounts sign in; the register flow
      * (`?intent=register`) creates a member, blocking disposable inboxes.
      */
-    public function callback(Request $request, ReferralService $referrals, EmailIntelligence $email)
+    public function callback(Request $request, ReferralService $referrals, EmailIntelligence $email, EmailOtpService $otp, LoginAdmission $admission)
     {
         $intent = $request->session()->pull('oauth.intent', 'login');
 
@@ -39,11 +41,23 @@ class GoogleAuthController extends Controller
         }
 
         $address = (string) $googleUser->getEmail();
+        $subject = (string) $googleUser->getId();
+        if ($subject === '' || ! filter_var($address, FILTER_VALIDATE_EMAIL)) {
+            return redirect('/login?error=google_failed');
+        }
+        $claims = $googleUser->getRaw();
+        $verifiedEmail = ($claims['email_verified'] ?? false) === true
+            && ($claims['email'] ?? null) === $address;
 
-        // Find existing user by email or google_id.
-        $user = User::where('email', $address)
-            ->orWhere('google_id', $googleUser->getId())
-            ->first();
+        // The provider subject is the identity. An email-only match may link only
+        // when both sides have proven that address, never an unverified registration.
+        $user = User::where('google_id', $subject)->first();
+        if (! $user) {
+            $user = User::where('email', $address)->first();
+            if ($user && ($user->email_verified_at === null || ! $verifiedEmail || $user->google_id !== null)) {
+                return redirect('/login?error=account_link_required');
+            }
+        }
 
         if (! $user) {
             // Only the register flow may create a new account from Google.
@@ -58,31 +72,42 @@ class GoogleAuthController extends Controller
             $user = User::create([
                 'name' => $googleUser->getName() ?: Str::before($address, '@'),
                 'email' => $address,
-                'email_verified_at' => now(), // Google has already verified this address.
                 'email_provider' => $email->provider($address),
-                'google_id' => $googleUser->getId(),
+                'google_id' => $subject,
                 'avatar' => $googleUser->getAvatar(),
                 'password' => Hash::make(Str::random(40)),
                 'role' => 'member',
             ]);
 
-            $referrals->attribute($user, $request);
-
-            Auth::login($user, true);
-
-            return redirect('/dashboard');
+            if ($verifiedEmail) {
+                $user->forceFill(['email_verified_at' => now()])->save();
+            } else {
+                $otp->sendSilently($user);
+            }
         }
 
-        // Update google_id if not set yet.
+        $requiresTwoFactor = $user->hasEnabledTwoFactorAuthentication();
+        if ($admission->denial($request, $user, admitDevice: ! $requiresTwoFactor)) {
+            return redirect('/login?error=account_restricted');
+        }
+
+        // Attach only the safely resolved provider identity.
         if (! $user->google_id) {
-            $user->update(['google_id' => $googleUser->getId()]);
+            $user->update(['google_id' => $subject]);
         }
         if ($user->email_provider === null) {
             $user->update(['email_provider' => $email->provider($user->email)]);
         }
         $referrals->attribute($user, $request);
 
+        if ($requiresTwoFactor) {
+            $admission->challenge($request, $user, true);
+
+            return redirect('/login?two_factor=1');
+        }
+
         Auth::login($user, true);
+        $request->session()->regenerate();
 
         return redirect('/dashboard');
     }

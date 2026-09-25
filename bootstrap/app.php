@@ -39,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Throttle abuse-prone auth endpoints (register/forgot/reset) and remember referral links.
         $middleware->web(append: [
+            \Illuminate\Session\Middleware\AuthenticateSession::class,
             \App\Http\Middleware\ThrottleAuthEndpoints::class,
             \App\Http\Middleware\CaptureReferral::class,
         ]);

@@ -81,6 +81,109 @@ class MediaGenerationWorkflowTest extends TestCase
         $this->assertSame(70, UserToken::getBalance($user->id));
     }
 
+    public function test_native_image_pause_blocks_admission_without_charging_or_calling_provider(): void
+    {
+        $provider = $this->provider();
+        $this->model($provider, 'gpt-image-2', 'image', 15);
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        config(['media.kill_switch' => true]);
+        Http::fake(['https://media.example.test/v1/images/generations' => Http::response(['data' => [['b64_json' => $this->png()]]])]);
+
+        $this->actingAs($user)->postJson('/api/images', [
+            'model' => 'gpt-image-2', 'prompt' => 'A ceramic cup', 'size' => 'auto', 'n' => 1,
+        ])->assertStatus(503);
+        $this->assertDatabaseCount('image_jobs', 0);
+        $this->assertSame(100, UserToken::getBalance($user->id));
+        Http::assertNothingSent();
+    }
+
+    public function test_native_image_replay_preserves_batch_charge_and_survives_pause_and_price_changes(): void
+    {
+        $provider = $this->provider();
+        $model = $this->model($provider, 'gpt-image-2', 'image', 15);
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        Http::fake(['https://media.example.test/v1/images/generations' => Http::response(['data' => [['b64_json' => $this->png()]]])]);
+        $input = ['model' => 'gpt-image-2', 'prompt' => 'A ceramic cup', 'size' => 'auto', 'n' => 2,
+            'idempotency_key' => 'native-batch-replay', 'expected_price_tokens' => 15];
+
+        $first = $this->actingAs($user)->postJson('/api/images', $input)->assertCreated();
+        $this->postJson('/api/images', $input)->assertCreated()->assertJsonPath('job.job_id', $first->json('job.job_id'));
+        $this->assertDatabaseCount('image_jobs', 1);
+        $this->assertSame(70, UserToken::getBalance($user->id));
+        Http::assertSentCount(2);
+
+        config(['media.kill_switch' => true]);
+        $model->update(['token_cost' => 20]);
+        $this->postJson('/api/images', $input)->assertCreated()->assertJsonPath('job.job_id', $first->json('job.job_id'));
+        $this->postJson('/api/images', [...$input, 'prompt' => 'A different paid request'])->assertStatus(409);
+        $this->assertSame(70, UserToken::getBalance($user->id));
+        Http::assertSentCount(2);
+    }
+
+    public function test_native_image_stale_quotes_are_rejected_before_reservation(): void
+    {
+        $provider = $this->provider();
+        $this->model($provider, 'gpt-image-2', 'image', 15);
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        Http::fake(['https://media.example.test/v1/images/generations' => Http::response(['data' => [['b64_json' => $this->png()]]])]);
+        $input = ['model' => 'gpt-image-2', 'prompt' => 'A ceramic cup', 'size' => 'auto', 'n' => 1];
+
+        $this->actingAs($user)->postJson('/api/images', [...$input, 'expected_price_tokens' => 14])->assertStatus(409);
+        $this->postJson('/api/images', [...$input, 'expected_capability_hash' => str_repeat('0', 64)])->assertStatus(409);
+        $this->assertDatabaseCount('image_jobs', 0);
+        $this->assertSame(100, UserToken::getBalance($user->id));
+        Http::assertNothingSent();
+    }
+
+    public function test_non_pilot_image_admission_honors_quotes_and_replays_without_redispatch(): void
+    {
+        $provider = $this->provider();
+        $provider->update(['slug' => 'kinovi-ai', 'protocol' => 'kinovi', 'base_url' => 'https://kinovi.ai/api/v1']);
+        $this->model($provider, 'kinovi-ai/gpt-image-2', 'image', 15)->update(['upstream_model_id' => 'gpt-image-2']);
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => null]);
+        $input = ['model' => 'kinovi-ai/gpt-image-2', 'prompt' => 'A ceramic cup', 'size' => '1024x1024', 'n' => 1,
+            'idempotency_key' => 'non-pilot-replay', 'expected_price_tokens' => 15];
+
+        $this->actingAs($user)->postJson('/api/images', [...$input, 'expected_price_tokens' => 14])->assertStatus(409);
+        $this->postJson('/api/images', [...$input, 'expected_capability_hash' => str_repeat('0', 64)])->assertStatus(409);
+        $this->assertSame(100, UserToken::getBalance($user->id));
+        $first = $this->postJson('/api/images', $input)->assertCreated()->assertJsonPath('job.status', 'pending');
+        config(['media.kill_switch' => true]);
+        $this->postJson('/api/images', $input)->assertCreated()->assertJsonPath('job.job_id', $first->json('job.job_id'));
+        $this->postJson('/api/images', [...$input, 'n' => 2])->assertStatus(409);
+        $this->assertDatabaseCount('image_jobs', 1);
+        $this->assertSame(85, UserToken::getBalance($user->id));
+        Queue::assertPushed(\App\Jobs\ProcessImageJob::class, 1);
+        Http::assertNothingSent();
+    }
+
+    public function test_coordinator_image_replay_uses_its_saved_contract_after_activation_changes(): void
+    {
+        $provider = $this->provider();
+        $provider->update(['slug' => 'kinovi-ai', 'protocol' => 'kinovi', 'base_url' => 'https://kinovi.ai/api/v1']);
+        $this->model($provider, 'kinovi-ai/gpt-image-2', 'image', 15)->update(['upstream_model_id' => 'gpt-image-2']);
+        $user = User::factory()->create();
+        UserToken::topup($user->id, 100);
+        config(['media.coordinator_restricted' => false]);
+        $input = ['model' => 'kinovi-ai/gpt-image-2', 'prompt' => 'A ceramic cup', 'size' => '1024x1024', 'n' => 1,
+            'idempotency_key' => 'coordinator-before-restriction', 'expected_price_tokens' => 15];
+
+        $first = $this->actingAs($user)->postJson('/api/images', $input)->assertCreated();
+        config(['media.coordinator_restricted' => true, 'media.restricted_user_id' => null, 'media.kill_switch' => true]);
+        $this->postJson('/api/images', $input)->assertCreated()->assertJsonPath('job.job_id', $first->json('job.job_id'));
+        $this->postJson('/api/images', [...$input, 'n' => 2])->assertStatus(409);
+        $this->postJson('/api/images', [...$input, 'prompt' => 'Different input'])->assertStatus(409);
+        $this->assertDatabaseCount('image_jobs', 1);
+        $this->assertSame(85, UserToken::getBalance($user->id));
+        Queue::assertPushed(\App\Jobs\ProcessImageJob::class, 1);
+        Http::assertNothingSent();
+    }
+
     public function test_provider_image_url_is_copied_to_private_owner_scoped_storage(): void
     {
         $provider = $this->provider();
@@ -834,6 +937,72 @@ class MediaGenerationWorkflowTest extends TestCase
         $this->assertSame(300, UserToken::getBalance($user->id));
         $this->assertSame(1, TokenTransaction::query()->where('user_id', $user->id)->where('type', 'refund')->count());
         $this->get($completed->fresh()->video_url)->assertOk()->assertHeader('Content-Type', 'video/mp4');
+    }
+
+    public static function quotaVideoResponses(): array
+    {
+        return ['immediate result' => [true], 'polled result' => [false]];
+    }
+
+    #[DataProvider('quotaVideoResponses')]
+    public function test_video_output_quota_retains_the_reservation_and_retries_without_paid_resubmission(bool $immediate): void
+    {
+        [$user, $provider] = $this->videoFixture();
+        $bytes = $this->mp4();
+        $failDownload = false;
+        Http::fake([
+            'https://media.example.test/v1/videos/generations' => Http::response($immediate
+                ? ['status' => 'completed', 'video_url' => 'https://cdn.example.test/quota.mp4']
+                : ['id' => 'quota-task', 'status' => 'queued']),
+            'https://media.example.test/v1/videos/generations/quota-task' => Http::response(['status' => 'completed', 'video_url' => 'https://cdn.example.test/quota.mp4']),
+            'https://cdn.example.test/quota.mp4' => function () use ($bytes, &$failDownload) {
+                if ($failDownload) {
+                    $failDownload = false;
+
+                    return Http::response('Temporary asset outage', 503);
+                }
+
+                return Http::response($bytes, 200, ['Content-Type' => 'video/mp4']);
+            },
+        ]);
+        config(['storage_quota.base_bytes' => strlen($bytes) - 1]);
+        $service = app(VideoGenerationService::class);
+        $job = $service->create($user, $this->videoInput())[0];
+        $service->process($job->id);
+        $this->travel(9)->seconds();
+        $service->poll($job->id);
+        $this->assertSame('save_failed', $job->fresh()->stage);
+        $this->assertSame('reserved', $job->fresh()->billing_status);
+        Storage::disk('local')->assertMissing(GeneratedVideoStore::path($job->job_id));
+        $this->travel(1)->hours();
+        $service->reconcile();
+        $this->assertSame(300, UserToken::getBalance($user->id));
+        $provider->update(['is_enabled' => false]);
+        config(['storage_quota.base_bytes' => strlen($bytes)]);
+        $queue = Queue::getFacadeRoot();
+        Queue::shouldReceive('connection')->with('media')->andThrow(new RuntimeException('Fixture queue outage'));
+        $this->actingAs($user)->postJson('/api/media/workspace/jobs/video:'.$job->job_id.'/retry-save')
+            ->assertAccepted()->assertJsonPath('job.status', 'save_failed');
+        $this->assertSame('reserved', $job->fresh()->billing_status);
+        Queue::swap($queue);
+        Queue::fake();
+        $failDownload = true;
+        $this->actingAs($user)->postJson('/api/media/workspace/jobs/video:'.$job->job_id.'/retry-save')->assertAccepted();
+        $service->poll($job->id);
+        $this->assertSame('save_failed', $job->fresh()->stage);
+        $this->assertSame('reserved', $job->fresh()->billing_status);
+        $this->postJson('/api/media/workspace/jobs/video:'.$job->job_id.'/retry-save')->assertAccepted();
+        Queue::fake(); // Lose the accepted poll; recovery must finish the saved result, not re-submit generation.
+        $this->travel(9)->seconds();
+        $service->reconcile();
+        foreach (Queue::pushed(\App\Jobs\PollVideoJob::class) as $queued) {
+            $queued->handle($service);
+        }
+        $this->assertSame('completed', $job->fresh()->status);
+        $this->assertSame('settled', $job->fresh()->billing_status);
+        $this->assertSame($bytes, Storage::disk('local')->get(GeneratedVideoStore::path($job->job_id)));
+        $this->assertSame(strlen($bytes), app(\App\Services\StorageQuotaService::class)->usedBytes($user));
+        $this->assertCount(1, Http::recorded(fn ($request): bool => $request->method() === 'POST'));
     }
 
     private function provider(): AiProviderProfile

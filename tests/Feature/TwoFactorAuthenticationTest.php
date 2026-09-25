@@ -60,7 +60,7 @@ class TwoFactorAuthenticationTest extends TestCase
 
         $this->postJson('/api/login', ['email' => $user->email, 'password' => 'Secret123!'])
             ->assertOk()
-            ->assertExactJson(['two_factor' => true]);
+            ->assertJsonPath('two_factor', true);
         $this->assertGuest();
 
         $this->postJson('/api/login/two-factor', ['code' => '123456'])

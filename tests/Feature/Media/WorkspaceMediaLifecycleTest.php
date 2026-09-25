@@ -207,8 +207,20 @@ class WorkspaceMediaLifecycleTest extends TestCase
         $result = ['boxes' => [[1, 2, 3, 4]], 'scores' => [0.92], 'text' => 'An intact original caption'];
         $job->update(['status' => 'save_failed', 'stage' => 'save_failed', 'provider_result' => $result,
             'result_received_at' => now(), 'submitted_at' => now(), 'error_message' => 'Storage was full.']);
+        $failCompletion = true;
+        WorkspaceMediaJob::updating(function (WorkspaceMediaJob $updating) use (&$failCompletion): void {
+            if ($updating->status === 'completed' && $failCompletion) {
+                $failCompletion = false;
+                throw new \RuntimeException('Fixture completion transaction interrupted');
+            }
+        });
         $service->retrySave($user, $job->job_id);
         $service->poll($job->id);
+        $this->assertSame('save_failed', $job->fresh()->status);
+        $this->assertSame('reserved', $job->fresh()->billing_status);
+        $retainedBytes = app(\App\Services\StorageQuotaService::class)->usedBytes($user);
+        config(['storage_quota.base_bytes' => $retainedBytes]);
+        $this->actingAs($user)->postJson('/api/media/workspace/jobs/'.$job->job_id.'/retry-save')->assertAccepted();
         $service->poll($job->id);
         $saved = $job->fresh();
         $this->assertSame('completed', $saved->status);

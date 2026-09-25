@@ -57,7 +57,6 @@ final class ProviderSseStream
         $id = null;
         $model = null;
         $inputUsage = [];
-        $outputTokens = 0;
         $toolIndexes = [];
         $toolArguments = [];
         $openBlocks = [];
@@ -193,7 +192,7 @@ final class ProviderSseStream
                         throw self::invalidStream();
                     }
                     $output = is_array($event['usage'] ?? null) ? $event['usage'] : [];
-                    $outputTokens = self::tokenCount($output['output_tokens'] ?? null);
+                    $outputTokens = $output['output_tokens'] ?? null;
                     $finished = true;
                     $chunk = self::chunk($id, $model, [], AnthropicProtocol::finishReason($reason));
                     $chunk['usage'] = AnthropicProtocol::usage(array_replace($inputUsage, ['output_tokens' => $outputTokens]));
@@ -429,15 +428,6 @@ final class ProviderSseStream
         }
 
         return $index;
-    }
-
-    private static function tokenCount(mixed $tokens): int
-    {
-        if (! is_int($tokens) || $tokens < 0) {
-            throw self::invalidStream();
-        }
-
-        return $tokens;
     }
 
     private static function streamFailure(): AiProxyException

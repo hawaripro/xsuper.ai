@@ -92,6 +92,7 @@ export default function MediaQueue() {
                 <span aria-hidden="true">/</span>
                 <strong>{t("Antrean media global")}</strong>
             </nav>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">{t("Antrean media global")}</h1>
             <section className="ui-card" aria-labelledby="yt-cookies-title">
                 <div className="ui-card-header">
                     <div className="min-w-0">

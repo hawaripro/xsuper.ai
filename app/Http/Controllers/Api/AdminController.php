@@ -74,10 +74,6 @@ class AdminController extends Controller
         $user->email = $validated['email'];
         $user->role = $validated['role'];
 
-        if (! empty($validated['password'])) {
-            $user->password = Hash::make($validated['password']);
-        }
-
         if ($validated['role'] === 'admin') {
             $user->expires_at = null;
             $user->permissions = null;
@@ -95,7 +91,12 @@ class AdminController extends Controller
             }
         }
 
-        $user->save();
+        if (! empty($validated['password'])) {
+            // Persist the pending profile changes with credential rotation and target-session revocation.
+            $user->replacePassword($validated['password']);
+        } else {
+            $user->save();
+        }
 
         return response()->json(['user' => $user, 'message' => 'User berhasil diperbarui']);
     }

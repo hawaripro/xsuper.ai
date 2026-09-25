@@ -139,7 +139,7 @@ class ReferralProgramTest extends TestCase
             'id' => 'google-user-123',
             'name' => 'Google Member',
             'email' => $member->email,
-        ]);
+        ])->setRaw(['email' => $member->email, 'email_verified' => true]);
         $provider = Mockery::mock();
 
         Socialite::shouldReceive('driver')->twice()->with('google')->andReturn($provider);

@@ -17,7 +17,7 @@ export default function Login() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [challenge, setChallenge] = useState(false);
+    const [challenge, setChallenge] = useState(() => searchParams.get('two_factor') === '1');
     const [useRecovery, setUseRecovery] = useState(false);
     const [otp, setOtp] = useState('');
 
@@ -29,8 +29,16 @@ export default function Login() {
             setError(t('Akun belum terdaftar. Hubungi admin untuk mendapatkan akses.'));
         } else if (googleError === 'google_failed') {
             setError(t('Login Google gagal. Silakan coba lagi.'));
+        } else if (googleError === 'account_link_required') {
+            setError(locale === 'en'
+                ? 'This email already has an account. Sign in with its password or use password recovery before linking Google.'
+                : 'Email ini sudah memiliki akun. Masuk dengan password atau gunakan pemulihan password sebelum menautkan Google.');
+        } else if (googleError === 'account_restricted') {
+            setError(locale === 'en'
+                ? 'This account, device, or network is not permitted to sign in. Contact an administrator.'
+                : 'Akun, perangkat, atau jaringan ini tidak diizinkan masuk. Hubungi admin.');
         }
-    }, [t]);
+    }, [locale, t]);
 
     const finish = () => {
         const redirect = searchParams.get('redirect');

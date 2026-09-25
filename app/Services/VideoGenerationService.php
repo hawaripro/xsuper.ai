@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 final class VideoGenerationService
@@ -200,7 +201,7 @@ final class VideoGenerationService
             }
             if ($state['url'] !== null) {
                 $claimed = VideoJob::query()->whereKey($job->id)->where('status', 'processing')->where('stage', 'submitting')
-                    ->where('processing_started_at', $job->processing_started_at)->update(['stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null]);
+                    ->where('processing_started_at', $job->processing_started_at)->update(['stage' => 'saving', 'provider_result_url' => $state['url'], 'processing_started_at' => now(), 'next_poll_at' => null]);
                 if ($claimed !== 1) {
                     return;
                 }
@@ -234,9 +235,10 @@ final class VideoGenerationService
     {
         $job = DB::transaction(function () use ($id): ?VideoJob {
             $job = VideoJob::query()->lockForUpdate()->find($id);
-            if (! $job || $job->status !== 'processing' || $job->stage !== 'rendering' || ! $job->upstream_job_id
+            if (! $job || $job->status !== 'processing' || ! in_array($job->stage, ['rendering', 'saving'], true)
+                || (! $job->upstream_job_id && ! $job->provider_result_url)
                 || ($job->next_poll_at !== null && $job->next_poll_at->isFuture())
-                || ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subMinute()))) {
+                || ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subSeconds($job->stage === 'saving' ? 360 : 60)))) {
                 return null;
             }
             $job->update(['processing_started_at' => now(), 'next_poll_at' => now()->addSeconds(30), 'poll_attempts' => $job->poll_attempts + 1]);
@@ -246,19 +248,27 @@ final class VideoGenerationService
         if (! $job) {
             return;
         }
-        if (($job->submitted_at ?? $job->created_at)->lt(now()->subMinutes(30))) {
+        $savingOriginal = $job->stage === 'saving' && $job->provider_result_url !== null;
+        if (! $job->provider_result_url && ($job->submitted_at ?? $job->created_at)->lt(now()->subMinutes(30))) {
             $this->fail($job->id, 'Video generation timed out. Reserved tokens have been returned.');
 
             return;
         }
-        try {
-            $provider = $this->provider($job);
-        } catch (AiProxyException $exception) {
-            $this->fail($job->id, $exception->getMessage());
+        if (! $job->provider_result_url) {
+            try {
+                $provider = $this->provider($job);
+            } catch (AiProxyException $exception) {
+                $this->fail($job->id, $exception->getMessage());
 
-            return;
+                return;
+            }
         }
         try {
+            if ($job->provider_result_url) {
+                $this->complete($job->id, ['url' => $job->provider_result_url]);
+
+                return;
+            }
             $result = $this->transport->videoStatus($provider, $job->upstream_job_id, $job->generation_config['video_status_path']);
             $state = $this->state($result);
             if ($state['failed']) {
@@ -268,7 +278,7 @@ final class VideoGenerationService
             }
             if ($state['url'] !== null) {
                 $claimed = VideoJob::query()->whereKey($job->id)->where('status', 'processing')->where('stage', 'rendering')
-                    ->where('processing_started_at', $job->processing_started_at)->update(['stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null]);
+                    ->where('processing_started_at', $job->processing_started_at)->update(['stage' => 'saving', 'provider_result_url' => $state['url'], 'processing_started_at' => now(), 'next_poll_at' => null]);
                 if ($claimed !== 1) {
                     return;
                 }
@@ -277,6 +287,11 @@ final class VideoGenerationService
                 return;
             }
         } catch (AiProxyException $exception) {
+            if ($savingOriginal) {
+                $this->deferSavedResult($job, 'The original video result could not be saved. Retry saving without generating again.');
+
+                return;
+            }
             $current = VideoJob::query()->find($job->id);
             if ($current?->stage === 'saving') {
                 $this->fail($job->id, 'The video result could not be saved. Reserved tokens have been returned.');
@@ -289,6 +304,11 @@ final class VideoGenerationService
                 return;
             }
         } catch (Throwable) {
+            if ($savingOriginal) {
+                $this->deferSavedResult($job, 'The original video result could not be saved. Retry saving without generating again.');
+
+                return;
+            }
             $current = VideoJob::query()->find($job->id);
             $message = $current?->stage === 'saving'
                 ? 'The video result could not be saved. Reserved tokens have been returned.'
@@ -314,11 +334,17 @@ final class VideoGenerationService
                 } elseif ($job->status === 'pending' && $job->stage === 'queued' && $job->submitted_at === null && $job->upstream_job_id === null) {
                     ProcessVideoJob::dispatch($job->id)->onConnection('media')->onQueue('media');
                     $count++;
-                } elseif ($job->stage === 'rendering' && ($job->next_poll_at === null || $job->next_poll_at->isPast())) {
+                } elseif (($job->stage === 'rendering'
+                    || ($job->stage === 'saving' && $job->provider_result_url !== null && $job->processing_started_at === null))
+                    && ($job->next_poll_at === null || $job->next_poll_at->isPast())) {
                     PollVideoJob::dispatch($job->id)->onConnection('media')->onQueue('media');
                     $count++;
                 } elseif ($job->stage === 'saving' && $job->processing_started_at?->lt(now()->subMinutes(6))) {
-                    $this->fail($job->id, 'The video result could not be saved. Reserved tokens have been returned.');
+                    if ($job->provider_result_url) {
+                        $this->deferSavedResult($job, 'The original video result could not be saved. Retry saving without generating again.');
+                    } else {
+                        $this->fail($job->id, 'The video result could not be saved. Reserved tokens have been returned.');
+                    }
                     $count++;
                 } elseif ($job->stage === 'submitting' && $job->processing_started_at?->lt(now()->subMinutes(6))) {
                     $this->failSubmission($job->id, 'The video request was interrupted. It was not automatically resubmitted.');
@@ -326,6 +352,7 @@ final class VideoGenerationService
                 } elseif ($job->stage === 'reviewing' && $job->processing_started_at?->lt(now()->subMinutes(6))) {
                     // Retire pre-cutover review claims without resubmitting them.
                     $count += DB::transaction(function () use ($job): int {
+                        User::query()->whereKey($job->user_id)->lockForUpdate()->firstOrFail();
                         $job = VideoJob::query()->lockForUpdate()->find($job->id);
                         if (! $job || $job->status !== 'processing' || $job->stage !== 'reviewing'
                             || $job->submitted_at !== null || $job->upstream_job_id !== null
@@ -422,7 +449,7 @@ final class VideoGenerationService
     public function failSubmission(int $id, string $message): void
     {
         DB::transaction(function () use ($id, $message): void {
-            $job = VideoJob::query()->lockForUpdate()->find($id);
+            $job = $this->lockedJob($id);
             if (! $job || $job->upstream_job_id !== null || $job->submitted_at !== null
                 || ! (($job->status === 'pending' && $job->stage === 'queued')
                     || ($job->status === 'processing' && in_array($job->stage, ['submitting', 'saving'], true)))) {
@@ -435,7 +462,7 @@ final class VideoGenerationService
     public function fail(int $id, string $message): void
     {
         DB::transaction(function () use ($id, $message): void {
-            $job = VideoJob::query()->lockForUpdate()->find($id);
+            $job = $this->lockedJob($id);
             if ($job) {
                 $this->terminate($job, 'failed', $message);
             }
@@ -444,7 +471,7 @@ final class VideoGenerationService
 
     private function terminate(VideoJob $job, string $stage, string $message): void
     {
-        if (! in_array($job->status, ['pending', 'processing'], true)) {
+        if (! in_array($job->status, ['pending', 'processing'], true) || $job->stage === 'save_failed') {
             return;
         }
         $description = $stage === 'cancelled' ? 'Video generation cancelled' : 'Video generation did not complete';
@@ -457,6 +484,7 @@ final class VideoGenerationService
         $job->update([
             'status' => 'failed', 'stage' => $stage,
             'error_message' => $message,
+            'provider_result_url' => null,
             'billing_status' => 'released', 'next_poll_at' => null, 'processing_started_at' => null,
             'completed_at' => now(),
         ]);
@@ -568,23 +596,64 @@ final class VideoGenerationService
             return;
         }
         $videoUrl = $this->videos->persist($job, $state['url']);
-        $retained = DB::transaction(function () use ($id, $videoUrl): bool {
-            $job = VideoJob::query()->lockForUpdate()->findOrFail($id);
-            if ($job->status !== 'processing' || $job->stage !== 'saving') {
-                return $job->status === 'completed';
-            }
-            $this->tokens->settle($job->user_id, ['reference_id' => $job->billing_reference_id, 'amount_tokens' => $job->tokens_reserved], ['service' => 'video', 'model' => $job->model]);
-            $job->update([
-                'status' => 'completed', 'stage' => 'completed', 'video_url' => $videoUrl,
-                'thumbnail_url' => null, 'billing_status' => 'settled',
-                'completed_at' => now(), 'next_poll_at' => null, 'processing_started_at' => null,
-            ]);
+        $retained = false;
+        $saveError = null;
+        try {
+            $retained = DB::transaction(function () use ($job, $videoUrl): bool {
+                $owner = User::query()->whereKey($job->user_id)->lockForUpdate()->firstOrFail();
+                $locked = VideoJob::query()->lockForUpdate()->findOrFail($job->id);
+                if ($locked->status !== 'processing' || $locked->stage !== 'saving'
+                    || ! $locked->processing_started_at?->equalTo($job->processing_started_at)) {
+                    return $locked->status === 'completed';
+                }
+                app(StorageQuotaService::class)->assertCanStore($owner, Storage::disk('local')->size(GeneratedVideoStore::path($job->job_id)));
+                $this->tokens->settle($locked->user_id, ['reference_id' => $locked->billing_reference_id, 'amount_tokens' => $locked->tokens_reserved], ['service' => 'video', 'model' => $locked->model]);
+                $locked->update([
+                    'status' => 'completed', 'stage' => 'completed', 'video_url' => $videoUrl,
+                    'provider_result_url' => null, 'error_message' => null,
+                    'thumbnail_url' => null, 'billing_status' => 'settled',
+                    'completed_at' => now(), 'next_poll_at' => null, 'processing_started_at' => null,
+                ]);
 
-            return true;
-        });
-        if (! $retained) {
-            Storage::disk('local')->delete(GeneratedVideoStore::path($job->job_id));
+                return true;
+            });
+        } catch (HttpException $exception) {
+            if ($exception->getStatusCode() !== 413) {
+                throw $exception;
+            }
+            $saveError = $exception->getMessage();
+        } finally {
+            if (! $retained) {
+                Storage::disk('local')->delete(GeneratedVideoStore::path($job->job_id));
+            }
         }
+        if ($saveError !== null) {
+            $this->deferSavedResult($job, $saveError);
+        }
+    }
+
+    private function deferSavedResult(VideoJob $claim, string $message): void
+    {
+        DB::transaction(function () use ($claim, $message): void {
+            $job = VideoJob::query()->lockForUpdate()->find($claim->id);
+            if ($job?->status === 'processing' && $job->stage === 'saving'
+                && $job->processing_started_at?->equalTo($claim->processing_started_at)) {
+                Storage::disk('local')->delete(GeneratedVideoStore::path($job->job_id));
+                $job->update(['stage' => 'save_failed', 'error_message' => $message,
+                    'processing_started_at' => null, 'next_poll_at' => null]);
+            }
+        });
+    }
+
+    private function lockedJob(int $id): ?VideoJob
+    {
+        $ownerId = VideoJob::query()->whereKey($id)->value('user_id');
+        if ($ownerId === null) {
+            return null;
+        }
+        User::query()->whereKey($ownerId)->lockForUpdate()->firstOrFail();
+
+        return VideoJob::query()->lockForUpdate()->find($id);
     }
 
     private function state(array $result): array

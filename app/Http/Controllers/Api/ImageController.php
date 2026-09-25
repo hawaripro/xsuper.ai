@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\UserToken;
 use App\Models\VideoJob;
 use App\Services\AudioGenerationService;
+use App\Services\GeneratedImageStore;
 use App\Services\ImageGenerationService;
 use App\Services\MediaModelConfig;
 use App\Services\StorageQuotaService;
@@ -178,18 +179,14 @@ class ImageController extends Controller
 
     private function removeImageAssets(ImageJob $job): void
     {
-        foreach ((array) $job->asset_paths as $asset) {
-            if (is_array($asset) && is_string($asset['path'] ?? null)) {
-                Storage::disk('local')->delete($asset['path']);
-            }
-        }
+        GeneratedImageStore::discard($job);
     }
 
     public function asset(Request $request, string $jobId, int $index): BinaryFileResponse
     {
         $job = ImageJob::query()->where('job_id', $jobId)->firstOrFail();
         abort_unless($request->user()->isAdmin() || $job->user_id === $request->user()->id, 404);
-        $asset = $job->asset_paths[(string) $index] ?? null;
+        $asset = GeneratedImageStore::outputs($job)[$index] ?? null;
         abort_unless(is_array($asset) && Storage::disk('local')->exists($asset['path']), 404);
 
         return response()->file(Storage::disk('local')->path($asset['path']), [

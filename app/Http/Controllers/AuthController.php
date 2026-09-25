@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SecuritySetting;
 use App\Models\User;
+use App\Services\LoginAdmission;
 use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +15,7 @@ use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 
 class AuthController extends Controller
 {
-    public function __construct(private readonly ReferralService $referrals) {}
+    public function __construct(private readonly ReferralService $referrals, private readonly LoginAdmission $admission) {}
 
     /**
      * Login via API (JSON response for SPA)
@@ -34,25 +34,16 @@ class AuthController extends Controller
         }
 
         $user = Auth::getLastAttempted();
+        $requiresTwoFactor = $user->hasEnabledTwoFactorAuthentication();
 
-        if ($user->is_active === false && $user->role !== 'admin') {
-            return response()->json([
-                'message' => 'Akun Anda dinonaktifkan. Hubungi admin.',
-            ], 403);
-        }
-
-        if ($denied = $this->adminIpDenial($request, $user)) {
+        if ($denied = $this->admission->denial($request, $user, admitDevice: ! $requiresTwoFactor)) {
             return $denied;
         }
 
-        if ($user->hasEnabledTwoFactorAuthentication()) {
-            // Credentials are correct but the session stays unauthenticated until a valid TOTP code arrives.
-            $request->session()->put([
-                'login.id' => $user->getKey(),
-                'login.remember' => $request->boolean('remember'),
-            ]);
+        if ($requiresTwoFactor) {
+            $this->admission->challenge($request, $user, $request->boolean('remember'));
 
-            return response()->json(['two_factor' => true]);
+            return response()->json(['two_factor' => true, 'csrf_token' => $request->session()->token()]);
         }
 
         Auth::login($user, $request->boolean('remember'));
@@ -82,7 +73,7 @@ class AuthController extends Controller
 
         // Re-checked here, not just in login(): the challenge is a separate request
         // and the session could otherwise be finished from a different network.
-        if ($denied = $this->adminIpDenial($request, $user)) {
+        if ($denied = $this->admission->denial($request, $user)) {
             $request->session()->forget(['login.id', 'login.remember']);
 
             return $denied;
@@ -90,15 +81,24 @@ class AuthController extends Controller
 
         $code = trim((string) $request->input('code', ''));
         $recovery = trim((string) $request->input('recovery_code', ''));
+        $known = null;
 
         if ($recovery !== '') {
             $known = collect($user->recoveryCodes())->first(fn ($candidate) => hash_equals($candidate, $recovery));
             if ($known === null) {
                 throw ValidationException::withMessages(['recovery_code' => 'Kode pemulihan tidak valid.']);
             }
-            $user->replaceRecoveryCode($known);
         } elseif ($code === '' || ! $provider->verify(decrypt($user->two_factor_secret), $code)) {
             throw ValidationException::withMessages(['code' => 'Kode autentikasi tidak valid.']);
+        }
+
+        if ($denied = $this->admission->denial($request, $user, admitDevice: true)) {
+            $request->session()->forget(['login.id', 'login.remember']);
+
+            return $denied;
+        }
+        if ($known !== null) {
+            $user->replaceRecoveryCode($known);
         }
 
         $remember = (bool) $request->session()->pull('login.remember', false);
@@ -106,24 +106,6 @@ class AuthController extends Controller
         Auth::login($user, $remember);
 
         return $this->authenticated($request, $user);
-    }
-
-    /**
-     * Admins may only authenticate from an allowlisted address while enforcement
-     * is on. Without this the allowlist only covered admin API routes, so a
-     * correct password plus a correct TOTP code still granted a session from
-     * any network.
-     */
-    private function adminIpDenial(Request $request, User $user): ?\Illuminate\Http\JsonResponse
-    {
-        if ($user->role !== 'admin' || SecuritySetting::current()->ipAllowed($request->ip())) {
-            return null;
-        }
-
-        return response()->json([
-            'message' => 'Alamat IP Anda tidak diizinkan untuk akses admin.',
-            'code' => 'ip_not_allowed',
-        ], 403);
     }
 
     private function authenticated(Request $request, User $user)

@@ -27,7 +27,11 @@ class FeedbackController extends Controller
             ->where('user_id', $user->id)
             ->latest('id')
             ->paginate($validated['per_page'] ?? 20)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (Feedback $entry): array => $entry->only([
+                'id', 'user_id', 'rating', 'category', 'message', 'status',
+                'is_testimonial', 'created_at', 'updated_at',
+            ]));
 
         return response()->json($feedback);
     }

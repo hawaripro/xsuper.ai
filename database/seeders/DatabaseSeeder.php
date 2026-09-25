@@ -10,6 +10,10 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \RuntimeException('Demo accounts may only be seeded in local or testing environments.');
+        }
+
         // Create admin user
         User::firstOrCreate(
             ['email' => 'admin@xsuper.dev'],

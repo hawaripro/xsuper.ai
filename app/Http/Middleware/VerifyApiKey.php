@@ -45,6 +45,11 @@ class VerifyApiKey
             ], 403);
         }
 
+        // Trusted identity travels via request attributes — never through input. Device
+        // tracking reads the verified key from here to select the plugin identity.
+        $request->attributes->set('api_user', $user);
+        $request->attributes->set('api_key', $apiKey);
+
         // Device policy mirrors the session middleware: block blocked/pending devices.
         $maxDevices = $user->isAdmin() ? 999 : 2;
         $device = UserDevice::trackDevice($user->id, $request, $maxDevices);
@@ -64,10 +69,6 @@ class VerifyApiKey
         RateLimiter::hit($limiterKey, 60);
 
         $apiKey->recordUsage();
-
-        // Trusted identity travels via request attributes — never through input.
-        $request->attributes->set('api_user', $user);
-        $request->attributes->set('api_key', $apiKey);
 
         return $next($request);
     }

@@ -16,6 +16,7 @@ export const testEnvironment = {
     CACHE_STORE: 'array',
     SESSION_DRIVER: 'database',
     SESSION_COOKIE: 'dashboard_e2e_session',
+    SESSION_PATH: '/',
     SESSION_DOMAIN: 'null',
     SESSION_SECURE_COOKIE: 'false',
     MAIL_MAILER: 'array',

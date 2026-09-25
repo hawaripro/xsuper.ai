@@ -187,10 +187,11 @@ class ChatArtifactTest extends TestCase
         $this->conversation($owner, 'unrelated-chat');
         $this->conversation($other, 'other-generated-chat');
         $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nO0AAAAASUVORK5CYII=');
-        $path = 'generated/images/artifact-fixture/image.png';
+        $jobId = (string) Str::uuid();
+        $path = 'generated/images/'.$jobId.'/0.png';
         Storage::disk('local')->put($path, $bytes);
         $job = ImageJob::create([
-            'user_id' => $owner->id, 'job_id' => (string) Str::uuid(), 'model' => 'fixture',
+            'user_id' => $owner->id, 'job_id' => $jobId, 'model' => 'fixture',
             'prompt' => 'fixture', 'status' => 'completed', 'asset_paths' => [['path' => $path, 'mime' => 'image/png']],
         ]);
         // Production binds a chat only after the owner check, never by mass assignment.

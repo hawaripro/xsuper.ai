@@ -204,7 +204,7 @@ Route::prefix('api')->middleware('web')->group(function () {
         Route::delete('/media/workspace/jobs', [WorkspaceMediaController::class, 'clear']);
         Route::get('/media/workspace/jobs/{id}', [WorkspaceMediaController::class, 'show'])->where('id', '[A-Za-z0-9:_-]{1,100}');
         Route::post('/media/workspace/jobs/{id}/cancel', [WorkspaceMediaController::class, 'cancel'])->where('id', '[A-Za-z0-9:_-]{1,100}');
-        Route::post('/media/workspace/jobs/{id}/retry-save', [WorkspaceMediaController::class, 'retrySave'])->where('id', '[A-Za-z0-9:_-]{1,100}')->middleware(['storage.available', 'throttle:20,1,media-workspace-save']);
+        Route::post('/media/workspace/jobs/{id}/retry-save', [WorkspaceMediaController::class, 'retrySave'])->where('id', '[A-Za-z0-9:_-]{1,100}')->middleware('throttle:20,1,media-workspace-save');
         Route::delete('/media/workspace/jobs/{id}', [WorkspaceMediaController::class, 'destroy'])->where('id', '[A-Za-z0-9:_-]{1,100}');
         Route::get('/media/workspace/jobs/{id}/outputs/{outputId}/download', [WorkspaceMediaController::class, 'download'])->where('id', '[A-Za-z0-9:_-]{1,100}');
         Route::get('/media/workspace/jobs/{id}/outputs/{outputId}/preview', [WorkspaceMediaController::class, 'preview'])->where('id', '[A-Za-z0-9:_-]{1,100}');

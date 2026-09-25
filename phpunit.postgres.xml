@@ -30,8 +30,8 @@
         <server name="DB_CONNECTION" value="pgsql" force="true"/>
         <server name="DB_HOST" value="127.0.0.1" force="true"/>
         <server name="DB_PORT" value="2209" force="true"/>
-        <server name="DB_DATABASE" value="ultrai_pg_test" force="true"/>
-        <server name="DB_USERNAME" value="ultrai_pg_test" force="true"/>
+        <server name="DB_DATABASE" value="xsuper_pg_test" force="true"/>
+        <server name="DB_USERNAME" value="xsuper_pg_test" force="true"/>
         <server name="DB_URL" value="" force="true"/>
         <server name="MAIL_MAILER" value="array" force="true"/>
         <server name="QUEUE_CONNECTION" value="sync" force="true"/>

@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 final class ThreeDGenerationService
@@ -182,7 +183,7 @@ final class ThreeDGenerationService
         $job = DB::transaction(function () use ($id): ?ThreeDJob {
             $job = ThreeDJob::query()->lockForUpdate()->find($id);
             if (! $job || $job->status !== 'processing' || ! in_array($job->stage, ['rendering', 'saving'], true)
-                || ! $job->upstream_job_id || ($job->next_poll_at !== null && $job->next_poll_at->isFuture())
+                || (! $job->upstream_job_id && ! $job->provider_result_url) || ($job->next_poll_at !== null && $job->next_poll_at->isFuture())
                 || ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subSeconds(self::POLL_LEASE_SECONDS)))) {
                 return null;
             }
@@ -194,6 +195,7 @@ final class ThreeDGenerationService
         if ($job === null) {
             return;
         }
+        $savingOriginal = $job->stage === 'saving' && $job->provider_result_url !== null;
         try {
             // Locally saved originals can finish settlement even if the upstream URL or provider has expired.
             if ($job->stage === 'saving' && ($saved = $this->models->existing($job)) !== null) {
@@ -201,7 +203,8 @@ final class ThreeDGenerationService
 
                 return;
             }
-            if (($job->submitted_at ?? $job->created_at)->lt(now()->subMinutes(self::MAX_MINUTES)) || $job->poll_attempts > 240) {
+            if (! $job->provider_result_url
+                && (($job->submitted_at ?? $job->created_at)->lt(now()->subMinutes(self::MAX_MINUTES)) || $job->poll_attempts > 240)) {
                 $this->failClaim($job, '3D generation timed out. Reserved tokens have been returned.');
 
                 return;
@@ -236,12 +239,22 @@ final class ThreeDGenerationService
                 return;
             }
         } catch (AiProxyException $exception) {
+            if ($savingOriginal) {
+                $this->deferSavedResult($job, 'The original 3D result could not be saved. Retry saving without generating again.');
+
+                return;
+            }
             if ($exception->responseStatus() !== 503) {
                 $this->failClaim($job, 'The 3D result could not be verified or saved. Reserved tokens have been returned.');
 
                 return;
             }
         } catch (Throwable) {
+            if ($savingOriginal) {
+                $this->deferSavedResult($job, 'The original 3D result could not be saved. Retry saving without generating again.');
+
+                return;
+            }
             $this->failClaim($job, '3D generation could not be completed. Reserved tokens have been returned.');
 
             return;
@@ -267,6 +280,7 @@ final class ThreeDGenerationService
         ThreeDJob::query()->whereIn('status', ['pending', 'processing'])->orderBy('id')->chunkById(100, function ($jobs) use (&$counts): void {
             foreach ($jobs as $candidate) {
                 $action = DB::transaction(function () use ($candidate): ?string {
+                    User::query()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
                     $job = ThreeDJob::query()->lockForUpdate()->find($candidate->id);
                     if (! $job || ! in_array($job->status, ['pending', 'processing'], true)) {
                         return null;
@@ -295,7 +309,13 @@ final class ThreeDGenerationService
                                 $job->update(['processing_token' => (string) Str::uuid(), 'processing_started_at' => now()]);
                                 $this->complete($job, $saved);
 
-                                return 'completed';
+                                return $job->fresh()->status === 'completed' ? 'completed' : null;
+                            }
+                            if ($job->provider_result_url) {
+                                $job->update(['stage' => 'save_failed', 'error_message' => 'The original 3D result could not be saved. Retry saving without generating again.',
+                                    'processing_started_at' => null, 'processing_token' => null, 'next_poll_at' => null]);
+
+                                return null;
                             }
                             $this->terminate($job, 'failed', '3D generation timed out. Reserved tokens have been returned.');
 
@@ -397,30 +417,58 @@ final class ThreeDGenerationService
 
     private function complete(ThreeDJob $job, array $asset): void
     {
-        $discard = DB::transaction(function () use ($job, $asset): bool {
-            $locked = ThreeDJob::query()->lockForUpdate()->find($job->id);
-            if (! $this->ownsClaim($locked, $job)) {
-                return $locked === null || $locked->status === 'failed';
-            }
-            $this->tokens->settle($locked->user_id, ['reference_id' => $locked->billing_reference_id],
-                ['service' => 'model3d', 'model' => $locked->model, 'operation' => $locked->operation]);
-            $locked->update(['status' => 'completed', 'stage' => 'completed',
-                'model_url' => '/api/3d/'.$locked->job_id.'/asset', 'model_path' => $asset['path'],
-                'mime_type' => $asset['mime_type'], 'size_bytes' => $asset['size_bytes'],
-                'previewable' => $asset['previewable'], 'preview_unavailable_reason' => $asset['preview_unavailable_reason'],
-                'provider_result_url' => null, 'billing_status' => 'settled', 'completed_at' => now(),
-                'next_poll_at' => null, 'processing_started_at' => null, 'processing_token' => null]);
+        $retained = false;
+        $saveError = null;
+        try {
+            $retained = DB::transaction(function () use ($job, $asset): bool {
+                $owner = User::query()->whereKey($job->user_id)->lockForUpdate()->firstOrFail();
+                $locked = ThreeDJob::query()->lockForUpdate()->find($job->id);
+                if (! $this->ownsClaim($locked, $job)) {
+                    return $locked !== null && $locked->status !== 'failed';
+                }
+                app(StorageQuotaService::class)->assertCanStore($owner, Storage::disk('local')->size($asset['path']));
+                $this->tokens->settle($locked->user_id, ['reference_id' => $locked->billing_reference_id],
+                    ['service' => 'model3d', 'model' => $locked->model, 'operation' => $locked->operation]);
+                $locked->update(['status' => 'completed', 'stage' => 'completed',
+                    'model_url' => '/api/3d/'.$locked->job_id.'/asset', 'model_path' => $asset['path'],
+                    'mime_type' => $asset['mime_type'], 'size_bytes' => $asset['size_bytes'],
+                    'previewable' => $asset['previewable'], 'preview_unavailable_reason' => $asset['preview_unavailable_reason'],
+                    'provider_result_url' => null, 'error_message' => null, 'billing_status' => 'settled', 'completed_at' => now(),
+                    'next_poll_at' => null, 'processing_started_at' => null, 'processing_token' => null]);
 
-            return false;
-        });
-        if ($discard) {
-            Storage::disk('local')->deleteDirectory(dirname($asset['path']));
+                return true;
+            });
+        } catch (HttpException $exception) {
+            if ($exception->getStatusCode() !== 413) {
+                throw $exception;
+            }
+            $saveError = $exception->getMessage();
+        } finally {
+            if (! $retained) {
+                Storage::disk('local')->deleteDirectory(dirname($asset['path']));
+            }
         }
+        if ($saveError !== null) {
+            $this->deferSavedResult($job, $saveError);
+        }
+    }
+
+    private function deferSavedResult(ThreeDJob $job, string $message): void
+    {
+        DB::transaction(function () use ($job, $message): void {
+            $locked = ThreeDJob::query()->lockForUpdate()->find($job->id);
+            if ($this->ownsClaim($locked, $job)) {
+                Storage::disk('local')->deleteDirectory(dirname(GeneratedModel3dStore::path($job->job_id)));
+                $locked->update(['stage' => 'save_failed', 'error_message' => $message,
+                    'processing_started_at' => null, 'processing_token' => null, 'next_poll_at' => null]);
+            }
+        });
     }
 
     private function failClaim(ThreeDJob $claim, string $message): void
     {
         $terminated = DB::transaction(function () use ($claim, $message): bool {
+            User::query()->whereKey($claim->user_id)->lockForUpdate()->firstOrFail();
             $job = ThreeDJob::query()->lockForUpdate()->find($claim->id);
             if (! $this->ownsClaim($job, $claim)) {
                 return false;

@@ -4,6 +4,10 @@ namespace App\Services;
 
 use App\Exceptions\AiProxyException;
 use App\Exceptions\ImageGenerationException;
+use App\Jobs\PollAudioJob;
+use App\Jobs\PollImageJob;
+use App\Jobs\PollThreeDJob;
+use App\Jobs\PollVideoJob;
 use App\Jobs\PollWorkspaceMediaJob;
 use App\Jobs\ProcessWorkspaceMediaJob;
 use App\Media\AssetService;
@@ -964,11 +968,16 @@ class WorkspaceMediaService
 
         // A native image whose provider acceptance is unknown keeps its reservation and active row; present it truthfully.
         $status = $job instanceof ImageJob && $job->status === 'processing' && $job->stage === 'submission_uncertain' ? 'uncertain' : $job->status;
+        if (! $job instanceof WorkspaceMediaJob && $job->status === 'processing' && $job->stage === 'save_failed') {
+            $status = 'save_failed';
+        }
 
         return ['id' => $id, 'model' => $job->model, 'operation' => $operation, 'output_kind' => $kind,
             'status' => $status, 'stage' => $job->stage, 'error' => $job->error_message,
             'can_cancel' => (bool) $cancel['can_cancel'], 'cancel_reason' => $cancel['cancel_reason'] ?? $cancel['cancel_unavailable_reason'] ?? null,
-            'can_retry_save' => $job instanceof WorkspaceMediaJob && $job->status === 'save_failed' && $job->result_received_at !== null,
+            'can_retry_save' => $job instanceof WorkspaceMediaJob
+                ? $job->status === 'save_failed' && $job->result_received_at !== null
+                : $status === 'save_failed' && $this->hasNativeResult($job),
             'can_delete' => in_array($job->status, ['completed', 'failed', 'cancelled'], true),
             'outputs' => $outputs, 'result_data' => $job instanceof WorkspaceMediaJob
                 ? MediaJsonSchema::dataObject($job->capability_snapshot['output_schema'] ?? [], $job->result_data) : null,
@@ -1035,7 +1044,7 @@ class WorkspaceMediaService
         }
         if ($job instanceof ImageJob) {
             $out = [];
-            foreach ($job->asset_paths ?? [] as $index => $asset) {
+            foreach (GeneratedImageStore::outputs($job) as $index => $asset) {
                 $mime = $asset['mime'] ?? 'application/octet-stream';
                 $out[] = [...$asset, 'id' => (string) $index, 'name' => 'image-'.((int) $index + 1).'.'.pathinfo($asset['path'], PATHINFO_EXTENSION),
                     'mime' => $mime, 'kind' => 'image', 'previewable' => in_array($mime, ['image/png', 'image/jpeg', 'image/webp'], true)];
@@ -1123,7 +1132,36 @@ class WorkspaceMediaService
     {
         $job = $this->owned($user, $id);
         if (! $job instanceof WorkspaceMediaJob) {
-            throw new ImageGenerationException('Save-only retry is not available for this native request.', 409);
+            return DB::transaction(function () use ($user, $job): Model {
+                User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                $locked = $job->newQuery()->lockForUpdate()->findOrFail($job->id);
+                if ($locked->status !== 'processing' || $locked->stage !== 'save_failed' || ! $this->hasNativeResult($locked)) {
+                    throw new ImageGenerationException('This request has no failed output save to retry.', 409);
+                }
+                $changes = ['stage' => 'saving', 'error_message' => null, 'processing_started_at' => null, 'next_poll_at' => now()];
+                if (! $locked instanceof VideoJob) {
+                    $changes['processing_token'] = null;
+                }
+                $locked->update($changes);
+                DB::afterCommit(function () use ($locked): void {
+                    $poll = match (true) {
+                        $locked instanceof ImageJob => new PollImageJob($locked->id),
+                        $locked instanceof VideoJob => new PollVideoJob($locked->id),
+                        $locked instanceof AudioJob => new PollAudioJob($locked->id),
+                        $locked instanceof ThreeDJob => new PollThreeDJob($locked->id),
+                    };
+                    try {
+                        dispatch($poll->onConnection('media')->onQueue('media'));
+                    } catch (Throwable) {
+                        $locked->newQuery()->whereKey($locked->id)->where('status', 'processing')->where('stage', 'saving')
+                            ->whereNull('processing_started_at')->update(['stage' => 'save_failed', 'next_poll_at' => null,
+                                'error_message' => 'Saving could not be queued. Retry saving the original result.']);
+                        $locked->refresh();
+                    }
+                });
+
+                return $locked;
+            });
         }
         $saved = DB::transaction(function () use ($job): WorkspaceMediaJob {
             $locked = WorkspaceMediaJob::query()->lockForUpdate()->findOrFail($job->id);
@@ -1138,6 +1176,16 @@ class WorkspaceMediaService
         });
 
         return $saved;
+    }
+
+    private function hasNativeResult(Model $job): bool
+    {
+        return match (true) {
+            $job instanceof ImageJob => ! empty($job->provider_result_urls) || ! empty($job->provider_result_data['data']),
+            $job instanceof VideoJob, $job instanceof ThreeDJob => is_string($job->provider_result_url) && $job->provider_result_url !== '',
+            $job instanceof AudioJob => ! empty($job->provider_result_urls),
+            default => false,
+        };
     }
 
     public function delete(User $user, string $id): void

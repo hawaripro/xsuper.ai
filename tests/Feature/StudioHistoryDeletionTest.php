@@ -23,7 +23,7 @@ class StudioHistoryDeletionTest extends TestCase
     private function imageJob(User $user, string $status = 'completed', ?string $assetPath = null): ImageJob
     {
         return ImageJob::create([
-            'user_id' => $user->id, 'job_id' => (string) Str::uuid(), 'model' => 'gemini-image', 'prompt' => 'a cat',
+            'user_id' => $user->id, 'job_id' => $assetPath ? basename(dirname($assetPath)) : (string) Str::uuid(), 'model' => 'gemini-image', 'prompt' => 'a cat',
             'size' => '1024x1024', 'quantity' => 1, 'status' => $status, 'stage' => $status,
             'asset_paths' => $assetPath ? ['0' => ['path' => $assetPath, 'mime' => 'image/png', 'bytes' => 3]] : null,
         ]);
@@ -41,15 +41,16 @@ class StudioHistoryDeletionTest extends TestCase
     {
         Storage::fake('local');
         $user = $this->member();
-        Storage::disk('local')->put('generated-images/test-asset.png', 'png');
-        $job = $this->imageJob($user, 'completed', 'generated-images/test-asset.png');
+        $path = 'generated/images/'.Str::uuid().'/0.png';
+        Storage::disk('local')->put($path, 'png');
+        $job = $this->imageJob($user, 'completed', $path);
         $kept = $this->imageJob($user, 'completed');
 
         $this->actingAs($user)->deleteJson('/api/images/'.$job->job_id)->assertOk()->assertJsonPath('deleted_count', 1);
 
         $this->assertDatabaseMissing('image_jobs', ['id' => $job->id]);
         $this->assertDatabaseHas('image_jobs', ['id' => $kept->id]);
-        Storage::disk('local')->assertMissing('generated-images/test-asset.png');
+        Storage::disk('local')->assertMissing($path);
     }
 
     public function test_running_jobs_are_protected_and_other_accounts_get_404(): void

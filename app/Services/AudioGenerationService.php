@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 final class AudioGenerationService
@@ -189,7 +190,8 @@ final class AudioGenerationService
     {
         $job = DB::transaction(function () use ($id): ?AudioJob {
             $job = AudioJob::query()->lockForUpdate()->find($id);
-            if (! $job || $job->status !== 'processing' || $job->stage !== 'rendering' || ! $job->upstream_job_id
+            if (! $job || $job->status !== 'processing' || ! in_array($job->stage, ['rendering', 'saving'], true)
+                || (! $job->upstream_job_id && empty($job->provider_result_urls))
                 || ($job->next_poll_at !== null && $job->next_poll_at->isFuture())
                 || ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subSeconds(self::POLL_LEASE_SECONDS)))) {
                 return null;
@@ -204,20 +206,25 @@ final class AudioGenerationService
         if (! $job) {
             return;
         }
-        if (($job->submitted_at ?? $job->created_at)->lt(now()->subMinutes(30))) {
+        $savingOriginal = $job->stage === 'saving' && ! empty($job->provider_result_urls);
+        if (empty($job->provider_result_urls) && ($job->submitted_at ?? $job->created_at)->lt(now()->subMinutes(30))) {
             $this->failClaim($job, 'Audio generation timed out. Reserved tokens have been returned.');
 
             return;
         }
-        try {
-            $provider = $this->provider($job);
-        } catch (Throwable) {
-            $this->failClaim($job, 'The audio connection changed or became unavailable. Reserved tokens have been returned.');
+        if (empty($job->provider_result_urls)) {
+            try {
+                $provider = $this->provider($job);
+            } catch (Throwable) {
+                $this->failClaim($job, 'The audio connection changed or became unavailable. Reserved tokens have been returned.');
 
-            return;
+                return;
+            }
         }
         try {
-            $result = $this->transport->audioStatus($provider, $job->upstream_job_id, $job->generation_config['audio_status_path']);
+            $result = ! empty($job->provider_result_urls)
+                ? ['status' => 'completed', 'result_urls' => $job->provider_result_urls]
+                : $this->transport->audioStatus($provider, $job->upstream_job_id, $job->generation_config['audio_status_path']);
             $status = $result['status'] ?? null;
             if ($status === 'failed') {
                 $this->failClaim($job, 'The audio provider could not complete this request. Reserved tokens have been returned.');
@@ -232,12 +239,12 @@ final class AudioGenerationService
                 if (! is_array($urls) || $urls === [] || ! array_is_list($urls)) {
                     throw new AiProxyException('The audio provider returned an invalid result collection.', 502);
                 }
-                $saving = DB::transaction(function () use ($job): ?AudioJob {
+                $saving = DB::transaction(function () use ($job, $urls): ?AudioJob {
                     $locked = AudioJob::query()->lockForUpdate()->find($job->id);
                     if (! $this->ownsClaim($locked, $job)) {
                         return null;
                     }
-                    $locked->update(['stage' => 'saving', 'processing_started_at' => now(), 'next_poll_at' => null]);
+                    $locked->update(['stage' => 'saving', 'provider_result_urls' => $urls, 'processing_started_at' => now(), 'next_poll_at' => null]);
 
                     return $locked;
                 });
@@ -249,6 +256,11 @@ final class AudioGenerationService
                 return;
             }
         } catch (AiProxyException $exception) {
+            if ($savingOriginal) {
+                $this->deferSavedResult($job, 'The original audio result could not be saved. Retry saving without generating again.');
+
+                return;
+            }
             if ($job->stage === 'saving') {
                 $this->failClaim($job, 'The audio result could not be saved. Reserved tokens have been returned.');
 
@@ -260,6 +272,11 @@ final class AudioGenerationService
                 return;
             }
         } catch (Throwable) {
+            if ($savingOriginal) {
+                $this->deferSavedResult($job, 'The original audio result could not be saved. Retry saving without generating again.');
+
+                return;
+            }
             $this->failClaim($job, 'Audio generation could not be completed. Reserved tokens have been returned.');
 
             return;
@@ -287,6 +304,7 @@ final class AudioGenerationService
         AudioJob::query()->whereIn('status', ['pending', 'processing'])->orderBy('id')->chunkById(100, function ($jobs) use (&$counts): void {
             foreach ($jobs as $candidate) {
                 $action = DB::transaction(function () use ($candidate): ?string {
+                    User::query()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
                     $job = AudioJob::query()->lockForUpdate()->find($candidate->id);
                     if (! $job || ! in_array($job->status, ['pending', 'processing'], true)) {
                         return null;
@@ -306,6 +324,12 @@ final class AudioGenerationService
                         return 'failed';
                     }
                     if ($job->stage === 'saving' && $activity->lt(now()->subSeconds(self::POLL_LEASE_SECONDS))) {
+                        if (! empty($job->provider_result_urls)) {
+                            $job->update(['stage' => 'save_failed', 'error_message' => 'The original audio result could not be saved. Retry saving without generating again.',
+                                'processing_started_at' => null, 'processing_token' => null, 'next_poll_at' => null]);
+
+                            return null;
+                        }
                         $this->terminate($job, 'failed', 'The audio result could not be saved. Reserved tokens have been returned.');
 
                         return 'failed';
@@ -414,30 +438,63 @@ final class AudioGenerationService
     private function complete(AudioJob $job, array $urls): void
     {
         $outputs = $this->audio->persist($job, $urls);
-        $retained = DB::transaction(function () use ($job, $outputs): bool {
-            $locked = AudioJob::query()->lockForUpdate()->find($job->id);
-            if (! $this->ownsClaim($locked, $job)) {
-                return $locked?->status === 'completed' && $locked->outputs === $outputs;
-            }
-            $this->tokens->settle($locked->user_id, ['reference_id' => $locked->billing_reference_id], [
-                'service' => 'audio', 'model' => $locked->model, 'mode' => $locked->mode,
-            ]);
-            $locked->update([
-                'status' => 'completed', 'stage' => 'completed', 'outputs' => $outputs,
-                'billing_status' => 'settled', 'completed_at' => now(), 'next_poll_at' => null,
-                'processing_started_at' => null, 'processing_token' => null,
-            ]);
+        $retained = false;
+        $saveError = null;
+        try {
+            $retained = DB::transaction(function () use ($job, $outputs): bool {
+                $owner = User::query()->whereKey($job->user_id)->lockForUpdate()->firstOrFail();
+                $locked = AudioJob::query()->lockForUpdate()->find($job->id);
+                if (! $this->ownsClaim($locked, $job)) {
+                    return $locked?->status === 'completed' && $locked->outputs === $outputs;
+                }
+                $bytes = 0;
+                foreach ($outputs as $output) {
+                    $bytes += Storage::disk('local')->size($output['path']);
+                }
+                app(StorageQuotaService::class)->assertCanStore($owner, $bytes);
+                $this->tokens->settle($locked->user_id, ['reference_id' => $locked->billing_reference_id], [
+                    'service' => 'audio', 'model' => $locked->model, 'mode' => $locked->mode,
+                ]);
+                $locked->update([
+                    'status' => 'completed', 'stage' => 'completed', 'outputs' => $outputs,
+                    'provider_result_urls' => null, 'error_message' => null,
+                    'billing_status' => 'settled', 'completed_at' => now(), 'next_poll_at' => null,
+                    'processing_started_at' => null, 'processing_token' => null,
+                ]);
 
-            return true;
-        });
-        if (! $retained) {
-            Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($job->job_id));
+                return true;
+            });
+        } catch (HttpException $exception) {
+            if ($exception->getStatusCode() !== 413) {
+                throw $exception;
+            }
+            $saveError = $exception->getMessage();
+        } finally {
+            if (! $retained) {
+                Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($job->job_id));
+            }
         }
+        if ($saveError !== null) {
+            $this->deferSavedResult($job, $saveError);
+        }
+    }
+
+    private function deferSavedResult(AudioJob $job, string $message): void
+    {
+        DB::transaction(function () use ($job, $message): void {
+            $locked = AudioJob::query()->lockForUpdate()->find($job->id);
+            if ($this->ownsClaim($locked, $job)) {
+                Storage::disk('local')->deleteDirectory(GeneratedAudioStore::directory($job->job_id));
+                $locked->update(['stage' => 'save_failed', 'error_message' => $message,
+                    'processing_started_at' => null, 'processing_token' => null, 'next_poll_at' => null]);
+            }
+        });
     }
 
     private function failClaim(AudioJob $claim, string $message): void
     {
         $terminated = DB::transaction(function () use ($claim, $message): bool {
+            User::query()->whereKey($claim->user_id)->lockForUpdate()->firstOrFail();
             $job = AudioJob::query()->lockForUpdate()->find($claim->id);
             if (! $this->ownsClaim($job, $claim)) {
                 return false;
@@ -460,6 +517,7 @@ final class AudioGenerationService
             $stage === 'cancelled' ? 'Audio generation cancelled' : 'Audio generation did not complete');
         $job->update([
             'status' => 'failed', 'stage' => $stage, 'error_message' => $message,
+            'provider_result_urls' => null,
             'billing_status' => 'released', 'next_poll_at' => null, 'processing_started_at' => null,
             'processing_token' => null, 'completed_at' => now(),
         ]);

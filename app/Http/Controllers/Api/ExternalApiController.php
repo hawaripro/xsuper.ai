@@ -101,12 +101,13 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
         }
 
         $messages = $this->injectSystemPrompt($validated['messages'], $requestedModel);
-        $maximumOutput = (int) ($validated['max_completion_tokens'] ?? $validated['max_tokens'] ?? 4096);
+        // Providers differ in which forwarded output limit they honor, so reserve for the larger one.
+        $maximumOutput = max((int) ($validated['max_completion_tokens'] ?? 0), (int) ($validated['max_tokens'] ?? 0)) ?: 4096;
         $options = array_diff_key($validated, array_flip(['model', 'messages', 'stream']));
         $reservation = $this->billing->reserveApi(
             $user->id,
             $requestedModel,
-            $this->billing->estimateInputTokens($messages),
+            $this->billing->estimateInputTokens($messages, $options),
             $maximumOutput,
             'api:'.Str::uuid(),
         );
@@ -122,17 +123,14 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
             return $this->providerError($exception);
         }
 
-        if (is_array($data['usage'] ?? null)) {
-            $costMicrousd = $this->billing->settleApi($user->id, $requestedModel, $data['usage'], $reservation);
-            $data['usage']['cost_usd'] = $costMicrousd / 1_000_000;
-            $data['usage']['balance_usd'] = Wallet::balance($user->id) / 1_000_000;
-            UsageLog::record($user->id, $requestedModel, [
-                ...$data['usage'],
-                'cost_microusd' => $costMicrousd,
-            ], 'api');
-        } else {
-            Wallet::release($user->id, $reservation, 'API response did not report usage');
-        }
+        $usage = is_array($data['usage'] ?? null) ? $data['usage'] : [];
+        $costMicrousd = $this->billing->settleApi($user->id, $requestedModel, $usage, $reservation);
+        $data['usage']['cost_usd'] = $costMicrousd / 1_000_000;
+        $data['usage']['balance_usd'] = Wallet::balance($user->id) / 1_000_000;
+        UsageLog::record($user->id, $requestedModel, [
+            ...$usage,
+            'cost_microusd' => $costMicrousd,
+        ], 'api');
 
         return response()->json($data);
     }
@@ -142,7 +140,7 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
     {
         return new StreamedResponse(function () use ($user, $model, $messages, $options, $reservation, $maximumOutput): void {
             $usage = null;
-            $settled = false;
+            $completed = false;
             $emit = static function (array $event): void {
                 echo 'data: '.json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n";
                 if (ob_get_level() > 0) {
@@ -158,27 +156,25 @@ You can say your model name and creator honestly. Your ACCESS PLATFORM is only "
                     }
                     $emit($event);
                 }
-                if ($usage !== null) {
-                    $costMicrousd = $this->billing->settleApi($user->id, $model, $usage, $reservation);
-                    $settled = true;
-                    UsageLog::record($user->id, $model, [
-                        ...$usage,
-                        'cost_microusd' => $costMicrousd,
-                    ], 'api');
-                } else {
-                    Wallet::release($user->id, $reservation, 'Streaming API response did not report usage');
-                    $settled = true;
-                }
+                // The provider finished and its output was delivered: from here on the reservation is never returned.
+                $completed = true;
+                $costMicrousd = $this->billing->settleApi($user->id, $model, $usage ?? [], $reservation);
+                UsageLog::record($user->id, $model, [
+                    ...$usage,
+                    'cost_microusd' => $costMicrousd,
+                ], 'api');
                 echo "data: [DONE]\n\n";
             } catch (Throwable $exception) {
-                if (! $settled) {
+                if (! $completed) {
                     Wallet::release($user->id, $reservation, 'Streaming API request failed');
                 }
                 $emit(['error' => [
-                    'message' => $exception instanceof AiProxyException
-                        ? $exception->getMessage()
-                        : 'The AI provider is unavailable. Please try again later.',
-                    'type' => 'upstream_error',
+                    'message' => $completed
+                        ? 'The response completed, but usage billing could not be finalized.'
+                        : ($exception instanceof AiProxyException
+                            ? $exception->getMessage()
+                            : 'The AI provider is unavailable. Please try again later.'),
+                    'type' => $completed ? 'billing_error' : 'upstream_error',
                 ]]);
             }
             if (ob_get_level() > 0) {
@@ -276,7 +272,7 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
         $reservation = $this->billing->reserveApi(
             $user->id,
             $requestedModel,
-            $this->billing->estimateInputTokens($messages),
+            $this->billing->estimateInputTokens($messages, $options),
             $maximumOutput,
             'api:'.Str::uuid(),
         );
@@ -293,15 +289,12 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
             return $this->anthropicError($exception);
         }
 
-        if (is_array($data['usage'] ?? null)) {
-            $costMicrousd = $this->billing->settleApi($user->id, $requestedModel, $data['usage'], $reservation);
-            UsageLog::record($user->id, $requestedModel, [
-                ...$data['usage'],
-                'cost_microusd' => $costMicrousd,
-            ], 'api');
-        } else {
-            Wallet::release($user->id, $reservation, 'Anthropic API response did not report usage');
-        }
+        $usage = is_array($data['usage'] ?? null) ? $data['usage'] : [];
+        $costMicrousd = $this->billing->settleApi($user->id, $requestedModel, $usage, $reservation);
+        UsageLog::record($user->id, $requestedModel, [
+            ...$usage,
+            'cost_microusd' => $costMicrousd,
+        ], 'api');
 
         return response()->json($this->openAiToAnthropicResponse($data, $requestedModel));
     }
@@ -397,7 +390,7 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
     {
         return new StreamedResponse(function () use ($user, $model, $messages, $options, $reservation, $maximumOutput): void {
             $usage = null;
-            $settled = false;
+            $completed = false;
             $messageId = 'msg_'.Str::random(24);
             $finish = 'stop';
             $emit = static function (string $event, array $payload): void {
@@ -421,7 +414,7 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
                     if (is_array($event['usage'] ?? null)) {
                         $usage = $event['usage'];
                     }
-                    $delta = $event['choices'][0]['delta']['content'] ?? '';
+                    $delta = ((array) ($event['choices'][0]['delta'] ?? []))['content'] ?? '';
                     if ($event['choices'][0]['finish_reason'] ?? null) {
                         $finish = $event['choices'][0]['finish_reason'];
                     }
@@ -429,14 +422,10 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
                         $emit('content_block_delta', ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => $delta]]);
                     }
                 }
-                if ($usage !== null) {
-                    $costMicrousd = $this->billing->settleApi($user->id, $model, $usage, $reservation);
-                    $settled = true;
-                    UsageLog::record($user->id, $model, [...$usage, 'cost_microusd' => $costMicrousd], 'api');
-                } else {
-                    Wallet::release($user->id, $reservation, 'Streaming Anthropic API response did not report usage');
-                    $settled = true;
-                }
+                // The provider finished and its output was delivered: from here on the reservation is never returned.
+                $completed = true;
+                $costMicrousd = $this->billing->settleApi($user->id, $model, $usage ?? [], $reservation);
+                UsageLog::record($user->id, $model, [...$usage, 'cost_microusd' => $costMicrousd], 'api');
                 $emit('content_block_stop', ['type' => 'content_block_stop', 'index' => 0]);
                 $emit('message_delta', ['type' => 'message_delta',
                     'delta' => ['stop_reason' => self::anthropicStopReason($finish), 'stop_sequence' => null],
@@ -444,12 +433,14 @@ When the user asks \"what model are you?\", \"model apa kamu?\", \"siapa kamu?\"
                 ]);
                 $emit('message_stop', ['type' => 'message_stop']);
             } catch (Throwable $exception) {
-                if (! $settled) {
+                if (! $completed) {
                     Wallet::release($user->id, $reservation, 'Streaming Anthropic API request failed');
                 }
                 $emit('error', ['type' => 'error', 'error' => [
-                    'type' => 'api_error',
-                    'message' => $exception instanceof AiProxyException ? $exception->getMessage() : 'The AI provider is unavailable. Please try again later.',
+                    'type' => $completed ? 'billing_error' : 'api_error',
+                    'message' => $completed
+                        ? 'The response completed, but usage billing could not be finalized.'
+                        : ($exception instanceof AiProxyException ? $exception->getMessage() : 'The AI provider is unavailable. Please try again later.'),
                 ]]);
             }
         }, 200, [

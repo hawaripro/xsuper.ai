@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class UserDevice extends Model
 {
@@ -31,82 +32,78 @@ class UserDevice extends Model
             $request->header('Sec-Ch-Ua-Platform', ''),
         ];
 
-        // API key as unique signal for plugins
-        $apiKey = $request->bearerToken();
-        if ($apiKey && str_starts_with($apiKey, 'xsuper-')) {
-            $signals[] = 'apikey:' . substr($apiKey, 0, 20);
+        // A verified API key is the unique plugin signal; the raw-key prefix keeps existing fingerprints stable.
+        if (self::viaVerifiedApiKey($request)) {
+            $signals[] = 'apikey:' . substr($request->bearerToken(), 0, 20);
         }
 
         return hash('sha256', implode('|', $signals));
     }
 
+    /** Resolve an existing identity without recording activity or allocating a device slot. */
+    public static function findForRequest(int $userId, Request $request): ?self
+    {
+        if (! self::viaVerifiedApiKey($request) && $request->hasSession()
+            && $request->user()?->getAuthIdentifier() === $userId) {
+            $deviceId = $request->session()->get(self::SESSION_DEVICE_KEY);
+            if (is_int($deviceId) && ($device = static::where('user_id', $userId)->find($deviceId))) {
+                return $device;
+            }
+        }
+
+        return static::where('user_id', $userId)
+            ->where('device_hash', self::generateFingerprint($userId, $request))
+            ->first();
+    }
+
     public static function trackDevice(int $userId, Request $request, int $maxDevices = 2): ?self
     {
-        $ua = $request->userAgent() ?? 'Unknown';
-        $ip = $request->ip();
-        $apiKey = $request->bearerToken();
-        $isApiKey = $apiKey && str_starts_with($apiKey, 'xsuper-');
-        // Plugin keys keep their stateless identity, even when a session is attached.
-        $session = ! $isApiKey && $request->hasSession() && $request->user()?->getAuthIdentifier() === $userId
-            ? $request->session()
-            : null;
-        $device = null;
+        return DB::transaction(function () use ($userId, $request, $maxDevices): ?self {
+            // Serialize admissions for the owner, including concurrent new fingerprints.
+            $user = User::query()->lockForUpdate()->findOrFail($userId);
+            $ua = $request->userAgent() ?? 'Unknown';
+            $ip = $request->ip();
+            $isApiKey = self::viaVerifiedApiKey($request);
+            $device = self::findForRequest($userId, $request);
 
-        if ($session) {
-            $deviceId = $session->get(self::SESSION_DEVICE_KEY);
-            if (is_int($deviceId)) {
-                // The session carries identity, never approval or another owner's row.
-                $device = static::where('user_id', $userId)->find($deviceId);
-            }
-            if (! $device) {
-                $session->forget(self::SESSION_DEVICE_KEY);
-            }
-        }
-
-        if (! $device) {
-            // Preserve existing fingerprints and admission for an unbound session.
-            $hash = self::generateFingerprint($userId, $request);
-            $device = static::where('device_hash', $hash)->first();
-        }
-
-        if ($device) {
-            if ($device->status !== 'blocked') {
-                $device->ip_address = $ip;
-                $device->last_active_at = now();
-                $device->save();
-            }
-        } else {
-            $deviceName = $isApiKey ? self::parsePluginName($ua, $request) : self::parseDeviceName($ua);
-            $deviceType = $isApiKey ? 'plugin' : self::parseDeviceType($ua);
-            $status = 'active';
-
-            $user = User::find($userId);
-            $isAdmin = $user && $user->isAdmin();
-            if (! $isAdmin) {
-                $activeCount = static::where('user_id', $userId)->where('status', 'active')->count();
-                if ($activeCount >= $maxDevices) {
+            if ($device) {
+                if ($device->status !== 'blocked') {
+                    $device->ip_address = $ip;
+                    $device->last_active_at = now();
+                    $device->save();
+                }
+            } else {
+                $status = 'active';
+                if (! $user->isAdmin()
+                    && static::where('user_id', $userId)->where('status', 'active')->count() >= $maxDevices) {
                     $status = 'pending';
                 }
-            }
 
-            $device = static::updateOrCreate(
-                ['device_hash' => $hash],
-                [
+                $device = static::create([
+                    'device_hash' => self::generateFingerprint($userId, $request),
                     'user_id' => $userId,
-                    'device_name' => $deviceName,
-                    'device_type' => $deviceType,
+                    'device_name' => $isApiKey ? self::parsePluginName($ua, $request) : self::parseDeviceName($ua),
+                    'device_type' => $isApiKey ? 'plugin' : self::parseDeviceType($ua),
                     'user_agent' => substr($ua, 0, 500),
                     'ip_address' => $ip,
                     'status' => $status,
                     'last_active_at' => now(),
-                ]
-            );
-        }
+                ]);
+            }
 
-        // Bind denied identities too, so different request headers cannot evade them.
-        $session?->put(self::SESSION_DEVICE_KEY, $device->getKey());
+            // Bind denied identities too; only a validated API key selects stateless plugin identity.
+            if (! $isApiKey && $request->hasSession() && $request->user()?->getAuthIdentifier() === $userId) {
+                $request->session()->put(self::SESSION_DEVICE_KEY, $device->getKey());
+            }
 
-        return $device->status === 'blocked' ? null : $device;
+            return $device->status === 'blocked' ? null : $device;
+        });
+    }
+
+    /** Only VerifyApiKey's validated key selects plugin identity; a raw Bearer header is client input. */
+    private static function viaVerifiedApiKey(Request $request): bool
+    {
+        return $request->attributes->get('api_key') instanceof ApiKey;
     }
 
     /**

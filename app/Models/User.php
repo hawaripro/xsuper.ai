@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\EmailIntelligence;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use LogicException;
@@ -49,6 +51,11 @@ class User extends Authenticatable
         'remember_token',
         'two_factor_recovery_codes',
         'two_factor_secret',
+        'two_factor_confirmed_at',
+        'email_otp_hash',
+        'email_otp_expires_at',
+        'email_otp_sent_at',
+        'email_otp_attempts',
     ];
 
     protected function casts(): array
@@ -80,6 +87,27 @@ class User extends Authenticatable
         });
     }
 
+    protected function getDirtyForUpdate(): array
+    {
+        if (! $this->isDirty('email')) {
+            return parent::getDirtyForUpdate();
+        }
+
+        $invalidated = [
+            'email_verified_at' => null,
+            'email_otp_hash' => null,
+            'email_otp_expires_at' => null,
+            'email_otp_sent_at' => null,
+            'email_otp_attempts' => 0,
+            'email_provider' => app(EmailIntelligence::class)->provider($this->email),
+        ];
+        $this->forceFill($invalidated);
+
+        // Include every proof field in the same UPDATE even if this model's old
+        // snapshot already held null: a concurrent verifier/resend may have changed it.
+        return array_merge(parent::getDirtyForUpdate(), $invalidated);
+    }
+
     private static function newReferralCode(): string
     {
         do {
@@ -87,6 +115,24 @@ class User extends Authenticatable
         } while (static::query()->where('referral_code', $code)->exists());
 
         return $code;
+    }
+
+    /** Replace a credential and revoke existing browser sessions, including legacy sessions without a hash. */
+    public function replacePassword(#[\SensitiveParameter] string $password): void
+    {
+        $this->getConnection()->transaction(function () use ($password): void {
+            $this->forceFill([
+                'password' => Hash::make($password),
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            if (config('session.driver') === 'database') {
+                DB::connection(config('session.connection'))
+                    ->table(config('session.table', 'sessions'))
+                    ->where('user_id', $this->getAuthIdentifier())
+                    ->delete();
+            }
+        });
     }
 
 

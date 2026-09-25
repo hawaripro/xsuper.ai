@@ -9,6 +9,7 @@ class AudioJob extends Model
     protected $hidden = [
         'provider_id', 'upstream_model_id', 'upstream_job_id', 'connection_fingerprint',
         'generation_config', 'provider_prompt', 'outputs', 'processing_token',
+        'provider_result_urls',
         'routing_identity', 'dedup_key', 'payload_fingerprint', 'reference_asset_ids',
     ];
 
@@ -16,6 +17,7 @@ class AudioJob extends Model
         'user_id', 'job_id', 'model', 'mode', 'prompt', 'provider_prompt', 'voice', 'speed',
         'duration', 'tempo', 'provider_id', 'upstream_model_id', 'upstream_job_id',
         'connection_fingerprint', 'generation_config', 'status', 'stage', 'outputs',
+        'provider_result_urls',
         'error_message', 'billing_mode',
         'billing_status', 'billing_reference_id', 'tokens_reserved', 'submitted_at',
         'next_poll_at', 'processing_started_at', 'processing_token', 'completed_at', 'poll_attempts',
@@ -31,6 +33,7 @@ class AudioJob extends Model
             'duration' => 'integer',
             'tempo' => 'integer',
             'outputs' => 'array',
+            'provider_result_urls' => 'array',
             'tokens_reserved' => 'integer',
             'poll_attempts' => 'integer',
             'generation_config' => 'array',

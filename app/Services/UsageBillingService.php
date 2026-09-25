@@ -13,9 +13,12 @@ class UsageBillingService
         return $this->apiCostFromRates($this->apiRates($model), $inputTokens, $outputTokens);
     }
 
-    public function estimateInputTokens(array $messages): int
+    /** One token per forwarded JSON byte, covering options such as tools and response_format as well as messages. */
+    public function estimateInputTokens(array $messages, array $options = []): int
     {
-        return max(1, strlen(json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+        $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+
+        return max(1, strlen(json_encode($messages, $flags)) + ($options === [] ? 0 : strlen(json_encode($options, $flags))));
     }
 
     public function actualApiCost(string $model, array $usage): int
@@ -78,10 +81,15 @@ class UsageBillingService
         if (! is_array($snapshot) || ! isset($snapshot['input_usd_per_million'], $snapshot['output_usd_per_million'])) {
             throw ValidationException::withMessages(['model' => 'The reserved API pricing is unavailable.']);
         }
+        $inputTokens = filter_var($usage['prompt_tokens'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+        $outputTokens = filter_var($usage['completion_tokens'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+        if ($inputTokens === false || $outputTokens === false) {
+            throw ValidationException::withMessages(['usage' => 'The provider did not report valid usage. The reservation remains held.']);
+        }
         $actual = $this->apiCostFromRates([
             'input_tokens' => $snapshot['input_usd_per_million'],
             'output_tokens' => $snapshot['output_usd_per_million'],
-        ], (int) ($usage['prompt_tokens'] ?? 0), (int) ($usage['completion_tokens'] ?? 0));
+        ], $inputTokens, $outputTokens);
         if (! Wallet::settle($userId, $reservation, $actual, [
             'service' => 'api',
             'model' => $model,
@@ -171,7 +179,17 @@ class UsageBillingService
 
     private function apiCostFromRates(array $rates, int $inputTokens, int $outputTokens): int
     {
-        return (int) ceil($rates['input_tokens'] * max(0, $inputTokens))
-            + (int) ceil($rates['output_tokens'] * max(0, $outputTokens));
+        $inputCost = ceil($rates['input_tokens'] * max(0, $inputTokens));
+        $outputCost = ceil($rates['output_tokens'] * max(0, $outputTokens));
+        if (! is_finite($inputCost) || ! is_finite($outputCost)
+            || $inputCost < 0 || $outputCost < 0 || $inputCost >= PHP_INT_MAX || $outputCost >= PHP_INT_MAX) {
+            throw ValidationException::withMessages(['usage' => 'The usage cost exceeds supported billing limits.']);
+        }
+        $cost = (int) $inputCost + (int) $outputCost;
+        if (! is_int($cost)) {
+            throw ValidationException::withMessages(['usage' => 'The usage cost exceeds supported billing limits.']);
+        }
+
+        return $cost;
     }
 }

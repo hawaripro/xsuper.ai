@@ -57,23 +57,26 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --d
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt update && sudo apt install -y caddy
 
-# Node 20 + Composer
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Node 22 LTS untuk build frontend + Composer
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 curl -sS https://getcomposer.org/installer | php && sudo mv composer.phar /usr/local/bin/composer
 
 # Media tools (unduhan / konverter / hapus latar)
 sudo apt install -y ffmpeg python3 python3-venv python3-pip
 sudo mkdir -p /opt/xsuper-media && sudo python3 -m venv /opt/xsuper-media/venv
-sudo /opt/xsuper-media/venv/bin/pip install "rembg[cpu]" yt-dlp
+sudo /opt/xsuper-media/venv/bin/pip install "rembg[cpu]"
 sudo mkdir -p /opt/xsuper-media/rembg-models
 ```
+
+Downloader memerlukan **Node >=25.9** untuk permission mode yang menolak akses jaringan, bukan Node 22 untuk build frontend. Pasang rilis Node yang masih mendapat patch keamanan ke `/opt/xsuper-media/node`, verifikasi checksum dari distribusi resmi, dan batasi akses tulis direktori runtime kepada operator. Jangan menurunkan sandbox agar Node lama lolos. Dependency downloader dipasang dari pin repo pada langkah berikut.
 
 ## 3. Ambil kode
 ```bash
 sudo mkdir -p /home/ultrax/apps && cd /home/ultrax/apps
 sudo -u ultrax git clone https://github.com/hawaripro/xsuper.ai.git xsuper
 cd /home/ultrax/apps/xsuper
+sudo /opt/xsuper-media/venv/bin/pip install -r scripts/media/requirements.txt
 git config --global --add safe.directory /home/ultrax/apps/xsuper
 ```
 
@@ -109,6 +112,8 @@ DB_PASSWORD=GANTI_PASSWORD_KUAT
 
 SESSION_DRIVER=database
 SESSION_DOMAIN=.xsuper.dev
+SESSION_SECURE_COOKIE=true
+SESSION_PATH=/
 CACHE_STORE=database
 QUEUE_CONNECTION=database
 
@@ -135,7 +140,7 @@ MEDIA_PYTHON_PATH=/opt/xsuper-media/venv/bin/python
 MEDIA_FFMPEG_PATH=/usr/bin/ffmpeg
 MEDIA_FFPROBE_PATH=/usr/bin/ffprobe
 MEDIA_REMBG_MODEL_DIR=/opt/xsuper-media/rembg-models
-MEDIA_NODE_PATH=/usr/bin/node
+MEDIA_NODE_PATH=/opt/xsuper-media/node/bin/node
 
 # Aktivasi media coordinator (lihat "Catatan penting")
 MEDIA_KILL_SWITCH=false
@@ -158,16 +163,29 @@ GOOGLE_REDIRECT_URI=https://xsuper.dev/auth/google/callback
 ```bash
 cd /home/ultrax/apps/xsuper
 sudo -H -u ultrax composer install --no-dev --optimize-autoloader
+sudo -H -u ultrax composer check-platform-reqs --no-dev
+# Hanya instalasi baru dengan APP_KEY kosong; jangan rotasi key pada update/restorasi.
 sudo -H -u ultrax php artisan key:generate
-sudo -H -u ultrax npm ci && sudo -H -u ultrax npm run build
+sudo -H -u ultrax npm ci --ignore-scripts && sudo -H -u ultrax npm run build
 
-sudo -H -u ultrax php artisan migrate --force --seed
+sudo -H -u ultrax php artisan migrate --force
 sudo -H -u ultrax php artisan db:seed --class=FalCatalogSeeder --force
 
 sudo -H -u ultrax php artisan storage:link
 sudo -H -u ultrax php artisan config:cache && sudo -H -u ultrax php artisan route:cache && sudo -H -u ultrax php artisan view:cache
 ```
-Login admin awal hasil seeder: **admin@xsuper.dev / password** — segera ganti.
+Tidak ada akun admin dengan password bawaan di production/staging. `DatabaseSeeder` dan `OperationalDataSeeder` sengaja menolak kedua lingkungan ini (juga lingkungan lain selain `local`/`testing`).
+
+Untuk instalasi baru, daftarkan akun pemilik dengan alamat email yang benar-benar dikuasai dan password unik, lalu selesaikan verifikasi email. Operator server kemudian membuka `sudo -H -u ultrax php artisan tinker` dan mempromosikan **hanya akun pemilik yang telah diverifikasi**:
+
+```php
+$owner = App\Models\User::where('email', 'EMAIL_PEMILIK_TERVERIFIKASI')->whereNotNull('email_verified_at')->sole();
+$owner->forceFill(['role' => 'admin'])->save();
+```
+
+Ganti placeholder dengan email pemilik, bukan akun demo. Setelah login, aktifkan 2FA dan tinjau kebijakan IP admin. Untuk instalasi lama, pertahankan akun yang ada; audit dan cabut akun demo yang pernah dibuat sebelum aturan seeder ini. Perubahan kode tidak otomatis mencabut kredensial yang sudah tersimpan.
+
+Login Google tetap mengikuti status akun, IP admin, perangkat, dan 2FA lokal. Akun lokal yang belum terverifikasi tidak ditautkan otomatis hanya karena alamat emailnya sama. Perubahan/reset password mencabut sesi tersimpan dan remember token; perubahan email membatalkan OTP/verifikasi sebelumnya. Perangkat baru didaftarkan hanya setelah faktor autentikasi lengkap; penolakan perangkat tidak menghabiskan recovery code.
 
 ## 7. Hak akses folder
 `storage/` dan `bootstrap/cache` ditulis oleh PHP-FPM (`www-data`) **dan** worker:
@@ -306,7 +324,8 @@ Authorized redirect URI: `https://xsuper.dev/auth/google/callback`
 cd /home/ultrax/apps/xsuper
 sudo -H -u ultrax git pull origin main
 sudo -H -u ultrax composer install --no-dev --optimize-autoloader
-sudo -H -u ultrax npm ci && sudo -H -u ultrax npm run build
+sudo -H -u ultrax composer check-platform-reqs --no-dev
+sudo -H -u ultrax npm ci --ignore-scripts && sudo -H -u ultrax npm run build
 sudo -H -u ultrax php artisan migrate --force
 sudo -H -u ultrax php artisan config:cache
 sudo -H -u ultrax php artisan route:cache
@@ -320,7 +339,7 @@ Pastikan `git status` bersih sebelum pull. Kalau ada perubahan lokal di server, 
 Bagian ini adalah prosedur saat deployment disetujui, bukan pernyataan bahwa perubahan lokal sudah terpasang di production.
 
 - Jalankan `composer install` dari lockfile: validator kontrak v2 membutuhkan dependency runtime `opis/json-schema`.
-- Backup database sebelum migrasi. Tujuh migrasi — enam `2026_09_23_120000`–`120040` (workspace/lampiran chat, operasi streaming, artefak dan revisinya, admission/job media global, nama asli aset, sesi realtime) dan `2026_09_25_000001` (kolom `image_jobs.batch_key` untuk permintaan beberapa gambar) — hanya menambah; riwayat `chat_history` serta job native tetap digunakan. Jangan menjalankan `migrate:fresh` di database pengguna.
+- Backup database sebelum migrasi. Enam migrasi `2026_09_23_120000`–`120040` (workspace/lampiran chat, operasi streaming, artefak dan revisinya, admission/job media global, nama asli aset, sesi realtime), `2026_09_25_000001` (`image_jobs.batch_key`), dan `2026_09_25_000002` (checkpoint hasil native video/audio) bersifat aditif; riwayat chat serta job native tetap digunakan. Jalankan migrasi sebelum web/worker baru melayani pekerjaan. Jangan menjalankan `migrate:fresh` di database pengguna.
 - Pastikan worker antrean `media` dan scheduler berjalan. Panggilan media generik memakai job tahan-restart; sesi realtime memakai lease terbatas, bukan job polling.
 - Discovery katalog bukan publikasi. Untuk membuat kandidat v2 dari skema yang sudah tersimpan, gunakan command offline berikut sebagai pemilik aplikasi; `PROVIDER_ID` dan `ADMIN_ID` adalah ID database yang sebenarnya:
 
@@ -349,16 +368,20 @@ Chat memakai capability server untuk lampiran, tools, stop, dan model. Web searc
 - Chat: buka riwayat lama, kirim/stop respons, pindah percakapan dengan draft/lampiran, simpan notes, lalu simpan dan unduh revisi artefak.
 - Library: tab **Hapus Latar** berisi hasil.
 - `/media`: model tanpa harga/publikasi/izin tidak ditawarkan; download hasil tetap privat dan kegagalan penyimpanan tidak memicu generasi baru.
+- Uji **Coba simpan hasil lagi** setelah kuota dibebaskan: byte asli tersimpan, saldo tidak dipotong ulang, dan tidak ada POST generasi provider baru. Checkpoint hasil serta reservasi tetap ada ketika retry unduhan/antrean gagal. Kuota dihitung dari jumlah byte hasil akhir, termasuk semua track audio.
 - `php artisan schedule:list`: rekonsiliasi workspace dan realtime tercantum; batas sesi serta tarif realtime ditampilkan sebelum Start.
 
 ## Catatan penting
 - **Caddy `admin off`** → `systemctl reload caddy` SELALU gagal (`localhost:2019 connection refused`). Gunakan `caddy validate` lalu `systemctl restart caddy`.
 - **Reverb `/apps/*`** wajib di-proxy (lihat komentar di Caddyfile), kalau tidak update realtime mati.
 - **Aktivasi coordinator — PRASYARAT DEPLOY (keputusan pemilik produk, 25 Sep 2026)**: cabang ini dideploy dengan `MEDIA_COORDINATOR_RESTRICTED=false`, sehingga semua member memakai jalur coordinator lewat workspace global (kelima studio tidak lagi memakai jalur lama). Keputusan diambil karena server belum punya member sungguhan (masih uji). Setelah mengubah `.env`, jalankan `php artisan config:cache` lalu restart `xsuper-media` dan `xsuper-queue`, dan pastikan nilai efektifnya `false` di proses web maupun worker. Jika dibiarkan `true`, workspace menolak semua user selain `MEDIA_COORDINATOR_USER_ID` (studio menampilkan "restricted"). Permintaan beberapa gambar native berjalan sebagai beberapa job (satu gambar per job) dan ditampilkan sebagai satu set variasi.
-- **Hasil media yang menunggu tinjauan**: job workspace yang sudah diterima provider tetapi hasilnya tidak dapat diambil dalam 6 jam, atau yang koneksi providernya berubah (fingerprint berbeda), berpindah ke `status=uncertain`, `stage=result_uncertain`. Token tetap dicadangkan (tidak dikembalikan, tidak ditagih) dan tidak ada generasi baru. Menyimpan ulang API key yang sama tidak mengubah fingerprint. **Belum ada layar admin** untuk job workspace (`/admin/media/queue` hanya memuat job native dan tidak memfilter `uncertain`); rekonsiliasi `workspace_media_jobs` berstatus `uncertain` (`submission_uncertain` maupun `result_uncertain`) saat ini hanya lewat kueri database manual.
+- **Hasil media yang menunggu tinjauan**: job workspace yang sudah diterima provider tetapi hasilnya tidak dapat diambil dalam 6 jam, atau yang koneksi providernya berubah (fingerprint berbeda), berpindah ke `status=uncertain`, `stage=result_uncertain`. Token tetap dicadangkan (tidak dikembalikan, tidak ditagih) dan tidak ada generasi baru. Menyimpan ulang API key yang sama tidak mengubah fingerprint. **Belum ada layar admin** untuk job workspace (`/admin/ai/queue` hanya memuat job native dan tidak memfilter `uncertain`); rekonsiliasi `workspace_media_jobs` berstatus `uncertain` (`submission_uncertain` maupun `result_uncertain`) saat ini hanya lewat kueri database manual.
 - **Stream chat workspace**: batas 120 detik adalah batas DIAM (tanpa byte masuk), bukan batas total; jawaban panjang yang terus mengalir tidak dipotong.
 - **Kolasi PostgreSQL**: migrasi `2026_09_23_120001` memasang ulang `COLLATE public.xsuper_unicode_ci` pada `chat_history.model`, `chat_history.content`, dan `usage_logs.model` setelah `->change()`. Setelah migrasi, periksa `information_schema.columns.collation_name` untuk ketiga kolom itu (harus `xsuper_unicode_ci`). Diverifikasi di profil tes PostgreSQL 18 lokal.
 - **`MEDIA_KILL_SWITCH=true`** menghentikan SEMUA pengiriman job media baru (job berjalan tetap selesai).
+- **Reservasi API yang ditahan**: hasil selesai dengan usage tidak sah/tidak lengkap atau saldo final tidak cukup tidak direfund sebagai kegagalan provider. Ledger mempertahankan reservasi dan snapshot tarif; SSE mengirim billing error tanpa terminal sukses. Operator perlu memeriksa usage provider dan ledger sebelum settlement/release manual. Tidak ada layar atau rekonsiliasi otomatis untuk kasus ini.
+- **Kuota hasil native**: `save_failed` menyimpan checkpoint privat dan menahan token. Pengguna membebaskan kuota lalu menyimpan hasil asli lewat `/media`; jangan mengubah job menjadi `queued` atau mengirim ulang generasi. URL provider dapat kedaluwarsa, sehingga jangan menjanjikan pemulihan tanpa batas waktu.
+- **Runtime media**: pastikan path FFmpeg/ffprobe benar-benar dapat dieksekusi oleh user worker, Python memakai dependency downloader yang dipin, Node media memenuhi batas versi, dan bobot rembg tersedia. Path contoh atau lolosnya build frontend tidak membuktikan runtime ini tersedia. Verifikasi satu konversi dan hapus-latar nyata; downloader juga memerlukan uji jaringan yang diizinkan.
 - **Mail**: `MAIL_MAILER=resend` membutuhkan `resend/resend-php` (sudah menjadi dependency repo) dan `RESEND_API_KEY`.
 - **API key**: prefix `xsuper-`; key lama `ultrai-` tidak berlaku.
 - Jaga **APP_KEY** tetap sama bila memindahkan data terenkripsi.

@@ -176,11 +176,12 @@ class PeriodController extends Controller
                 ]);
             }
 
-            $user = User::query()->lockForUpdate()->findOrFail($approvedOrder->user_id);
+            [, $participants] = $referrals->lockPurchaseParticipants($approvedOrder);
+            $user = $participants->findOrFail($approvedOrder->user_id);
             $now = now();
             $startFrom = $user->expires_at && $user->expires_at->isFuture()
                 ? $user->expires_at->copy()
-                : $now;
+                : $now->copy();
             $newExpiry = $startFrom->addDays($approvedOrder->days);
 
             $user->forceFill(['expires_at' => $newExpiry])->save();
@@ -227,14 +228,18 @@ class PeriodController extends Controller
      */
     public function reject(Request $request, DurationOrder $order)
     {
-        if ($order->status !== 'pending') {
-            return response()->json(['message' => 'Order sudah diproses.'], 422);
-        }
+        // Re-read under lock: the route-bound model may predate a concurrent approval or cancellation.
+        DB::transaction(function () use ($request, $order): void {
+            $locked = DurationOrder::query()->lockForUpdate()->findOrFail($order->id);
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages(['order' => 'Order sudah diproses.']);
+            }
 
-        $order->update([
-            'status' => 'rejected',
-            'note' => $request->input('note', 'Ditolak oleh admin.'),
-        ]);
+            $locked->update([
+                'status' => 'rejected',
+                'note' => $request->input('note', 'Ditolak oleh admin.'),
+            ]);
+        });
 
         return response()->json(['message' => 'Order ditolak.']);
     }

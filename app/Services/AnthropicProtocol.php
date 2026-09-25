@@ -146,9 +146,6 @@ final class AnthropicProtocol
         if (! is_string($stopReason) || $stopReason === '') {
             throw self::invalidResponse();
         }
-        if (! is_array($response['usage'] ?? null)) {
-            throw self::invalidResponse();
-        }
 
         $message = ['role' => 'assistant', 'content' => $text !== '' ? $text : null];
         if ($toolCalls !== []) {
@@ -164,18 +161,24 @@ final class AnthropicProtocol
                 'message' => $message,
                 'finish_reason' => self::finishReason($stopReason),
             ]],
-            'usage' => self::usage($response['usage']),
+            'usage' => self::usage(is_array($response['usage'] ?? null) ? $response['usage'] : []),
         ];
     }
 
-    /** @return array{prompt_tokens: int, completion_tokens: int, total_tokens: int, prompt_tokens_details?: array<string, int>} */
+    /** Missing or invalid billing evidence is not a failed generation and must never become zero usage. */
     public static function usage(array $usage): array
     {
-        $input = self::tokens($usage['input_tokens'] ?? 0);
-        $cacheRead = self::tokens($usage['cache_read_input_tokens'] ?? 0);
-        $cacheCreation = self::tokens($usage['cache_creation_input_tokens'] ?? 0);
-        $output = self::tokens($usage['output_tokens'] ?? 0);
+        $input = self::tokens($usage['input_tokens'] ?? null);
+        $cacheRead = self::tokens(array_key_exists('cache_read_input_tokens', $usage) ? $usage['cache_read_input_tokens'] : 0);
+        $cacheCreation = self::tokens(array_key_exists('cache_creation_input_tokens', $usage) ? $usage['cache_creation_input_tokens'] : 0);
+        $output = self::tokens($usage['output_tokens'] ?? null);
+        if ($input === null || $output === null || $cacheRead === null || $cacheCreation === null) {
+            return [];
+        }
         $prompt = $input + $cacheRead + $cacheCreation;
+        if (! is_int($prompt) || ! is_int($prompt + $output)) {
+            return [];
+        }
         $mapped = [
             'prompt_tokens' => $prompt,
             'completion_tokens' => $output,
@@ -465,10 +468,10 @@ final class AnthropicProtocol
         return $input;
     }
 
-    private static function tokens(mixed $value): int
+    private static function tokens(mixed $value): ?int
     {
         if (! is_int($value) || $value < 0) {
-            throw self::invalidResponse();
+            return null;
         }
 
         return $value;

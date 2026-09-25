@@ -357,8 +357,15 @@ final class FalProtocol
         }
         $usage = $data['usage'] ?? null;
         if (! is_array($usage) || ! is_int($usage['prompt_tokens'] ?? null) || $usage['prompt_tokens'] < 0
-            || ! is_int($usage['completion_tokens'] ?? null) || $usage['completion_tokens'] < 0) {
-            throw new AiProxyException('The fal chat provider did not return verifiable token usage.', 502);
+            || ! is_int($usage['completion_tokens'] ?? null) || $usage['completion_tokens'] < 0
+            || ! is_int($usage['prompt_tokens'] + $usage['completion_tokens'])) {
+            $usage = [];
+        } else {
+            $usage = [
+                'prompt_tokens' => $usage['prompt_tokens'],
+                'completion_tokens' => $usage['completion_tokens'],
+                'total_tokens' => $usage['prompt_tokens'] + $usage['completion_tokens'],
+            ];
         }
 
         return [
@@ -367,11 +374,7 @@ final class FalProtocol
             'created' => time(),
             'model' => $model,
             'choices' => [['index' => 0, 'message' => ['role' => 'assistant', 'content' => $data['output']], 'finish_reason' => 'stop']],
-            'usage' => [
-                'prompt_tokens' => $usage['prompt_tokens'],
-                'completion_tokens' => $usage['completion_tokens'],
-                'total_tokens' => $usage['prompt_tokens'] + $usage['completion_tokens'],
-            ],
+            'usage' => $usage,
         ];
     }
 

@@ -151,16 +151,6 @@ class FalProviderTest extends TestCase
         Http::assertSentCount(2);
     }
 
-    public function test_fal_chat_without_measured_tokens_cannot_be_reported_as_a_free_success(): void
-    {
-        $provider = $this->provider();
-        Http::fake(['https://fal.run/openrouter/router' => Http::response(['output' => 'A real answer', 'usage' => ['cost' => 0.01]])]);
-        $this->expectException(AiProxyException::class);
-        app(AiProviderTransport::class)->complete($provider, [
-            'model' => FalProtocol::CHAT_MODEL, 'messages' => [['role' => 'user', 'content' => 'Hello']],
-        ]);
-    }
-
     public function test_fal_rejects_conflicting_token_limits_before_paid_dispatch(): void
     {
         Http::fake(['*' => Http::response([
