@@ -386,6 +386,10 @@ Bagian ini adalah prosedur saat deployment disetujui.
 - Wallet menyimpan integer micro-USD. Reservasi menyimpan tarif input/output/cache; settlement memakai snapshot tersebut, bukan tarif terbaru. Cache Anthropic adalah bagian dari total input, bukan tambahan yang ditagih dua kali. Cache tanpa tarif tersendiri memakai tarif input.
 - Saldo tidak cukup sebelum panggilan LLM menghasilkan HTTP **402**, tanpa request provider. Usage final hilang/tidak valid atau shortfall tetap menahan reservasi untuk pemeriksaan; jangan mengembalikan saldo seolah-olah provider belum menghasilkan jawaban.
 - Migrasi benefit membership mempertahankan harga yang dikustomisasi. Hanya harga enam bulan lama Rp299.000 diturunkan menjadi Rp259.000; kolom snapshot order lama bernilai nol, tanpa bonus retroaktif.
+- Setiap order membership baru menyimpan snapshot bonus token, Saldo AI dalam micro-USD, dan byte penyimpanan saat konfirmasi order. Perubahan katalog setelahnya tidak mengubah bonus order tersebut. Persetujuan mencatat audit `membership.approved` dan referensi ledger `duration-order:{id}`; replay tidak boleh menggandakan grant.
+- Penyimpanan membership memakai nilai terbesar dari grant yang masih aktif, bukan jumlah semua membership. Upgrade penyimpanan terpisah tetap dijumlahkan. Setiap grant membership berakhir pada tanggal akhir membership yang terbentuk saat order disetujui; token dan Saldo AI yang telah diberikan tidak kedaluwarsa bersama membership.
+- Tambah durasi manual hanya menambah hari, tanpa bonus paket. Order yang telah disetujui tidak dapat dihapus (HTTP 409); koreksi finansial harus ditangani melalui penyesuaian ledger, bukan menghapus jejak order.
+- Helper bonus di tab paket durasi hanya mengisi draf: default nilai 107% harga, porsi token 60%, pembulatan token turun per 25 dan Saldo AI turun per $0,25. Penyimpanan tetap manual. Tinjau draf dan simpan sebelum perubahan berlaku; harga publik membaca katalog aktif dan tidak menampilkan modal provider.
 
 ## Checklist verifikasi setelah deploy
 - `https://xsuper.dev/up` → 200.

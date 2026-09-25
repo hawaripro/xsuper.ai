@@ -15,6 +15,13 @@ class DashboardRevisionTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+        \Illuminate\Support\Facades\Http::fake();
+    }
+
     public function test_qris_checkout_reference_is_required_and_persisted_on_order(): void
     {
         $member = User::factory()->create();

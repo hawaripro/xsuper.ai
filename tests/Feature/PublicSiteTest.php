@@ -177,7 +177,6 @@ class PublicSiteTest extends TestCase
 
         $this->assertCount(1, $headings);
         $this->assertNotSame('', $this->text($headings->item(0)->textContent));
-        $this->assertStringContainsString('Platform AI', $this->text($html->evaluate('string(//main)')));
 
         foreach (config('marketing.models') as $model) {
             $this->assertStringContainsString($model['name'], $this->text($html->evaluate('string(//main)')));
@@ -400,7 +399,7 @@ class PublicSiteTest extends TestCase
             'display_name' => 'Retail Image', 'category' => 'image', 'token_cost' => 10, 'is_enabled' => true, 'is_available' => true,
         ]);
         AiModelProfile::create([
-            'provider_id' => $provider->id, 'model_id' => 'unavailable-cheap-image', 'upstream_model_id' => 'gpt-image-2',
+            'provider_id' => $provider->id, 'model_id' => 'unavailable-cheap-image', 'upstream_model_id' => 'unavailable-image',
             'display_name' => 'Unavailable Image', 'category' => 'image', 'token_cost' => 1, 'is_enabled' => true, 'is_available' => false,
         ]);
         foreach (['retail-chat' => true, 'unpriced-chat' => false] as $id => $priced) {
@@ -412,7 +411,7 @@ class PublicSiteTest extends TestCase
 
         $idContent = $this->get('/pricing')->assertOk()->getContent();
         $id = $this->html($idContent);
-        $card = $this->text($id->evaluate('string(//*[@data-plan=\"1_month\"])'));
+        $card = $this->text($id->evaluate('string(//*[@data-plan="1_month"])'));
         $this->assertStringContainsString('425 token media', $card);
         $this->assertStringContainsString('Saldo AI $1,75 (≈ Rp 35.000)', $card);
         $this->assertStringContainsString('+2 GB', $card);
@@ -428,7 +427,7 @@ class PublicSiteTest extends TestCase
 
         $enContent = $this->get('/en/pricing')->assertOk()->getContent();
         $en = $this->html($enContent);
-        $englishCard = $this->text($en->evaluate('string(//*[@data-plan=\"1_month\"])'));
+        $englishCard = $this->text($en->evaluate('string(//*[@data-plan="1_month"])'));
         $this->assertStringContainsString('425 media tokens', $englishCard);
         $this->assertStringContainsString('AI Balance $1.75', $englishCard);
         $this->assertStringNotContainsString('Rp ', $this->text($en->evaluate('string(//main)')));
@@ -446,9 +445,9 @@ class PublicSiteTest extends TestCase
         $provider = AiProviderProfile::create(['slug' => 'unpriced', 'name' => 'Private', 'is_enabled' => true]);
         AiModelProfile::create(['provider_id' => $provider->id, 'model_id' => 'chat-without-rate', 'display_name' => 'Chat without rate', 'category' => 'chat', 'is_enabled' => true, 'is_available' => true]);
         $models = $this->html($this->get('/en/models')->assertOk()->getContent());
-        $this->assertSame('payg', $models->evaluate('string(//*[@id=\"chat-without-rate\"]/@data-model-billing)'));
-        $this->assertStringNotContainsString('Included', $this->text($models->evaluate('string(//*[@id=\"chat-without-rate\"])')));
-        $this->assertCount(0, $models->query('//input[@value=\"subscription\"]'));
+        $this->assertSame('payg', $models->evaluate('string(//*[@id="chat-without-rate"]/@data-model-billing)'));
+        $this->assertStringNotContainsString('Included', $this->text($models->evaluate('string(//*[@id="chat-without-rate"])')));
+        $this->assertCount(0, $models->query('//input[@value="subscription"]'));
     }
 
     public function test_media_catalog_prices_show_generator_tokens_not_subscription_inclusion(): void

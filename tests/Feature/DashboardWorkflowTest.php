@@ -16,6 +16,13 @@ class DashboardWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+        Http::fake();
+    }
+
     public function test_order_keeps_the_amount_snapshotted_at_checkout_when_pricing_changes(): void
     {
         $member = User::factory()->create();
