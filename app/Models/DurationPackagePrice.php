@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Pricing\PricingEngine;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 
@@ -13,6 +14,7 @@ class DurationPackagePrice extends Model
         'price_usd',
         'is_active',
         'sort_order',
+        'bonus_tokens', 'bonus_wallet_microusd', 'storage_bytes',
     ];
 
     protected function casts(): array
@@ -22,6 +24,9 @@ class DurationPackagePrice extends Model
             'price_usd' => 'decimal:2',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
+            'bonus_tokens' => 'integer',
+            'bonus_wallet_microusd' => 'integer',
+            'storage_bytes' => 'integer',
         ];
     }
 
@@ -38,7 +43,7 @@ class DurationPackagePrice extends Model
                 ...$package,
                 'price' => $override?->price_idr ?? $package['price'],
                 'price_idr' => $override?->price_idr ?? $package['price'],
-                'price_usd' => $override ? (float) $override->price_usd : self::defaultUsd($id, $package['price']),
+                'price_usd' => $override ? (float) $override->price_usd : self::defaultUsd($package['price']),
                 'is_active' => $override?->is_active ?? true,
                 'sort_order' => $override?->sort_order ?? array_search($id, array_keys(DurationOrder::PACKAGES), true),
                 'bonus_tokens' => (int) ($override?->bonus_tokens ?? 0),
@@ -54,8 +59,8 @@ class DurationPackagePrice extends Model
         return $catalog;
     }
 
-    public static function defaultUsd(string $package, int $priceIdr): float
+    public static function defaultUsd(int $priceIdr): float
     {
-        return (float) config("pricing.default_usd.{$package}", round($priceIdr / 16000, 2));
+        return app(PricingEngine::class)->packageUsd($priceIdr);
     }
 }

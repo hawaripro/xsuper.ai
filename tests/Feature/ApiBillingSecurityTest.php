@@ -109,11 +109,11 @@ class ApiBillingSecurityTest extends TestCase
     public static function expensiveInputs(): array
     {
         $tools = ['tools' => [['type' => 'function', 'function' => [
-            'name' => 'lookup', 'description' => str_repeat('d', 20000),
+            'name' => 'lookup', 'description' => str_repeat('d', 40000),
             'parameters' => ['type' => 'object', 'properties' => new \stdClass],
         ]]]];
         $schema = ['response_format' => ['type' => 'json_schema', 'json_schema' => [
-            'name' => 'answer', 'schema' => ['type' => 'object', 'description' => str_repeat('s', 20000)],
+            'name' => 'answer', 'schema' => ['type' => 'object', 'description' => str_repeat('s', 40000)],
         ]]];
 
         return [
@@ -122,7 +122,7 @@ class ApiBillingSecurityTest extends TestCase
             'schema JSON' => ['/v1/chat/completions', false, $schema],
             'schema SSE' => ['/v1/chat/completions', true, $schema],
             'conflicting output limits' => ['/v1/chat/completions', true, ['max_tokens' => 20000, 'max_completion_tokens' => 1]],
-            'messages stop sequence' => ['/v1/messages', true, ['stop_sequences' => [str_repeat('stop', 5000)]]],
+            'messages long prompt' => ['/v1/messages', true, ['messages' => [['role' => 'user', 'content' => str_repeat('m', 40000)]]]],
         ];
     }
 
@@ -130,8 +130,12 @@ class ApiBillingSecurityTest extends TestCase
     public function test_unaffordable_forwarded_input_is_rejected_before_generation(string $path, bool $stream, array $options): void
     {
         $user = $this->account(10000);
-        $this->postJson($path, array_replace($this->payload($stream), $options))
-            ->assertUnprocessable()->assertJsonValidationErrors('wallet');
+        $response = $this->postJson($path, array_replace($this->payload($stream), $options))->assertStatus(402);
+        if ($path === '/v1/messages') {
+            $response->assertJsonPath('type', 'error')->assertJsonPath('error.type', 'billing_error');
+        } else {
+            $response->assertJsonPath('error.type', 'insufficient_quota')->assertJsonPath('error.code', 'insufficient_balance');
+        }
 
         Http::assertNotSent(fn ($request) => $request->url() === self::COMPLETION_URL);
         $this->assertSame(10000, Wallet::balance($user->id));

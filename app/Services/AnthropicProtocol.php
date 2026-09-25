@@ -165,7 +165,11 @@ final class AnthropicProtocol
         ];
     }
 
-    /** Missing or invalid billing evidence is not a failed generation and must never become zero usage. */
+    /**
+     * Canonical usage: prompt_tokens folds the cache reads and writes into the input (Anthropic reports
+     * them separately) and cache_read_tokens/cache_write_tokens name those subsets for cache pricing.
+     * Missing or invalid billing evidence is not a failed generation and must never become zero usage.
+     */
     public static function usage(array $usage): array
     {
         $input = self::tokens($usage['input_tokens'] ?? null);
@@ -183,6 +187,8 @@ final class AnthropicProtocol
             'prompt_tokens' => $prompt,
             'completion_tokens' => $output,
             'total_tokens' => $prompt + $output,
+            'cache_read_tokens' => $cacheRead,
+            'cache_write_tokens' => $cacheCreation,
         ];
         if ($cacheRead > 0 || $cacheCreation > 0) {
             $mapped['prompt_tokens_details'] = [
