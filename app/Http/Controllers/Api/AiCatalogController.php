@@ -22,7 +22,8 @@ use App\Services\FalProtocol;
 use App\Services\KinoviProtocol;
 use App\Services\MediaCatalogService;
 use App\Services\MediaModelConfig;
-use App\Services\ModelAutoPricer;
+use App\Services\Pricing\CostCollector;
+use App\Services\Pricing\PricingApplier;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -210,7 +211,8 @@ class AiCatalogController extends Controller
         // default and let the caller opt out explicitly.
         $publish = $request->boolean('publish', true);
 
-        $provider = DB::transaction(function () use ($audit, $models, $provider, $connection, $request, $publish): AiProviderProfile {
+        $newIds = [];
+        $provider = DB::transaction(function () use ($models, $provider, $connection, $publish, &$newIds): AiProviderProfile {
             $provider = $this->lockConnection($provider, $connection);
             $provider->update([
                 'status' => $provider->protocol === 'kinovi' ? 'discovered' : 'healthy',
@@ -246,12 +248,10 @@ class AiCatalogController extends Controller
                     ]);
                 }
                 $model->fill(['is_available' => true, 'last_seen_at' => now()]);
-                // New fal media prices are entered and reviewed explicitly in the catalog.
-                $mediaDefaults = config('media_tools.default_generation_tokens', []);
-                if ($provider->protocol !== 'fal' && ! $model->exists && in_array($model->category, ['image', 'video', 'audio', 'avatar'], true) && empty($model->token_cost) && ! empty($mediaDefaults[$model->category])) {
-                    $model->token_cost = (int) $mediaDefaults[$model->category];
-                }
                 $this->saveSyncedModel($model, $provider);
+                if ($model->wasRecentlyCreated) {
+                    $newIds[] = $model->id;
+                }
                 $seenIds[] = $model->id;
             }
             $missingModels = AiModelProfile::query()->where('provider_id', $provider->id);
@@ -264,26 +264,14 @@ class AiCatalogController extends Controller
             }
             $missingModels->update(['is_available' => false]);
 
-            // Price the freshly discovered chat models straight away. Without
-            // this they arrive published but unbillable, which is exactly the
-            // state that made a connected provider look broken in the workspace.
-            $priced = app(ModelAutoPricer::class)->price(
-                AiModelProfile::query()->whereIn('id', $seenIds)
-                    ->whereDoesntHave('capabilityRevisions', fn ($query) => $query->whereNotNull('source_schema'))->get(),
-                1.0,
-                16000,
-                false,
-                $request->user(),
-                'ai_catalog.rate_seeded',
-            );
-
-            $audit->record($request->user(), 'ai_catalog.synced', $provider, [
-                'models_synced' => count($models),
-                'rates_seeded' => $priced,
-            ]);
-
             return $provider;
         });
+        $newModels = AiModelProfile::query()->whereKey($newIds)->with(['provider', 'capabilityRevisions', 'cost'])->get();
+        app(CostCollector::class)->refreshModels($provider, $newModels);
+        $pricing = app(PricingApplier::class)->applyTo($newModels, $request->user());
+        $audit->record($request->user(), 'ai_catalog.synced', $provider, [
+            'models_synced' => count($models), 'pricing' => $pricing,
+        ]);
 
         Cache::forget('public-model-catalog-v3');
 

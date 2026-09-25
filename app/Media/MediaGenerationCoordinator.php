@@ -185,7 +185,11 @@ final class MediaGenerationCoordinator
                 throw new ImageGenerationException('Pro quality is not supported by this model.', 422);
             }
             $count = max(1, (int) ($validated['params']['count'] ?? 1));
-            $multiplier = $avatar ? (int) $validated['params']['duration'] : ($pro ? 2 : 1);
+            $seconds = ($config['price_unit'] ?? null) === 'second' ? (int) ($validated['params']['duration'] ?? ($config['durations'][0] ?? 0)) : 1;
+            if ($seconds < 1) {
+                throw new ImageGenerationException('A positive duration is required for per-second pricing.', 422);
+            }
+            $multiplier = $seconds * ($pro ? 2 : 1);
             if (! is_int($model->token_cost) || $model->token_cost < 1 || $model->token_cost > intdiv(self::MAX_TOKEN_AMOUNT, $multiplier)) {
                 throw new ImageGenerationException('Video token pricing is unavailable.', 503);
             }

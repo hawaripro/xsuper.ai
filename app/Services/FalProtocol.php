@@ -78,6 +78,7 @@ final class FalProtocol
             'supports_duration' => $video || $avatar,
             'supports_aspect_ratio' => $video && ! $reference,
             'supports_pro' => $video,
+            'price_unit' => $video || $avatar ? 'second' : 'generation',
             'supports_reference_image' => $video || $avatar,
             'reference_required' => $reference || $avatar,
             'reference_model' => $video ? self::VIDEO_REFERENCE : null,
