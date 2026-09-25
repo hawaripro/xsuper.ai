@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class UsageLog extends Model
 {
-    protected $fillable = ['user_id', 'model', 'source', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'credit', 'cost_microusd', 'usage_rate_id', 'device_id'];
+    protected $fillable = ['user_id', 'api_key_id', 'model', 'source', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'credit', 'cost_microusd', 'usage_rate_id', 'device_id'];
 
     public function user()
     {
@@ -17,6 +17,7 @@ class UsageLog extends Model
     {
         static::create([
             'user_id' => $userId,
+            'api_key_id' => $usage['api_key_id'] ?? null,
             'model' => $model,
             'source' => $source,
             'prompt_tokens' => $usage['prompt_tokens'] ?? 0,

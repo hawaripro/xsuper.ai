@@ -85,6 +85,7 @@ export default function DashboardLayout({ children }) {
         { name: 'Library', href: '/library', icon: Icons.history, tone: 'blue' },
         { name: 'Template Prompt', href: '/templates', icon: Icons.template, tone: 'amber' },
         { name: 'Usage & Billing', href: '/token-usage', icon: Icons.token, tone: 'cyan' },
+        ...(allowed('ai_api') ? [{ name: 'API', href: '/api-access', icon: Icons.key, tone: 'red' }] : []),
         { name: 'Deposit', href: '/deposit', icon: Icons.paket, tone: 'orange' },
         { name: 'Referral', href: '/referral', icon: Icons.referral, tone: 'pink' },
         { name: 'Inbox', href: '/notifications', icon: Icons.bell, tone: 'indigo' },

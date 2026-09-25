@@ -216,6 +216,30 @@ final class ProviderSseStream
         }
     }
 
+    /** Native Messages events stay intact except for the private upstream model identity. */
+    public static function anthropicPassthrough(StreamInterface $body, string $publicModel): Generator
+    {
+        $started = false;
+        $finished = false;
+        foreach (self::frames($body) as $frame) {
+            $data = self::decode($frame['data']);
+            $type = $data['type'] ?? $frame['event'];
+            if ($type === 'error') {
+                throw self::streamFailure();
+            }
+            if ($type === 'message_start') {
+                if (! is_array($data['message'] ?? null)) { throw self::invalidStream(); }
+                $started = true;
+                $data['message']['model'] = $publicModel;
+                $frame['raw'] = 'event: '.$frame['event']."\n".'data: '.json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n";
+            }
+            if ($type === 'message_stop') { $finished = true; }
+            yield ['data' => $data, 'raw' => $frame['raw']];
+            if ($finished) { break; }
+        }
+        if (! $started || ! $finished) { throw self::incompleteStream(); }
+    }
+
     /**
      * @return Generator<int, array{event: string, data: string}>
      */
@@ -232,7 +256,7 @@ final class ProviderSseStream
                 $buffer = substr($buffer, $position + $delimiterLength);
                 $parsed = self::frame($rawFrame);
                 if ($parsed !== null) {
-                    yield $parsed;
+                    yield [...$parsed, 'raw' => $rawFrame.$match[0][0]];
                 }
             }
         }

@@ -5,7 +5,7 @@ use App\Http\Controllers\Api\ExternalApiController;
 
 /*
 |--------------------------------------------------------------------------
-| External API Routes (no CSRF, no session — Bearer token auth only)
+| External API Routes (no CSRF or session — Bearer or x-api-key authentication)
 |--------------------------------------------------------------------------
 */
 
@@ -13,4 +13,5 @@ Route::prefix('v1')->middleware(\App\Http\Middleware\VerifyApiKey::class)->group
     Route::get('/models', [ExternalApiController::class, 'models']);
     Route::post('/chat/completions', [ExternalApiController::class, 'chatCompletions']);
     Route::post('/messages', [ExternalApiController::class, 'messages']);
+    Route::post('/messages/count_tokens', [ExternalApiController::class, 'countTokens']);
 });

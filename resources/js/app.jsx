@@ -31,6 +31,7 @@ import Deposit from './pages/Deposit';
 import Referral from './pages/Referral';
 import Bantuan from './pages/Bantuan';
 import Notifications from './pages/Notifications';
+import ApiAccess from './pages/ApiAccess';
 
 // Admin pages (existing)
 import AdminUsers from './pages/AdminUsers';
@@ -139,6 +140,7 @@ function LocalizedAppRoutes() {
             <Route path={path('/generate-image')} element={legacyStudio('/generate-image', 'image_generator')} />
             <Route path={path('/token-usage')} element={<DL><TokenPemakaian /></DL>} />
             <Route path={path('/deposit')} element={<DL><Deposit /></DL>} />
+            <Route path={path('/api-access')} element={<DL permission="ai_api"><ApiAccess /></DL>} />
             <Route path={path('/paket')} element={<Navigate to={`${path('/deposit')}?tab=subscription`} replace />} />
             <Route path={path('/referral')} element={<DL><Referral /></DL>} />
             <Route path={path('/bantuan')} element={<DL><Bantuan /></DL>} />
