@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\InsufficientBalanceException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,7 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'admin.ip' => \App\Http\Middleware\AdminIpAllowlist::class,
-            'check.expiry' => \App\Http\Middleware\CheckExpiry::class,
+            'feature.access' => \App\Http\Middleware\EnsureFeatureAccess::class,
             'verify.apikey' => \App\Http\Middleware\VerifyApiKey::class,
             'track.device' => \App\Http\Middleware\TrackDevice::class,
             'ensure.active' => \App\Http\Middleware\EnsureActive::class,
@@ -46,10 +47,18 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(fn (\Throwable $error, Request $request) => \App\Http\Api\MediaApiResponse::error($error, $request));
+        // Running out of balance is an expected member outcome, not an application fault.
+        $exceptions->dontReport(InsufficientBalanceException::class);
 
         // Return JSON for API errors
         $exceptions->shouldRenderJsonWhen(function (Request $request) {
             return $request->is('api/*') || $request->expectsJson();
+        });
+
+        $exceptions->render(function (InsufficientBalanceException $e, Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json($e->payload(), 402);
+            }
         });
 
         // Handle token mismatch (expired CSRF) — redirect to login

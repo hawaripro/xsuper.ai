@@ -168,7 +168,7 @@ class WorkspaceMediaService
 
     private function eligibleCapabilities(User $user, AiModelProfile $model): array
     {
-        if ($user->is_active === false || $user->isExpired() || ! $this->activation->usesCoordinator($user)
+        if ($user->is_active === false || ! $this->activation->usesCoordinator($user)
             || ! is_int($model->token_cost) || $model->token_cost < 1 || $model->token_cost > 2_147_483_647
             || ($allowed = MediaModelConfig::workspaceOperations($user, $model)) === []) {
             return [];

@@ -261,7 +261,6 @@ function WorkspaceSession({ kind, user }) {
     const permission = download ? "video_downloader" : "media_converter";
     const isAdmin = user.role === "admin";
     const canUse = isAdmin || user.permissions?.[permission] !== false;
-    const expired = !isAdmin && user.expires_at && Date.parse(user.expires_at) <= Date.now();
     const inactive = !isAdmin && user.is_active === false;
     const available = queue.capabilities?.available?.[kind] === true;
     const uploadLimit = Number(queue.capabilities?.limits?.max_upload_bytes) || 0;
@@ -272,7 +271,7 @@ function WorkspaceSession({ kind, user }) {
     const sourceKey = download ? url.trim() : file ? `${file.name}:${file.size}:${file.lastModified}` : "";
     const duplicateJob = queue.jobs.find((job) => isActiveJob(job) && submittedInputs.some((input) => input.jobId === job.job_id && input.sourceKey === sourceKey && input.format === chosenFormat));
     const busy = queue.submitting || Boolean(queue.recovery);
-    const formDisabled = busy || !available || !canUse || expired || inactive || !queue.historyLoaded || Boolean(queue.capabilityError);
+    const formDisabled = busy || !available || !canUse || inactive || !queue.historyLoaded || Boolean(queue.capabilityError);
     const serverErrors = validationErrors(queue.submitError);
     const errors = { ...serverErrors, ...localErrors };
     const urlError = fieldMessage(errors, "url");
@@ -388,7 +387,7 @@ function WorkspaceSession({ kind, user }) {
             </div>
         </header>
         {!canUse && <Notice tone="error">{t("Akun Anda tidak memiliki izin untuk membuat pekerjaan baru di alat ini. Riwayat milik Anda tetap dapat diperiksa.")}</Notice>}
-        {(expired || inactive) && <Notice tone="warning">{t(expired ? "Masa aktif akun berakhir. Perpanjang akses untuk membuat pekerjaan baru; hasil lama tetap dapat diperiksa." : "Akun tidak aktif. Hubungi dukungan untuk memulihkan akses.")}</Notice>}
+        {inactive && <Notice tone="warning">{t("Akun tidak aktif. Hubungi dukungan untuk memulihkan akses.")}</Notice>}
         {queue.capabilityError && <Notice tone="error" action={<button type="button" className="mt-text-button" disabled={queue.capabilityLoading} onClick={queue.loadCapabilities}>{t("Coba periksa lagi")}</button>}>{t(errorMessage(queue.capabilityError))}</Notice>}
         {runtimeUnavailable && <Notice action={<button type="button" className="mt-text-button" onClick={queue.loadCapabilities}>{t("Periksa ketersediaan")}</button>}><strong>{t("Alat belum tersedia di server ini.")}</strong><p>{queue.capabilities.message ? t(queue.capabilities.message) : t("Runtime belum siap. Tidak ada pekerjaan baru yang dikirim. Riwayat dan hasil yang sudah tersedia tetap dapat dibuka.")}</p></Notice>}
         <div className="mt-workbench">

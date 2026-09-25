@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -25,11 +26,11 @@ class User extends Authenticatable
         'chat' => true,
         'chat_history' => true,
         'image_generator' => true,
-        'video_generator' => false,
+        'video_generator' => true,
         'audio_generator' => true,
         'video_downloader' => true,
         'media_converter' => true,
-        'ai_api' => false,
+        'ai_api' => true,
     ];
 
     protected $fillable = [
@@ -146,11 +147,23 @@ class User extends Authenticatable
         return $this->role === 'member';
     }
 
+    /** Membership state for display and segments only; expiry never blocks usage (balance does). */
     public function isExpired(): bool
     {
         if ($this->isAdmin()) return false;
         if (!$this->expires_at) return false; // null = unlimited
         return $this->expires_at->isPast();
+    }
+
+    /** Membership = the bonus period: an end date that is still in the future. */
+    public function hasActiveMembership(): bool
+    {
+        return $this->expires_at !== null && $this->expires_at->isFuture();
+    }
+
+    public function membershipEndsAt(): ?Carbon
+    {
+        return $this->expires_at?->copy();
     }
 
     public function daysRemaining(): ?int
