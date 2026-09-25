@@ -68,6 +68,11 @@ class AIOperationsTest extends TestCase
                     ],
                 ],
             ]),
+            'https://openrouter.ai/api/v1/models' => Http::response(['data' => [
+                ['id' => 'chat-alpha', 'architecture' => ['output_modalities' => ['text']],
+                    'pricing' => ['prompt' => '0.000003', 'completion' => '0.000015']],
+            ]]),
+            '*litellm*' => Http::response([]),
         ]);
         $admin = User::factory()->create(['role' => 'admin']);
         $provider = AiProviderProfile::create(['slug' => 'ai-proxy', 'name' => 'AI Proxy', 'is_enabled' => true]);
@@ -89,6 +94,8 @@ class AIOperationsTest extends TestCase
             'category' => 'image',
         ]);
         $this->assertSame(['image_generation'], AiModelProfile::where('model_id', 'image-alpha')->firstOrFail()->capabilities);
+        $this->assertNull(AiModelProfile::where('model_id', 'image-alpha')->value('token_cost'));
+        $this->assertDatabaseHas('usage_rates', ['model' => 'chat-alpha', 'meter' => 'input_tokens', 'price_usd' => '6.65000000', 'is_active' => true]);
         $this->assertNotNull(AiProviderProfile::where('slug', 'ai-proxy')->firstOrFail()->last_checked_at);
         $this->assertDatabaseHas('audit_events', [
             'actor_id' => $admin->id,

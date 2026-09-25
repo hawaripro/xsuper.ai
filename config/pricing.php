@@ -1,14 +1,12 @@
 <?php
 
 return [
-    // Initial independent USD values use a fixed 1 USD = IDR 16,000 reference.
-    // Administrators can replace every value in the pricing settings without a rebuild.
-    'default_usd' => [
-        '1_day' => 0.31,
-        '1_week' => 1.25,
-        '1_month' => 3.44,
-        '3_months' => 8.44,
-        '6_months' => 18.69,
-        '12_months' => 31.19,
+    'reference' => [
+        'openrouter_url' => 'https://openrouter.ai/api/v1/models',
+        'litellm_url' => 'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json',
+        'cache_hours' => 12,
     ],
+    'runware_docs_base' => 'https://runware.ai/docs/models',
+    'kinovi_docs_base' => 'https://kinovi.ai/docs/models',
+    'fal_pricing_url' => 'https://api.fal.ai/v1/models/pricing',
 ];

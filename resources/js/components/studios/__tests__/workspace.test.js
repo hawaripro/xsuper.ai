@@ -83,9 +83,13 @@ describe("workspaceQuote (server billing envelope)", () => {
         expect(workspaceQuote(native, {}, { count: 5 }).total).toBeNull();
     });
 
-    it("bills per second from the parsed duration and never applies Pro there", () => {
-        const avatar = { contract_version: 1, price_tokens: 7, billing: { mode: "per_second", duration_field: "duration", durations: [], pro_field: "pro", pro_multiplier: 2 } };
-        expect(workspaceQuote(avatar, { duration: 5 }, { pro: true })).toMatchObject({ admission: 35, total: 35, seconds: 5 });
+    it("bills selectable seconds and applies supported Pro quality independently", () => {
+        const video = { contract_version: 1, price_tokens: 7, billing: { mode: "per_second", duration_field: "duration", durations: [5, 8, 10], pro_field: "pro", pro_multiplier: 2 } };
+        expect(workspaceQuote(video, { duration: 5 })).toMatchObject({ admission: 35, total: 35, seconds: 5 });
+        expect(workspaceQuote(video, { duration: 10 })).toMatchObject({ admission: 70, total: 70, seconds: 10 });
+        expect(workspaceQuote(video, { duration: 5 }, { pro: true })).toMatchObject({ admission: 70, total: 70, seconds: 5 });
+        const avatar = { ...video, billing: { ...video.billing, pro_field: null } };
+        expect(workspaceQuote(avatar, { duration: 5 }, { pro: true })).toMatchObject({ admission: 35, total: 35 });
         const v2 = { contract_version: 2, price_tokens: 3, billing: { mode: "per_second", duration_field: "duration", durations: [5, 10] },
             input_schema: { type: "object", properties: { duration: { type: "string", enum: ["5", "10", "auto"], default: "auto" } } } };
         expect(workspaceQuote(v2, {}, {})).toMatchObject({ admission: null, seconds: null });

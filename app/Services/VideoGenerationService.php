@@ -90,7 +90,11 @@ final class VideoGenerationService
                 if ($duration !== null && ! in_array((int) $duration, $config['durations'], true)) {
                     throw ValidationException::withMessages(['settings.duration' => 'The duration is not supported by this model.']);
                 }
-                $multiplier = $proMode ? 2 : 1;
+                $seconds = ($config['price_unit'] ?? null) === 'second' ? (int) ($duration ?? ($config['durations'][0] ?? 0)) : 1;
+                if ($seconds < 1) {
+                    throw ValidationException::withMessages(['settings.duration' => 'A positive duration is required for per-second pricing.']);
+                }
+                $multiplier = $seconds * ($proMode ? 2 : 1);
                 if (! is_int($model->token_cost) || $model->token_cost < 1 || $model->token_cost > intdiv(self::MAX_TOKEN_AMOUNT, $multiplier)) {
                     throw ValidationException::withMessages(['model' => 'Video token pricing is unavailable or exceeds the supported limit.']);
                 }

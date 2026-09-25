@@ -169,36 +169,6 @@ class PricingController extends Controller
         return response()->json($result);
     }
 
-    /**
-     * Automatically price every chat model in one action so the admin never has
-     * to enter per-model input/output token rates by hand. Prices derive from a
-     * flat retail rate scaled by a single margin multiplier; input and
-     * output rates are always written together to satisfy publication rules.
-     */
-    public function autoPriceRates(Request $request, AuditService $audit): JsonResponse
-    {
-        $validated = $request->validate([
-            'margin' => ['sometimes', 'numeric', 'min:0.1', 'max:100'],
-            'idr_per_usd' => ['sometimes', 'numeric', 'min:1000', 'max:100000'],
-            'overwrite' => ['sometimes', 'boolean'],
-        ]);
-        $margin = (float) ($validated['margin'] ?? 1.0);
-        $idrPerUsd = (float) ($validated['idr_per_usd'] ?? 16000);
-        $overwrite = (bool) ($validated['overwrite'] ?? false);
-
-        $updated = DB::transaction(fn (): int => app(\App\Services\ModelAutoPricer::class)->price(
-            AiModelProfile::query()->where('category', 'chat')->orderBy('id')->lockForUpdate()->get(),
-            $margin,
-            $idrPerUsd,
-            $overwrite,
-            $request->user(),
-        ));
-
-        Cache::forget('public-model-catalog-v3');
-
-        return response()->json(['message' => 'Automatic pricing applied.', 'updated_count' => $updated]);
-    }
-
     private function rateRules(bool $partial = true): array
     {
         $required = $partial ? 'sometimes' : 'required';

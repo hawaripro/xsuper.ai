@@ -158,14 +158,17 @@ class VideoController extends Controller
                     if (isset($options['expected_capability_hash']) && ! hash_equals($resolved->sourceHash, $options['expected_capability_hash'])) {
                         throw new ImageGenerationException('This model was updated since you opened this form. Review and try again.', 409);
                     }
-                    $cost = (int) $model->token_cost * ($pro ? 2 : 1);
-                    if (isset($options['expected_price_tokens']) && (int) $options['expected_price_tokens'] !== $cost) {
-                        throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
-                    }
                     try {
                         $effective = app(CapabilityValidator::class)->validate($resolved->capability, $rawInputs);
                     } catch (CapabilityValidationException $exception) {
                         throw new ImageGenerationException($exception->getMessage(), 422);
+                    }
+                    $pricingConfig = MediaModelConfig::forModel($model);
+                    $seconds = ($pricingConfig['price_unit'] ?? null) === 'second'
+                        ? (int) ($effective['params']['duration'] ?? ($pricingConfig['durations'][0] ?? 0)) : 1;
+                    $cost = (int) $model->token_cost * $seconds * ($pro ? 2 : 1);
+                    if (isset($options['expected_price_tokens']) && (int) $options['expected_price_tokens'] !== $cost) {
+                        throw new ImageGenerationException('The price changed since you opened this form. Review and try again.', 409);
                     }
                     $fingerprint = MediaGenerationCoordinator::fingerprintPayload($operation, $model->model_id, $effective);
                     $revision = app(CapabilityResolver::class)->ensureRevision($model, $operation, $resolved);

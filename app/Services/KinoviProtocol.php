@@ -142,6 +142,7 @@ final class KinoviProtocol
             return [
                 ...$base,
                 'audio_path' => $model,
+                'price_unit' => 'request',
                 'audio_status_path' => $model,
                 // Both are prompt-driven composition, so the studio's "music" experience fits;
                 // Suno exposes no duration control (length follows the composition).
@@ -166,6 +167,7 @@ final class KinoviProtocol
         // video
         return [
             ...$base,
+            'price_unit' => 'second',
             'durations' => self::VIDEO_DURATIONS,
             'aspect_ratios' => self::VIDEO_ASPECT_RATIOS,
             'max_quantity' => 2,

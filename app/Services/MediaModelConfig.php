@@ -173,6 +173,11 @@ final class MediaModelConfig
         if ($model->provider?->protocol === 'runware') {
             return self::runwarePriceUnit($model);
         }
+        $nativeVideo = $model->provider?->protocol === 'fal'
+            ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
+        if (($nativeVideo['price_unit'] ?? null) === 'second') {
+            return 'second';
+        }
         if ($model->provider?->protocol !== 'fal') {
             $native = $model->provider?->protocol === 'kinovi'
                 ? KinoviProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;

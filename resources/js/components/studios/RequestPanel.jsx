@@ -118,7 +118,7 @@ function FormBody({ studio, request, actions }) {
             {studioKind === "video" && quote.count > 1 && <label className="studio-checkbox"><input type="checkbox" checked={video.draft.variations} disabled={studio.submitting} onChange={(event) => actions.editVideo({ variations: event.target.checked })} />
                 <span>{t("Variasikan komposisi tiap video")}<small>{t("Arahan tambahan dikirim ke model untuk hasil berikutnya.")}</small></span></label>}
             {native && (billing.pro_field || studioKind === "video") && <ProOption supported={Boolean(billing.pro_field)} active={studio.controls.pro === true} unit={quote.unit}
-                multiplier={Number(billing.pro_multiplier) || 2} disabled={studio.submitting} error={errors.pro || errors.pro_mode} perUnit={studioKind === "video" ? "token / video" : "token"}
+                multiplier={Number(billing.pro_multiplier) || 2} disabled={studio.submitting} error={errors.pro || errors.pro_mode} perUnit={billing.mode === "per_second" ? "token / detik" : studioKind === "video" ? "token / video" : "token"}
                 description={studioKind === "video" ? facts?.pro?.description || "16 langkah inferensi dan encoding maksimum; Standard menggunakan 12 langkah dan encoding tinggi." : "Pro memakai pengaturan kualitas lebih tinggi yang didukung model ini."}
                 onToggle={() => studio.setControls({ pro: studio.controls.pro !== true })} />}
             {billing.duration_field === "billing_seconds" && <StudioField id="media-billing-seconds" label="Durasi yang ditagihkan" error={errors.billing_seconds}

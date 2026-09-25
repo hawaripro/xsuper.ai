@@ -7,6 +7,7 @@ import ModelBulkTable from "../../components/dashboard/ModelBulkTable";
 import { apiRequest } from "../../lib/api";
 import TokenPackageTable from "../../components/dashboard/TokenPackageTable";
 import RatePairSummary from "../../components/dashboard/RatePairSummary";
+import AutoPricingPanel from "../../components/admin/pricing/AutoPricingPanel";
 
 const emptyRate = { service: "api", meter: "input_tokens", model: "", label: "", unit: "1M tokens", price_idr: "", price_usd: "", is_active: false, sort_order: 0 };
 const apiMeters = ["input_tokens", "output_tokens", "cache_read", "cache_write"];
@@ -147,7 +148,6 @@ export default function Settings() {
     const [rowErrors, setRowErrors] = useState({});
     const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState({ error: "", success: "" });
-    const [autoForm, setAutoForm] = useState({ margin: 1, idr_per_usd: 16000, overwrite: false });
     const [tab, setTab] = useState("auto");
     const requests = useRef({ pricing: 0, models: 0 });
 
@@ -312,16 +312,6 @@ export default function Settings() {
             setStatus({ error: error.message, success: "" });
         } finally { setBusy(false); }
     };
-    const autoPrice = async () => {
-        setBusy(true);
-        setStatus({ error: "", success: "" });
-        try {
-            const data = await apiRequest("/api/pricing/rates/auto", { method: "POST", body: { margin: Number(autoForm.margin), idr_per_usd: Number(autoForm.idr_per_usd), overwrite: autoForm.overwrite } });
-            setStatus({ error: "", success: `${t("Harga otomatis diterapkan ke")} ${data.updated_count} ${t("tarif model.")}` });
-            await Promise.all([loadPricing(), loadModels()]);
-        } catch (error) { setStatus({ error: error.message, success: "" }); }
-        finally { setBusy(false); }
-    };
     const fieldError = (type, id, field) => rowErrors[type]?.[id]?.[field] && <span className="mt-1 block max-w-52 whitespace-normal text-xs text-red-600 dark:text-red-300">{t([rowErrors[type][id][field]].flat()[0])}</span>;
     const tabs = [
         ["auto", "Auto-harga"],
@@ -363,43 +353,7 @@ export default function Settings() {
         <div className="pw-tabs" role="tablist" aria-label={t("Bagian harga")}>
             {tabs.map(([id, tabLabel]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className="pw-tab" onClick={() => setTab(id)}>{t(tabLabel)}</button>)}
         </div>
-        {tab === "auto" && (
-        <section className={`relative overflow-hidden rounded-2xl border p-5 ${dark ? "border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.06] via-transparent to-teal-500/[0.05]" : "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50"} animate-fade-in-up`} aria-labelledby="auto-price-title">
-            <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 opacity-10 blur-3xl" aria-hidden="true" />
-            <div className="pointer-events-none absolute -bottom-12 left-1/4 h-32 w-32 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-500 opacity-[0.07] blur-3xl" aria-hidden="true" />
-            <div className="relative flex flex-wrap items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25 animate-pop-in">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3l2.4 5.6L21 11l-5.6 2.4L13 19l-2.4-5.6L5 11l5.6-2.4z" /><path d="M5 3v3" /><path d="M3.5 4.5h3" /><path d="M18 17v3" /><path d="M16.5 18.5h3" /></svg>
-                </span>
-                <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <h2 id="auto-price-title" className={`text-sm font-bold ${head}`}>{t("Harga otomatis")}</h2>
-                        <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-500">{t("Otomatis")}</span>
-                    </div>
-                    <p className={`mt-0.5 text-xs leading-5 ${muted}`}>{t("Admin tidak perlu lagi mengisi harga input/output per model secara manual. Harga dibuat otomatis untuk semua model chat: harga = tarif dasar × margin.")}</p>
-                </div>
-            </div>
-            <div className="relative mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,150px)_minmax(0,180px)_1fr_auto] lg:items-end">
-                <div>
-                    <label htmlFor="auto-margin" className={`mb-1.5 block text-xs font-bold uppercase tracking-wide ${muted}`}>{t("Margin (×)")}</label>
-                    <input id="auto-margin" type="number" min="0.1" max="100" step="0.1" className={field} value={autoForm.margin} disabled={busy} onChange={(event) => setAutoForm((current) => ({ ...current, margin: event.target.value }))} />
-                </div>
-                <div>
-                    <label htmlFor="auto-idr" className={`mb-1.5 block text-xs font-bold uppercase tracking-wide ${muted}`}>{t("IDR per USD")}</label>
-                    <input id="auto-idr" type="number" min="1" step="1" className={field} value={autoForm.idr_per_usd} disabled={busy} onChange={(event) => setAutoForm((current) => ({ ...current, idr_per_usd: event.target.value }))} />
-                </div>
-                <label className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-medium ${dark ? "border-white/[0.08] bg-white/[0.03] text-gray-300" : "border-gray-200 bg-white/70 text-slate-700"}`}>
-                    <input type="checkbox" className="h-4 w-4 accent-emerald-500" checked={autoForm.overwrite} disabled={busy} onChange={(event) => setAutoForm((current) => ({ ...current, overwrite: event.target.checked }))} />
-                    {t("Timpa tarif yang sudah ada")}
-                </label>
-                <button type="button" onClick={autoPrice} disabled={busy} className="ui-btn-primary min-h-11 px-5">{busy ? t("Menerapkan…") : t("Terapkan harga otomatis")}</button>
-            </div>
-            <p className={`relative mt-3 flex items-start gap-2 text-[11px] leading-5 ${muted}`}>
-                <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><line x1="12" y1="11" x2="12" y2="16" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                {t("Tarif dasar: input 0.15 / output 0.60 USD per 1 juta token, dikalikan margin.")}
-            </p>
-        </section>
-        )}
+        {tab === "auto" && <AutoPricingPanel onApplied={() => Promise.all([loadPricing(), loadModels()])} />}
         {tab === "durations" && (<>
         {loadErrors.pricing && <ErrorState message={loadErrors.pricing} onRetry={() => loadPricing()} />}
         {loading.pricing && !catalog ? <LoadingState label={t("Memuat pricing…")} /> : catalog && (

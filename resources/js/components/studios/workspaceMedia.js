@@ -88,7 +88,7 @@ export function workspaceQuote(capability, values = {}, controls = {}) {
         else if (seconds == null) reason = billing.duration_field === "billing_seconds" ? "Pilih durasi yang ditagihkan." : "Tarif per detik memerlukan durasi eksplisit dalam detik bulat.";
         else if (durations.length && !durations.includes(seconds)) reason = "Durasi ini belum ditinjau untuk tarif per detik. Pilih durasi lain.";
     }
-    const multiplier = !perSecond && pro ? Number(billing.pro_multiplier) : 1;
+    const multiplier = pro ? Number(billing.pro_multiplier) : 1;
     const empty = { unit: Number.isSafeInteger(base) && base > 0 ? base : null, admission: null, total: null, count, pro, seconds, quantity, quantityField, reason };
     if (reason || !Number.isSafeInteger(base) || base <= 0 || !Number.isSafeInteger(count) || count < 1 || count > (billing.max_count || 1)
         || !Number.isSafeInteger(multiplier) || multiplier < 1 || (Number.isSafeInteger(billing.max_quantity) && quantity > billing.max_quantity)) return empty;
