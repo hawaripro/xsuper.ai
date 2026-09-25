@@ -1,6 +1,9 @@
 <?php
 
 return [
+    // The compatibility endpoint waits for the existing queue; it never submits another paid job.
+    'api_sync_wait_seconds' => (int) env('MEDIA_API_SYNC_WAIT_SECONDS', 120),
+
     /*
      * Kill switch for NEW capability-driven media submissions. When true, the backend
      * rejects new submissions through the coordinator; jobs already accepted keep being

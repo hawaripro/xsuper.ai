@@ -10,6 +10,9 @@ use App\Models\VideoJob;
 use App\Observers\MediaJobObserver;
 use App\Observers\NotificationObserver;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -28,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('media-api-create', fn (Request $request) => Limit::perMinute(20)
+            ->by('media-api:'.$request->attributes->get('api_key')->id)
+            ->response(fn () => \App\Http\Api\ApiErrorResponse::openAi(
+                'Media creation is limited to 20 requests per minute per key.', 'rate_limit_error', 'rate_limit_exceeded', 429)));
+
         Notification::observe(NotificationObserver::class);
         ImageJob::observe(MediaJobObserver::class);
         VideoJob::observe(MediaJobObserver::class);

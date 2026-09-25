@@ -25,6 +25,7 @@ use App\Media\MediaAdapterRegistry;
 use App\Media\MediaCapability;
 use App\Media\MediaGenerationCoordinator;
 use App\Media\MediaJsonSchema;
+use App\Media\MediaUrlPresenter;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
@@ -93,6 +94,9 @@ class WorkspaceMediaService
         $lastId = $after;
         $query = AiModelProfile::query()->with('provider')->where('is_enabled', true)->where('is_available', true)
             ->where('token_cost', '>', 0)->where('id', '>', $after)->whereHas('provider', fn ($query) => $query->where('is_enabled', true));
+        if (isset($filters['allowed_models']) && is_array($filters['allowed_models'])) {
+            $query->whereIn('model_id', $filters['allowed_models']);
+        }
         if (($search = trim((string) ($filters['q'] ?? ''))) !== '') {
             $query->where(function ($query) use ($search): void {
                 $query->where('display_name', 'like', '%'.$search.'%')->orWhere('model_id', 'like', '%'.$search.'%')
@@ -101,6 +105,9 @@ class WorkspaceMediaService
         }
         foreach ($query->lazyById(100) as $model) {
             $capabilities = $this->eligibleCapabilities($user, $model);
+            if ($filters['queued_only'] ?? false) {
+                $capabilities = array_filter($capabilities, static fn (array $capability): bool => ($capability['execution']['transport'] ?? null) !== 'realtime');
+            }
             if (isset($filters['kind']) && $filters['kind'] !== '') {
                 $kind = $filters['kind'];
                 $capabilities = array_filter($capabilities, static fn (array $capability): bool => match ($kind) {
@@ -239,6 +246,90 @@ class WorkspaceMediaService
             'variable_configuration' => $v2];
     }
 
+    /** A side-effect-free quote shared by Studio admission and API callers. */
+    public function quote(User $user, array $request): array
+    {
+        return $this->prepareQuote($user, $request)['quote'];
+    }
+
+    private function prepareQuote(User $user, array $request, bool $lock = false): array
+    {
+        if (! is_array($request['inputs'] ?? null)) {
+            throw ValidationException::withMessages(['inputs' => 'An input object is required.']);
+        }
+        $operation = MediaOperation::tryFrom((string) ($request['operation'] ?? ''));
+        if ($operation === null) {
+            throw ValidationException::withMessages(['operation' => 'Select an available media operation.']);
+        }
+        $query = AiModelProfile::query()->with('provider')->where('model_id', $request['model'] ?? '');
+        $model = ($lock ? $query->lockForUpdate() : $query)->first();
+        abort_if($model === null, 404, 'This model is unavailable for your account.');
+        $this->activation->assertNotPaused();
+        $capabilities = $this->eligibleCapabilities($user, $model);
+        if (! isset($capabilities[$operation->value])) {
+            throw new ImageGenerationException('This operation is unavailable or not permitted for your account.', 403);
+        }
+        $resolved = $this->resolver->resolve($model, $operation, schemaContracts: true);
+        $capability = $resolved->capability;
+        if (($capability->providerBindings['adapter'] ?? null) === 'fal_wma_v1'
+            || ($capability->providerBindings['transport'] ?? null) === 'realtime') {
+            throw ValidationException::withMessages(['operation' => 'Start this operation through the realtime session controls, not a queued media job.']);
+        }
+        // Studio still rejects a stale form before validating it against a changed schema.
+        if ($lock) {
+            $hash = $request['expected_capability_hash'] ?? null;
+            if (! is_string($hash) || preg_match('/^[a-f0-9]{64}$/D', $hash) !== 1) {
+                throw ValidationException::withMessages(['expected_capability_hash' => 'A current capability quote is required.']);
+            }
+            if (! hash_equals($resolved->sourceHash, $hash)) {
+                throw new ImageGenerationException('This model changed. Review the current options before submitting.', 409);
+            }
+            if (($request['conversation_id'] ?? null) !== null) {
+                app(ChatWorkspaceService::class)->resolveConversation($user, $request['conversation_id'], false);
+            }
+        }
+        $execution = $this->execution($request, $capability);
+        $billing = $capabilities[$operation->value]['billing'];
+        if ($execution['count'] > $billing['max_count'] || $execution['count'] < 1
+            || ($execution['pro'] && $billing['pro_field'] === null)) {
+            throw ValidationException::withMessages(['count' => 'These execution options are not supported by this model.']);
+        }
+        if ($model->category === 'avatar' && ! $execution['rights_confirmed']) {
+            throw ValidationException::withMessages(['rights_confirmed' => 'Confirm permission to use this photo and voice.']);
+        }
+        if (array_intersect_key($execution, array_flip(['mode', 'cta', 'ugc_variation'])) !== []
+            && ($capability->contractVersion !== 1 || ! in_array($operation, [MediaOperation::TextToVideo, MediaOperation::ImageToVideo], true))) {
+            throw ValidationException::withMessages(['mode' => 'Product, UGC, call-to-action and variation options apply only to native video generation.']);
+        }
+        $validated = $this->normalize($capability, $request['inputs'], $execution);
+        $quantity = 1;
+        if ($billing['mode'] === 'per_second') {
+            $fromInputs = $billing['duration_field'] === 'duration';
+            $duration = $fromInputs ? self::wholeSeconds($capability->contractVersion >= 2
+                ? ($validated['inputs']['duration'] ?? null) : ($validated['params']['duration'] ?? null)) : $execution['billing_seconds'];
+            if (! is_int($duration) || $duration < 1
+                || ($fromInputs && $execution['billing_seconds'] !== null && $execution['billing_seconds'] !== $duration)
+                || (! $fromInputs && $billing['durations'] === [])
+                || ($billing['durations'] !== [] && ! in_array($duration, $billing['durations'], true))) {
+                throw ValidationException::withMessages([$fromInputs ? 'inputs.duration' : 'billing_seconds'
+                    => 'Select an explicit whole-second duration allowed by this per-second price.']);
+            }
+            $quantity = $duration;
+        }
+        if ($execution['pro']) {
+            $quantity = $this->multiply($quantity, $billing['pro_multiplier']);
+        }
+        if (($quantityInput = self::quantityInput($capability->providerBindings, $billing['price_unit'])) !== null) {
+            $quantity = $this->multiply($quantity, self::quantity($validated['inputs'] ?? [], $quantityInput));
+        }
+        $price = $this->multiply((int) $model->token_cost, $quantity);
+        $quote = ['model' => $model->model_id, 'operation' => $operation->value, 'capability_hash' => $resolved->sourceHash,
+            'unit_price_tokens' => (int) $model->token_cost, 'quantity' => $quantity, 'count' => $execution['count'],
+            'total_tokens' => $this->multiply($price, $execution['count']), 'billing' => $billing];
+
+        return compact('quote', 'model', 'operation', 'resolved', 'capability', 'execution', 'validated', 'billing', 'price');
+    }
+
     /** @return list<Model> */
     public function create(User $user, array $request): array
     {
@@ -257,68 +348,11 @@ class WorkspaceMediaService
             if ($existing !== null) {
                 return $this->replay($owner, $existing, $request);
             }
-            $operation = MediaOperation::tryFrom((string) ($request['operation'] ?? ''));
-            if ($operation === null) {
-                throw ValidationException::withMessages(['operation' => 'Select an available media operation.']);
-            }
-            $model = AiModelProfile::query()->with('provider')->where('model_id', $request['model'] ?? '')->lockForUpdate()->first();
-            abort_if($model === null, 404, 'This model is unavailable for your account.');
-            $this->activation->assertNotPaused();
-            $capabilities = $this->eligibleCapabilities($owner, $model);
-            if (! isset($capabilities[$operation->value])) {
-                throw new ImageGenerationException('This operation is unavailable or not permitted for your account.', 403);
-            }
-            $resolved = $this->resolver->resolve($model, $operation, schemaContracts: true);
-            $capability = $resolved->capability;
-            $hash = $request['expected_capability_hash'] ?? null;
-            if (($capability->providerBindings['adapter'] ?? null) === 'fal_wma_v1'
-                || ($capability->providerBindings['transport'] ?? null) === 'realtime') {
-                throw ValidationException::withMessages(['operation' => 'Start this operation through the realtime session controls, not a queued media job.']);
-            }
-            if (! is_string($hash) || preg_match('/^[a-f0-9]{64}$/D', $hash) !== 1) {
-                throw ValidationException::withMessages(['expected_capability_hash' => 'A current capability quote is required.']);
-            }
-            if (! hash_equals($resolved->sourceHash, $hash)) {
-                throw new ImageGenerationException('This model changed. Review the current options before submitting.', 409);
-            }
+            $prepared = $this->prepareQuote($owner, $request, true);
+            ['model' => $model, 'operation' => $operation, 'resolved' => $resolved, 'capability' => $capability,
+                'execution' => $execution, 'validated' => $validated, 'billing' => $billing, 'price' => $price] = $prepared;
+            $hash = $prepared['quote']['capability_hash'];
             $conversation = $request['conversation_id'] ?? null;
-            if ($conversation !== null) {
-                app(ChatWorkspaceService::class)->resolveConversation($owner, $conversation, false);
-            }
-            $execution = $this->execution($request, $capability);
-            $billing = $capabilities[$operation->value]['billing'];
-            if ($execution['count'] > $billing['max_count'] || $execution['count'] < 1
-                || ($execution['pro'] && $billing['pro_field'] === null)) {
-                throw ValidationException::withMessages(['count' => 'These execution options are not supported by this model.']);
-            }
-            if ($model->category === 'avatar' && ! $execution['rights_confirmed']) {
-                throw ValidationException::withMessages(['rights_confirmed' => 'Confirm permission to use this photo and voice.']);
-            }
-            if (array_intersect_key($execution, array_flip(['mode', 'cta', 'ugc_variation'])) !== []
-                && ($capability->contractVersion !== 1 || ! in_array($operation, [MediaOperation::TextToVideo, MediaOperation::ImageToVideo], true))) {
-                throw ValidationException::withMessages(['mode' => 'Product, UGC, call-to-action and variation options apply only to native video generation.']);
-            }
-            $validated = $this->normalize($capability, $request['inputs'], $execution);
-            $price = (int) $model->token_cost;
-            if ($billing['mode'] === 'per_second') {
-                $fromInputs = $billing['duration_field'] === 'duration';
-                $duration = $fromInputs ? self::wholeSeconds($capability->contractVersion >= 2
-                    ? ($validated['inputs']['duration'] ?? null) : ($validated['params']['duration'] ?? null)) : $execution['billing_seconds'];
-                if (! is_int($duration) || $duration < 1
-                    || ($fromInputs && $execution['billing_seconds'] !== null && $execution['billing_seconds'] !== $duration)
-                    || (! $fromInputs && $billing['durations'] === [])
-                    || ($billing['durations'] !== [] && ! in_array($duration, $billing['durations'], true))) {
-                    throw ValidationException::withMessages([$fromInputs ? 'inputs.duration' : 'billing_seconds'
-                        => 'Select an explicit whole-second duration allowed by this per-second price.']);
-                }
-                $price = $this->multiply($price, $duration);
-            } elseif ($execution['pro']) {
-                $price = $this->multiply($price, $billing['pro_multiplier']);
-            }
-            // Every requested result is billed (e.g. Runware numberResults): the reviewed binding names that input.
-            if (($quantityInput = self::quantityInput($capability->providerBindings, $billing['price_unit'])) !== null) {
-                $price = $this->multiply($price, self::quantity($validated['inputs'] ?? [], $quantityInput));
-            }
             $expectedPrice = $request['expected_price_tokens'] ?? null;
             if (! is_int($expectedPrice) || $expectedPrice < 1) {
                 throw ValidationException::withMessages(['expected_price_tokens' => 'A current token price is required.']);
@@ -326,7 +360,6 @@ class WorkspaceMediaService
             if ($expectedPrice !== $price) {
                 throw new ImageGenerationException('The price changed. Review the current quote before submitting.', 409);
             }
-            $this->multiply($price, $execution['count']);
             if ($this->quota->exceeded($owner)) {
                 throw ValidationException::withMessages(['storage' => 'Your storage is full. Remove a Library item before generating.']);
             }
@@ -1036,7 +1069,7 @@ class WorkspaceMediaService
         return array_search($job::class, self::NATIVE, true).':'.$job->job_id;
     }
 
-    public function history(User $user, array $filters = []): array
+    public function history(User $user, array $filters = [], ?MediaUrlPresenter $urls = null): array
     {
         $offset = $this->offset($filters['cursor'] ?? null);
         $total = 0;
@@ -1049,7 +1082,7 @@ class WorkspaceMediaService
             return strcmp($b->created_at->format('Y-m-d H:i:s.u'), $a->created_at->format('Y-m-d H:i:s.u')) ?: strcmp($this->publicId($b), $this->publicId($a));
         })->slice($offset, 30)->values();
 
-        return ['jobs' => $page->map(fn (Model $job): array => $this->payload($job))->all(),
+        return ['jobs' => $page->map(fn (Model $job): array => $this->payload($job, $urls))->all(),
             'next_cursor' => $offset + $page->count() < $total ? $this->cursor($offset + $page->count()) : null, 'total' => $total];
     }
 
@@ -1115,8 +1148,9 @@ class WorkspaceMediaService
         return $queries;
     }
 
-    public function payload(Model $job): array
+    public function payload(Model $job, ?MediaUrlPresenter $urls = null): array
     {
+        $urls ??= new MediaUrlPresenter;
         $kind = match (true) {
             $job instanceof WorkspaceMediaJob => $job->output_kind, $job instanceof ImageJob => 'image',
             $job instanceof VideoJob => 'video', $job instanceof AudioJob => 'audio', default => 'model3d',
@@ -1141,9 +1175,8 @@ class WorkspaceMediaService
             }
             $previewable = (bool) ($asset['previewable'] ?? false);
             $outputs[] = ['id' => (string) $asset['id'], 'name' => $asset['name'], 'kind' => $asset['kind'],
-                'mime' => $asset['mime'], 'bytes' => $asset['bytes'] ?? null, 'previewable' => $previewable,
-                'url' => $previewable ? '/api/media/workspace/jobs/'.rawurlencode($id).'/outputs/'.rawurlencode((string) $asset['id']).'/preview' : null,
-                'download_url' => WorkspaceMediaOutputStore::downloadUrl($id, (string) $asset['id'])];
+                'mime' => $asset['mime'], 'bytes' => $asset['bytes'] ?? Storage::disk('local')->size($asset['path']), 'previewable' => $previewable,
+                ...$urls->output($id, (string) $asset['id'], (int) $job->user_id, $previewable)];
         }
 
         // A native image whose provider acceptance is unknown keeps its reservation and active row; present it truthfully.
@@ -1160,7 +1193,7 @@ class WorkspaceMediaService
                 : $status === 'save_failed' && $this->hasNativeResult($job),
             'can_delete' => in_array($job->status, ['completed', 'failed', 'cancelled'], true),
             'outputs' => $outputs, 'result_data' => $job instanceof WorkspaceMediaJob
-                ? MediaJsonSchema::dataObject(WorkspaceMediaOutputStore::resultSchema($job), $job->result_data) : null,
+                ? $urls->result(MediaJsonSchema::dataObject(WorkspaceMediaOutputStore::resultSchema($job), $job->result_data), $id) : null,
             // The owner's own normalized request, for "load into form"; never bindings or provider-side fields.
             'request' => $job instanceof WorkspaceMediaJob ? ['model_id' => $job->model, 'operation' => $job->operation,
                 'inputs' => MediaJsonSchema::dataObject($job->capability_snapshot['input_schema'] ?? [], $job->normalized_inputs ?? [])] : null,

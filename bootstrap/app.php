@@ -45,6 +45,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(fn (\Throwable $error, Request $request) => \App\Http\Api\MediaApiResponse::error($error, $request));
+
         // Return JSON for API errors
         $exceptions->shouldRenderJsonWhen(function (Request $request) {
             return $request->is('api/*') || $request->expectsJson();
