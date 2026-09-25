@@ -13,7 +13,7 @@ class ChatOperation extends Model
 
     protected $guarded = [];
 
-    protected $hidden = ['fingerprint', 'context_snapshot'];
+    protected $hidden = ['fingerprint', 'context_snapshot', 'billing'];
 
     protected function casts(): array
     {
@@ -21,6 +21,7 @@ class ChatOperation extends Model
             'context_snapshot' => 'array',
             'attachment_ids' => 'array',
             'usage' => 'array',
+            'billing' => 'array',
             'user_message_id' => 'integer',
             'assistant_message_id' => 'integer',
             'retry_of' => 'integer',

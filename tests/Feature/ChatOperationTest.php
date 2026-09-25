@@ -7,12 +7,15 @@ use App\Models\AiProviderProfile;
 use App\Models\ChatAttachment;
 use App\Models\ChatOperation;
 use App\Models\MediaAsset;
+use App\Models\UsageRate;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Services\AiProviderEndpoint;
 use App\Services\AiProxyService;
 use App\Services\ChatCapabilityService;
 use App\Services\ChatOperationService;
 use App\Services\ChatWorkspaceService;
+use App\Services\UsageBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -45,12 +48,18 @@ class ChatOperationTest extends TestCase
             'display_name' => 'Chat', 'category' => 'chat', 'input_modalities' => ['text'],
             'output_modalities' => ['text'], 'is_enabled' => true, 'is_available' => true,
         ]);
+        foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'model' => 'workspace-chat', 'meter' => $meter, 'label' => $meter,
+                'unit' => '1M tokens', 'price_usd' => $price, 'price_idr' => 16000 * $price, 'is_active' => true,
+            ]);
+        }
     }
 
     public function test_same_key_replays_saved_answer_without_another_user_turn_or_provider_charge(): void
     {
         $this->fakeAnswer();
-        $user = User::factory()->create();
+        $user = $this->member();
         $input = $this->input();
         $first = $this->actingAs($user)->postJson('/api/c/s', $input)->assertOk()->streamedContent();
         $second = $this->postJson('/api/c/s', $input)->assertOk()->streamedContent();
@@ -73,7 +82,7 @@ class ChatOperationTest extends TestCase
     public function test_two_admissions_share_one_claim_and_stopping_before_submission_sends_nothing(): void
     {
         Http::fake();
-        $user = User::factory()->create();
+        $user = $this->member();
         $service = app(ChatOperationService::class);
         $input = $this->input();
         [$first, $created] = $service->admit($user, $input);
@@ -91,7 +100,7 @@ class ChatOperationTest extends TestCase
 
     public function test_stop_keeps_partial_and_unknown_usage_without_marking_completion(): void
     {
-        $user = User::factory()->create();
+        $user = $this->member();
         $proxy = \Mockery::mock(AiProxyService::class)->makePartial();
         $proxy->shouldReceive('streamChatCompletion')->once()->andReturnUsing(function () use ($user) {
             yield ['choices' => [['index' => 0, 'delta' => ['content' => 'Partial saved'], 'finish_reason' => null]]];
@@ -106,12 +115,13 @@ class ChatOperationTest extends TestCase
         $this->assertSame('Partial saved', $operation->partial_content);
         $this->assertNull($operation->usage);
         $this->assertDatabaseHas('chat_history', ['id' => $operation->assistant_message_id, 'content' => 'Partial saved', 'status' => 'stopped']);
-        $this->assertSame(0, DB::table('usage_logs')->where('model', 'workspace-chat')->count());
+        $this->assertTrue($operation->billing['estimated']);
+        $this->assertDatabaseHas('usage_logs', ['user_id' => $user->id, 'completion_tokens' => 5]);
     }
 
-    public function test_stop_racing_with_reported_usage_records_it_once_without_accepting_later_text(): void
+    public function test_stop_settles_once_without_accepting_later_text_or_usage(): void
     {
-        $user = User::factory()->create();
+        $user = $this->member();
         $proxy = \Mockery::mock(AiProxyService::class)->makePartial();
         $proxy->shouldReceive('streamChatCompletion')->once()->andReturnUsing(function () use ($user) {
             yield ['choices' => [['index' => 0, 'delta' => ['content' => 'Saved partial'], 'finish_reason' => null]]];
@@ -128,14 +138,15 @@ class ChatOperationTest extends TestCase
         $operation = ChatOperation::query()->sole();
         $this->assertSame('stopped', $operation->status);
         $this->assertSame('Saved partial', $operation->partial_content);
-        $this->assertSame(13, $operation->usage['total_tokens']);
+        $this->assertNull($operation->usage);
+        $this->assertTrue($operation->billing['estimated']);
         $this->assertSame(1, DB::table('usage_logs')->where('model', 'workspace-chat')->count());
-        $this->assertDatabaseHas('usage_logs', ['user_id' => $user->id, 'total_tokens' => 13]);
+        $this->assertDatabaseHas('usage_logs', ['user_id' => $user->id, 'prompt_tokens' => $operation->billing['input_estimate'], 'completion_tokens' => 5]);
     }
 
     public function test_a_client_leaving_after_the_final_chunk_keeps_the_complete_answer_completed(): void
     {
-        $user = User::factory()->create();
+        $user = $this->member();
         $client = new \stdClass;
         $client->gone = false;
         $proxy = \Mockery::mock(AiProxyService::class)->makePartial();
@@ -152,7 +163,7 @@ class ChatOperationTest extends TestCase
         {
             public function __construct(AiProxyService $proxy, ChatWorkspaceService $workspaces, ChatCapabilityService $capabilities, private readonly \stdClass $client)
             {
-                parent::__construct($proxy, $workspaces, $capabilities);
+                parent::__construct($proxy, $workspaces, $capabilities, app(UsageBillingService::class));
             }
 
             protected function clientDisconnected(): bool
@@ -171,7 +182,7 @@ class ChatOperationTest extends TestCase
 
     public function test_deleted_conversation_cannot_be_resurrected_by_late_finalization_or_replay(): void
     {
-        $user = User::factory()->create();
+        $user = $this->member();
         $proxy = \Mockery::mock(AiProxyService::class)->makePartial();
         $proxy->shouldReceive('streamChatCompletion')->once()->andReturnUsing(function () use ($user) {
             yield ['choices' => [['index' => 0, 'delta' => ['content' => 'Before deletion'], 'finish_reason' => null]]];
@@ -191,7 +202,7 @@ class ChatOperationTest extends TestCase
         Http::fake();
         $input = $this->input();
         $input['tools']['web_search'] = true;
-        $this->actingAs(User::factory()->create())->postJson('/api/c/s', $input)
+        $this->actingAs($this->member())->postJson('/api/c/s', $input)
             ->assertUnprocessable()->assertJsonValidationErrors('tools.web_search');
         $this->assertDatabaseCount('chat_operations', 0);
         $this->assertDatabaseCount('chat_history', 0);
@@ -202,7 +213,7 @@ class ChatOperationTest extends TestCase
     {
         $body = 'data: '.json_encode(['choices' => [['index' => 0, 'delta' => ['content' => 'Interrupted'], 'finish_reason' => null]]])."\n\n";
         Http::fake(['https://chat.example.test/v1/chat/completions' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
-        $user = User::factory()->create();
+        $user = $this->member();
         $input = $this->input();
         $this->actingAs($user)->postJson('/api/c/s', $input)->assertOk()->streamedContent();
         $original = ChatOperation::query()->sole();
@@ -222,7 +233,7 @@ class ChatOperationTest extends TestCase
     {
         Storage::fake('local');
         $this->fakeAnswer();
-        $user = User::factory()->create();
+        $user = $this->member();
         $conversation = app(ChatWorkspaceService::class)->resolveConversation($user, 'operation-chat', true);
         $conversation->workspace->update(['notes' => 'Original saved notes', 'version' => 2]);
         $attachment = $this->attachment($user, $conversation, 'text/plain', 'Owned text file content');
@@ -248,7 +259,7 @@ class ChatOperationTest extends TestCase
         $profile = AiModelProfile::query()->where('model_id', 'workspace-chat')->firstOrFail();
         $profile->update(['input_modalities' => ['text', 'image']]);
         $profile->provider->update(['protocol' => 'anthropic']);
-        $user = User::factory()->create();
+        $user = $this->member();
         $conversation = app(ChatWorkspaceService::class)->resolveConversation($user, 'operation-chat', true);
         $pdf = "%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF";
         $attachment = $this->attachment($user, $conversation, 'application/pdf', $pdf);
@@ -290,7 +301,7 @@ class ChatOperationTest extends TestCase
         Http::fake(['https://chat.example.test/v1/messages' => Http::sequence()
             ->push($this->anthropicAnswer('Summary ready'), 200, ['Content-Type' => 'text/event-stream'])
             ->push($this->anthropicAnswer('Rising'), 200, ['Content-Type' => 'text/event-stream'])]);
-        $user = User::factory()->create();
+        $user = $this->member();
         $conversation = app(ChatWorkspaceService::class)->resolveConversation($user, 'operation-chat', true);
         $input = $this->input();
         $input['messages'] = [['role' => 'user', 'content' => '']];
@@ -319,7 +330,7 @@ class ChatOperationTest extends TestCase
             ->push($chunk('The first half', null), 200, ['Content-Type' => 'text/event-stream'])
             ->push($chunk(' and the rest.', 'stop')."data: [DONE]\n\n", 200, ['Content-Type' => 'text/event-stream'])
             ->push($chunk('Next answer', 'stop')."data: [DONE]\n\n", 200, ['Content-Type' => 'text/event-stream'])]);
-        $user = User::factory()->create();
+        $user = $this->member();
         $this->actingAs($user)->postJson('/api/c/s', $this->input())->assertOk()->streamedContent();
         $interrupted = ChatOperation::query()->sole();
         $this->assertSame('failed', $interrupted->status);
@@ -342,7 +353,7 @@ class ChatOperationTest extends TestCase
         Http::fake(['https://chat.example.test/v1/chat/completions' => Http::sequence()
             ->push($chunk('Half an answer', null), 200, ['Content-Type' => 'text/event-stream'])
             ->push($chunk('Second answer', 'stop')."data: [DONE]\n\n", 200, ['Content-Type' => 'text/event-stream'])]);
-        $user = User::factory()->create();
+        $user = $this->member();
         $this->actingAs($user)->postJson('/api/c/s', $this->input())->assertOk()->streamedContent();
         $older = ChatOperation::query()->sole();
         $this->assertSame('failed', $older->status);
@@ -370,7 +381,7 @@ class ChatOperationTest extends TestCase
             ->push($chunk('Half an answer', null), 200, ['Content-Type' => 'text/event-stream'])
             ->push($chunk(' and its end.', null), 200, ['Content-Type' => 'text/event-stream'])
             ->push($chunk('A fresh answer', 'stop')."data: [DONE]\n\n", 200, ['Content-Type' => 'text/event-stream'])]);
-        $user = User::factory()->create();
+        $user = $this->member();
         $this->actingAs($user)->postJson('/api/c/s', $this->input())->assertOk()->streamedContent();
         $first = ChatOperation::query()->sole()->assistant_message_id;
         $continue = $this->input();
@@ -389,6 +400,14 @@ class ChatOperationTest extends TestCase
         $relations = collect($this->getJson('/api/c/h/operation-chat')->assertOk()->json('messages'))
             ->where('role', 'assistant')->mapWithKeys(fn (array $message): array => [$message['id'] => [$message['continuation_of'], $message['retry_of']]])->all();
         $this->assertSame([$first => [null, null], $continued => [$first, null], $retried => [null, $continued]], $relations);
+    }
+
+    private function member(array $attributes = []): User
+    {
+        $user = User::factory()->create($attributes);
+        Wallet::credit($user->id, 1_000_000, 'Test opening balance');
+
+        return $user;
     }
 
     private function anthropicAnswer(string $text): string

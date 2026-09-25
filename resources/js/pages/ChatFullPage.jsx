@@ -251,6 +251,13 @@ function AttachmentChip({ file, t, onRemove, onRetry }) {
 // Model Selector Dropdown
 // ============================================
 function ModelSelector({ models, selectedModel, onSelect, disabled, loading, lockReason, t }) {
+    const { locale } = useLocale();
+    const priceFormat = useMemo(() => new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'id-ID', {
+        style: 'currency', currency: locale === 'en' ? 'USD' : 'IDR', minimumFractionDigits: 0, maximumFractionDigits: locale === 'en' ? 4 : 0,
+    }), [locale]);
+    const priceLabel = (price) => t('{input} / 1 jt token masuk · {output} keluar')
+        .replace('{input}', priceFormat.format(locale === 'en' ? price.input_usd : price.input_idr))
+        .replace('{output}', priceFormat.format(locale === 'en' ? price.output_usd : price.output_idr));
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
     const dropdownRef = useRef(null);
@@ -323,7 +330,10 @@ function ModelSelector({ models, selectedModel, onSelect, disabled, loading, loc
                             {filteredModels.length === 0 ? <div className="cw-dropdown-empty">{t('Tidak ada model ditemukan')}</div> : filteredModels.map(model => (
                                 <button key={model.id} type="button" role="option" aria-selected={model.id === selectedModel} onClick={() => { onSelect(model.id); setSearch(''); close(); }} className={`cw-model-option ${model.id === selectedModel ? 'cw-model-option-active' : ''}`}>
                                     <span className="cw-model-swatch cw-model-swatch-sm" style={{ background: 'linear-gradient(135deg, var(--red-500), var(--red-600))' }}>{Icon.chat}</span>
-                                    <span className="cw-model-option-name">{rebrandText(model.name || model.id)}</span>
+                                    <span className="cw-model-option-copy">
+                                        <span className="cw-model-option-name">{rebrandText(model.name || model.id)}</span>
+                                        {model.price && <span className="cw-model-price">{priceLabel(model.price)}</span>}
+                                    </span>
                                     {model.id === selectedModel && <span className="cw-check">{Icon.check}</span>}
                                 </button>
                             ))}
@@ -514,13 +524,18 @@ export default function ChatFullPage() {
     activeStreamsRef.current = state.activeStreams;
     useEffect(() => {
         loadModels();
-        const onFocus = () => { if (document.visibilityState !== 'hidden' && !activeStreamsRef.current) loadModels(); };
+        const onFocus = () => {
+            if (document.visibilityState !== 'hidden') {
+                actions.refreshWallet();
+                if (!activeStreamsRef.current) loadModels();
+            }
+        };
         window.addEventListener('focus', onFocus);
         return () => {
             window.removeEventListener('focus', onFocus);
             modelRequestRef.current?.abort();
         };
-    }, [loadModels]);
+    }, [actions, loadModels]);
 
     const handleSelectModel = useCallback((id) => {
         try { actions.changeModel(id); setPageError(''); }
@@ -800,6 +815,10 @@ export default function ChatFullPage() {
         return () => observer.disconnect();
     }, [updatePinned, showHero]);
     const bannerError = state.errors.stream || pageError;
+    const walletLabel = state.wallet == null ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(state.wallet.balance_usd);
+    const walletTitle = state.wallet != null && state.walletRate != null
+        ? t('Setara {amount}').replace('{amount}', new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(state.wallet.balance_usd * state.walletRate))
+        : t('Buka halaman isi saldo untuk melihat saldo AI.');
     // A known operation without a live stream is followed by polling; only a stopped poll offers a manual check.
     const pollFailed = Boolean(state.isStreaming && operation?.id && state.errors.stream && !state.polling);
     const operationMessageId = operation?.assistant_message_id == null ? null : String(operation.assistant_message_id);
@@ -942,6 +961,11 @@ export default function ChatFullPage() {
                         />
                     </div>
                     <div className="cw-topbar-right">
+                        {user?.role !== 'admin' && (
+                            <Link to={localizedPath('/deposit?tab=wallet')} className="cw-wallet-chip" title={walletTitle} aria-label={`${t('Saldo AI')}: ${walletLabel}. ${t('Isi saldo')}`}>
+                                <span>{t('Saldo AI')}</span><strong>{walletLabel}</strong>
+                            </Link>
+                        )}
                         <span className="cw-cat-pill" style={{ '--pill-accent': catCfg.accent }}>
                             {catCfg.icon}
                             {catCfg.label}
@@ -1083,10 +1107,11 @@ export default function ChatFullPage() {
                         <div className="cw-op-banner cw-op-banner-error" role="alert">
                             <span className="cw-op-banner-icon">{Icon.alert}</span>
                             <div className="cw-op-banner-text">
-                                <span>{t(bannerError)}</span>
+                                <span>{state.insufficientBalance ? t('Saldo AI tidak cukup untuk mengirim pesan ini.') : t(bannerError)}</span>
                                 {state.polling && <span className="cw-op-banner-detail">{t('Memeriksa status tersimpan di server…')}</span>}
                             </div>
                             <div className="cw-op-banner-actions">
+                                {state.insufficientBalance && <Link to={localizedPath('/deposit?tab=wallet')}>{t('Isi saldo')}</Link>}
                                 {pollFailed && <button type="button" onClick={() => actions.refreshContext().catch(() => {})}>{t('Periksa status')}</button>}
                                 <button type="button" className="cw-op-banner-dismiss" onClick={dismissBanner} aria-label={t('Tutup pesan')} title={t('Tutup pesan')}>{Icon.close}</button>
                             </div>

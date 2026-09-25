@@ -297,14 +297,10 @@ final class ChatWorkspaceService
                 return;
             }
             $conversation ??= $this->resolveConversation($user, $key);
+            app(ChatOperationService::class)->stopForDeletion($user, $key);
             $conversation->update([
                 'deleted_at' => now(), 'title' => '', 'model' => null, 'pinned' => false, 'title_is_custom' => false,
             ]);
-            DB::table('chat_operations')->where('user_id', $user->id)->where('conversation_id', $key)
-                ->whereIn('status', ['queued', 'streaming'])->update([
-                    'status' => 'stopped', 'stop_requested_at' => now(), 'finished_at' => now(),
-                    'error' => 'Conversation deleted.', 'updated_at' => now(),
-                ]);
             // Preserve request/usage identities, not deleted conversation text or context.
             DB::table('chat_operations')->where('user_id', $user->id)->where('conversation_id', $key)
                 ->update([

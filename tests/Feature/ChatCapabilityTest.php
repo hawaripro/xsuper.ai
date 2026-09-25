@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
+use App\Models\UsageRate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -64,6 +65,12 @@ class ChatCapabilityTest extends TestCase
             'display_name' => 'Chat', 'category' => 'chat', 'input_modalities' => ['text'],
             'output_modalities' => ['text'], 'is_enabled' => true, 'is_available' => true,
         ]);
+        foreach (['input_tokens' => 1, 'output_tokens' => 2] as $meter => $price) {
+            UsageRate::create([
+                'service' => 'api', 'model' => 'capability-chat', 'meter' => $meter, 'label' => $meter,
+                'unit' => '1M tokens', 'price_usd' => $price, 'price_idr' => 16000 * $price, 'is_active' => true,
+            ]);
+        }
 
         return $provider;
     }

@@ -77,9 +77,11 @@ class AdminUsageRevenueTest extends TestCase
             'service' => 'video', 'model' => 'video-a', 'quantity' => 99, 'unit_tokens' => 0,
             'amount_tokens' => 0, 'billing_mode' => 'admin', 'status' => 'settled', 'settled_at' => now(),
         ]);
-        UsageLog::record($admin->id, 'subscription-chat', [
-            'cost_microusd' => 20_000_000, 'total_tokens' => 100_000,
-        ], 'web');
+        $chat = $api->reserveApi($member->id, 'model-b', 100_000, 50_000, 'web-chat', 'chat');
+        $chatUsage = ['prompt_tokens' => 100_000, 'completion_tokens' => 50_000, 'total_tokens' => 150_000];
+        $chatCost = $api->settleApi($member->id, 'model-b', $chatUsage, $chat, 'chat');
+        UsageLog::record($member->id, 'model-b', [...$chatUsage, 'cost_microusd' => $chatCost], 'web');
+        UsageLog::record($admin->id, 'admin-chat', ['total_tokens' => 100_000], 'web');
         UsageLog::record($admin->id, 'models', ['cost_microusd' => 0], 'api');
         DepositOrder::create([
             'user_id' => $admin->id, 'payment_reference' => (string) Str::uuid(),
@@ -105,11 +107,12 @@ class AdminUsageRevenueTest extends TestCase
             ->assertJsonPath('revenue_last_month', 20_000)
             ->assertJsonPath('total_revenue', 70_000)
             ->assertJsonPath('usage_earnings.month', '2026-09')
-            ->assertJsonPath('usage_earnings.payg.month_cost_microusd', 1_375_000)
-            ->assertJsonPath('usage_earnings.payg.total_cost_microusd', 4_375_000)
+            ->assertJsonPath('usage_earnings.payg.month_cost_microusd', 1_575_000)
+            ->assertJsonPath('usage_earnings.payg.total_cost_microusd', 4_575_000)
             ->assertJsonPath('usage_earnings.payg.by_model', [
                 ['service' => 'api', 'model' => 'model-a', 'cost_microusd' => 1_000_000, 'requests' => 1],
                 ['service' => 'api', 'model' => 'model-b', 'cost_microusd' => 375_000, 'requests' => 1],
+                ['service' => 'chat', 'model' => 'model-b', 'cost_microusd' => 200_000, 'requests' => 1],
             ])
             ->assertJsonPath('usage_earnings.generators.month_tokens', 230)
             ->assertJsonPath('usage_earnings.generators.total_tokens', 430)
@@ -123,7 +126,7 @@ class AdminUsageRevenueTest extends TestCase
             ->assertJsonPath('total_revenue', 70_000)
             ->assertJsonPath('usage_earnings.month', '2026-08')
             ->assertJsonPath('usage_earnings.payg.month_cost_microusd', 3_000_000)
-            ->assertJsonPath('usage_earnings.payg.total_cost_microusd', 4_375_000)
+            ->assertJsonPath('usage_earnings.payg.total_cost_microusd', 4_575_000)
             ->assertJsonPath('usage_earnings.payg.by_model', [
                 ['service' => 'api', 'model' => 'model-a', 'cost_microusd' => 3_000_000, 'requests' => 1],
             ])
