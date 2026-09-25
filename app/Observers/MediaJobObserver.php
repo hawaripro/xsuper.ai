@@ -7,6 +7,7 @@ use App\Models\ImageJob;
 use App\Models\MediaToolJob;
 use App\Models\Notification;
 use App\Models\VideoJob;
+use App\Support\StudioLink;
 use Illuminate\Database\Eloquent\Model;
 
 final class MediaJobObserver
@@ -30,20 +31,20 @@ final class MediaJobObserver
             }
 
             $state = $this->terminalState($record->status, $record->stage);
+            $jobId = (string) $record->job_id;
             $destination = match (true) {
-                $record instanceof ImageJob => ['image', 'Gambar', '/generate-image'],
-                $record instanceof VideoJob => ['video', 'Video', '/video'],
-                $record instanceof AudioJob => ['audio', 'Audio', '/audio'],
-                $record instanceof MediaToolJob && $record->kind === 'download' => ['download', 'Unduhan', '/downloads'],
-                $record instanceof MediaToolJob && $record->kind === 'convert' => ['convert', 'Konversi', '/converter'],
+                $record instanceof ImageJob => ['image', 'Gambar', StudioLink::to('image', ['job' => $jobId])],
+                $record instanceof VideoJob => ['video', 'Video', StudioLink::to($record->mode === 'avatar' ? 'avatar' : 'video', ['job' => $jobId])],
+                $record instanceof AudioJob => ['audio', 'Audio', StudioLink::to('audio', ['job' => $jobId])],
+                $record instanceof MediaToolJob && $record->kind === 'download' => ['download', 'Unduhan', '/downloads?job='.rawurlencode($jobId)],
+                $record instanceof MediaToolJob && $record->kind === 'convert' => ['convert', 'Konversi', '/converter?job='.rawurlencode($jobId)],
                 default => null,
             };
             if ($state === null || $destination === null) {
                 return;
             }
 
-            [$kind, $label, $path] = $destination;
-            $action = $path.'?job='.rawurlencode((string) $record->job_id);
+            [$kind, $label, $action] = $destination;
             $notifications = Notification::on($job->getConnectionName());
             if ((clone $notifications)->where('user_id', $record->user_id)
                 ->where('kind', 'media')->where('action_url', $action)->exists()) {

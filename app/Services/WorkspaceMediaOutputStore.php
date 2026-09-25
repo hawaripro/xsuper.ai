@@ -21,6 +21,10 @@ class WorkspaceMediaOutputStore
 {
     private const MAX_FILE_BYTES = 512 * 1024 * 1024;
     private const MAX_DATA_BYTES = 16 * 1024 * 1024;
+    /** Runware serves generated files only from its own storage hosts. */
+    private const RUNWARE_HOSTS = ['im.runware.ai', 'vm.runware.ai', 'am.runware.ai', 'mm.runware.ai'];
+    /** Provider bookkeeping in each Runware result item: the USD cost stays only in the private provider result. */
+    private const RUNWARE_PRIVATE = ['cost', 'taskUUID', 'taskType', 'status'];
 
     public function __construct(private readonly AiProviderEndpoint $endpoint, private readonly StorageQuotaService $quota) {}
 
@@ -34,15 +38,28 @@ class WorkspaceMediaOutputStore
         return '/api/media/workspace/jobs/'.rawurlencode($jobId).'/outputs/'.rawurlencode($outputId).'/download';
     }
 
+    /** The member result document schema; Runware delivers one result item per generated output, as a list. */
+    public static function resultSchema(WorkspaceMediaJob $job): array
+    {
+        $schema = $job->capability_snapshot['output_schema'] ?? $job->provider_bindings['output_schema'] ?? [];
+        $schema = is_array($schema) ? $schema : [];
+
+        return self::isRunware($job) ? ['type' => 'array', 'items' => $schema] : $schema;
+    }
+
     /** Each successful file is checkpointed. A retry only downloads files not already retained. */
     public function persist(WorkspaceMediaJob $job): mixed
     {
-        $schema = $job->capability_snapshot['output_schema'] ?? $job->provider_bindings['output_schema'] ?? [];
+        $schema = self::resultSchema($job);
         $result = $job->provider_result;
         if ($result === null && ! empty($job->provider_result_urls)) {
             $result = ['files' => array_map(static fn (string $url): array => ['url' => $url], $job->provider_result_urls ?? [])];
         }
-        $data = MediaJsonSchema::dataObject($schema, $this->walk($job, $result, is_array($schema) ? $schema : [], []));
+        if (self::isRunware($job) && is_array($result)) {
+            $result = array_map(static fn (mixed $item): mixed => is_array($item) ? array_diff_key($item, array_flip(self::RUNWARE_PRIVATE)) : $item,
+                array_is_list($result) ? $result : [$result]);
+        }
+        $data = MediaJsonSchema::dataObject($schema, $this->walk($job, $result, $schema, []));
         // The result document is a first-class original data output, including captions, masks' metadata and scores.
         $content = is_string($data) ? $data : json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         $this->store($job, ['$result'], null, $content, is_string($data) ? 'result.txt' : 'result.json',
@@ -70,8 +87,13 @@ class WorkspaceMediaOutputStore
         }
         $field = (string) ($path[array_key_last($path)] ?? '');
         $name = $parent['file_name'] ?? $parent['filename'] ?? $parent['name'] ?? null;
+        if (! is_string($name) && self::isRunware($job)) {
+            // Runware files carry no names: "image-1", "image-2", "file-1-1" per result position (extension added on inspection).
+            $positions = array_map(static fn (int $index): int => $index + 1, array_values(array_filter($path, 'is_int')));
+            $name = implode('-', [preg_replace('/url$/i', '', $field) ?: 'file', ...($positions ?: [1])]);
+        }
         $mime = $parent['content_type'] ?? $parent['mime_type'] ?? $parent['mime'] ?? null;
-        if ($this->isFileUrl($value, $field, $schema, $parent)) {
+        if ($this->isFileUrl($job, $value, $field, $schema, $parent)) {
             $asset = $this->store($job, $path, $value, null, is_string($name) ? $name : null, is_string($mime) ? $mime : null);
 
             return self::downloadUrl($job->job_id, $asset['id']);
@@ -106,11 +128,16 @@ class WorkspaceMediaOutputStore
         return $value;
     }
 
-    private function isFileUrl(string $value, string $field, array $schema, array $parent): bool
+    private function isFileUrl(WorkspaceMediaJob $job, string $value, string $field, array $schema, array $parent): bool
     {
         if (! preg_match('~^https?://~i', $value)) {
             return false;
         }
+        if (self::isRunware($job)) {
+            // Every file on Runware storage becomes a private original, annotated or not, so no provider URL reaches members.
+            return isset($schema['x-workspace-output']) || $this->runwareFile($value);
+        }
+
         return isset($schema['x-workspace-output'])
             || preg_match('/(?:^|_)(?:file|image|mask|video|audio|mesh|texture|model|archive|weights|checkpoint|animation|depth|normal|albedo)(?:_|$)/i', $field) === 1
             || (in_array($field, ['url', 'uri'], true) && (isset($parent['content_type']) || isset($parent['file_size']) || isset($parent['file_name'])
@@ -156,7 +183,7 @@ class WorkspaceMediaOutputStore
             // A process may have died between atomic promotion and its metadata commit.
             if (! $disk->exists($path)) {
                 if ($url !== null) {
-                    $downloadMime = $this->download($url, $disk->path($temporary));
+                    $downloadMime = $this->download($url, $disk->path($temporary), self::isRunware($job));
                     $declaredMime ??= $downloadMime;
                 } else {
                     if ($content === null || strlen($content) > self::MAX_DATA_BYTES || ! $disk->put($temporary, $content)) {
@@ -206,10 +233,13 @@ class WorkspaceMediaOutputStore
         }
     }
 
-    /** Public HTTPS, DNS-pinned, no credentials, no redirects, bounded streaming; original bytes stay unchanged. */
-    private function download(string $url, string $path): ?string
+    /**
+     * Public HTTPS, DNS-pinned, no credentials, no redirects, bounded streaming; original bytes stay unchanged.
+     * Runware results are fetched only from Runware storage (or a loopback mock behind the local-provider gate).
+     */
+    private function download(string $url, string $path, bool $runware = false): ?string
     {
-        if (! GeneratedModel3dStore::validResultUrl($url)) {
+        if (! ($runware ? $this->runwareFile($url) : GeneratedModel3dStore::validResultUrl($url))) {
             throw new AiProxyException('The provider returned an unsafe output location.', 502);
         }
         $resource = fopen($path, 'x+b');
@@ -355,4 +385,24 @@ class WorkspaceMediaOutputStore
         return ['name' => $safeName, 'kind' => $kind, 'mime' => $mime, 'bytes' => $bytes, 'previewable' => $preview];
     }
 
+    private static function isRunware(WorkspaceMediaJob $job): bool
+    {
+        return ($job->provider_bindings['adapter'] ?? null) === 'runware_v1';
+    }
+
+    /** An output on Runware storage over public HTTPS, or a loopback mock accepted only by the local-provider gate. */
+    private function runwareFile(string $url): bool
+    {
+        $parts = parse_url($url);
+        if (! is_array($parts) || ! is_string($parts['host'] ?? null) || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
+            return false;
+        }
+        $host = strtolower($parts['host']);
+        if ($this->endpoint->allowsLoopback($host)) {
+            return GeneratedImageStore::validResultUrl($url);
+        }
+
+        return strtolower($parts['scheme'] ?? '') === 'https' && ($parts['port'] ?? 443) === 443
+            && in_array($host, self::RUNWARE_HOSTS, true) && GeneratedModel3dStore::validResultUrl($url);
+    }
 }

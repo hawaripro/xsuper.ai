@@ -76,14 +76,24 @@ export function displaySchema(source, root = source) {
     }, base);
 }
 
+// A branch narrows the base: members it names keep their declared schema (nested objects too).
+function mergeBranch(base, branch) {
+    if (!object(base) || !object(branch)) return branch;
+    const merged = { ...base, ...branch };
+    if (object(base.properties) || object(branch.properties)) {
+        const properties = { ...base.properties };
+        for (const [key, child] of Object.entries(branch.properties || {})) properties[key] = own(properties, key) ? mergeBranch(properties[key], child) : child;
+        merged.properties = properties;
+    }
+    if (base.required || branch.required) merged.required = [...new Set([...(base.required || []), ...(branch.required || [])])];
+    return merged;
+}
+
 export function schemaVariants(schema) {
     if (!object(schema)) return [];
     const { oneOf, anyOf, type, ...base } = schema;
     const branches = oneOf || anyOf;
-    if (branches) return branches.map((branch) => ({ ...base, ...(type ? { type } : {}), ...branch,
-        ...(base.properties || branch.properties ? { properties: { ...base.properties, ...branch.properties } } : {}),
-        ...(base.required || branch.required ? { required: [...new Set([...(base.required || []), ...(branch.required || [])])] } : {}),
-    }));
+    if (branches) return branches.map((branch) => mergeBranch({ ...base, ...(type ? { type } : {}) }, object(branch) ? branch : {}));
     if (Array.isArray(type)) return type.map((entry) => ({ ...base, type: entry }));
     if (schema.nullable && type !== "null") return [{ ...schema, nullable: false }, { type: "null", title: "null" }];
     return [];

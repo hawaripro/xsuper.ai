@@ -112,6 +112,18 @@ class MediaJsonSchemaTest extends TestCase
         $this->assertNotSame([], MediaJsonSchema::errors($schema, [512, 'edge', 3]));
     }
 
+    public function test_paired_members_from_dependent_required_are_enforced(): void
+    {
+        // Runware publishes width/height as a pair: sending one without the other is invalid.
+        $schema = ['type' => 'object', 'properties' => ['width' => ['type' => 'integer'], 'height' => ['type' => 'integer']],
+            'allOf' => [['dependentRequired' => ['width' => ['height'], 'height' => ['width']]]]];
+
+        $this->assertSame([], MediaJsonSchema::errors($schema, []));
+        $this->assertSame([], MediaJsonSchema::errors($schema, ['width' => 1024, 'height' => 768]));
+        $this->assertNotSame([], MediaJsonSchema::errors($schema, ['width' => 1024]));
+        $this->assertSame(['width' => 1024, 'height' => 768], MediaJsonSchema::normalize($schema, ['width' => 1024, 'height' => 768]));
+    }
+
     public function test_recursive_provider_references_are_refused_instead_of_expanding_forever(): void
     {
         $document = ['components' => ['schemas' => ['Node' => ['type' => 'object', 'properties' => ['child' => ['$ref' => '#/components/schemas/Node']]]]]];

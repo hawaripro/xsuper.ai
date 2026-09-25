@@ -1,7 +1,7 @@
 import '../css/app.css';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Routes, Route, Navigate, createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { Routes, Route, Navigate, createBrowserRouter, RouterProvider, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LocaleProvider, useLocale } from './contexts/LocaleContext';
@@ -16,20 +16,16 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import ChatFullPage from './pages/ChatFullPage';
 import Profile from './pages/Profile';
-import VideoGenerator from './pages/VideoGenerator';
-import AudioGenerator from './pages/AudioGenerator';
-import AvatarStudio from './pages/AvatarStudio';
-import ThreeDStudio from './pages/ThreeDStudio';
 import VideoDownloader from './pages/VideoDownloader';
 import MediaConverter from './pages/MediaConverter';
 import RemoveBackground from './pages/RemoveBackground';
 import ErrorPage from './pages/ErrorPage';
-import GlobalMediaWorkspace from './components/studios/GlobalMediaWorkspace';
+import StudioPage from './pages/StudioPage';
+import { legacyStudioHref } from './components/studios/studioLinks';
 
 // User pages
 import TemplatePrompt from './pages/TemplatePrompt';
 import Library from './pages/Library';
-import GenerateImage from './pages/GenerateImage';
 import TokenPemakaian from './pages/TokenPemakaian';
 import Deposit from './pages/Deposit';
 import Referral from './pages/Referral';
@@ -105,6 +101,15 @@ function GuestRoute({ children }) {
 // Every permission that makes a unified media capability eligible on the server.
 const MEDIA_PERMISSIONS = ['image_generator', 'video_generator', 'audio_generator', 'chat'];
 
+// The former studio pages redirect into /studio with their query (job, track, model links keep working)
+// and keep the permission gate each page had.
+function LegacyStudioRedirect({ from }) {
+    const { localizedPath } = useLocale();
+    const { search, hash } = useLocation();
+    return <Navigate to={`${localizedPath(legacyStudioHref(from, search))}${hash}`} replace />;
+}
+const legacyStudio = (from, permission) => <ProtectedRoute permission={permission}><LegacyStudioRedirect from={from} /></ProtectedRoute>;
+
 function LocalizedAppRoutes() {
     const { locale } = useLocale();
     const prefix = locale === 'en' ? '/en' : '';
@@ -119,18 +124,19 @@ function LocalizedAppRoutes() {
             <Route path={path('/chat')} element={<ProtectedRoute permission="chat"><PageErrorBoundary><ChatFullPage /></PageErrorBoundary></ProtectedRoute>} />
             <Route path={path('/dashboard')} element={<DL><Dashboard /></DL>} />
             <Route path={path('/profile')} element={<DL><Profile /></DL>} />
-            <Route path={path('/video')} element={<DL permission="video_generator"><VideoGenerator /></DL>} />
-            <Route path={path('/audio')} element={<DL permission="audio_generator"><AudioGenerator /></DL>} />
-            <Route path={path('/avatar')} element={<DL permission="video_generator"><AvatarStudio /></DL>} />
-            <Route path={path('/3d')} element={<DL permission="image_generator"><ThreeDStudio /></DL>} />
-            <Route path={path('/media')} element={<DL permission={MEDIA_PERMISSIONS}><GlobalMediaWorkspace /></DL>} />
+            <Route path={path('/studio')} element={<ProtectedRoute permission={MEDIA_PERMISSIONS}><PageErrorBoundary><StudioPage /></PageErrorBoundary></ProtectedRoute>} />
+            <Route path={path('/video')} element={legacyStudio('/video', 'video_generator')} />
+            <Route path={path('/audio')} element={legacyStudio('/audio', 'audio_generator')} />
+            <Route path={path('/avatar')} element={legacyStudio('/avatar', 'video_generator')} />
+            <Route path={path('/3d')} element={legacyStudio('/3d', 'image_generator')} />
+            <Route path={path('/media')} element={legacyStudio('/media', MEDIA_PERMISSIONS)} />
             <Route path={path('/downloads')} element={<DL permission="video_downloader"><VideoDownloader /></DL>} />
             <Route path={path('/converter')} element={<DL permission="media_converter"><MediaConverter /></DL>} />
             <Route path={path('/remove-background')} element={<DL permission="media_converter"><RemoveBackground /></DL>} />
             <Route path={path('/templates')} element={<DL><TemplatePrompt /></DL>} />
             <Route path={path('/library')} element={<DL><Library /></DL>} />
             <Route path={path('/history')} element={<Navigate to={path('/chat')} replace />} />
-            <Route path={path('/generate-image')} element={<DL permission="image_generator"><GenerateImage /></DL>} />
+            <Route path={path('/generate-image')} element={legacyStudio('/generate-image', 'image_generator')} />
             <Route path={path('/token-usage')} element={<DL><TokenPemakaian /></DL>} />
             <Route path={path('/deposit')} element={<DL><Deposit /></DL>} />
             <Route path={path('/paket')} element={<Navigate to={`${path('/deposit')}?tab=subscription`} replace />} />

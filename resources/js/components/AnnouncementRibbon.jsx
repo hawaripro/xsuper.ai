@@ -3,14 +3,17 @@ import { useLocation } from 'react-router-dom';
 import { apiRequest } from '../lib/api';
 import { useLocale } from '../contexts/LocaleContext';
 
+// Dark tints are the former 10% level colors pre-composited over the shell background (#030712):
+// the ribbon sticks above scrolling content, so it must stay opaque.
 const levelStyles = {
-    info: 'bg-sky-50 text-sky-800 border-sky-200/70 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20',
-    success: 'bg-emerald-50 text-emerald-800 border-emerald-200/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20',
-    warning: 'bg-amber-50 text-amber-900 border-amber-200/70 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
-    critical: 'bg-red-50 text-red-800 border-red-200/70 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/25',
+    info: 'bg-sky-50 text-sky-800 border-sky-200/70 dark:bg-[#031728] dark:text-sky-300 dark:border-sky-500/20',
+    success: 'bg-emerald-50 text-emerald-800 border-emerald-200/70 dark:bg-[#03191c] dark:text-emerald-300 dark:border-emerald-500/20',
+    warning: 'bg-amber-50 text-amber-900 border-amber-200/70 dark:bg-[#1c1510] dark:text-amber-300 dark:border-amber-500/20',
+    critical: 'bg-red-50 text-red-800 border-red-200/70 dark:bg-[#1c0a16] dark:text-red-300 dark:border-red-500/25',
 };
 
 const SPEED_PX_PER_SECOND = 70;
+const HEIGHT_VAR = '--xs-ribbon-h';
 
 /**
  * Left-moving announcement marquee. Fetches the localized announcement from
@@ -24,6 +27,10 @@ const SPEED_PX_PER_SECOND = 70;
  * jumps in from the middle when a short message sits in a wide viewport.
  * Duration scales with the group width so the speed stays constant.
  * Reduced-motion users get a static line via the global override in app.css.
+ *
+ * The ribbon publishes its own height as `--xs-ribbon-h` on the root element
+ * ('0px' without an announcement and after unmount), so every full-page shell
+ * can start its sticky bars and mobile drawers right below it.
  */
 export default function AnnouncementRibbon({ surface = 'dashboard' }) {
     const { locale, localizedPath } = useLocale();
@@ -32,6 +39,24 @@ export default function AnnouncementRibbon({ surface = 'dashboard' }) {
     const ribbon = useRef(null);
     const probe = useRef(null);
     const [layout, setLayout] = useState({ copies: 2, duration: 30 });
+    const visible = Boolean(announcement?.message);
+
+    useLayoutEffect(() => {
+        const root = document.documentElement;
+        const element = ribbon.current;
+        if (!visible || !element) {
+            root.style.setProperty(HEIGHT_VAR, '0px');
+            return undefined;
+        }
+        const publish = () => root.style.setProperty(HEIGHT_VAR, `${Math.round(element.getBoundingClientRect().height)}px`);
+        publish();
+        const observer = new ResizeObserver(publish);
+        observer.observe(element);
+        return () => {
+            observer.disconnect();
+            root.style.setProperty(HEIGHT_VAR, '0px');
+        };
+    }, [visible]);
 
     useLayoutEffect(() => {
         if (!announcement?.message || !ribbon.current || !probe.current) return undefined;
@@ -68,7 +93,7 @@ export default function AnnouncementRibbon({ surface = 'dashboard' }) {
         };
     }, [locale, surface, locationKey]);
 
-    if (!announcement?.message) return null;
+    if (!visible) return null;
 
     const level = levelStyles[announcement.level] || levelStyles.info;
     const line = (

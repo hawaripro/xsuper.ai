@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
 import { errorMessage } from "../member/MemberUI";
 import { useLocale } from "../../contexts/LocaleContext";
+import { safeLogoUrl } from "./studioPalette";
 import "./studios.css";
 
 const stageLabels = { pending: "Menunggu antrean", queued: "Menunggu antrean", preparing: "Menyiapkan input", submitting: "Mengirim permintaan", processing: "Sedang diproses", generating: "Sedang diproses", rendering: "Sedang diproses", saving: "Menyimpan hasil", save_failed: "Hasil belum tersimpan", uncertain: "Penerimaan belum terkonfirmasi", submission_uncertain: "Penerimaan belum terkonfirmasi", result_uncertain: "Hasil menunggu tinjauan", cancel_requested: "Pembatalan diminta", completed: "Selesai", rejected: "Prompt ditolak", failed: "Proses gagal", cancelled: "Dibatalkan" };
@@ -64,6 +65,22 @@ export function StudioIcon({ name, className = "" }) {
         tokens: <><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v12c0 4 16 4 16 0V6M4 12c0 4 16 4 16 0" /></>,
         pro: <><path d="m12 2 3 6 7 1-5 5 1 8-6-4-6 4 1-8-5-5 7-1Z" /></>,
         check: <path d="m5 12 4 4L19 6" />,
+        star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z" />,
+        copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
+        info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-9.5v.5" /></>,
+        grid: <><rect x="3" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" /></>,
+        list: <><rect x="3" y="4" width="5" height="5" rx="1" /><rect x="3" y="15" width="5" height="5" rx="1" /><path d="M11 6.5h10M11 17.5h10" /></>,
+        thumbs: <><rect x="3" y="3" width="5" height="5" rx="1" /><rect x="9.5" y="3" width="5" height="5" rx="1" /><rect x="16" y="3" width="5" height="5" rx="1" /><rect x="3" y="9.5" width="5" height="5" rx="1" /><rect x="9.5" y="9.5" width="5" height="5" rx="1" /><rect x="16" y="9.5" width="5" height="5" rx="1" /><rect x="3" y="16" width="5" height="5" rx="1" /><rect x="9.5" y="16" width="5" height="5" rx="1" /></>,
+        dice: <><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8.5" cy="8.5" r="1" /><circle cx="15.5" cy="15.5" r="1" /><circle cx="15.5" cy="8.5" r="1" /><circle cx="8.5" cy="15.5" r="1" /></>,
+        code: <path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16" />,
+        external: <path d="M14 4h6v6m0-6-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />,
+        sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
+        moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />,
+        user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+        chevron: <path d="m6 9 6 6 6-6" />,
+        back: <path d="M20 12H4m6-6-6 6 6 6" />,
+        trash: <path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
+        search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
     };
     return <svg className={`studio-icon ${className}`} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name === "avatar" ? "video" : name] || paths.settings}</svg>;
 }
@@ -71,9 +88,13 @@ export function StudioIcon({ name, className = "" }) {
 export function StudioButton({ children, icon, primary = false, className = "", type = "button", ...props }) {
     return <button type={type} className={`studio-button ${primary ? "studio-button-primary" : ""} ${className}`} {...props}>{icon && <StudioIcon name={icon} />}{children}</button>;
 }
-export function StudioHeader({ kind, title, description, balance, onRefresh, busy }) {
-    const { t, locale, localizedPath } = useLocale();
-    return <header className="studio-header"><div className="studio-heading"><span className={`studio-title-icon studio-color-${kind}`}><StudioIcon name={kind} /></span><div><h1>{t(title)}</h1><p>{t(description)}</p></div></div><div className="studio-header-actions"><Link to={localizedPath("/token-usage")} className="studio-balance" aria-label={t("Lihat saldo dan riwayat token")}><StudioIcon name="tokens" /><span>{t("Saldo token")}<strong>{balance == null ? "—" : new Intl.NumberFormat(locale).format(balance)}</strong></span></Link><StudioButton icon="refresh" onClick={onRefresh} disabled={busy}>{t("Muat ulang")}</StudioButton></div></header>;
+// A model's logo (https only, never sending a referrer) or the initial of its provider.
+export function ModelMark({ model, className = "" }) {
+    const [failed, setFailed] = useState("");
+    const logo = safeLogoUrl(model?.logo_url);
+    const initial = String(model?.provider_name || model?.name || model?.model_id || "?").trim().charAt(0).toUpperCase() || "?";
+    return <span className={`sw-model-mark ${className}`} aria-hidden="true">{logo && failed !== logo
+        ? <img src={logo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(logo)} /> : initial}</span>;
 }
 export function StudioField({ id, label, hint, error, children, className = "" }) {
     const { t } = useLocale();
@@ -92,12 +113,17 @@ export function StudioStatus({ job }) {
     const stage = job?.stage || job?.status;
     return <span className={`studio-status studio-status-${["cancelled", "rejected"].includes(stage) ? stage : job?.status || "pending"}`}>{t(stageLabels[stage] || stage || "Status belum tersedia")}</span>;
 }
+// Determinate only when the provider reports progress; otherwise the stage is the whole truth.
+export const jobProgress = (job) => typeof job?.progress === "number" && Number.isFinite(job.progress) ? Math.max(0, Math.min(100, Math.round(job.progress))) : null;
+export function StudioProgressBar({ value }) {
+    const { t } = useLocale();
+    return <div className="studio-progress-bar" role="progressbar" aria-label={t("Kemajuan proses")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
+        <span style={{ width: `${value}%` }} /><small>{value}%</small></div>;
+}
+export const stageLabel = (job) => stageLabels[job?.stage || job?.status] || "Sedang diproses";
 export function StudioProgress({ job, submitting = false, synchronous = false }) {
     const { t } = useLocale();
-    return <div className="studio-progress" role="status"><span className="studio-spinner" aria-hidden="true" /><strong>{t(submitting ? "Mengirim permintaan…" : stageLabels[job?.stage || job?.status] || "Sedang diproses")}</strong><p>{t(synchronous ? "Menunggu hasil dari model. Jangan kirim ulang permintaan yang sama." : "Diproses di server, meskipun halaman ditutup.")}</p><small>{t("Status diperbarui dari server. Tidak ada perkiraan persentase.")}</small></div>;
-}
-export function StudioQuote({ total, unit, count = 1, pro = false, balance }) {
-    const { t, locale, localizedPath } = useLocale();
-    const format = (value) => new Intl.NumberFormat(locale).format(value);
-    return <div className="studio-quote"><div><span>{t("Estimasi total")}</span><strong>{total == null ? "—" : format(total)} <small>{t("token")}</small></strong></div>{unit != null && <p>{format(unit)} × {count}{pro ? " × 2 (Pro)" : ""}</p>}{total != null && balance != null && balance < total && <StudioNotice error>{t("Saldo token tidak cukup untuk jumlah ini.")} <Link to={localizedPath("/deposit")}>{t("Isi saldo")}</Link></StudioNotice>}<p>{t("Token dicadangkan saat dikirim. Permintaan yang gagal dikembalikan sesuai status tagihan.")}</p></div>;
+    const progress = submitting ? null : jobProgress(job);
+    return <div className="studio-progress" role="status"><span className="studio-spinner" aria-hidden="true" /><strong>{t(submitting ? "Mengirim permintaan…" : stageLabel(job))}</strong><p>{t(synchronous ? "Menunggu hasil dari model. Jangan kirim ulang permintaan yang sama." : "Diproses di server, meskipun halaman ditutup.")}</p>
+        {progress != null ? <StudioProgressBar value={progress} /> : <small>{t("Status diperbarui dari server. Tidak ada perkiraan persentase.")}</small>}</div>;
 }

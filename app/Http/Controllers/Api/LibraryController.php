@@ -21,6 +21,7 @@ use App\Services\GeneratedVideoStore;
 use App\Services\StorageQuotaService;
 use App\Services\VideoReferenceStore;
 use App\Services\WorkspaceMediaService;
+use App\Support\StudioLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -37,8 +38,8 @@ class LibraryController extends Controller
 
     private const SOURCE_LIMIT = 300;
 
-    /** Studio that can reuse an uploaded file; documents, generic files and realtime recordings have none. */
-    private const ASSET_PAGES = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio', 'model3d' => '/3d'];
+    /** Studio kinds that can reuse an uploaded file; documents, generic files and realtime recordings have none. */
+    private const ASSET_KINDS = ['image', 'video', 'audio', 'model3d'];
 
     public function index(Request $request, VideoReferenceStore $references, StorageQuotaService $storage): JsonResponse
     {
@@ -96,7 +97,7 @@ class LibraryController extends Controller
                         'size_bytes' => $disk->size($asset['path']),
                         'preview_url' => '/api/images/'.$job->job_id.'/assets/'.$index,
                         'download_url' => '/api/images/'.$job->job_id.'/assets/'.$index,
-                        'page_url' => '/generate-image?job='.$job->job_id,
+                        'page_url' => StudioLink::to('image', ['job' => $job->job_id]),
                         'deletable' => true,
                         'delete_url' => '/api/images/'.$job->job_id,
                         'model' => $job->model,
@@ -119,16 +120,16 @@ class LibraryController extends Controller
                 $path = GeneratedVideoStore::path($job->job_id);
                 $avatar = $job->mode === 'avatar';
                 $base = $avatar ? '/api/avatar/' : '/api/v/';
-                $page = $avatar ? '/avatar' : '/video';
+                $kind = $avatar ? 'avatar' : 'video';
                 if ($job->status === 'completed' && $job->video_url === '/api/v/'.$job->job_id.'/asset' && $disk->exists($path)) {
-                    $items[] = $this->item($avatar ? 'avatar' : 'video', $job->job_id, mb_substr(trim($job->prompt), 0, 120) ?: ($avatar ? 'Avatar' : 'Video'), [
+                    $items[] = $this->item($kind, $job->job_id, mb_substr(trim($job->prompt), 0, 120) ?: ($avatar ? 'Avatar' : 'Video'), [
                         'mime_type' => 'video/mp4',
                         'size_bytes' => $disk->size($path),
                         'duration' => $job->duration,
                         'preview_url' => $base.$job->job_id.'/asset',
                         'download_url' => $base.$job->job_id.'/asset',
                         'poster_url' => is_string($job->thumbnail_url) && str_starts_with($job->thumbnail_url, '/api/') ? $job->thumbnail_url : null,
-                        'page_url' => $page.'?job='.$job->job_id,
+                        'page_url' => StudioLink::to($kind, ['job' => $job->job_id]),
                         'deletable' => true,
                         'delete_url' => $base.$job->job_id,
                         'model' => $job->model,
@@ -143,7 +144,7 @@ class LibraryController extends Controller
                             'size_bytes' => $disk->size($reference),
                             'preview_url' => '/api/v/'.$job->job_id.'/reference',
                             'download_url' => '/api/v/'.$job->job_id.'/reference',
-                            'page_url' => $page.'?job='.$job->job_id,
+                            'page_url' => StudioLink::to($kind, ['job' => $job->job_id]),
                             'deletable' => true,
                             'delete_url' => '/api/v/'.$job->job_id.'/reference',
                             'model' => $job->model,
@@ -182,8 +183,9 @@ class LibraryController extends Controller
                     'previewable' => $dto['previewable'], 'preview_url' => $dto['preview_url'], 'download_url' => $dto['download_url'],
                     'page_url' => match (true) {
                         $recording => null,
-                        in_array($asset->role, ['avatar_photo', 'speech_audio'], true) => '/avatar',
-                        default => self::ASSET_PAGES[$asset->media_type] ?? null,
+                        in_array($asset->role, ['avatar_photo', 'speech_audio'], true) => StudioLink::to('avatar'),
+                        in_array($asset->media_type, self::ASSET_KINDS, true) => StudioLink::to($asset->media_type),
+                        default => null,
                     },
                     'deletable' => ! isset($referenced[$asset->id]), 'delete_url' => '/api/media/assets/'.$asset->id,
                     'created_at' => $asset->created_at,
@@ -214,7 +216,7 @@ class LibraryController extends Controller
                         'size_bytes' => $disk->size($path),
                         'duration' => $job->duration,
                         'preview_url' => $url, 'download_url' => $url,
-                        'page_url' => '/audio?job='.$job->job_id.'&track='.$index,
+                        'page_url' => StudioLink::to('audio', ['job' => $job->job_id, 'track' => $index]),
                         'deletable' => true, 'delete_url' => '/api/audio/'.$job->job_id,
                         'model' => $job->model, 'kind' => $job->mode,
                         'created_at' => $job->completed_at ?? $job->created_at,
@@ -237,7 +239,7 @@ class LibraryController extends Controller
                 'format' => 'glb', 'previewable' => $job->previewable,
                 'preview_url' => '/api/3d/'.$job->job_id.'/asset',
                 'download_url' => '/api/3d/'.$job->job_id.'/asset',
-                'page_url' => '/3d?job='.$job->job_id,
+                'page_url' => StudioLink::to('model3d', ['job' => $job->job_id]),
                 'deletable' => true, 'delete_url' => '/api/3d/'.$job->job_id,
                 'model' => $job->model, 'created_at' => $job->completed_at ?? $job->created_at,
             ]))->values()->all();
@@ -281,7 +283,7 @@ class LibraryController extends Controller
                     $items[] = $this->item($type, 'workspace:'.$dto['id'].':'.$output['id'], $output['name'], [
                         'mime_type' => $output['mime'], 'size_bytes' => $output['bytes'] ?? null, 'kind' => $output['kind'],
                         'previewable' => $output['previewable'], 'preview_url' => $output['url'] ?? null,
-                        'download_url' => $output['download_url'], 'page_url' => '/media?job='.rawurlencode($dto['id']),
+                        'download_url' => $output['download_url'], 'page_url' => StudioLink::to(null, ['job' => $dto['id']]),
                         'deletable' => $canDelete, 'delete_url' => '/api/media/workspace/jobs/'.rawurlencode($dto['id']),
                         'model' => $job->model, 'created_at' => $job->completed_at ?? $job->created_at,
                     ]);

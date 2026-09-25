@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\AiProxyException;
 use App\Http\Controllers\Api\ExternalApiController;
+use App\Media\RunwareSchemaNormalizer;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use Generator;
@@ -323,7 +324,7 @@ class AiProxyService
             return null;
         }
         $id = trim($model['id']);
-        if ($id === '' || strlen($id) > 160 || ! preg_match('/^[A-Za-z0-9._\/:\-]+$/', $id)
+        if ($id === '' || strlen($id) > 160 || ! preg_match('/^(?:[A-Za-z0-9._\/:\-]+|'.RunwareSchemaNormalizer::AIR_PATTERN.')$/', $id)
             || str_contains($id, '://') || $this->containsSensitiveMetadata($id, $sensitive)) {
             return null;
         }

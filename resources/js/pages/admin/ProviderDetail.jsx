@@ -74,6 +74,92 @@ function ConfirmDialog({ title, description, confirmLabel, onConfirm, onCancel, 
     return <MediaActionDialog title={title} description={description} confirmLabel={confirmLabel} closeLabel={t("Batal")} busyLabel={t("Memproses…")} onConfirm={onConfirm} onClose={onCancel} busy={busy} />;
 }
 
+const accountUsagePeriods = [
+    ["today", "Hari ini"],
+    ["last_7_days", "7 hari terakhir"],
+    ["last_30_days", "30 hari terakhir"],
+];
+
+/** Admin-only Runware account balance: USD spent upstream, never the member token price. */
+function RunwareAccountCard({ providerId }) {
+    const { t, locale } = useLocale();
+    const [state, setState] = useState({ account: null, loading: true, error: "" });
+    const inFlight = useRef(null);
+    const load = useCallback(async () => {
+        inFlight.current?.abort();
+        const controller = new AbortController();
+        inFlight.current = controller;
+        setState((current) => ({ ...current, loading: true, error: "" }));
+        try {
+            const data = await apiRequest(`/api/admin/ai/providers/${providerId}/account`, { signal: controller.signal });
+            if (!controller.signal.aborted) setState({ account: data?.account ?? null, loading: false, error: "" });
+        } catch (error) {
+            if (!controller.signal.aborted) setState({ account: null, loading: false, error: error.message || "Saldo akun Runware tidak dapat dimuat." });
+        }
+    }, [providerId]);
+    useEffect(() => {
+        load();
+        return () => inFlight.current?.abort();
+    }, [load]);
+
+    const account = state.account;
+    const currency = account?.currency || "USD";
+    const money = (value) => {
+        if (value == null || !Number.isFinite(Number(value))) return "—";
+        try {
+            return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 4 }).format(Number(value));
+        } catch {
+            return `${Number(value)} ${currency}`;
+        }
+    };
+    const whole = (value) => value == null || !Number.isFinite(Number(value)) ? "—" : new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(value));
+
+    return (
+        <section className="ui-card-flat mb-4 space-y-3 p-4" aria-labelledby="runware-account-title" aria-busy={state.loading} data-runware-account>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h2 id="runware-account-title" className="ui-section-title">{t("Akun Runware")}</h2>
+                    <p className="mt-1 max-w-prose text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Saldo dan pemakaian dalam USD dari akun Runware, hanya terlihat oleh admin. Nilai ini bukan harga token untuk member.")}</p>
+                </div>
+                <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={state.loading} onClick={() => load()}>{state.loading ? t("Memuat saldo…") : t("Muat ulang saldo")}</button>
+            </div>
+            {state.loading && !account ? <LoadingState label={t("Memuat saldo Runware…")} />
+                : state.error ? <ErrorState message={t(state.error)} onRetry={() => load()} />
+                    : account && <>
+                        <dl className="grid gap-3 text-xs sm:grid-cols-3">
+                            {[
+                                [t("Saldo"), money(account.balance)],
+                                [t("Saldo gratis"), money(account.free_balance)],
+                                [t("Terakhir diperiksa"), formatDateTime(account.checked_at)],
+                            ].map(([term, value]) => (
+                                <div key={term} className="min-w-0">
+                                    <dt className="font-bold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400">{term}</dt>
+                                    <dd className="mt-0.5 break-words text-base font-bold tabular-nums text-slate-900 dark:text-white">{value}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                        <div className="max-w-full overflow-x-auto">
+                            <table className="w-full text-left text-xs text-slate-700 dark:text-slate-200">
+                                <caption className="sr-only">{t("Pemakaian akun Runware")}</caption>
+                                <thead className="bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr>
+                                    <th scope="col" className="px-3 py-2">{t("Periode")}</th>
+                                    <th scope="col" className="px-3 py-2 text-right">{t("Biaya terpakai")}</th>
+                                    <th scope="col" className="px-3 py-2 text-right">{t("Permintaan")}</th>
+                                </tr></thead>
+                                <tbody>{accountUsagePeriods.map(([period, periodLabel]) => (
+                                    <tr key={period} className="border-t border-slate-200 dark:border-white/10">
+                                        <th scope="row" className="px-3 py-2 font-medium">{t(periodLabel)}</th>
+                                        <td className="px-3 py-2 text-right tabular-nums">{money(account.usage?.[period]?.credits)}</td>
+                                        <td className="px-3 py-2 text-right tabular-nums">{whole(account.usage?.[period]?.requests)}</td>
+                                    </tr>
+                                ))}</tbody>
+                            </table>
+                        </div>
+                    </>}
+        </section>
+    );
+}
+
 /**
  * One provider = one page. The list page stays a pure card grid; everything
  * operational (models, connection, settings, audit trail) lives here in tabs.
@@ -87,7 +173,7 @@ export default function ProviderDetail() {
     const [catalog, setCatalog] = useState({ data: null, loading: true, error: "" });
     const [modelPage, setModelPage] = useState({ data: null, loading: true, error: "" });
     const [query, setQuery] = useState({ q: "", category: "", status: "", sort: "display_name", direction: "asc", page: 1, per_page: 25 });
-    const [discovery, setDiscovery] = useState({ busy: false, error: "", nextCursor: null, started: false, discovered: 0, imported: 0 });
+    const [discovery, setDiscovery] = useState({ busy: false, error: "", nextCursor: null, started: false, discovered: 0, imported: 0, skipped: null, total: null });
     const [discoveryLimit, setDiscoveryLimit] = useState(10);
     const [tab, setTab] = useState("models");
     const [audit, setAudit] = useState({ rows: [], loading: false, error: "" });
@@ -157,7 +243,7 @@ export default function ProviderDetail() {
         if (currentProviderId.current === providerId) return;
         currentProviderId.current = providerId;
         setQuery({ q: "", category: "", status: "", sort: "display_name", direction: "asc", page: 1, per_page: 25 });
-        setDiscovery({ busy: false, error: "", nextCursor: null, started: false, discovered: 0, imported: 0 });
+        setDiscovery({ busy: false, error: "", nextCursor: null, started: false, discovered: 0, imported: 0, skipped: null, total: null });
     }, [providerId]);
     useEffect(() => {
         if (tab !== "activity") return;
@@ -174,7 +260,7 @@ export default function ProviderDetail() {
     const provider = providers.find((entry) => String(entry.id) === String(providerId)) || null;
     const models = modelPage.data?.models || [];
     const editorProvider = modelEditor ? providers.find((candidate) => candidate.slug === modelEditor.provider_slug) : null;
-    const generationConfigReadOnly = ["fal", "kinovi"].includes(editorProvider?.protocol) || (modelEditor?.generation_config_readonly && modelEditor.provider_slug === modelEditor.original_provider_slug);
+    const generationConfigReadOnly = ["fal", "kinovi", "runware"].includes(editorProvider?.protocol) || (modelEditor?.generation_config_readonly && modelEditor.provider_slug === modelEditor.original_provider_slug);
     const discoverModels = async () => {
         if (discoveryInFlight.current) return;
         discoveryInFlight.current = true;
@@ -185,7 +271,9 @@ export default function ProviderDetail() {
                 body: { limit: discoveryLimit, ...(discovery.nextCursor ? { cursor: discovery.nextCursor } : {}) },
             });
             if (currentProviderId.current !== providerId) return;
-            setDiscovery({ busy: false, error: "", started: true, nextCursor: result.next_cursor, discovered: result.discovered, imported: result.imported });
+            // Only Runware reports skipped models and the size of its public index.
+            setDiscovery({ busy: false, error: "", started: true, nextCursor: result.next_cursor, discovered: result.discovered, imported: result.imported,
+                skipped: typeof result.skipped === "number" ? result.skipped : null, total: typeof result.total === "number" ? result.total : null });
             await loadCatalog();
         } catch (error) {
             setDiscovery((current) => ({ ...current, busy: false, error: error.message || t("Impor belum selesai. Coba lagi dari halaman yang sama.") }));
@@ -426,6 +514,9 @@ export default function ProviderDetail() {
         ["settings", "Pengaturan"],
         ["activity", "Aktivitas"],
     ];
+    const catalogImport = ["fal", "runware"].includes(provider.protocol);
+    // Runware pages by numeric offset; the last page has consumed the whole public index.
+    const catalogPosition = provider.protocol === "runware" && discovery.total !== null ? Number(discovery.nextCursor || discovery.total) : NaN;
 
     return (
         <div className="ui-page space-y-5">
@@ -518,25 +609,29 @@ export default function ProviderDetail() {
                             <Icon name="sync" className="h-4 w-4" />
                         </span>
                         <div className="min-w-0 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                            <p className="font-bold text-slate-900 dark:text-white">{t(provider.protocol === "fal" ? "Impor bertahap, tinjau sebelum publikasi" : "Model kurasi dan harga")}</p>
-                            <p className="mt-0.5">{t(provider.protocol === "fal" ? "Setiap klik mengambil satu halaman schema, maksimal 10 model. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan." : "Sinkronkan metadata dari tab Koneksi. Impor OpenAPI bertahap tersedia untuk fal; provider ini tetap memakai integrasi dan konfigurasi kurasi yang didukung.")}</p>
+                            <p className="font-bold text-slate-900 dark:text-white">{t(provider.protocol === "fal" ? "Impor bertahap, tinjau sebelum publikasi" : provider.protocol === "runware" ? "Impor katalog publik Runware, tinjau sebelum publikasi" : "Model kurasi dan harga")}</p>
+                            <p className="mt-0.5">{t(provider.protocol === "fal" ? "Setiap klik mengambil satu halaman schema, maksimal 10 model. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan." : provider.protocol === "runware" ? "Setiap klik mengambil satu halaman dari katalog publik Runware, maksimal 10 model. Model usang, segera hadir, dan LLM (teks ke teks) dilewati. Label dan harga kurasi dipertahankan; model yang belum terlihat di halaman ini tidak dinonaktifkan." : "Sinkronkan metadata dari tab Koneksi. Impor OpenAPI bertahap tersedia untuk fal; provider ini tetap memakai integrasi dan konfigurasi kurasi yang didukung.")}</p>
                         </div>
                     </div>
                     <div className="space-y-3 border-b border-slate-200 p-4 dark:border-white/10">
-                        {provider.protocol === "fal" ? <>
+                        {catalogImport ? <>
                         <div className="flex flex-wrap items-end gap-3">
                             <label className="text-xs font-medium">{t("Batas impor per halaman")}<select className="ui-input mt-1 min-h-11" value={discoveryLimit} disabled={discovery.busy} onChange={(event) => setDiscoveryLimit(Number(event.target.value))}><option value={5}>5</option><option value={10}>10</option></select></label>
                             <button type="button" className="ui-btn-primary min-h-11" disabled={discovery.busy || !provider.is_enabled} onClick={discoverModels}>{t(discovery.busy ? "Mengimpor schema…" : discovery.nextCursor ? "Lanjutkan halaman impor" : discovery.started ? "Mulai impor ulang" : "Impor halaman pertama")}</button>
                         </div>
                         {!provider.is_enabled && <p className="text-xs text-slate-600 dark:text-slate-400">{t("Aktifkan koneksi sebelum mengimpor schema.")}</p>}
-                        {discovery.started && <p role="status" className="text-sm text-slate-700 dark:text-slate-300">{t("Halaman terakhir")}: {count(discovery.discovered)} {t("ditemukan")}, {count(discovery.imported)} {t("diimpor")}. {t(discovery.nextCursor ? "Masih ada halaman berikutnya. Lanjutkan saat siap." : "Impor mencapai halaman terakhir. Tinjau revisi sebelum publikasi.")}</p>}
+                        {discovery.started && <p role="status" className="text-sm text-slate-700 dark:text-slate-300">{t("Halaman terakhir")}: {count(discovery.discovered)} {t("ditemukan")}, {count(discovery.imported)} {t("diimpor")}{provider.protocol === "runware" && discovery.skipped !== null && <>, {count(discovery.skipped)} {t("dilewati")}</>}.{Number.isFinite(catalogPosition) && <> {t("Posisi katalog")}: {count(catalogPosition)}/{count(discovery.total)}.</>} {t(discovery.nextCursor ? "Masih ada halaman berikutnya. Lanjutkan saat siap." : "Impor mencapai halaman terakhir. Tinjau revisi sebelum publikasi.")}</p>}
                         {discovery.nextCursor && <details><summary className="cursor-pointer text-xs font-semibold">{t("Cursor halaman berikutnya")}</summary><code className="mt-2 block break-all text-xs">{discovery.nextCursor}</code></details>}
                         {discovery.error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{discovery.error}</p>}
                         <p className="max-w-prose text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Pilih model baru tanpa harga, isi draf biaya token, lalu gunakan Tinjau harga dan publikasi. Maksimal 50 kandidat per konfirmasi; harga positif dan tarif API yang sudah ada tidak ditimpa.")}</p>
-                        <details className="text-xs leading-6"><summary className="cursor-pointer font-semibold">{t("Normalisasi ulang schema tersimpan tanpa jaringan")}</summary>
+                        {provider.protocol === "fal" && <details className="text-xs leading-6"><summary className="cursor-pointer font-semibold">{t("Normalisasi ulang schema tersimpan tanpa jaringan")}</summary>
                             <p className="mt-2">{t("Perintah administrator berikut membuat kandidat v2, bukan publikasi. Setiap model dilaporkan; gunakan next_after dari ringkasan untuk melanjutkan. Schema kosong hanya dipulihkan dari dokumentasi resmi yang tercatat; selain itu temukan ulang dari sumber.")}</p>
                             <code className="mt-2 block break-all rounded bg-slate-100 p-2 dark:bg-white/5">php artisan media:renormalize-catalog --provider={provider.id} --actor=ADMIN_ID --after=0 --limit=100</code>
-                        </details>
+                        </details>}
+                        {provider.protocol === "runware" && <details className="text-xs leading-6"><summary className="cursor-pointer font-semibold">{t("Impor katalog Runware dari salinan offline")}</summary>
+                            <p className="mt-2">{t("Perintah administrator berikut membaca salinan katalog publik Runware (index.json, content-models.json, creators.json, schemas/, examples/) dan hanya membuat kandidat v2 yang belum dipublikasikan, tanpa harga dan tanpa publikasi. Gunakan --after dan --limit untuk mengimpor bertahap.")}</p>
+                            <code className="mt-2 block break-all rounded bg-slate-100 p-2 dark:bg-white/5">php artisan media:import-runware-catalog {provider.id} --from=/path/to/runware-catalog --after=0 --limit=50</code>
+                        </details>}
                         </> : <button type="button" className="ui-btn-secondary min-h-11" onClick={() => setTab("connection")}>{t("Buka koneksi provider")}</button>}
                         <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
                             {Object.entries(capabilityStatuses).map(([status, [, statusLabel]]) => <div key={status} className="flex items-center gap-2"><dt>{t(statusLabel)}</dt><dd className="font-semibold tabular-nums">{count(counts[status])}</dd></div>)}
@@ -564,6 +659,7 @@ export default function ProviderDetail() {
 
             {tab === "connection" && (
                 <div id="provider-panel-connection" role="tabpanel" aria-labelledby="provider-tab-connection" className="animate-fade-in-up motion-reduce:animate-none">
+                    {provider.protocol === "runware" && <RunwareAccountCard key={provider.id} providerId={provider.id} />}
                     <ProviderConnections
                         providers={[provider]}
                         focusId={provider.id}

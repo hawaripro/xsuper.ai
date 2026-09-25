@@ -14,6 +14,7 @@ use App\Media\AssetService;
 use App\Media\CapabilityPresenter;
 use App\Media\CapabilityResolver;
 use App\Media\CapabilityValidator;
+use App\Media\Contracts\AssignsProviderTaskIds;
 use App\Media\Contracts\StagesProviderReferences;
 use App\Media\Enums\MediaOperation;
 use App\Media\Enums\MediaState;
@@ -39,6 +40,7 @@ use App\Models\WorkspaceMediaSubmission;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -54,6 +56,10 @@ class WorkspaceMediaService
     private const RECOVERY_GRACE_SECONDS = 120;
     /** An accepted request whose final result cannot be obtained within this window goes to review, keeping its reservation. */
     private const MAX_RESULT_WAIT_SECONDS = 21600;
+    /** Runware keeps task outcomes and output URLs for seven days; an unknown outcome is read back only within that window. */
+    private const RECONCILE_WINDOW_SECONDS = 604800;
+    /** Provider-reported progress is advisory and short-lived; it never outlives a few missed polls. */
+    private const PROGRESS_SECONDS = 300;
     private const NATIVE = ['image' => ImageJob::class, 'video' => VideoJob::class, 'audio' => AudioJob::class, 'model3d' => ThreeDJob::class];
 
     public function __construct(
@@ -97,8 +103,12 @@ class WorkspaceMediaService
             $capabilities = $this->eligibleCapabilities($user, $model);
             if (isset($filters['kind']) && $filters['kind'] !== '') {
                 $kind = $filters['kind'];
-                $capabilities = array_filter($capabilities, static fn (array $capability): bool => $kind === 'avatar'
-                    ? $model->category === 'avatar' : ($capability['output_kind'] === $kind && ($kind !== 'video' || $model->category !== 'avatar')));
+                $capabilities = array_filter($capabilities, static fn (array $capability): bool => match ($kind) {
+                    'avatar' => $model->category === 'avatar',
+                    // Data, captions and other files: everything the studio's media categories do not cover.
+                    'other' => ! in_array($capability['output_kind'], ['image', 'video', 'audio', 'model3d'], true),
+                    default => $capability['output_kind'] === $kind && ($kind !== 'video' || $model->category !== 'avatar'),
+                });
             }
             if ($capabilities === []) {
                 continue;
@@ -107,7 +117,7 @@ class WorkspaceMediaService
                 $next = $this->cursor($lastId);
                 break;
             }
-            $page[] = $this->modelSummary($model, $capabilities);
+            $page[] = $this->modelSummary($model, $capabilities, $filters['locale'] ?? null);
             $lastId = $model->id;
         }
 
@@ -122,14 +132,14 @@ class WorkspaceMediaService
         return array_values(array_unique(array_column($this->eligibleCapabilities($user, $model), 'output_kind')));
     }
 
-    public function capabilities(User $user, string $modelId): array
+    public function capabilities(User $user, string $modelId, ?string $locale = null): array
     {
         $model = AiModelProfile::query()->with('provider')->where('model_id', $modelId)->first();
         abort_if($model === null, 404, 'This model is unavailable for your account.');
         $capabilities = $this->eligibleCapabilities($user, $model);
         abort_if($capabilities === [], 404, 'This model has no available operations for your account.');
 
-        $summary = $this->modelSummary($model, $capabilities);
+        $summary = $this->modelSummary($model, $capabilities, $locale);
         if (in_array(1, array_column($capabilities, 'contract_version'), true)) {
             $summary['native'] = $this->nativeFacts($model);
         }
@@ -170,6 +180,10 @@ class WorkspaceMediaService
             if (($definition['contract_version'] >= 2 || $definition['output_kind'] === 'image') && ! $this->adapters->has($model->provider->protocol)) {
                 continue;
             }
+            // Runware executes reviewed schema contracts only; a derived native operation would be a dead control.
+            if ($model->provider->protocol === 'runware' && $definition['contract_version'] < 2) {
+                continue;
+            }
             try {
                 $definition['billing'] = $this->billing($model, $definition);
             } catch (Throwable) {
@@ -183,10 +197,17 @@ class WorkspaceMediaService
         return $result;
     }
 
-    private function modelSummary(AiModelProfile $model, array $capabilities): array
+    private function modelSummary(AiModelProfile $model, array $capabilities, ?string $locale = null): array
     {
+        $description = $locale === 'en' ? ($model->description_en ?: $model->description_id) : ($model->description_id ?: $model->description_en);
+        $description = is_string($description) ? trim((string) preg_replace('/\s+/u', ' ', strip_tags($description))) : '';
+        $logo = is_string($model->logo_url) ? trim($model->logo_url) : '';
+
         return ['model_id' => $model->model_id, 'name' => $model->display_name, 'category' => $model->category,
             'provider_name' => mb_substr(strip_tags((string) ($model->provider?->name ?? $model->provider_name)), 0, 120),
+            'description' => $description === '' ? null : (mb_strlen($description) > 240 ? rtrim(mb_substr($description, 0, 239)).'…' : $description),
+            'logo_url' => str_starts_with($logo, 'https://') && strlen($logo) <= 2048 && filter_var($logo, FILTER_VALIDATE_URL) !== false
+                && preg_match('/[\x00-\x20\x7f\\\\"<>]/', $logo) !== 1 ? $logo : null,
             'operations' => array_values(array_map(static fn (array $capability): array => [
                 'operation' => $capability['operation'], 'output_kind' => $capability['output_kind'],
                 'price_tokens' => $capability['price_tokens'], 'price_unit' => $capability['price_unit'],
@@ -203,9 +224,14 @@ class WorkspaceMediaService
         $second = $unit === 'second';
         // Billed seconds are the duration actually sent upstream: the typed v1 param or a v2 root `duration` input.
         $durationInput = ! $v2 || array_key_exists('duration', $definition['input_schema']['properties'] ?? []);
+        // A v2 result-count input (e.g. Runware numberResults) multiplies per-generation and per-second tariffs.
+        $quantity = $v2 && in_array($unit, ['generation', 'second'], true) && is_string($config['quantity_input'] ?? null)
+            && is_array($definition['input_schema']['properties'][$config['quantity_input']] ?? null) ? $config['quantity_input'] : null;
+        $maximum = $quantity === null ? null : ($definition['input_schema']['properties'][$quantity]['maximum'] ?? null);
 
-        return ['mode' => $second ? 'per_second' : ($count > 1 ? 'per_output' : 'per_invocation'),
+        return ['mode' => $second ? 'per_second' : ($count > 1 || $quantity !== null ? 'per_output' : 'per_invocation'),
             'price_unit' => $unit, 'count_field' => $count > 1 ? 'count' : null, 'max_count' => $count,
+            'quantity_input' => $quantity, 'max_quantity' => is_int($maximum) && $maximum >= 1 ? $maximum : null,
             'pro_field' => ! $v2 && ($config['supports_pro'] ?? false) ? 'pro' : null,
             'pro_multiplier' => ! $v2 && ($config['supports_pro'] ?? false) ? 2 : 1,
             'duration_field' => $second ? ($durationInput ? 'duration' : 'billing_seconds') : null,
@@ -288,6 +314,10 @@ class WorkspaceMediaService
                 $price = $this->multiply($price, $duration);
             } elseif ($execution['pro']) {
                 $price = $this->multiply($price, $billing['pro_multiplier']);
+            }
+            // Every requested result is billed (e.g. Runware numberResults): the reviewed binding names that input.
+            if (($quantityInput = self::quantityInput($capability->providerBindings, $billing['price_unit'])) !== null) {
+                $price = $this->multiply($price, self::quantity($validated['inputs'] ?? [], $quantityInput));
             }
             $expectedPrice = $request['expected_price_tokens'] ?? null;
             if (! is_int($expectedPrice) || $expectedPrice < 1) {
@@ -489,6 +519,22 @@ class WorkspaceMediaService
         return is_int($value) && $value >= 1 ? $value : null;
     }
 
+    /** The reviewed v2 result-count input, when it multiplies this tariff (per generation or per second). */
+    private static function quantityInput(array $bindings, ?string $unit = null): ?string
+    {
+        $field = $bindings['quantity_input'] ?? null;
+
+        return is_string($field) && $field !== '' && ($unit === null || in_array($unit, ['generation', 'second'], true)) ? $field : null;
+    }
+
+    /** Requested results: max(1, the validated count). Normalized inputs already carry the schema default. */
+    private static function quantity(array $inputs, string $field): int
+    {
+        $value = $inputs[$field] ?? 1;
+
+        return is_numeric($value) ? max(1, (int) $value) : 1;
+    }
+
     private function assertAssets(User $owner, array $references): void
     {
         $assets = MediaAsset::query()->whereIn('id', array_values(array_unique(array_column($references, 'asset_id'))))->get()->keyBy('id');
@@ -547,7 +593,19 @@ class WorkspaceMediaService
                 return;
             }
         }
-        $sending = $this->updateClaim($job, ['stage' => 'submitting', 'submitted_at' => now(), 'processing_started_at' => now()]);
+        // A client-generated provider task identity is durable before the paid request, so an unknown
+        // outcome can later be read back with that identity instead of staying unknown.
+        $marker = ['stage' => 'submitting', 'submitted_at' => now(), 'processing_started_at' => now()];
+        if ($adapter instanceof AssignsProviderTaskIds) {
+            try {
+                $marker['upstream_job_id'] = $adapter->taskId($request);
+            } catch (Throwable) {
+                $this->failClaim($job, 'The saved provider connection or input files are no longer available. No generation was submitted.');
+
+                return;
+            }
+        }
+        $sending = $this->updateClaim($job, $marker);
         if ($sending === null) {
             return;
         }
@@ -583,7 +641,7 @@ class WorkspaceMediaService
     {
         $job = DB::transaction(function () use ($id): ?WorkspaceMediaJob {
             $job = WorkspaceMediaJob::query()->lockForUpdate()->find($id);
-            if ($job === null || $job->status !== 'processing' || ! in_array($job->stage, ['rendering', 'saving'], true)
+            if ($job === null || ! (($job->status === 'processing' && in_array($job->stage, ['rendering', 'saving'], true)) || self::reconcilable($job))
                 || ($job->next_poll_at !== null && $job->next_poll_at->isFuture())
                 || ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subSeconds(self::LEASE_SECONDS)))) {
                 return null;
@@ -594,6 +652,11 @@ class WorkspaceMediaService
             return $job;
         });
         if ($job === null) {
+            return;
+        }
+        if ($job->status === 'uncertain') {
+            $this->reconcile($job);
+
             return;
         }
         if ($job->result_received_at !== null) {
@@ -618,7 +681,7 @@ class WorkspaceMediaService
         }
         try {
             $provider = $this->provider($job);
-            $result = $this->adapters->for($provider->protocol)->pollStatus($provider, $job->upstream_job_id, $job->provider_bindings);
+            $result = $this->adapters->for($provider->protocol)->pollStatus($provider, $job->upstream_job_id, $this->pollContext($job));
         } catch (Throwable) {
             $this->reschedule($job, 'Status could not be checked. The original request will be checked again; no new generation is submitted.');
 
@@ -632,8 +695,105 @@ class WorkspaceMediaService
                 $this->save($saving);
             }
         } else {
+            $this->rememberProgress($job, $result->progress);
             $this->reschedule($job);
         }
+    }
+
+    /**
+     * Reads back a Runware task whose acceptance or result is unknown, using the task identity stored before
+     * its only POST: a final result is saved and settled, an explicit failure is refunded, and a confirmed
+     * running task resumes normal polling. Anything inconclusive (taskNotFound, a changed connection, a
+     * transport failure) keeps the reservation under review. The request is never submitted again.
+     */
+    private function reconcile(WorkspaceMediaJob $job): void
+    {
+        try {
+            $provider = $this->provider($job);
+            $result = $this->adapters->for($provider->protocol)->pollStatus($provider, $job->upstream_job_id, $this->pollContext($job));
+        } catch (Throwable) {
+            $this->deferReconciliation($job);
+
+            return;
+        }
+        if ($result->state === MediaState::Failed) {
+            $this->failClaim($job, 'The provider could not complete this request. Reserved tokens have been returned.');
+        } elseif ($result->state === MediaState::Completed && ($result->resultData !== null || ($result->resultUrls ?? []) !== [])) {
+            $saving = $this->recordResult($job, $result->resultData, $result->resultUrls ?? []);
+            if ($saving !== null) {
+                $this->save($saving);
+            }
+        } elseif ($result->state === MediaState::Processing && $job->submitted_at->gt(now()->subSeconds(self::MAX_RESULT_WAIT_SECONDS))) {
+            if ($this->updateClaim($job, ['status' => 'processing', 'stage' => 'rendering', 'processing_token' => null,
+                'processing_started_at' => null, 'error_message' => null, 'next_poll_at' => now()->addSeconds(self::POLL_SECONDS)]) !== null) {
+                $this->rememberProgress($job, $result->progress);
+                $this->queuePoll($job->id);
+            }
+        } else {
+            // Still running past the result window: it stays under review and is checked again less often.
+            $this->deferReconciliation($job);
+        }
+    }
+
+    private function deferReconciliation(WorkspaceMediaJob $job): void
+    {
+        $age = max(0, now()->getTimestamp() - $job->submitted_at->getTimestamp());
+        $this->updateClaim($job, ['processing_token' => null, 'processing_started_at' => null,
+            'next_poll_at' => now()->addSeconds(min(3600, max(60, intdiv($age, 10))))]);
+    }
+
+    /** An unknown Runware outcome with its pre-submission task identity, within the provider's retention window. */
+    private static function reconcilable(WorkspaceMediaJob $job): bool
+    {
+        return $job->status === 'uncertain' && in_array($job->stage, ['submission_uncertain', 'result_uncertain'], true)
+            && self::isRunware($job) && Str::isUuid((string) $job->upstream_job_id) && $job->result_received_at === null
+            && $job->submitted_at !== null && $job->submitted_at->gt(now()->subSeconds(self::RECONCILE_WINDOW_SECONDS));
+    }
+
+    private static function isRunware(WorkspaceMediaJob $job): bool
+    {
+        return ($job->provider_bindings['adapter'] ?? null) === 'runware_v1';
+    }
+
+    /** The job's immutable reviewed binding plus its requested result count, so a multi-result task never completes early. */
+    private function pollContext(WorkspaceMediaJob $job): array
+    {
+        $bindings = $job->provider_bindings ?? [];
+        $field = self::quantityInput($bindings);
+
+        return [...$bindings, 'quantity' => $field === null ? 1 : self::quantity($job->normalized_inputs ?? [], $field)];
+    }
+
+    /** Provider-reported progress for the owner's running job: a short-lived integer 0–100, never provider fields. */
+    private function rememberProgress(WorkspaceMediaJob $job, ?int $progress): void
+    {
+        if ($progress === null) {
+            return;
+        }
+        try {
+            Cache::put(self::progressKey($job), max(0, min(100, $progress)), self::PROGRESS_SECONDS);
+        } catch (Throwable) {
+            // Progress is advisory; an unavailable cache never affects the request.
+        }
+    }
+
+    private function progress(WorkspaceMediaJob $job): ?int
+    {
+        if ($job->status !== 'processing' || $job->stage !== 'rendering') {
+            return null;
+        }
+        try {
+            $progress = Cache::get(self::progressKey($job));
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_int($progress) && $progress >= 0 && $progress <= 100 ? $progress : null;
+    }
+
+    private static function progressKey(WorkspaceMediaJob $job): string
+    {
+        return 'workspace-media-progress:'.$job->job_id;
     }
 
     private function recordResult(WorkspaceMediaJob $job, mixed $data, array $urls): ?WorkspaceMediaJob
@@ -663,7 +823,8 @@ class WorkspaceMediaService
                     ['service' => 'media', 'model' => $locked->model, 'operation' => $locked->operation, 'price_unit' => $locked->price_unit]);
                 $locked->update(['status' => 'completed', 'stage' => 'completed', 'result_data' => $data,
                     'billing_status' => 'settled', 'error_message' => null, 'completed_at' => now(),
-                    'provider_result' => null, 'provider_result_urls' => null,
+                    // Runware's actual USD cost per result stays only in this private (hidden) provider result.
+                    'provider_result' => self::isRunware($locked) ? $locked->provider_result : null, 'provider_result_urls' => null,
                     'processing_token' => null, 'processing_started_at' => null, 'next_poll_at' => null]);
             });
         } catch (Throwable $exception) {
@@ -737,7 +898,8 @@ class WorkspaceMediaService
     {
         $this->updateClaim($job, ['status' => 'uncertain', 'stage' => 'submission_uncertain',
             'error_message' => 'Provider acceptance could not be confirmed. Tokens remain reserved for reconciliation. This request will not be submitted again.',
-            'processing_started_at' => null, 'next_poll_at' => null]);
+            // A Runware task identity was stored before the POST, so its outcome is read back shortly (never resubmitted).
+            'processing_started_at' => null, 'next_poll_at' => self::isRunware($job) && Str::isUuid((string) $job->upstream_job_id) ? now()->addMinute() : null]);
     }
 
     private function review(WorkspaceMediaJob $job, string $message): void
@@ -769,10 +931,13 @@ class WorkspaceMediaService
         }
     }
 
-    /** Recovery never changes a submitting/uncertain request back into a submit-ready request. */
+    /**
+     * Recovery never changes a submitting/uncertain request back into a submit-ready request. Unknown Runware
+     * outcomes are read back with their stored task identity instead of waiting for manual review.
+     */
     public function recover(): array
     {
-        $counts = ['queued' => 0, 'polling' => 0, 'uncertain' => 0];
+        $counts = ['queued' => 0, 'polling' => 0, 'uncertain' => 0, 'reconciling' => 0];
         WorkspaceMediaJob::query()->whereIn('status', ['pending', 'processing'])->orderBy('id')->chunkById(100, function ($jobs) use (&$counts): void {
             foreach ($jobs as $job) {
                 if ($job->processing_started_at !== null && $job->processing_started_at->gt(now()->subSeconds(self::LEASE_SECONDS))) {
@@ -802,6 +967,19 @@ class WorkspaceMediaService
                 }
             }
         });
+        WorkspaceMediaJob::query()->where('status', 'uncertain')->whereIn('stage', ['submission_uncertain', 'result_uncertain'])
+            ->where('provider_bindings->adapter', 'runware_v1')->whereNotNull('upstream_job_id')->whereNull('result_received_at')
+            ->where('submitted_at', '>', now()->subSeconds(self::RECONCILE_WINDOW_SECONDS))
+            ->where(fn (Builder $query) => $query->whereNull('next_poll_at')->orWhere('next_poll_at', '<=', now()))
+            ->orderBy('id')->chunkById(100, function ($jobs) use (&$counts): void {
+                foreach ($jobs as $job) {
+                    if (self::reconcilable($job) && ($job->processing_started_at === null
+                        || $job->processing_started_at->lte(now()->subSeconds(self::LEASE_SECONDS)))) {
+                        $this->queuePoll($job->id, 0);
+                        $counts['reconciling']++;
+                    }
+                }
+            });
 
         return $counts;
     }
@@ -910,7 +1088,9 @@ class WorkspaceMediaService
         $queries = [];
         $workspace = WorkspaceMediaJob::query()->where('user_id', $user->id);
         if ($kind) {
-            $workspace->where('output_kind', $kind === 'avatar' ? 'video' : $kind);
+            // Same rule as models() for "other": data, captions and files, which no native studio produces.
+            $kind === 'other' ? $workspace->whereNotIn('output_kind', ['image', 'video', 'audio', 'model3d'])
+                : $workspace->where('output_kind', $kind === 'avatar' ? 'video' : $kind);
             // Same rule as models(): an avatar-category model belongs to the avatar studio, whatever its operation.
             $avatarModel = static fn ($query) => $query->selectRaw('1')->from('ai_model_profiles')
                 ->whereColumn('ai_model_profiles.model_id', 'workspace_media_jobs.model')->where('ai_model_profiles.category', 'avatar');
@@ -980,7 +1160,11 @@ class WorkspaceMediaService
                 : $status === 'save_failed' && $this->hasNativeResult($job),
             'can_delete' => in_array($job->status, ['completed', 'failed', 'cancelled'], true),
             'outputs' => $outputs, 'result_data' => $job instanceof WorkspaceMediaJob
-                ? MediaJsonSchema::dataObject($job->capability_snapshot['output_schema'] ?? [], $job->result_data) : null,
+                ? MediaJsonSchema::dataObject(WorkspaceMediaOutputStore::resultSchema($job), $job->result_data) : null,
+            // The owner's own normalized request, for "load into form"; never bindings or provider-side fields.
+            'request' => $job instanceof WorkspaceMediaJob ? ['model_id' => $job->model, 'operation' => $job->operation,
+                'inputs' => MediaJsonSchema::dataObject($job->capability_snapshot['input_schema'] ?? [], $job->normalized_inputs ?? [])] : null,
+            'progress' => $job instanceof WorkspaceMediaJob ? $this->progress($job) : null,
             'price_tokens' => $job->price_tokens, 'billing_status' => $job->billing_status, 'details' => $this->details($job),
             'conversation_id' => $job->conversation_id, 'created_at' => $job->created_at?->toISOString(),
             'batch' => $job instanceof ImageJob && $job->batch_key !== null ? $this->batch($job) : null];
@@ -1007,7 +1191,8 @@ class WorkspaceMediaService
     private function details(Model $job): array
     {
         if ($job instanceof WorkspaceMediaJob) {
-            $prompt = $job->normalized_inputs['prompt'] ?? null;
+            // Runware tasks name the prompt positivePrompt.
+            $prompt = $job->normalized_inputs['prompt'] ?? $job->normalized_inputs['positivePrompt'] ?? null;
 
             return ['prompt' => is_string($prompt) && trim($prompt) !== '' ? $prompt : null, 'model_label' => $job->model_label,
                 'billing_mode' => $job->billing_mode, 'tokens_reserved' => $job->tokens_reserved];

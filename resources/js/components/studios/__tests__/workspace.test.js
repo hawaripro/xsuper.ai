@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { publicUrlError, schemaDefault, schemaErrors } from "../schema.js";
+import { publicUrlError, schemaDefault, schemaErrors, schemaVariants } from "../schema.js";
 import { batchView, billedSeconds, jobCandidates, realtimeOutcomeUnknown, submissionUnresolved, workspaceQuote } from "../workspaceMedia.js";
 
 const uuid = "8c0d6f2e-1b5a-4c3d-9e8f-0a1b2c3d4e5f";
@@ -61,6 +61,21 @@ describe("owned file leaves", () => {
     });
 });
 
+describe("schemaVariants (input modes)", () => {
+    it("keep a nested member's declared fields when a branch only constrains it", () => {
+        // Runware: "reference images or frame images" constrains members inside the declared `inputs` object.
+        const inputs = { type: "object", title: "Inputs", properties: { referenceImages: { type: "array", items: leaf }, frameImages: { type: "array", items: leaf } } };
+        const schema = { type: "object", properties: { inputs }, anyOf: [
+            { required: ["inputs"], properties: { inputs: { required: ["referenceImages"] } } },
+            { required: ["inputs"], properties: { inputs: { properties: { frameImages: { minItems: 1 } } } } },
+        ] };
+        const [reference, frames] = schemaVariants(schema);
+        expect(reference.properties.inputs).toMatchObject({ title: "Inputs", required: ["referenceImages"] });
+        expect(reference.properties.inputs.properties.referenceImages.items).toEqual(leaf);
+        expect(frames.properties.inputs.properties.frameImages).toMatchObject({ type: "array", items: leaf, minItems: 1 });
+    });
+});
+
 describe("workspaceQuote (server billing envelope)", () => {
     it("admits one native job at base × Pro and multiplies only the total by count", () => {
         const native = { contract_version: 1, price_tokens: 10, billing: { mode: "per_output", count_field: "count", max_count: 4, pro_field: "pro", pro_multiplier: 2 } };
@@ -84,6 +99,18 @@ describe("workspaceQuote (server billing envelope)", () => {
         expect(workspaceQuote(v2, {}, {}).admission).toBeNull();
         expect(workspaceQuote(v2, {}, { billing_seconds: 6 })).toMatchObject({ admission: 24, total: 24 });
         expect(workspaceQuote({ ...v2, billing: { ...v2.billing, durations: [] } }, {}, { billing_seconds: 6 }).reason).toBeTruthy();
+    });
+
+    it("prices a schema quantity input into the one job's admission", () => {
+        const schema = { type: "object", properties: { numberResults: { type: "integer", minimum: 1, maximum: 4, default: 2 }, duration: { type: "integer", default: 5 } } };
+        const perImage = { contract_version: 2, price_tokens: 6, billing: { mode: "per_output", quantity_input: "numberResults", max_quantity: 4 }, input_schema: schema };
+        expect(workspaceQuote(perImage, { numberResults: 3 })).toMatchObject({ admission: 18, total: 18, quantity: 3, count: 1 });
+        expect(workspaceQuote(perImage, {})).toMatchObject({ admission: 12, quantity: 2 });
+        expect(workspaceQuote(perImage, { numberResults: "" })).toMatchObject({ admission: 6, quantity: 1 });
+        expect(workspaceQuote(perImage, { numberResults: 5 }).admission).toBeNull();
+        const perSecond = { ...perImage, billing: { mode: "per_second", duration_field: "duration", durations: [], quantity_input: "numberResults", max_quantity: 4 } };
+        expect(workspaceQuote(perSecond, { numberResults: 2, duration: 5 })).toMatchObject({ admission: 60, seconds: 5, quantity: 2 });
+        expect(workspaceQuote({ ...perImage, contract_version: 1 }, { numberResults: 3 })).toMatchObject({ admission: 6, quantity: 1 });
     });
 
     it("parses whole billed seconds like the server", () => {

@@ -1,0 +1,109 @@
+{
+  "model": "bfl-flux-1-dev",
+  "examples": [
+    {
+      "id": "coastal-radar-station-rental-interior",
+      "title": "Coastal Radar Station Rental Interior",
+      "mode": "text-to-image",
+      "cost": 0.0013,
+      "latencyMs": 2942,
+      "asset": "https://assets.runware.ai/examples/bfl-flux-1-dev/a21240c5-5ce4-455e-8ae6-bdb615a5f2a1.jpg",
+      "request": {
+        "taskType": "imageInference",
+        "model": "runware:101@1",
+        "positivePrompt": "High-end architectural real-estate photograph of a decommissioned 1950s coastal radar station converted into a refined vacation-rental living room. Square composition, photographed from the entrance at eye level with a 24mm tilt-shift lens, straight vertical lines and believable proportions. The circular concrete room retains its thick curved walls, exposed aggregate texture, narrow steel-framed observation windows and one large panoramic opening facing a cold slate-blue ocean and pale chalk cliffs. Interior design is restrained and highly livable: low modular sofa upholstered in deep ultramarine wool, two brushed-aluminum lounge chairs, a round blackened-steel coffee table, woven charcoal rug, compact suspended wood stove, built-in pale birch cabinetry and a single sculptural cobalt glass vessel. Soft overcast coastal daylight wraps through the room, balanced with warm concealed lighting beneath the cabinetry; subtle reflections on metal, detailed wool and concrete textures, gentle shadow falloff, calm cinematic atmosphere. Clean, meticulously staged but not sterile, no people, no signage, no logos, no visible text. Premium hospitality property photography, natural dynamic range, crisp architectural detail, photorealistic materials, realistic ocean view, editorial composition with the seating area anchoring the foreground and the sea framed as the focal point.",
+        "width": 1024,
+        "height": 1024,
+        "steps": 28
+      },
+      "response": {
+        "taskType": "imageInference",
+        "imageUUID": "f28a72ab-5287-4051-bf40-f05e4c28b574",
+        "imageURL": "https://im.runware.ai/image/os/a06dlim3/ws/3/ii/f28a72ab-5287-4051-bf40-f05e4c28b574.jpg",
+        "seed": 1956386241
+      }
+    },
+    {
+      "id": "wastewater-science-picture-book-spread",
+      "title": "Wastewater Science Picture-Book Spread",
+      "mode": "image-to-image",
+      "cost": 0.0038,
+      "latencyMs": 4263,
+      "asset": "https://assets.runware.ai/examples/bfl-flux-1-dev/482a9e7a-9914-4110-9ce4-ae38710cb99e.jpg",
+      "request": {
+        "taskType": "imageInference",
+        "model": "runware:101@1",
+        "positivePrompt": "Transform the seed photograph into a finished two-page children’s science-book illustration for readers ages 7–10, explaining what happens inside a municipal secondary clarifier. Preserve the seed image’s recognizable composition and perspective: the sweeping circular basin rim in the foreground, the catwalk leading toward the horizon, the operator on the right third, and the arrangement of distant tanks and utility buildings. Reinterpret the scene as a bold mixed-media cut-paper collage with opaque gouache, screen-printed textures, chunky geometric shapes, visible paper fibers and slightly imperfect ink registration.\n\nTurn the basin into a scientifically informed cutaway: above the waterline, show the operator kneeling safely behind the railing and observing the calm blue-green surface; below it, reveal suspended particles drifting downward, friendly simplified microorganism shapes clustering the particles, settled brown sludge along the sloped floor, and a slow scraper arm guiding solids toward the center hopper. Show clean clarified water spilling evenly over the perimeter weir. Use visual storytelling rather than labels, arrows or text. The microorganisms may have subtle expressive eyes for child appeal, but should still read as an educational magnified visualization rather than fantasy creatures.\n\nPalette: saturated cobalt blue, turquoise, coral red, mustard yellow, warm cream and dark espresso outlines. Bright, optimistic civic-science mood with strong shape separation and tactile handcrafted detail. Full-bleed 1280x704 landscape picture-book spread with an implied vertical gutter at center; keep faces and essential details away from the gutter. Clear foreground-to-background hierarchy, polished editorial illustration, no captions, no lettering, no logos, no border, no photorealism.",
+        "width": 1280,
+        "height": 704,
+        "strength": 0.65,
+        "inputs": {
+          "seedImage": "https://assets.runware.ai/assets/inputs/fe8fdd6d-4997-43dd-9c41-b9549e12e353.jpg"
+        }
+      },
+      "response": {
+        "taskType": "imageInference",
+        "imageUUID": "1b2f8840-25b6-4bd4-a24b-f8caf6d37fc7",
+        "imageURL": "https://im.runware.ai/image/os/a06dlim3/ws/3/ii/1b2f8840-25b6-4bd4-a24b-f8caf6d37fc7.jpg",
+        "seed": 1834543499
+      }
+    },
+    {
+      "id": "bespoke-sign-painter-portrait",
+      "title": "Bespoke Sign Painter Portrait",
+      "mode": "expand",
+      "cost": 0.0032,
+      "latencyMs": 7612,
+      "asset": "https://assets.runware.ai/examples/bfl-flux-1-dev/5856711a-0835-47c8-8ebc-fba72a28989d.jpg",
+      "request": {
+        "taskType": "imageInference",
+        "model": "runware:101@1",
+        "positivePrompt": "Create a finished 3:2 landscape personal-branding portrait by naturally expanding the supplied square photograph beyond both horizontal edges. Preserve the central woman’s recognizable face, age, silver curls, glasses, body, pose, tangerine coveralls, cobalt shirt, mahlstick, brush, and original photographic character. Show the complete width of her lively hand-painted sign workshop: a continuous pale aqua pegboard wall and long scarred timber workbench extending convincingly across the entire frame. On the expanded left side, include neatly arranged sable brushes, masking tape, a metal ruler, paint-splattered jars, and stacked blank wooden sign panels. On the expanded right side, include small tins of saturated enamel paint, a ceramic mixing palette, folded shop rags, clamps, and several geometric color-test panels without words or logos. Keep all perspective lines, daylight direction, shadows, wall texture, and workbench height seamless with the source image. Compose her centrally with generous environmental context on both sides, framed from the knees up, looking directly into the camera with calm confidence and a subtle half-smile. Bright editorial art direction with aqua, tangerine, cobalt, coral, and butter-yellow accents; optimistic, skilled, tactile, and contemporary rather than nostalgic. Soft window daylight from camera left, gentle fill, natural skin texture, crisp eyes, realistic hands, detailed fabric and paint marks, restrained depth of field, premium magazine portrait photography, 50mm lens appearance. No lettering, logos, captions, borders, or graphic overlays.",
+        "width": 1536,
+        "height": 1024,
+        "outpaint": {
+          "left": 256,
+          "right": 256,
+          "blur": 16
+        },
+        "inputs": {
+          "seedImage": "https://assets.runware.ai/assets/inputs/c80297bb-1be5-4886-ace3-0175d0ab58fc.jpg"
+        }
+      },
+      "response": {
+        "taskType": "imageInference",
+        "imageUUID": "9f9f0144-0e24-47c6-8b80-b915830f2cf0",
+        "imageURL": "https://im.runware.ai/image/os/a06dlim3/ws/3/ii/9f9f0144-0e24-47c6-8b80-b915830f2cf0.jpg",
+        "seed": 1072349095
+      }
+    },
+    {
+      "id": "desert-survival-save-station-concept",
+      "title": "Desert Survival Save Station Concept",
+      "mode": "inpaint",
+      "cost": 0.0038,
+      "latencyMs": 8294,
+      "asset": "https://assets.runware.ai/examples/bfl-flux-1-dev/1d343231-362c-4976-a73d-ca295bb83caa.jpg",
+      "request": {
+        "taskType": "imageInference",
+        "model": "runware:101@1",
+        "positivePrompt": "Completely remove the entire masked portable generator and replace it with a production-ready save station prop for a grounded desert survival game. Preserve the unmasked gypsum desert, horizon, blue sky, camera position, perspective, hard midday sunlight, ground texture, and overall framing exactly, naturally completing any background exposed around the replacement. The new prop occupies the same footprint and approximate waist-high volume: a compact solar-powered water cache built by practical desert nomads, with a sturdy cobalt-blue ceramic reservoir protected by an ivory powder-coated tubular frame, a narrow vermilion emergency lever, folded photovoltaic fins, a recessed canteen filling nozzle, pressure gauge, dust filters, bolts, hinges, carrying handles, and believable service panels. Functional 1970s industrial design language rather than sleek futurism; rugged, repairable construction with chipped enamel, mineral crust, windblown dust, and subtle wear. Integrate it convincingly into the scene with correct contact, perspective, crisp sunlit edges, reflected white ground light, and a compact natural shadow consistent with the existing lighting. Clear readable silhouette suitable for gameplay recognition at a distance. High-end realistic game environment concept paintover, detailed hard-surface design, optimistic heat-haze atmosphere, sun-bleached white, cobalt, ivory, and vermilion palette. No lettering, logo, interface, character, creature, weapon, or additional object.",
+        "negativePrompt": "Any remaining part of the yellow generator, duplicate props, floating object, mismatched perspective, oversized structure, buildings, vehicles, people, cables, fantasy ornament, neon cyberpunk styling, text, logo, watermark, game UI, inventory screen, border, concept sheet, multiple views",
+        "width": 1024,
+        "height": 1024,
+        "strength": 0.8,
+        "maskMargin": 64,
+        "inputs": {
+          "seedImage": "https://assets.runware.ai/assets/inputs/0108a08e-35fa-4165-ab3a-cf40bc84ea97.jpg",
+          "maskImage": "https://assets.runware.ai/assets/inputs/dcac5321-f4eb-4bfe-9133-b38f95a2ce3d.png"
+        }
+      },
+      "response": {
+        "taskType": "imageInference",
+        "imageUUID": "d55ab345-00fe-48c6-954c-97ea4a3861e1",
+        "imageURL": "https://im.runware.ai/image/os/a10dlim3/ws/3/ii/d55ab345-00fe-48c6-954c-97ea4a3861e1.jpg",
+        "seed": 1733162215
+      }
+    }
+  ]
+}

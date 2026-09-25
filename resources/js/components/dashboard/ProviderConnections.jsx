@@ -9,6 +9,7 @@ const defaultEndpoints = {
     anthropic: "https://api.anthropic.com/v1",
     fal: "https://fal.run",
     kinovi: "https://kinovi.ai/api/v1",
+    runware: "https://api.runware.ai/v1",
 };
 const healthStates = {
     discovered: ["neutral", "Katalog terdokumentasi"],
@@ -91,7 +92,10 @@ export default function ProviderConnections({ providers, focusId = null, loading
         setDraft((current) => ({
             ...current,
             [field]: value,
-            ...(field === "protocol" && (value === "fal" || current.base_url === defaultEndpoints[current.protocol])
+            // fal always uses its fixed endpoint; Runware fills its official
+            // endpoint unless the admin already typed a custom URL.
+            ...(field === "protocol" && (value === "fal" || current.base_url === defaultEndpoints[current.protocol]
+                || (value === "runware" && (!current.base_url.trim() || Object.values(defaultEndpoints).includes(current.base_url.trim()))))
                 ? { base_url: defaultEndpoints[value] }
                 : {}),
         }));
@@ -278,21 +282,23 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                         <option value="anthropic">{t("Kompatibel Anthropic")}</option>
                                         <option value="fal">{t("fal (gambar, video, audio & teks)")}</option>
                                         <option value="kinovi">{t("Kinovi (gambar, video, audio & avatar)")}</option>
+                                        <option value="runware">{t("Runware (gambar, video, audio & 3D)")}</option>
                                     </select>
                                     {fieldError("protocol")}
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label htmlFor="provider-base-url" className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">{t("URL dasar HTTPS")}</label>
                                     <input id="provider-base-url" name="base_url" type="url" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} className="ui-input min-h-11" value={draft.base_url} onChange={(event) => changeField("base_url", event.target.value)} readOnly={draft.protocol === "fal"} maxLength={2048} required aria-invalid={!!formState.fields.base_url} aria-describedby={`provider-url-help${formState.fields.base_url ? " provider-base_url-error" : ""}`} />
-                                    <p id="provider-url-help" className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{t(draft.protocol === "fal" ? "Endpoint resmi fal adalah https://fal.run. Gunakan endpoint ini tanpa prefiks tambahan; API fal berbeda dari API kompatibel OpenAI." : "Gunakan URL HTTPS publik tanpa kredensial, query, atau fragmen. URL root menggunakan /v1; sertakan prefiks API jika berbeda.")}</p>
+                                    <p id="provider-url-help" className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{t(draft.protocol === "fal" ? "Endpoint resmi fal adalah https://fal.run. Gunakan endpoint ini tanpa prefiks tambahan; API fal berbeda dari API kompatibel OpenAI." : draft.protocol === "runware" ? "Endpoint resmi Runware adalah https://api.runware.ai/v1. Host dikunci ke api.runware.ai; mock loopback hanya diizinkan di lingkungan pengembangan lokal." : "Gunakan URL HTTPS publik tanpa kredensial, query, atau fragmen. URL root menggunakan /v1; sertakan prefiks API jika berbeda.")}</p>
                                     {draft.protocol === "fal" && <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Model fal yang didukung: FLUX Schnell, FLUX.2 Pro, LongCat 480p, dan Gemini 2.5 Flash Lite. Opsi generasi mengikuti skema masing-masing model.")}</p>}
                                     {fieldError("base_url")}
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label htmlFor="provider-api-key" className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">{t("API key provider")}</label>
-                                    <input id="provider-api-key" name="provider_api_key" type="password" autoComplete="new-password" autoCapitalize="none" spellCheck={false} className="ui-input min-h-11" value={draft.api_key} onChange={(event) => changeField("api_key", event.target.value)} required={keyRequired} aria-invalid={!!formState.fields.api_key} aria-describedby={`provider-key-help${draft.protocol === "fal" ? " provider-fal-key-help" : ""}${connectionChanged ? " provider-rotation-help" : ""}${formState.fields.api_key ? " provider-api_key-error" : ""}`} />
+                                    <input id="provider-api-key" name="provider_api_key" type="password" autoComplete="new-password" autoCapitalize="none" spellCheck={false} className="ui-input min-h-11" value={draft.api_key} onChange={(event) => changeField("api_key", event.target.value)} required={keyRequired} aria-invalid={!!formState.fields.api_key} aria-describedby={`provider-key-help${draft.protocol === "fal" ? " provider-fal-key-help" : draft.protocol === "runware" ? " provider-runware-key-help" : ""}${connectionChanged ? " provider-rotation-help" : ""}${formState.fields.api_key ? " provider-api_key-error" : ""}`} />
                                     <p id="provider-key-help" className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{t(draft.has_api_key ? "API key sudah tersimpan. Kosongkan untuk mempertahankannya, atau masukkan key baru untuk menggantinya." : "Masukkan API key untuk koneksi ini. Key hanya dikirim saat disimpan dan tidak dapat dibaca kembali.")}</p>
                                     {draft.protocol === "fal" && <p id="provider-fal-key-help" className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Gunakan key fal dengan scope API. Scope ADMIN juga dapat digunakan, tetapi tidak diperlukan.")}</p>}
+                                    {draft.protocol === "runware" && <p id="provider-runware-key-help" className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Gunakan API key dari dashboard Runware. Key hanya dikirim ke api.runware.ai dan tidak pernah ditampilkan kembali.")}</p>}
                                     {connectionChanged && <p id="provider-rotation-help" className="mt-1 text-xs font-semibold text-amber-800 dark:text-amber-300">{t("Masukkan API key baru saat mengganti URL atau protokol.")}</p>}
                                     {fieldError("api_key")}
                                 </div>
@@ -349,14 +355,14 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                             <h3 className="min-w-0 max-w-full break-all text-sm font-semibold text-slate-900 dark:text-white">{provider.name || provider.slug}</h3>
                                             <span className={`ui-status ui-status-${tone}`}>{t(health)}</span>
                                         </div>
-                                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.protocol === "fal" ? "fal (gambar, video, audio & teks)" : provider.protocol === "kinovi" ? "Kinovi (gambar, video, audio & avatar)" : provider.protocol === "anthropic" ? "Kompatibel Anthropic" : "Kompatibel OpenAI")} <span aria-hidden="true">/</span> <span className="break-all">{provider.slug}</span></p>
+                                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.protocol === "fal" ? "fal (gambar, video, audio & teks)" : provider.protocol === "kinovi" ? "Kinovi (gambar, video, audio & avatar)" : provider.protocol === "runware" ? "Runware (gambar, video, audio & 3D)" : provider.protocol === "anthropic" ? "Kompatibel Anthropic" : "Kompatibel OpenAI")} <span aria-hidden="true">/</span> <span className="break-all">{provider.slug}</span></p>
                                         <p className="mt-1 break-all text-xs leading-5 text-slate-600 dark:text-slate-400">{provider.configuration_source === "environment" ? t("Dikelola server — URL dan key tetap di konfigurasi server.") : provider.base_url}</p>
                                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t(provider.configuration_source === "environment" ? "Kredensial dikelola server" : provider.has_api_key ? "API key tersimpan" : "API key belum tersimpan")}</p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || !!draft} onClick={(event) => openEditor(provider, event)}>{t("Edit")}</button>
-                                        <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "check")}>{operation.action === "check" ? t("Memeriksa…") : t(provider.protocol === "kinovi" ? "Periksa katalog terdokumentasi" : "Periksa koneksi")}</button>
-                                        {provider.protocol !== "fal" && <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "sync")}>{operation.action === "sync" ? t("Menyinkronkan…") : t("Sinkronkan metadata (draf)")}</button>}
+                                        <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "check")}>{operation.action === "check" ? t("Memeriksa…") : t(provider.protocol === "kinovi" ? "Periksa katalog terdokumentasi" : provider.protocol === "runware" ? "Periksa akun & saldo" : "Periksa koneksi")}</button>
+                                        {!["fal", "runware"].includes(provider.protocol) && <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing || !provider.is_enabled} onClick={() => runOperation(provider, "sync")}>{operation.action === "sync" ? t("Menyinkronkan…") : t("Sinkronkan metadata (draf)")}</button>}
                                         <button type="button" className="ui-btn-secondary min-h-11 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || editing} onClick={() => runOperation(provider, "toggle")}>{operation.action === "toggle" ? t("Menyimpan…") : t(provider.is_enabled ? "Nonaktifkan koneksi" : "Aktifkan koneksi")}</button>
                                         <button type="button" className="ui-btn-secondary min-h-11 text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300" disabled={busy || editing} onClick={() => prepareDeletion(provider)} aria-label={`${t("Hapus provider")} ${provider.name || provider.slug}`}>{t("Hapus provider")}</button>
                                     </div>
@@ -370,6 +376,7 @@ export default function ProviderConnections({ providers, focusId = null, loading
                                 {provider.verification?.authenticated && !provider.verification?.generation_verified && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Kredensial terverifikasi. Pemeriksaan ini bukan pengujian generasi model.")}</p>}
                                 {!provider.is_enabled && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Aktifkan koneksi untuk memeriksa atau menyinkronkan model. Model provider ini tidak dapat digunakan selama koneksi nonaktif.")}</p>}
                                 {provider.protocol === "fal" && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Gunakan impor bertahap pada tab Model & Harga untuk mengambil schema fal. Publikasi selalu memerlukan tinjauan terpisah.")}</p>}
+                                {provider.protocol === "runware" && <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Impor model per halaman dari katalog publik Runware pada tab Model & Harga. Publikasi selalu memerlukan tinjauan harga terpisah; saldo akun hanya terlihat oleh admin.")}</p>}
                                 {provider.last_error && !operation.error && <p role="alert" className="break-words text-xs leading-5 text-red-700 dark:text-red-300">{provider.last_error}</p>}
                                 {operation.error && <div role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs leading-5 text-red-700 dark:text-red-300"><p>{operation.error}</p><p>{t(provider.configuration_source === "environment" ? "Periksa konfigurasi koneksi di server, lalu coba lagi. Tidak ada permintaan generasi yang dikirim." : "Periksa URL, protokol, dan API key melalui Edit, lalu coba lagi. Tidak ada permintaan generasi yang dikirim.")}</p></div>}
                                 {operation.success && <p role="status" className="text-xs text-emerald-800 dark:text-emerald-300">{operation.success}</p>}

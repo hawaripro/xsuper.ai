@@ -1,0 +1,168 @@
+{
+  "model": "tripo-v3-1",
+  "examples": [
+    {
+      "id": "near-future-apiary-smoker-prop",
+      "title": "Near-Future Apiary Smoker Prop",
+      "mode": "segmented-3d",
+      "cost": 0.3,
+      "latencyMs": 111043,
+      "asset": "https://assets.runware.ai/examples/tripo-v3-1/10470c16-e3b9-402d-87c4-4c77e4928a96.glb",
+      "request": {
+        "taskType": "3dInference",
+        "model": "tripo:v3.1@0",
+        "positivePrompt": "Game-ready 3D prop of a rugged near-future beekeeper's smoker used by commercial orchard pollination crews. Practical industrial design with clearly separable functional parts: cylindrical brushed-steel fire chamber, perforated ivory ceramic heat shield, hinged conical lid, short directional smoke nozzle, lime-green silicone bellows with two rigid paddle plates, rear pivot bracket, folding carry handle, side latch, removable ash cup, and small protective feet. Each component should read as a distinct assembled part with believable seams, hinges, fasteners, and thickness. Subtle soot around the nozzle, heat discoloration on steel, dusty wear on grips, restrained cream, graphite, and citrus-green palette. Realistic PBR materials, clean optimized geometry, fully modeled from every angle, neutral resting pose, isolated complete object, no branding or text.",
+        "settings": {
+          "generateParts": true
+        }
+      },
+      "response": {
+        "taskType": "3dInference",
+        "seed": 4101571,
+        "outputs": {
+          "files": [
+            {
+              "uuid": "e2b91e90-8725-4ec7-9a6a-cffc3e376131",
+              "url": "https://im.runware.ai/image/os/a04d20/ws/5/ii/e2b91e90-8725-4ec7-9a6a-cffc3e376131.glb"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "polar-research-ice-core-auger",
+      "title": "Polar Research Ice Core Auger",
+      "mode": "geometry-only-3d",
+      "cost": 0.3,
+      "latencyMs": 106090,
+      "asset": "https://assets.runware.ai/examples/tripo-v3-1/b0f1bf9f-88ee-4b27-baae-56932d7730ed.glb",
+      "request": {
+        "taskType": "3dInference",
+        "model": "tripo:v3.1@0",
+        "positivePrompt": "Create a production-ready 3D prop for a grounded Antarctic survival game: a man-portable ice-core auger, approximately 1.2 meters long. Build a strong readable silhouette around a hollow cylindrical core barrel, broad double-helical chip flights, a toothed cutting crown, and a compact faceted drive housing. Add two folded side handles, a recessed coupling socket, deep bolt wells, guarded vents, grooved grip collars, raised reinforcement ribs, bevels, and stepped mechanical transitions. Make the cutting teeth thick and credible rather than razor thin. The form should feel engineered for field maintenance, with clearly separated functional components and convincing wall thickness. Visual interest must come from sculpted volumes, recesses, edge treatment, and surface geometry rather than decals or printed graphics. Single assembled object, complete on every side, clean game-ready topology, no stand, cable, loose parts, environment, logos, or text.",
+        "settings": {
+          "texture": false,
+          "pbr": false,
+          "geometryQuality": "detailed",
+          "exportUv": false
+        }
+      },
+      "response": {
+        "taskType": "3dInference",
+        "seed": 19639390,
+        "outputs": {
+          "files": [
+            {
+              "uuid": "a12d73d7-0dd8-4a86-bdce-c9f2ca57df79",
+              "url": "https://im.runware.ai/image/os/a01d21/ws/5/ii/a12d73d7-0dd8-4a86-bdce-c9f2ca57df79.glb"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "sculptural-watering-can-product-model",
+      "title": "Sculptural Watering Can Product Model",
+      "mode": "quad-mesh",
+      "cost": 0.35,
+      "latencyMs": 123572,
+      "asset": "https://assets.runware.ai/examples/tripo-v3-1/27b24d27-86be-42aa-82f6-a3413ab6663d.fbx",
+      "request": {
+        "taskType": "3dInference",
+        "outputFormat": "FBX",
+        "model": "tripo:v3.1@0",
+        "settings": {
+          "quad": true,
+          "faceLimit": 8000,
+          "texture": true,
+          "pbr": true
+        },
+        "inputs": {
+          "images": [
+            "https://assets.runware.ai/assets/inputs/a1d96f7f-b153-4b60-8f77-f0aed077a49d.jpg"
+          ]
+        }
+      },
+      "response": {
+        "taskType": "3dInference",
+        "seed": 18574884,
+        "outputs": {
+          "files": [
+            {
+              "uuid": "edad1dce-993c-478e-89c7-6164e7fdab27",
+              "url": "https://im.runware.ai/image/os/a08dlim3/ws/4/ii/edad1dce-993c-478e-89c7-6164e7fdab27.fbx"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "wildfire-ranger-pangolin-character",
+      "title": "Wildfire Ranger Pangolin Character",
+      "mode": "text-to-3d",
+      "cost": 0.5,
+      "latencyMs": 213532,
+      "asset": "https://assets.runware.ai/examples/tripo-v3-1/378010fd-79a1-4de6-91d7-e8c667a41abb.glb",
+      "request": {
+        "taskType": "3dInference",
+        "model": "tripo:v3.1@0",
+        "positivePrompt": "Full-body stylized pangolin wildfire ranger character for a wildlife conservation game, standing upright in a neutral A-pose. Clear compact silhouette with a long heavy tail, tapered snout, sturdy clawed feet, and layered geometric keratin scales. Wearing a practical mustard canvas utility vest, dark green ranger helmet, leather belt with canteen, and rugged rubber field boots. Friendly alert expression, believable anatomy, clean animation-friendly forms, distinct equipment pieces, warm clay-brown scales, matte woven fabric, scuffed leather, and molded rubber. Self-contained character with no base or environment.",
+        "settings": {
+          "geometryQuality": "detailed",
+          "textureQuality": "detailed",
+          "texture": true,
+          "pbr": true
+        }
+      },
+      "response": {
+        "taskType": "3dInference",
+        "seed": 18972723,
+        "outputs": {
+          "files": [
+            {
+              "uuid": "adf08885-b73a-4318-adc3-da1325e16773",
+              "url": "https://im.runware.ai/image/os/a07dlim3/ws/5/ii/adf08885-b73a-4318-adc3-da1325e16773.glb"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "metro-signal-relay-room",
+      "title": "Metro Signal Relay Room",
+      "mode": "reference-to-3d",
+      "cost": 0.3,
+      "latencyMs": 238081,
+      "asset": "https://assets.runware.ai/examples/tripo-v3-1/b36451b5-297c-49fd-a619-a7c475159805.glb",
+      "request": {
+        "taskType": "3dInference",
+        "model": "tripo:v3.1@0",
+        "settings": {
+          "imageAutoFix": true,
+          "orientation": "align_image",
+          "textureAlignment": "original_image"
+        },
+        "inputs": {
+          "images": [
+            "https://assets.runware.ai/assets/inputs/c8bf20e8-5cac-4576-9136-e9a4df58f753.jpg",
+            "https://assets.runware.ai/assets/inputs/b8693f31-a2a7-47c2-8eba-6d33fdc076b1.jpg",
+            "https://assets.runware.ai/assets/inputs/2b86d50b-002a-4a11-9590-7b4cd5fc776a.jpg",
+            "https://assets.runware.ai/assets/inputs/472169a6-fc56-46b4-9af8-47f0d5899c25.jpg"
+          ]
+        }
+      },
+      "response": {
+        "taskType": "3dInference",
+        "seed": 17586916,
+        "outputs": {
+          "files": [
+            {
+              "uuid": "6d725f96-a1ec-4f0b-a417-3728f08f0df4",
+              "url": "https://im.runware.ai/image/os/a06dlim3/ws/5/ii/6d725f96-a1ec-4f0b-a417-3728f08f0df4.glb"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

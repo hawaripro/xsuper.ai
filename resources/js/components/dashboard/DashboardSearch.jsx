@@ -6,12 +6,14 @@ import { useLocale } from "../../contexts/LocaleContext";
 import { apiRequest } from "../../lib/api";
 import "./dashboard-search.css";
 
+// Legacy studio paths stay valid: they redirect into /studio with their query.
 const DESTINATIONS = new Set([
-    "/dashboard", "/chat", "/library", "/templates", "/generate-image", "/video", "/audio", "/media",
+    "/dashboard", "/chat", "/library", "/templates", "/studio", "/generate-image", "/video", "/audio", "/avatar", "/3d", "/media",
     "/downloads", "/converter", "/notifications", "/token-usage", "/deposit", "/referral", "/bantuan", "/profile",
     "/admin/overview", "/admin/users", "/admin/token-usage", "/admin/operations", "/admin/content", "/admin/ai", "/admin/system", "/admin/settings",
 ]);
-const RESULT_TYPES = new Set(["destination", "model", "conversation", "image", "video", "audio", "download", "convert", "template"]);
+const RESULT_TYPES = new Set(["destination", "model", "conversation", "image", "video", "audio", "avatar", "model3d", "download", "convert", "template"]);
+const RESULT_ICONS = { avatar: "video", model3d: "model" };
 
 function SearchIcon({ kind = "search" }) {
     const paths = {
@@ -211,7 +213,7 @@ function SearchDialog({ onClose, triggerRef, isAdmin }) {
                                     onMouseDown={(event) => event.preventDefault()}
                                     onClick={() => activate(result)}
                                 >
-                                    <span className="dashboard-search-kind" data-kind={result.type}><SearchIcon kind={result.type} /></span>
+                                    <span className="dashboard-search-kind" data-kind={result.type}><SearchIcon kind={RESULT_ICONS[result.type] || result.type} /></span>
                                     <span className="dashboard-search-result-copy">
                                         <strong>{result.type === "destination" ? t(result.title) : result.title}</strong>
                                         <span>{result.type === "destination" || result.type === "template" || result.type === "conversation" ? t(result.description) : result.description}</span>

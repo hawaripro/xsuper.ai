@@ -1,0 +1,1158 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Runware API - Qwen3-TTS 1.7B Base",
+    "summary": "High-quality multilingual text-to-speech with voice cloning and ultra-low latency",
+    "description": "Qwen3-TTS 1.7B Base is the foundation text-to-speech model from Alibaba's Qwen3-TTS family. It generates human-like speech across 10+ languages including Chinese, English, Japanese, Korean, and European languages. It supports voice cloning from a 3-second audio sample and achieves latency as low as 97ms for real-time applications.",
+    "version": "1.0.0",
+    "x-model-id": "alibaba-qwen3-tts-1-7b-base",
+    "x-air-id": "alibaba:qwen@3-tts-1.7b-base",
+    "x-status": "live",
+    "x-creator": {
+      "id": "alibaba",
+      "name": "Alibaba",
+      "logo": "https://assets.runware.ai/cd72ed4c-ef94-4962-a44b-cbe38b3bf6ea.png"
+    },
+    "x-capabilities": [
+      "text-to-audio",
+      "checkpoint"
+    ],
+    "x-modes": [
+      {
+        "id": "audio",
+        "inputs": [
+          "audio"
+        ]
+      }
+    ],
+    "x-released-at": "2026-01-01T00:00:00Z",
+    "x-cover-image": "https://assets.runware.ai/covers/alibaba-qwen3-tts-1-7b-base.jpg",
+    "x-examples": "https://runware.ai/docs/models/alibaba-qwen3-tts-1-7b-base/examples.json",
+    "x-pricing": {
+      "currency": "USD",
+      "docs": "https://runware.ai/docs/platform/pricing",
+      "rates": [
+        {
+          "amount": 0.000015,
+          "unit": "character",
+          "display": "$0.000015 per character"
+        }
+      ],
+      "examples": [
+        {
+          "id": "orbital-greenhouse-intercom-ambience",
+          "configuration": "speaker-embedding",
+          "price": 0.0005,
+          "latencyMs": 3772
+        },
+        {
+          "id": "coffee-grounds-collection-explainer",
+          "configuration": "speaker-embedding",
+          "price": 0.0028,
+          "latencyMs": 4814
+        },
+        {
+          "id": "rare-seed-licensing-podcast-intro",
+          "configuration": "voice-cloning",
+          "price": 0.0029,
+          "latencyMs": 4286
+        },
+        {
+          "id": "urban-leak-detection-explainer",
+          "configuration": "voice-cloning",
+          "price": 0.0052,
+          "latencyMs": 3608
+        }
+      ]
+    }
+  },
+  "externalDocs": {
+    "description": "Qwen3-TTS 1.7B Base on Runware",
+    "url": "https://runware.ai/docs/models/alibaba-qwen3-tts-1-7b-base"
+  },
+  "servers": [
+    {
+      "url": "https://api.runware.ai/v1",
+      "description": "Runware REST API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Runware API Key (e.g., Bearer <your-key>)"
+      }
+    },
+    "schemas": {
+      "AuthenticationTask": {
+        "title": "Authentication",
+        "description": "Authenticates a connection using an API key. Can be sent as the first element of the request array as an alternative to using the Authorization header.",
+        "type": "object",
+        "x-response-schema": "https://schemas.runware.ai/responses/utilities/authentication.json",
+        "properties": {
+          "taskType": {
+            "$id": "https://schemas.runware.ai/requests/parameters/api/task-type.json",
+            "title": "Task Type",
+            "description": "Identifier for the type of task being performed.",
+            "type": "string",
+            "const": "authentication"
+          },
+          "apiKey": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/api-key.json",
+            "title": "API Key",
+            "description": "Your Runware API key.",
+            "type": "string"
+          },
+          "connectionSessionUUID": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/connection-session-uuid.json",
+            "title": "Connection Session UUID",
+            "description": "Optional session UUID to resume a previous connection and receive any buffered results.",
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "taskType",
+          "apiKey"
+        ],
+        "additionalProperties": false
+      },
+      "RequestBody": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "title": "Model",
+              "description": "Identifier of the model to use for generation.",
+              "type": "string",
+              "const": "alibaba:qwen@3-tts-1.7b-base"
+            },
+            "inputs": {
+              "title": "Inputs",
+              "description": "Input assets for the task.",
+              "type": "object",
+              "properties": {
+                "audio": {
+                  "title": "Audio",
+                  "description": "Audio input (UUID or URL).",
+                  "type": "string",
+                  "anyOf": [
+                    {
+                      "format": "uuid"
+                    },
+                    {
+                      "format": "uri"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "audio"
+              ],
+              "additionalProperties": false
+            },
+            "speech": {
+              "title": "Speech",
+              "description": "Settings for speech generation.",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "title": "Speech Text",
+                  "description": "Text to convert to speech.",
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "voice": {
+                  "title": "Voice",
+                  "description": "Voice identifier to use for speech generation.",
+                  "type": "string",
+                  "const": "clone"
+                },
+                "language": {
+                  "title": "Language",
+                  "description": "Language code for speech generation.",
+                  "type": "string",
+                  "minLength": 1,
+                  "enum": [
+                    "Auto",
+                    "Chinese",
+                    "English",
+                    "Japanese",
+                    "Korean",
+                    "German",
+                    "French",
+                    "Russian",
+                    "Portuguese",
+                    "Spanish",
+                    "Italian"
+                  ],
+                  "default": "Auto"
+                },
+                "speed": {
+                  "title": "Speed",
+                  "description": "Playback speed of the generated speech.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": 0.25,
+                  "maximum": 4,
+                  "default": 1
+                }
+              },
+              "required": [
+                "text",
+                "voice"
+              ],
+              "additionalProperties": false
+            },
+            "settings": {
+              "title": "Settings",
+              "description": "Global inference settings.",
+              "type": "object",
+              "properties": {
+                "maxNewTokens": {
+                  "title": "Max New Tokens",
+                  "description": "Audio output token cap. Higher values allow longer audio but risk hangs.",
+                  "type": "integer",
+                  "default": 2048
+                },
+                "transcript": {
+                  "type": "string",
+                  "title": "Transcript",
+                  "description": "Transcript of the reference audio. Required for ICL mode, optional for x-vector-only mode."
+                },
+                "xVectorOnly": {
+                  "type": "boolean",
+                  "title": "X-Vector Only",
+                  "description": "If true, uses speaker embedding only (no transcript needed, lower similarity). If false, uses ICL mode (requires transcript, higher quality)."
+                }
+              },
+              "additionalProperties": false
+            },
+            "taskType": {
+              "title": "Task Type",
+              "description": "Identifier for the type of task being performed.",
+              "type": "string",
+              "const": "audioInference"
+            },
+            "taskUUID": {
+              "title": "Task UUID",
+              "description": "UUID v4 identifier for tracking tasks and matching async responses. Must be unique per task.",
+              "type": "string",
+              "format": "uuid"
+            },
+            "webhookURL": {
+              "title": "Webhook URL",
+              "description": "Webhook URL that receives JSON responses via HTTP POST when generation tasks complete. For batch requests with multiple results, each completed item triggers a separate webhook call as it becomes available.",
+              "type": "string",
+              "format": "uri"
+            },
+            "includeCost": {
+              "title": "Include Cost",
+              "description": "Include task cost in the response.",
+              "type": "boolean"
+            },
+            "numberResults": {
+              "title": "Number of Results",
+              "description": "Number of results to generate. Each result uses a different seed, producing variations of the same parameters.",
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "maximum": 4
+            },
+            "uploadEndpoint": {
+              "title": "Upload Endpoint",
+              "description": "Specifies a URL where the generated content will be automatically uploaded using the HTTP PUT method. The raw binary data of the media file is sent directly as the request body. For secure uploads to cloud storage, use presigned URLs that include temporary authentication credentials.\n\n**Common use cases:**\n\n- **Cloud storage**: Upload directly to S3 buckets, Google Cloud Storage, or Azure Blob Storage using presigned URLs.\n- **CDN integration**: Upload to content delivery networks for immediate distribution.\n\n```text\n// S3 presigned URL for secure upload\nhttps://your-bucket.s3.amazonaws.com/generated/content.mp4?X-Amz-Signature=abc123&X-Amz-Expires=3600\n\n// Google Cloud Storage presigned URL\nhttps://storage.googleapis.com/your-bucket/content.jpg?X-Goog-Signature=xyz789\n\n// Custom storage endpoint\nhttps://storage.example.com/uploads/generated-image.jpg\n```\n\nThe content data will be sent as the request body to the specified URL when generation is complete.\n\n[Read full documentation](https://runware.ai/docs/models/alibaba-qwen3-tts-1-7b-base#uploadEndpoint)",
+              "type": "string",
+              "format": "uri"
+            },
+            "ttl": {
+              "title": "TTL",
+              "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+              "type": "integer",
+              "minimum": 60
+            },
+            "outputType": {
+              "title": "Output Type",
+              "description": "Audio output type.",
+              "type": "string",
+              "enum": [
+                "URL",
+                "base64Data",
+                "dataURI"
+              ],
+              "default": "URL"
+            },
+            "outputFormat": {
+              "title": "Output Format",
+              "description": "Specifies the file format of the generated output. The available values depend on the task type and the specific model's capabilities.\n\n- \\`JPG\\`: Best for photorealistic images with smaller file sizes (no transparency).\n- \\`PNG\\`: Lossless compression, supports high quality and transparency (alpha channel).\n- \\`WEBP\\`: Modern format providing superior compression and transparency support.\n- \\`MP4\\`: Widely supported video container (H.264), recommended for general use.\n- \\`WEBM\\`: Optimized for web delivery.\n- \\`MOV\\`: QuickTime format, common in professional workflows (Apple ecosystem).\n- \\`GIF\\`: Animated image format (no audio), suitable for short loops or previews.\n- \\`MP3\\`: Compressed audio, smaller file size.\n- \\`WAV\\`: Uncompressed, high-quality audio.\n- \\`FLAC\\`: Lossless compression.\n- \\`OGG\\`: Open-source compressed audio format (Vorbis codec).\n- \\`SVG\\`: Scalable Vector Graphics.\n- \\`TIFF\\`: High-quality output supporting layers.\n- \\`GLB\\`: Binary glTF format for 3D models, including geometry, textures, and PBR materials.\n\n> [!NOTE]\n> \\*\\*Transparency\\*\\*: If you are using features like background removal or LayerDiffuse that require transparency, you must select a format that supports an alpha channel (e.g., \\`PNG\\`, \\`WEBP\\`, \\`TIFF\\`). \\`JPG\\` does not support transparency.\n\n[Read full documentation](https://runware.ai/docs/models/alibaba-qwen3-tts-1-7b-base#outputFormat)",
+              "type": "string",
+              "enum": [
+                "MP3",
+                "WAV",
+                "FLAC",
+                "OGG"
+              ],
+              "default": "MP3"
+            },
+            "deliveryMethod": {
+              "title": "Delivery Method",
+              "description": "Determines how the API delivers task results.",
+              "type": "string",
+              "oneOf": [
+                {
+                  "const": "sync",
+                  "description": "Returns complete results directly in the API response."
+                },
+                {
+                  "const": "async",
+                  "description": "Returns an immediate acknowledgment with the task UUID. Poll for results using getResponse."
+                }
+              ],
+              "default": "sync"
+            },
+            "audioSettings": {
+              "title": "Audio Settings",
+              "description": "Audio encoding settings for controlling the bitrate, number of channels, and sample rate of the generated audio. Only applicable for lossy output formats (`MP3` and `OGG`). When using lossless formats (`WAV` or `FLAC`), this parameter must not be provided.\n\nThe available sample rates and valid bitrate ranges depend on the output format. For `OGG`, bitrate limits also vary by the number of channels.\n\n**MP3 bitrate limits**:\n\nBitrate limits for MP3 are the same regardless of mono or stereo.\n\n| Sample Rate | Min Bitrate | Max Bitrate |\n| --- | --- | --- |\n| 8,000 Hz | 8 kbps | 64 kbps |\n| 11,025 Hz | 8 kbps | 64 kbps |\n| 12,000 Hz | 8 kbps | 64 kbps |\n| 16,000 Hz | 8 kbps | 160 kbps |\n| 22,050 Hz | 8 kbps | 160 kbps |\n| 24,000 Hz | 8 kbps | 160 kbps |\n| 32,000 Hz | 32 kbps | 320 kbps |\n| 44,100 Hz | 32 kbps | 320 kbps |\n| 48,000 Hz | 32 kbps | 320 kbps |\n\n**OGG bitrate limits — Mono (1 channel)**:\n\n| Sample Rate | Min Bitrate | Max Bitrate |\n| --- | --- | --- |\n| 8,000 Hz | 8 kbps | 40 kbps |\n| 12,000 Hz | 16 kbps | 48 kbps |\n| 16,000 Hz | 16 kbps | 96 kbps |\n| 24,000 Hz | 16 kbps | 80 kbps |\n| 48,000 Hz | 32 kbps | 224 kbps |\n\n**OGG bitrate limits — Stereo (2 channels)**:\n\n| Sample Rate | Min Bitrate | Max Bitrate |\n| --- | --- | --- |\n| 8,000 Hz | 16 kbps | 80 kbps |\n| 12,000 Hz | 16 kbps | 96 kbps |\n| 16,000 Hz | 24 kbps | 192 kbps |\n| 24,000 Hz | 32 kbps | 160 kbps |\n| 48,000 Hz | 48 kbps | 256 kbps |\n\n> [!NOTE]\n> **Lossless formats**: When `outputFormat` is set to `WAV` or `FLAC`, the `audioSettings` parameter is not available since these formats produce uncompressed or lossless audio with no configurable encoding settings.\n\n[Read full documentation](https://runware.ai/docs/models/alibaba-qwen3-tts-1-7b-base#audioSettings)",
+              "type": "object",
+              "properties": {
+                "bitrate": {
+                  "title": "Bitrate",
+                  "description": "Audio bitrate in kbps.",
+                  "type": "integer",
+                  "minimum": 8
+                },
+                "channels": {
+                  "title": "Channels",
+                  "description": "Number of audio channels. 1 for mono, 2 for stereo.",
+                  "type": "integer",
+                  "enum": [
+                    1,
+                    2
+                  ],
+                  "default": 2
+                },
+                "sampleRate": {
+                  "title": "Sample Rate",
+                  "description": "Audio sample rate in Hz.",
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "speech",
+            "inputs",
+            "taskType",
+            "taskUUID",
+            "model"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "outputFormat": {
+                    "enum": [
+                      "WAV",
+                      "FLAC"
+                    ]
+                  }
+                },
+                "required": [
+                  "outputFormat"
+                ]
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "audioSettings"
+                  ]
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "outputFormat": {
+                    "const": "MP3"
+                  }
+                },
+                "required": [
+                  "outputFormat"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "audioSettings": {
+                    "properties": {
+                      "sampleRate": {
+                        "enum": [
+                          8000,
+                          11025,
+                          12000,
+                          16000,
+                          22050,
+                          24000,
+                          32000,
+                          44100,
+                          48000
+                        ]
+                      }
+                    }
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "enum": [
+                                8000,
+                                11025,
+                                12000
+                              ]
+                            }
+                          },
+                          "required": [
+                            "sampleRate"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 8,
+                              "maximum": 64
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "enum": [
+                                16000,
+                                22050,
+                                24000
+                              ]
+                            }
+                          },
+                          "required": [
+                            "sampleRate"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 8,
+                              "maximum": 160
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "enum": [
+                                32000,
+                                44100,
+                                48000
+                              ]
+                            }
+                          },
+                          "required": [
+                            "sampleRate"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 32,
+                              "maximum": 320
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "outputFormat": {
+                    "const": "OGG"
+                  }
+                },
+                "required": [
+                  "outputFormat"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "audioSettings": {
+                    "properties": {
+                      "sampleRate": {
+                        "enum": [
+                          8000,
+                          12000,
+                          16000,
+                          24000,
+                          48000
+                        ]
+                      }
+                    }
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 8000
+                            },
+                            "channels": {
+                              "const": 1
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 8,
+                              "maximum": 40
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 8000
+                            },
+                            "channels": {
+                              "const": 2
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 16,
+                              "maximum": 80
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 12000
+                            },
+                            "channels": {
+                              "const": 1
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 16,
+                              "maximum": 48
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 12000
+                            },
+                            "channels": {
+                              "const": 2
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 16,
+                              "maximum": 96
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 16000
+                            },
+                            "channels": {
+                              "const": 1
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 16,
+                              "maximum": 96
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 16000
+                            },
+                            "channels": {
+                              "const": 2
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 24,
+                              "maximum": 192
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 24000
+                            },
+                            "channels": {
+                              "const": 1
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 16,
+                              "maximum": 80
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 24000
+                            },
+                            "channels": {
+                              "const": 2
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 32,
+                              "maximum": 160
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 48000
+                            },
+                            "channels": {
+                              "const": 1
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 32,
+                              "maximum": 224
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "sampleRate": {
+                              "const": 48000
+                            },
+                            "channels": {
+                              "const": 2
+                            }
+                          },
+                          "required": [
+                            "sampleRate",
+                            "channels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "audioSettings"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "audioSettings": {
+                          "properties": {
+                            "bitrate": {
+                              "minimum": 48,
+                              "maximum": 256
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "settings": {
+                    "properties": {
+                      "xVectorOnly": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "xVectorOnly"
+                    ]
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              },
+              "then": {
+                "required": [
+                  "settings"
+                ]
+              },
+              "else": {
+                "properties": {
+                  "settings": {
+                    "required": [
+                      "transcript"
+                    ]
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              }
+            }
+          ],
+          "additionalProperties": false
+        },
+        "description": "You must always POST an array of task objects."
+      },
+      "ResponseBody": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "title": "Audio Response",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "taskType": {
+                  "title": "Task Type",
+                  "description": "Identifier for the type of task this response belongs to.",
+                  "type": "string",
+                  "const": "audioInference"
+                },
+                "taskUUID": {
+                  "title": "Task UUID",
+                  "description": "UUID v4 identifier echoed from the original request, used to match async responses to their tasks.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "description": "Task cost in USD. Present when `includeCost` is set to `true` in the request.",
+                  "type": "number"
+                },
+                "audioUUID": {
+                  "title": "Audio UUID",
+                  "description": "UUID of the output audio.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "audioURL": {
+                  "title": "Audio URL",
+                  "description": "URL of the output audio.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "audioBase64Data": {
+                  "title": "Audio Base64 Data",
+                  "description": "Base64-encoded audio data.",
+                  "type": "string"
+                },
+                "audioDataURI": {
+                  "title": "Audio Data URI",
+                  "description": "Data URI of the output audio.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "seed": {
+                  "title": "Seed",
+                  "description": "The seed used for generation. If none was provided, shows the randomly generated seed.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "taskType",
+                "taskUUID",
+                "audioUUID"
+              ]
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "title": "Error Response",
+        "description": "Standard error response returned by the Runware API.",
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": true,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "A short identifier for the error (e.g., invalidApiKey, timeoutProvider)."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable explanation of what went wrong."
+                },
+                "parameter": {
+                  "type": "string",
+                  "description": "The request parameter related to the error, if applicable."
+                },
+                "taskType": {
+                  "type": "string",
+                  "description": "The task type of the request that failed."
+                },
+                "taskUUID": {
+                  "type": "string",
+                  "description": "The unique identifier of the failed request."
+                },
+                "documentation": {
+                  "type": "string",
+                  "description": "A link to relevant documentation."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "errors"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "post": {
+        "summary": "Run Qwen3-TTS 1.7B Base",
+        "description": "Qwen3-TTS 1.7B Base is the foundation text-to-speech model from Alibaba's Qwen3-TTS family. It generates human-like speech across 10+ languages including Chinese, English, Japanese, Korean, and European languages. It supports voice cloning from a 3-second audio sample and achieves latency as low as 97ms for real-time applications.",
+        "operationId": "run_alibaba_qwen3_tts_1_7b_base",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Missing or invalid parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — No valid API key provided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — Insufficient account balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — The API key lacks permissions for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests — Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error — Something went wrong on Runware's end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — Temporarily unavailable (maintenance or capacity).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ]
+}

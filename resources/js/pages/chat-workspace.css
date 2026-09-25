@@ -13,7 +13,9 @@
     font-size: calc(100% * var(--cw-font-scale));
     overflow: hidden;
 }
-.cw-global-announcement { flex: 0 0 auto; width: 100%; position: relative; z-index: 60; }
+/* The ribbon stays on top of every chat layer; the mobile rail, the context drawer and their
+   scrims start below it at var(--xs-ribbon-h), which AnnouncementRibbon publishes. */
+.cw-global-announcement { flex: 0 0 auto; width: 100%; position: relative; z-index: 90; }
 .cw-workspace-shell { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
 /* ---- Theme tokens ---- */
@@ -72,7 +74,7 @@
 
 /* ---- Overlay (mobile rail) ---- */
 .cw-overlay {
-    position: fixed; inset: 0; z-index: 30;
+    position: fixed; inset: var(--xs-ribbon-h, 0px) 0 0; z-index: 30;
     background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px);
     animation: cw-fade-in 0.2s ease-out;
 }
@@ -82,7 +84,7 @@
    History rail
    ============================================================ */
 .cw-rail {
-    position: fixed; inset: 0 auto 0 0; z-index: 40;
+    position: fixed; inset: var(--xs-ribbon-h, 0px) auto 0 0; z-index: 40;
     display: flex; flex-direction: column;
     width: 280px; border-right: 1px solid var(--cw-border);
     background: var(--cw-rail-bg); backdrop-filter: blur(20px);

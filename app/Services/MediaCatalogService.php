@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Media\CapabilityUi;
 use App\Media\FalCapabilityImporter;
 use App\Media\FalSupplementalContracts;
+use App\Media\RunwareSchemaNormalizer;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\MediaCapabilityRevision;
@@ -24,11 +25,21 @@ final class MediaCatalogService
         private readonly AiProviderTransport $transport,
         private readonly FalCapabilityImporter $importer,
         private readonly AuditService $audit,
+        private readonly RunwareCatalogSource $runwareSource,
+        private readonly RunwareSchemaNormalizer $runwareNormalizer,
     ) {}
 
     public function discover(AiProviderProfile $provider, User $actor, ?string $cursor, int $limit): array
     {
         $connection = Arr::only($provider->getRawOriginal(), ['base_url', 'api_key', 'protocol', 'api_version']);
+        if ($provider->protocol === 'runware') {
+            // The public catalog needs no credentials; a changed connection still invalidates the page.
+            $page = $this->runwareSource->page($provider, $cursor, $limit);
+            $result = $this->importRunware($provider, $actor, $page['models'], $connection, 'discovery');
+
+            return ['next_cursor' => $page['next_cursor'], 'discovered' => $result['discovered'], 'imported' => $result['imported'],
+                'skipped' => $result['skipped'], 'total' => $page['total'], 'counts' => $this->counts($provider->id)];
+        }
         $page = $this->transport->discoverFalPage($provider, $cursor, $limit);
         $imported = DB::transaction(function () use ($provider, $actor, $connection, $page): int {
             $provider = AiProviderProfile::query()->lockForUpdate()->findOrFail($provider->id);
@@ -57,6 +68,85 @@ final class MediaCatalogService
         return ['next_cursor' => $page['next_cursor'], 'discovered' => count($page['models']), 'imported' => $imported, 'counts' => $this->counts($provider->id)];
     }
 
+    /**
+     * Import normalized Runware bundles (a discovery page or an offline copy) as unpublished v2
+     * candidates. New models start disabled, unavailable and unpriced; curated identity,
+     * category, label, activation and price are never replaced on re-import.
+     *
+     * @param  list<array<string, mixed>>  $bundles
+     * @return array{discovered: int, imported: int, skipped: int, revisions: int, models: list<array<string, mixed>>}
+     */
+    public function importRunware(AiProviderProfile $provider, User $actor, array $bundles, ?array $connection = null, string $source = 'offline'): array
+    {
+        abort_unless($actor->isAdmin(), 403);
+        $result = DB::transaction(function () use ($provider, $actor, $bundles, $connection, $source): array {
+            $provider = AiProviderProfile::query()->lockForUpdate()->findOrFail($provider->id);
+            if ($provider->protocol !== 'runware') {
+                throw new HttpResponseException(response()->json(['message' => 'Runware catalog import requires a Runware provider.'], 422));
+            }
+            if ($connection !== null && Arr::only($provider->getRawOriginal(), array_keys($connection)) !== $connection) {
+                throw new HttpResponseException(response()->json(['message' => 'The provider connection changed. Discover again.'], 409));
+            }
+            $summary = ['discovered' => count($bundles), 'imported' => 0, 'skipped' => 0, 'revisions' => 0, 'models' => []];
+            foreach ($bundles as $bundle) {
+                $facts = $this->runwareNormalizer->describe($bundle);
+                $model = $this->runwareModel($provider, $facts);
+                if ($facts['skip'] !== null) {
+                    // A local copy of a model Runware retired or has not released must not stay usable.
+                    if ($model !== null && $facts['skip'] !== 'text-to-text') {
+                        $model->update(['is_available' => false, 'last_seen_at' => now()]);
+                    }
+                    $summary['skipped']++;
+                    $summary['models'][] = ['model_id' => $facts['model_id'], 'skipped' => $facts['skip']];
+
+                    continue;
+                }
+                // A transient schema fetch failure must not shadow the captured source: the catalog price unit and
+                // offline renormalization read the newest source-backed revision.
+                if (! is_array($bundle['openapi'] ?? null) && $model !== null && $model->capabilityRevisions()
+                    ->whereNotNull('source_schema')->where('source_hash', '!=', FalCapabilityImporter::hash([]))->exists()) {
+                    $model->update(['last_seen_at' => now()]);
+                    $summary['skipped']++;
+                    $summary['models'][] = ['model_id' => $facts['model_id'], 'public_model_id' => $model->model_id, 'skipped' => 'schema_unavailable'];
+
+                    continue;
+                }
+                $normalized = $this->runwareNormalizer->normalize($bundle, $model?->model_id ?? 'runware/'.$facts['model_id']);
+                if ($model === null) {
+                    $model = $this->newRunwareModel($provider, $normalized);
+                    if ($model->model_id !== 'runware/'.$facts['model_id']) {
+                        $normalized = $this->runwareNormalizer->normalize($bundle, $model->model_id);
+                    }
+                }
+                $model->update([
+                    'is_available' => $normalized['available'], 'last_seen_at' => now(),
+                    // Descriptive fields are filled once; an administrator's text is never replaced.
+                    ...(blank($model->description_en) && $normalized['description'] !== null ? ['description_en' => $normalized['description']] : []),
+                    ...(blank($model->logo_url) && $normalized['logo_url'] !== null ? ['logo_url' => $normalized['logo_url']] : []),
+                ]);
+                $created = [];
+                foreach ($normalized['operations'] as $operation) {
+                    [$revision, $wasCreated] = $this->runwareCandidate($model, $bundle, $normalized, $operation, $actor);
+                    if ($wasCreated) {
+                        $created[] = $revision->id;
+                    }
+                }
+                $summary['imported'] += (int) ($created !== []);
+                $summary['revisions'] += count($created);
+                $summary['models'][] = ['model_id' => $facts['model_id'], 'public_model_id' => $model->model_id,
+                    'operations' => array_keys($normalized['operations']), 'created_revision_ids' => $created];
+            }
+            $provider->update(['catalog_discovered_at' => now()]);
+            $this->audit->record($actor, 'ai_catalog.discovered', $provider, ['source' => $source, 'discovered' => $summary['discovered'],
+                'imported' => $summary['imported'], 'skipped' => $summary['skipped'], 'revisions' => $summary['revisions']]);
+
+            return $summary;
+        });
+        Cache::forget('public-model-catalog-v3');
+
+        return $result;
+    }
+
     /** Offline only: no catalog lookup, provider authentication, price change or publication. */
     public function renormalize(AiModelProfile $model, User $actor): array
     {
@@ -66,8 +156,11 @@ final class MediaCatalogService
             $model = AiModelProfile::query()->with('provider')->lockForUpdate()->findOrFail($model->id);
             $source = $model->capabilityRevisions()->whereNotNull('source_schema')->orderByDesc('id')->first();
             $base = ['model_id' => $model->id, 'model_public_id' => $model->model_id, 'category' => $model->category, 'created' => false, 'contract_version' => 2];
+            if ($model->provider?->protocol === 'runware') {
+                return $this->renormalizeRunware($model, $actor, $source, $base);
+            }
             if ($model->provider?->protocol !== 'fal') {
-                return [...$base, 'blockers' => [['code' => 'unsupported_provider', 'message' => 'Offline source normalization requires a fal provider.']]];
+                return [...$base, 'blockers' => [['code' => 'unsupported_provider', 'message' => 'Offline source normalization requires a fal or Runware provider.']]];
             }
             if ($source !== null && (! is_array($source->source_metadata) || empty($source->source_metadata['endpoint_id']))) {
                 return [...$base, 'source_revision_id' => $source->id, 'blockers' => [['code' => 'missing_source_identity', 'message' => 'The captured source has no endpoint identity; do not infer provider routing.']]];
@@ -120,8 +213,12 @@ final class MediaCatalogService
                     continue;
                 }
                 $model->setRelation('provider', $provider);
-                if (! is_int($item['token_cost'] ?? null) || $item['token_cost'] < 1 || $item['token_cost'] > 2_147_483_647 || ($item['price_unit'] ?? null) !== 'request') {
+                if (! is_int($item['token_cost'] ?? null) || $item['token_cost'] < 1 || $item['token_cost'] > 2_147_483_647) {
                     $errors["items.$index.token_cost"] = 'Enter a positive integer sale price per whole request.';
+                }
+                // Each model is priced in its own catalog unit: per request (fal), per result or per second (Runware).
+                if (($item['price_unit'] ?? null) !== MediaModelConfig::catalogPriceUnit($model)) {
+                    $errors["items.$index.price_unit"] = 'Use this model\'s catalog price unit.';
                 }
                 if ($model->token_cost > 0) {
                     $errors["items.$index.token_cost"] = 'An existing positive sale price is protected. Review this candidate individually without changing its tariff.';
@@ -156,15 +253,15 @@ final class MediaCatalogService
                 $before = $model->token_cost;
                 $model->update(['token_cost' => $item['token_cost']]);
                 $revision->update(['curation_overrides' => [...($revision->curation_overrides ?? []), 'pricing' => [
-                    'token_cost' => $item['token_cost'], 'unit' => 'request', 'variable_configuration' => true,
+                    'token_cost' => $item['token_cost'], 'unit' => $item['price_unit'], 'variable_configuration' => true,
                     'reviewed_by' => $actor->id, 'reviewed_at' => now()->toISOString(),
                     ...($revision->operation === 'realtime_video' ? ['max_session_seconds' => $revision->executionMetadata()['max_session_seconds']] : []),
                 ]]]);
                 $revision = $this->transition($revision, $actor, $action, true);
                 $this->auditRevision($actor, 'price_reviewed', $revision, [
-                    'previous_token_cost' => $before, 'token_cost' => $item['token_cost'], 'price_unit' => 'request', 'bulk' => true,
+                    'previous_token_cost' => $before, 'token_cost' => $item['token_cost'], 'price_unit' => $item['price_unit'], 'bulk' => true,
                 ]);
-                $results[] = ['model_id' => $model->id, 'revision_id' => $revision->id, 'status' => $revision->status, 'token_cost' => $model->token_cost, 'price_unit' => 'request'];
+                $results[] = ['model_id' => $model->id, 'revision_id' => $revision->id, 'status' => $revision->status, 'token_cost' => $model->token_cost, 'price_unit' => $item['price_unit']];
             }
             $this->audit->record($actor, $action === 'publish' ? 'ai_catalog.bulk_published' : 'ai_catalog.bulk_reviewed', $provider, [
                 'items' => $results, 'count' => count($results), 'existing_positive_prices_preserved' => true,
@@ -378,23 +475,150 @@ final class MediaCatalogService
         throw new HttpResponseException(response()->json(['message' => 'The catalog identity changed. Discover again.'], 409));
     }
 
+    /** The stored model for a Runware entry: by AIR, or by its public ID when the schema has no fixed AIR. */
+    private function runwareModel(AiProviderProfile $provider, array $facts): ?AiModelProfile
+    {
+        $query = AiModelProfile::query()->where('provider_id', $provider->id);
+        $facts['air'] !== null
+            ? $query->where('upstream_identity', $facts['air'])
+            : $query->whereNull('upstream_model_id')->where('model_id', 'runware/'.$facts['model_id']);
+
+        return $query->lockForUpdate()->first();
+    }
+
+    private function newRunwareModel(AiProviderProfile $provider, array $normalized): AiModelProfile
+    {
+        $output = match ($normalized['category']) {
+            'image', 'video', 'audio', 'model3d' => [$normalized['category']],
+            default => ['data'],
+        };
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $id = self::publicModelId($provider, 'runware/'.$normalized['model_id'], $attempt);
+            try {
+                return DB::transaction(fn () => AiModelProfile::create([
+                    'provider_id' => $provider->id, 'model_id' => $id, 'upstream_model_id' => $normalized['air'],
+                    'display_name' => $normalized['name'], 'provider_name' => $provider->name, 'category' => $normalized['category'],
+                    'description_en' => $normalized['description'], 'logo_url' => $normalized['logo_url'],
+                    'is_enabled' => false, 'is_available' => false, 'capabilities' => [], 'token_cost' => null,
+                    'input_modalities' => ['text'], 'output_modalities' => $output,
+                ]));
+            } catch (UniqueConstraintViolationException $exception) {
+                if (! AiModelProfile::where('model_id', $id)->exists()) {
+                    throw $exception;
+                }
+            }
+        }
+        throw new HttpResponseException(response()->json(['message' => 'The catalog identity changed. Discover again.'], 409));
+    }
+
+    /** The model row must already be locked; one immutable candidate per (source, operation, contract). */
+    private function runwareCandidate(AiModelProfile $model, array $bundle, array $normalized, array $operation, User $actor): array
+    {
+        $source = is_array($bundle['openapi'] ?? null) ? $bundle['openapi'] : [];
+        $hash = FalCapabilityImporter::hash($source);
+        $definition = $operation['capability']?->toArray() ?? [];
+        $definitionHash = FalCapabilityImporter::hash($definition);
+        $bindingHash = FalCapabilityImporter::hash($operation['provider_bindings']);
+        $candidates = $model->capabilityRevisions()->where('operation', $operation['operation'])->where('contract_version', 2)
+            ->where('source_hash', $hash)->whereNotNull('source_schema')->get();
+        foreach ($candidates as $candidate) {
+            if (FalCapabilityImporter::hash($candidate->definition ?? []) === $definitionHash
+                && FalCapabilityImporter::hash($candidate->provider_bindings ?? []) === $bindingHash) {
+                return [$candidate, false];
+            }
+        }
+        $revision = MediaCapabilityRevision::create([
+            'ai_model_profile_id' => $model->id, 'operation' => $operation['operation'],
+            'revision' => 1 + (int) $model->capabilityRevisions()->where('operation', $operation['operation'])->max('revision'),
+            'contract_version' => 2, 'status' => $operation['publishable'] ? 'imported' : 'needs_handling',
+            'definition' => $definition, 'source_schema' => $source, 'source_hash' => $hash,
+            'source_schema_ref' => 'runware:'.$normalized['model_id'],
+            // Admin-only evidence: the provider price reference and examples never reach members through here.
+            'source_metadata' => array_filter([
+                'provider' => 'runware', 'model_id' => $normalized['model_id'], 'schema_url' => $normalized['schema_url'],
+                'air' => $normalized['air'], 'task_type' => $normalized['task_type'], 'name' => $normalized['name'],
+                'status' => $bundle['index']['status'] ?? null, 'index' => $bundle['index'] ?? null, 'content' => $bundle['content'] ?? null,
+                'creator' => $bundle['creator'] ?? null, 'pricing' => $normalized['pricing'], 'examples' => $operation['examples'],
+                'fetch_error' => $bundle['fetch_error'] ?? null, 'normalizer_version' => RunwareSchemaNormalizer::VERSION,
+            ], static fn ($value) => $value !== null),
+            'provider_bindings' => $operation['provider_bindings'], 'compatibility_report' => $operation['report'],
+            'ui_metadata' => $operation['capability'] ? CapabilityUi::describe($operation['capability']) : null,
+            'created_by' => $actor->id,
+        ]);
+        $this->auditRevision($actor, 'imported', $revision);
+
+        return [$revision, true];
+    }
+
+    /** Offline: re-derive every operation from the newest captured Runware source. */
+    private function renormalizeRunware(AiModelProfile $model, User $actor, ?MediaCapabilityRevision $source, array $base): array
+    {
+        if ($source === null || ! is_array($source->source_metadata) || ($source->source_metadata['provider'] ?? null) !== 'runware') {
+            return [...$base, 'blockers' => [['code' => 'missing_source_schema', 'message' => 'No captured Runware source exists. Import this model from the catalog before normalization.']]];
+        }
+        if (FalCapabilityImporter::hash($source->source_schema ?? []) !== $source->source_hash
+            || ($model->upstream_model_id ?? null) !== ($source->source_metadata['air'] ?? null)) {
+            return [...$base, 'source_revision_id' => $source->id, 'blockers' => [['code' => 'source_identity_changed', 'message' => 'Captured schema hash or current model identity differs. Import the catalog again before normalization.']]];
+        }
+        $bundle = self::runwareBundle($source);
+        $normalized = $this->runwareNormalizer->normalize($bundle, $model->model_id);
+        $created = [];
+        $blockers = [];
+        $warnings = [];
+        foreach ($normalized['operations'] as $operation) {
+            [$revision, $wasCreated] = $this->runwareCandidate($model, $bundle, $normalized, $operation, $actor);
+            if ($wasCreated) {
+                $created[] = $revision->id;
+            }
+            array_push($blockers, ...($revision->compatibility_report['blockers'] ?? []));
+            array_push($warnings, ...($revision->compatibility_report['warnings'] ?? []));
+        }
+
+        return [...$base, 'created' => $created !== [], 'source_revision_id' => $source->id, 'revision_ids' => $created,
+            'operations' => array_keys($normalized['operations']), 'source_hash' => $source->source_hash,
+            'blockers' => array_values(array_unique($blockers)), 'warnings' => array_values(array_unique($warnings))];
+    }
+
+    /** A normalizer bundle rebuilt only from what a revision captured. */
+    private static function runwareBundle(MediaCapabilityRevision $revision): array
+    {
+        $metadata = $revision->source_metadata ?? [];
+
+        return ['model_id' => (string) ($metadata['model_id'] ?? ''), 'schema_url' => $metadata['schema_url'] ?? null,
+            'index' => $metadata['index'] ?? null, 'content' => $metadata['content'] ?? null, 'creator' => $metadata['creator'] ?? null,
+            'openapi' => is_array($revision->source_schema) && $revision->source_schema !== [] ? $revision->source_schema : null,
+            'fetch_error' => $metadata['fetch_error'] ?? null];
+    }
+
     private function compatibility(AiModelProfile $model, MediaCapabilityRevision $revision): array
     {
-        if ($model->provider?->protocol !== 'fal' || ! is_array($revision->source_schema) || ! is_array($revision->source_metadata)) {
-            $this->blocked(['Only schema-backed fal candidates can use this publication workflow. Existing curated integrations remain unchanged.']);
+        if (! in_array($model->provider?->protocol, ['fal', 'runware'], true) || ! is_array($revision->source_schema) || ! is_array($revision->source_metadata)) {
+            $this->blocked(['Only schema-backed fal or Runware candidates can use this publication workflow. Existing curated integrations remain unchanged.']);
         }
-        $entry = [...$revision->source_metadata, 'openapi' => $revision->source_schema, 'model_public_id' => $model->model_id];
-        $result = $this->importer->normalize($entry, $revision->contract_version);
-        $report = $result['report'];
-        if (($model->upstream_model_id ?: $model->model_id) !== ($entry['endpoint_id'] ?? null)
-            || $result['operation'] !== $revision->operation
-            || FalCapabilityImporter::hash($revision->source_schema) !== $revision->source_hash
-            || FalCapabilityImporter::hash($result['capability']?->toArray() ?? []) !== FalCapabilityImporter::hash($revision->definition ?? [])
-            || FalCapabilityImporter::hash($result['provider_bindings']) !== FalCapabilityImporter::hash($revision->provider_bindings ?? [])) {
-            $report['blockers'][] = 'The source, routing or normalized contract changed; discover and review a new candidate.';
+        if ($model->provider->protocol === 'runware') {
+            $result = $this->runwareNormalizer->normalize(self::runwareBundle($revision), $model->model_id)['operations'][$revision->operation] ?? null;
+            $report = $result['report'] ?? ['blockers' => [], 'warnings' => []];
+            $endpoint = $result['provider_bindings']['endpoint'] ?? null;
+            if ($result === null || ($model->upstream_model_id ?: $model->model_id) !== $endpoint
+                || FalCapabilityImporter::hash($revision->source_schema) !== $revision->source_hash
+                || FalCapabilityImporter::hash($result['capability']?->toArray() ?? []) !== FalCapabilityImporter::hash($revision->definition ?? [])
+                || FalCapabilityImporter::hash($result['provider_bindings']) !== FalCapabilityImporter::hash($revision->provider_bindings ?? [])) {
+                $report['blockers'][] = 'The source, routing or normalized contract changed; discover and review a new candidate.';
+            }
+        } else {
+            $entry = [...$revision->source_metadata, 'openapi' => $revision->source_schema, 'model_public_id' => $model->model_id];
+            $result = $this->importer->normalize($entry, $revision->contract_version);
+            $report = $result['report'];
+            if (($model->upstream_model_id ?: $model->model_id) !== ($entry['endpoint_id'] ?? null)
+                || $result['operation'] !== $revision->operation
+                || FalCapabilityImporter::hash($revision->source_schema) !== $revision->source_hash
+                || FalCapabilityImporter::hash($result['capability']?->toArray() ?? []) !== FalCapabilityImporter::hash($revision->definition ?? [])
+                || FalCapabilityImporter::hash($result['provider_bindings']) !== FalCapabilityImporter::hash($revision->provider_bindings ?? [])) {
+                $report['blockers'][] = 'The source, routing or normalized contract changed; discover and review a new candidate.';
+            }
         }
-        if ($result['capability'] !== null && ! self::implementedAdapter($revision->contract_version, $revision->operation, $revision->provider_bindings ?? [])) {
-            $report['blockers'][] = 'No implemented executor runs this contract. Publication supports historical fal_image_v1, fal_schema_v2 over queue or direct transport, and fal_wma_v1 realtime sessions bounded to 1–60 seconds.';
+        if (($result['capability'] ?? null) !== null && ! self::implementedAdapter($revision->contract_version, $revision->operation, $revision->provider_bindings ?? [])) {
+            $report['blockers'][] = 'No implemented executor runs this contract. Publication supports historical fal_image_v1, fal_schema_v2 over queue or direct transport, fal_wma_v1 realtime sessions bounded to 1–60 seconds, and asynchronous runware_v1 tasks.';
         }
         $report['compatible'] = $report['blockers'] === [];
 
@@ -413,6 +637,10 @@ final class MediaCatalogService
                 || ($transport === 'queue' && is_string($bindings['queue_root'] ?? null) && $bindings['queue_root'] !== ''),
             [2, 'fal_wma_v1'] => $transport === 'realtime' && $operation === 'realtime_video'
                 && is_int($seconds) && $seconds >= 1 && $seconds <= 60,
+            // RunwareAdapter submits one async task and restores JSON objects from the declared request schema.
+            [2, 'runware_v1'] => $transport === 'async' && is_string($bindings['endpoint'] ?? null) && $bindings['endpoint'] !== ''
+                && is_string($bindings['task_type'] ?? null) && $bindings['task_type'] !== ''
+                && isset($bindings['request_schema']['properties']['deliveryMethod']),
             default => false,
         };
     }

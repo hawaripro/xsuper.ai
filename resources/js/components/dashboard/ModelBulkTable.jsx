@@ -14,6 +14,13 @@ const isUnpriced = (model) => isMediaModel(model)
     ? !Number(model.token_cost)
     : !Number(model.rates?.input_tokens?.price_usd) && !Number(model.rates?.output_tokens?.price_usd);
 const integer = (value, min, max) => value !== "" && Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max;
+// Bulk catalog review prices each model in its own catalog unit; the server rejects any other unit.
+const catalogUnits = {
+    request: ["token / permintaan", "Masukkan harga jual token positif per permintaan."],
+    generation: ["token / hasil", "Masukkan harga jual token positif per hasil."],
+    second: ["token / detik", "Masukkan harga jual token positif per detik."],
+};
+const catalogUnit = (model) => model.catalog_price_unit || "request";
 
 export default function ModelBulkTable({ models, providers = [], onRefresh, onEdit, onToggle, mediaOnly = false, disabled = false, providerId, pagination, query, onQueryChange, loading = false, error = "" }) {
     const { t } = useLocale();
@@ -184,11 +191,12 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
         const items = catalogRows.map((model) => {
             const revision = catalogCandidate(model);
             const price = drafts[model.id]?.token_cost ?? "";
+            const unit = catalogUnit(model);
             if (Number(model.token_cost) > 0) errors[model.id] = { token_cost: "Harga positif yang ada dilindungi. Tinjau revisi satu per satu tanpa mengubah tarif." };
             else if (model.capability_summary?.some((entry) => entry.previously_published) || !revision || revision.contract_version !== 2 || !revision.compatible || revision.status === "disabled") errors[model.id] = { row: "Pilih kandidat v2 kompatibel pada model baru yang belum pernah dipublikasikan." };
-            else if (!integer(price, 1, 2147483647)) errors[model.id] = { token_cost: "Masukkan harga jual token positif per permintaan." };
+            else if (!integer(price, 1, 2147483647)) errors[model.id] = { token_cost: catalogUnits[unit]?.[1] || "Masukkan harga jual token positif sesuai unit katalog model." };
             else if (Object.keys(drafts[model.id] || {}).some((key) => key !== "token_cost")) errors[model.id] = { row: "Simpan atau buang perubahan selain harga sebelum tinjauan massal." };
-            return { model_id: model.id, revision_id: revision?.id, token_cost: Number(price), price_unit: "request",
+            return { model_id: model.id, revision_id: revision?.id, token_cost: Number(price), price_unit: unit,
                 ...(revision?.execution?.transport === "realtime" ? { max_session_seconds: revision.execution.max_session_seconds } : {}) };
         });
         setRowErrors(errors);
@@ -269,6 +277,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
         }
     };
     const fieldError = (id, key) => rowErrors[id]?.[key] && <span className="mt-1 block max-w-56 whitespace-normal text-xs text-red-600 dark:text-red-300">{t([rowErrors[id][key]].flat()[0])}</span>;
+    const unitLabel = (unit) => catalogUnits[unit] ? t(catalogUnits[unit][0]) : `token / ${unit}`;
     const tableInput = "ui-input min-h-9 min-w-28 w-28 px-2";
     const numericInput = "ui-input min-h-9 min-w-32 w-32 px-2 text-right tabular-nums";
 
@@ -333,7 +342,9 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
         </div>}
         {catalogOpen && selected.length > 0 && <section className="space-y-4 border-b border-slate-200 p-4 dark:border-white/10" aria-labelledby="catalog-bulk-heading">
             <h3 id="catalog-bulk-heading" className="text-sm font-semibold">{t("Harga dan publikasi kandidat terpilih")}</h3>
-            <p className="max-w-prose text-sm leading-6 text-slate-600 dark:text-slate-300">{t("Hanya model baru tanpa harga positif. Isi harga token pada baris tabel atau gunakan draf massal. Harga per permintaan mencakup seluruh konfigurasi dan semua hasil; jumlah, durasi, resolusi, atau pelatihan dapat mengubah biaya provider. Tarif USD API tidak diubah.")}</p>
+            <p className="max-w-prose text-sm leading-6 text-slate-600 dark:text-slate-300">{t(catalogRows.every((model) => catalogUnit(model) === "request")
+                ? "Hanya model baru tanpa harga positif. Isi harga token pada baris tabel atau gunakan draf massal. Harga per permintaan mencakup seluruh konfigurasi dan semua hasil; jumlah, durasi, resolusi, atau pelatihan dapat mengubah biaya provider. Tarif USD API tidak diubah."
+                : "Hanya model baru tanpa harga positif. Isi harga token pada baris tabel atau gunakan draf massal. Unit harga jual mengikuti unit katalog setiap model: harga per permintaan mencakup seluruh konfigurasi dan semua hasil, harga per hasil dikalikan jumlah hasil, dan harga per detik dikalikan durasi dalam detik penuh serta jumlah hasil. Resolusi atau konfigurasi lain tetap dapat mengubah biaya provider. Tarif USD API tidak diubah.")}</p>
             <ul className="max-h-64 space-y-3 overflow-y-auto">
                 {catalogRows.map((model) => {
                     const candidate = catalogCandidate(model);
@@ -345,13 +356,12 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                                 {candidates.map((entry) => <option key={entry.id} value={entry.id}>{entry.operation} · r{entry.revision} · {t(entry.compatible ? "Lulus kompatibilitas" : "Perlu penanganan")}</option>)}
                             </select>
                         </label>
-                        <span className="pb-3 text-xs tabular-nums">{Number(model.token_cost) > 0 ? t("Harga yang ada dilindungi") : `${drafts[model.id]?.token_cost || "—"} ${t("token / permintaan")}`}</span>
+                        <span className="pb-3 text-xs tabular-nums">{Number(model.token_cost) > 0 ? t("Harga yang ada dilindungi") : `${drafts[model.id]?.token_cost || "—"} ${unitLabel(catalogUnit(model))}`}</span>
                         {candidate?.execution?.transport === "realtime" && <span className="pb-3 text-xs font-medium">{t("Satu sesi, maksimal")} {candidate.execution.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</span>}
                         <button type="button" className="ui-btn-secondary min-h-10" disabled={locked} onClick={(event) => { reviewTrigger.current = event.currentTarget; setReviewModel(model.id); }}>{t("Tinjau capability")}</button>
                     </li>;
                 })}
             </ul>
-            <label className="block max-w-72 text-xs font-medium">{t("Unit harga jual")}<select className="ui-input mt-1 min-h-10" value="request" disabled><option value="request">{t("Satu permintaan lengkap")}</option></select></label>
             <label className="flex max-w-prose items-start gap-2 text-sm leading-6"><input type="checkbox" className="mt-1" checked={catalogAcknowledged} disabled={locked} onChange={(event) => setCatalogAcknowledged(event.target.checked)} />{t("Saya telah meninjau schema, harga jual, unit, dan risiko biaya konfigurasi untuk setiap kandidat terpilih. Tidak ada pengujian generasi berbayar.")}</label>
             {selected.length > 50 && <p role="alert" className="text-sm text-amber-800 dark:text-amber-200">{t("Tinjauan publikasi dibatasi 50 model. Kurangi pilihan sebelum melanjutkan.")}</p>}
             <div className="flex flex-wrap gap-2">
@@ -378,7 +388,8 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
                     const generationReadOnly = !!model.generation_config_readonly;
                     const config = (!generationReadOnly && draft.configDraft) || generationConfigDraft(model.generation_config);
                     const unit = model.catalog_price_unit || model.generation_config?.price_unit;
-                    const costLabel = unit === "request" ? "Token per permintaan" : unit === "second" ? "Token per detik" : model.category === "audio" ? "Token per pekerjaan" : "Token per hasil";
+                    // Native audio is charged once per job; catalog "generation" units (Runware) are charged per result.
+                    const costLabel = unit === "request" ? "Token per permintaan" : unit === "second" ? "Token per detik" : model.category === "audio" && !model.catalog_price_unit ? "Token per pekerjaan" : "Token per hasil";
                     const errors = rowErrors[model.id] || {};
                     return <Fragment key={model.id}>
                         <tr className={`border-t border-slate-200 align-top dark:border-white/10 ${selection.has(model.id) ? "bg-red-50/60 dark:bg-red-500/5" : ""}`}>
@@ -451,7 +462,7 @@ export default function ModelBulkTable({ models, providers = [], onRefresh, onEd
             onConfirm={mutate} onClose={() => { if (!mutationInFlight.current) setConfirmation(null); }}
         >
             <ul className="max-h-56 space-y-2 overflow-y-auto text-sm">
-                {confirmation.items.map((item) => <li className="break-words" key={item.model_id}><strong>{byId.get(item.model_id)?.display_name || item.model_id}</strong><span className="block text-xs">{t("Revisi")} #{item.revision_id} · {item.token_cost} {t("token / permintaan")}</span>{item.max_session_seconds && <span className="block text-xs">{t("Satu sesi, maksimal")} {item.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</span>}</li>)}
+                {confirmation.items.map((item) => <li className="break-words" key={item.model_id}><strong>{byId.get(item.model_id)?.display_name || item.model_id}</strong><span className="block text-xs">{t("Revisi")} #{item.revision_id} · {item.token_cost} {unitLabel(item.price_unit)}</span>{item.max_session_seconds && <span className="block text-xs">{t("Satu sesi, maksimal")} {item.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</span>}</li>)}
             </ul>
         </MediaActionDialog>}
         {confirmation?.type === "delete" && <MediaActionDialog

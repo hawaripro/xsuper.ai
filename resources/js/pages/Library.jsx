@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import DashboardWorkspace from '../components/dashboard/DashboardWorkspace';
 import MediaActionDialog from '../components/MediaActionDialog';
 import { Button, InlineAlert, errorMessage, formatCount, formatLocalDate } from '../components/member/MemberUI';
+import { studioHref } from '../components/studios/studioLinks';
 import Icons from '../layouts/SidebarIcons';
 import './library.css';
 
@@ -195,7 +196,7 @@ export default function Library() {
                     <h3>{t(type === 'all' ? 'Belum ada file di library' : 'Belum ada file untuk jenis ini')}</h3>
                     <p>{t('Hasil dari studio gambar, video, audio, serta unduhan dan konversi akan tersimpan di sini secara otomatis.')}</p>
                     <div className="lib-empty-actions">
-                        <Link className="dw-button dw-button-primary" to={localizedPath('/generate-image')}>{Icons.image}<span>{t('Buat gambar')}</span></Link>
+                        <Link className="dw-button dw-button-primary" to={localizedPath(studioHref({ kind: 'image' }))}>{Icons.image}<span>{t('Buat gambar')}</span></Link>
                         <Link className="dw-button" to={localizedPath('/downloads')}>{Icons.download}<span>{t('Unduh video')}</span></Link>
                     </div>
                 </div>

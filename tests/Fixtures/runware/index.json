@@ -1,0 +1,120 @@
+[
+    {
+        "id": "bfl-flux-1-dev",
+        "air": "runware:101@1",
+        "name": "FLUX.1 [dev]",
+        "status": "live",
+        "capabilities": [
+            "text-to-image",
+            "checkpoint"
+        ],
+        "creator": "Black Forest Labs",
+        "architecture": "flux-1-dev",
+        "schema": "https://runware.ai/docs/models/bfl-flux-1-dev/schema.json"
+    },
+    {
+        "id": "klingai-video-2-6-pro",
+        "air": "klingai:kling-video@2.6-pro",
+        "name": "Kling VIDEO 2.6 Pro",
+        "status": "live",
+        "capabilities": [
+            "text-to-video",
+            "image-to-video",
+            "checkpoint",
+            "audio"
+        ],
+        "creator": "Kling AI",
+        "schema": "https://runware.ai/docs/models/klingai-video-2-6-pro/schema.json"
+    },
+    {
+        "id": "alibaba-qwen3-tts-1-7b-base",
+        "air": "alibaba:qwen@3-tts-1.7b-base",
+        "name": "Qwen3-TTS 1.7B Base",
+        "status": "live",
+        "capabilities": [
+            "text-to-audio",
+            "checkpoint"
+        ],
+        "creator": "Alibaba",
+        "schema": "https://runware.ai/docs/models/alibaba-qwen3-tts-1-7b-base/schema.json"
+    },
+    {
+        "id": "tripo-v3-1",
+        "air": "tripo:v3.1@0",
+        "name": "Tripo 3D v3.1",
+        "status": "live",
+        "capabilities": [
+            "text-to-3d",
+            "image-to-3d",
+            "checkpoint"
+        ],
+        "creator": "Tripo AI",
+        "schema": "https://runware.ai/docs/models/tripo-v3-1/schema.json"
+    },
+    {
+        "id": "clarity",
+        "air": "runware:500@1",
+        "name": "Clarity",
+        "status": "live",
+        "capabilities": [
+            "image-to-image",
+            "upscale",
+            "checkpoint"
+        ],
+        "schema": "https://runware.ai/docs/models/clarity/schema.json"
+    },
+    {
+        "id": "bria-video-background-removal",
+        "air": "bria:51@1",
+        "name": "Bria Video Background Removal",
+        "status": "live",
+        "capabilities": [
+            "video-to-video",
+            "remove-background",
+            "checkpoint",
+            "transparency"
+        ],
+        "creator": "Bria",
+        "schema": "https://runware.ai/docs/models/bria-video-background-removal/schema.json"
+    },
+    {
+        "id": "bytedance-seedance-1-5-pro",
+        "air": "bytedance:seedance@1.5-pro",
+        "name": "Seedance 1.5 Pro",
+        "status": "deprecated",
+        "capabilities": [
+            "text-to-video",
+            "image-to-video",
+            "audio-to-video",
+            "checkpoint",
+            "audio"
+        ],
+        "creator": "ByteDance",
+        "schema": "https://runware.ai/docs/models/bytedance-seedance-1-5-pro/schema.json"
+    },
+    {
+        "id": "boogu-image-0-1-edit",
+        "air": "boogu:image@0.1-edit",
+        "name": "Boogu-Image-0.1-Edit",
+        "status": "coming-soon",
+        "capabilities": [
+            "image-to-image",
+            "edit",
+            "checkpoint"
+        ],
+        "creator": "Boogu",
+        "schema": "https://runware.ai/docs/models/boogu-image-0-1-edit/schema.json"
+    },
+    {
+        "id": "anthropic-claude-fable-5",
+        "name": "Claude Fable 5",
+        "status": "live",
+        "capabilities": [
+            "text-to-text",
+            "image-to-text",
+            "checkpoint"
+        ],
+        "creator": "Anthropic",
+        "schema": "https://runware.ai/docs/models/anthropic-claude-fable-5/schema.json"
+    }
+]

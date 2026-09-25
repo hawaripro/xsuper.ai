@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { login, databaseRows, captureErrors } from './helpers.js';
 
-async function createProvider(page, { name, protocol, baseUrl, key }) {
+async function createProvider(page, { name, protocol, baseUrl, key, defaultBaseUrl }) {
     await page.getByRole('button', { name: 'Add provider', exact: true }).click();
     const editor = page.locator('[data-provider-editor]');
     await editor.getByLabel('Provider name', { exact: true }).fill(name);
     await editor.getByLabel('Protocol', { exact: true }).selectOption(protocol);
-    await editor.getByLabel('HTTPS base URL', { exact: true }).fill(baseUrl);
+    const baseUrlInput = editor.getByLabel('HTTPS base URL', { exact: true });
+    if (defaultBaseUrl) await expect(baseUrlInput).toHaveValue(defaultBaseUrl);
+    if (baseUrl) await baseUrlInput.fill(baseUrl);
     await editor.getByLabel('Provider API key', { exact: true }).fill(key);
     if (protocol === 'anthropic') {
         await editor.getByLabel('Anthropic API version', { exact: true }).fill('2023-06-01');
@@ -175,6 +177,20 @@ test('editing locks connection actions and failed checks and syncs never report 
     await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
     await openConnection(page, checked.id);
     await expect(page.locator(`[data-provider-id="${checked.id}"]`).getByText('Connection failed', { exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+});
+
+test('runware connection prefills the official endpoint and keeps the key write-only', async ({ page }) => {
+    const errors = captureErrors(page);
+    const key = 'qa-runware-provider-not-a-real-key';
+    await login(page);
+    await page.goto('/en/admin/ai');
+    const runware = await createProvider(page, {
+        name: 'QA Runware connection', protocol: 'runware', defaultBaseUrl: 'https://api.runware.ai/v1', key,
+    });
+    const stored = databaseRows('ai_provider_profiles', { id: runware.id })[0];
+    expect({ protocol: stored.protocol, base_url: stored.base_url }).toEqual({ protocol: 'runware', base_url: 'https://api.runware.ai/v1' });
+    expect(typeof stored.api_key === 'string' && !stored.api_key.includes(key)).toBe(true);
     expect(errors).toEqual([]);
 });
 

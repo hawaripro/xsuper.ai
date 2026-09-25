@@ -15,6 +15,7 @@ use App\Models\UsageRate;
 use App\Models\VideoJob;
 use App\Models\WorkspaceMediaJob;
 use App\Services\AiProviderEndpoint;
+use App\Services\AiProviderTransport;
 use App\Services\AiProxyService;
 use App\Services\AuditService;
 use Illuminate\Database\QueryException;
@@ -200,22 +201,30 @@ class AiProviderController extends Controller
         return response()->json($result);
     }
 
-    public function check(Request $request, AiProviderProfile $provider, AiProxyService $proxy, AuditService $audit): JsonResponse
+    public function check(Request $request, AiProviderProfile $provider, AiProxyService $proxy, AiProviderTransport $transport, AuditService $audit): JsonResponse
     {
         $connection = Arr::only($provider->getRawOriginal(), ['base_url', 'api_key', 'protocol', 'api_version']);
         $status = 200;
         $models = [];
-        $message = $provider->protocol === 'kinovi'
-            ? 'Static Kinovi model documentation is available. Credentials and generation access have not been verified.'
-            : 'The provider catalog authentication is ready. Individual model generation has not been verified.';
+        // Runware models come from schema discovery; the free account lookup verifies the key without a catalog sync.
+        $account = $provider->protocol === 'runware';
+        $message = match ($provider->protocol) {
+            'kinovi' => 'Static Kinovi model documentation is available. Credentials and generation access have not been verified.',
+            'runware' => 'The Runware account is authenticated. Individual model generation has not been verified.',
+            default => 'The provider catalog authentication is ready. Individual model generation has not been verified.',
+        };
         try {
-            $models = $proxy->fetchCatalog($provider);
+            if ($account) {
+                $transport->runwareAccount($provider);
+            } else {
+                $models = $proxy->fetchCatalog($provider);
+            }
         } catch (AiProxyException $exception) {
             $status = $exception->responseStatus();
             $message = $status === 503 ? 'The provider connection is unavailable.' : ($exception->getMessage() ?: 'The provider request failed.');
         }
 
-        $provider = DB::transaction(function () use ($provider, $connection, $status, $message, $models, $request, $audit): AiProviderProfile {
+        $provider = DB::transaction(function () use ($provider, $connection, $status, $message, $models, $account, $request, $audit): AiProviderProfile {
             $provider = AiProviderProfile::query()->whereKey($provider->id)->lockForUpdate()->firstOrFail();
             if (Arr::only($provider->getRawOriginal(), array_keys($connection)) !== $connection) {
                 throw new HttpResponseException(response()->json(['message' => 'The provider connection changed. Check it again.'], 409));
@@ -225,9 +234,9 @@ class AiProviderController extends Controller
                 'last_checked_at' => now(),
                 'last_error' => $status === 200 ? null : $message,
                 'authenticated_at' => $status === 200 && $provider->protocol !== 'kinovi' ? now() : null,
-                'catalog_discovered_at' => $status === 200 ? now() : $provider->catalog_discovered_at,
+                'catalog_discovered_at' => $status === 200 && ! $account ? now() : $provider->catalog_discovered_at,
             ]);
-            if ($status === 200) {
+            if ($status === 200 && ! $account) {
                 $provider->capabilities = collect($models)->pluck('category')->unique()->values()->all();
             }
             $provider->save();
@@ -244,6 +253,23 @@ class AiProviderController extends Controller
             'model_count' => count($models),
             'message' => $message,
         ], $status);
+    }
+
+    /** Admin-only Runware balance and usage. Organization identity, team members and API keys are never returned. */
+    public function account(AiProviderProfile $provider, AiProviderTransport $transport): JsonResponse
+    {
+        if ($provider->protocol !== 'runware' || $provider->base_url === null) {
+            return response()->json(['message' => 'Account balance is available only for Runware connections.'], 422);
+        }
+        try {
+            $account = $transport->runwareAccount($provider);
+        } catch (AiProxyException $exception) {
+            return response()->json(['message' => $exception->responseStatus() === 503
+                ? 'The Runware account is unavailable. Try again shortly.'
+                : 'The Runware account details could not be read. Check the API key and try again.'], 422);
+        }
+
+        return response()->json(['account' => [...$account, 'checked_at' => now()->toISOString()]]);
     }
 
     private function validateConnection(Request $request, AiProviderEndpoint $endpoint, ?AiProviderProfile $provider = null): array
@@ -267,7 +293,7 @@ class AiProviderController extends Controller
         $presence = $provider ? 'sometimes' : 'required';
         $rules = [
             'name' => [$presence, 'required', 'string', 'max:120'],
-            'protocol' => [$presence, 'required', Rule::in(['openai', 'anthropic', 'fal', 'kinovi'])],
+            'protocol' => [$presence, 'required', Rule::in(['openai', 'anthropic', 'fal', 'kinovi', 'runware'])],
             'base_url' => [$presence, 'required', 'string', 'max:2048', function (string $attribute, mixed $value, \Closure $fail) use ($endpoint, $protocol): void {
                 if (! is_string($value)) {
                     return;

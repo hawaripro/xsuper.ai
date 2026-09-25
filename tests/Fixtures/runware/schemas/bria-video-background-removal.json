@@ -1,0 +1,486 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Runware API - Bria Video Background Removal",
+    "summary": "Real time AI video background removal for clean layers",
+    "description": "Bria Video Background Removal detects moving subjects in video and removes complex backgrounds in real time. It outputs clean alpha channels for precise keying. Ideal for virtual production, live streaming, post production pipelines, and automated video workflows.",
+    "version": "1.0.0",
+    "x-model-id": "bria-video-background-removal",
+    "x-air-id": "bria:51@1",
+    "x-status": "live",
+    "x-creator": {
+      "id": "bria",
+      "name": "Bria",
+      "logo": "https://assets.runware.ai/4f68fe9d-851e-4e6a-a6f8-cd47ec4312cb.png"
+    },
+    "x-capabilities": [
+      "video-to-video",
+      "remove-background",
+      "checkpoint",
+      "transparency"
+    ],
+    "x-modes": [
+      {
+        "id": "video",
+        "inputs": [
+          "video"
+        ]
+      }
+    ],
+    "x-released-at": "2025-06-14T00:00:00",
+    "x-cover-image": "https://assets.runware.ai/covers/bria-video-background-removal.jpg",
+    "x-examples": "https://runware.ai/docs/models/bria-video-background-removal/examples.json",
+    "x-pricing": {
+      "currency": "USD",
+      "docs": "https://runware.ai/docs/platform/pricing",
+      "rates": [
+        {
+          "amount": 0.05,
+          "unit": "durationSecond",
+          "display": "$0.05 per second"
+        }
+      ],
+      "examples": [
+        {
+          "id": "polar-docuseries-title-sequence-plate",
+          "configuration": "remove-background",
+          "price": 0.302,
+          "latencyMs": 37057
+        },
+        {
+          "id": "tidal-turbine-logo-loop",
+          "configuration": "remove-background",
+          "price": 0.302,
+          "latencyMs": 23159
+        },
+        {
+          "id": "punk-asl-lyric-cutout",
+          "configuration": "remove-background",
+          "price": 0.302,
+          "latencyMs": 21844
+        },
+        {
+          "id": "adaptive-fencing-reel-subject-cutout",
+          "configuration": "remove-background",
+          "price": 0.302,
+          "latencyMs": 23143
+        }
+      ],
+      "overview": "Each operation costs $0.05/s."
+    }
+  },
+  "externalDocs": {
+    "description": "Bria Video Background Removal on Runware",
+    "url": "https://runware.ai/docs/models/bria-video-background-removal"
+  },
+  "servers": [
+    {
+      "url": "https://api.runware.ai/v1",
+      "description": "Runware REST API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Runware API Key (e.g., Bearer <your-key>)"
+      }
+    },
+    "schemas": {
+      "AuthenticationTask": {
+        "title": "Authentication",
+        "description": "Authenticates a connection using an API key. Can be sent as the first element of the request array as an alternative to using the Authorization header.",
+        "type": "object",
+        "x-response-schema": "https://schemas.runware.ai/responses/utilities/authentication.json",
+        "properties": {
+          "taskType": {
+            "$id": "https://schemas.runware.ai/requests/parameters/api/task-type.json",
+            "title": "Task Type",
+            "description": "Identifier for the type of task being performed.",
+            "type": "string",
+            "const": "authentication"
+          },
+          "apiKey": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/api-key.json",
+            "title": "API Key",
+            "description": "Your Runware API key.",
+            "type": "string"
+          },
+          "connectionSessionUUID": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/connection-session-uuid.json",
+            "title": "Connection Session UUID",
+            "description": "Optional session UUID to resume a previous connection and receive any buffered results.",
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "taskType",
+          "apiKey"
+        ],
+        "additionalProperties": false
+      },
+      "RequestBody": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "title": "Model",
+              "description": "Identifier of the model to use for generation.",
+              "type": "string",
+              "const": "bria:51@1"
+            },
+            "settings": {
+              "title": "Settings",
+              "description": "Global inference settings.",
+              "type": "object",
+              "properties": {
+                "rgba": {
+                  "title": "RGBA",
+                  "description": "Background color as `[red, green, blue, alpha]` array.",
+                  "type": "array",
+                  "default": [
+                    255,
+                    255,
+                    255,
+                    0
+                  ],
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "taskType": {
+              "title": "Task Type",
+              "description": "Identifier for the type of task being performed.",
+              "type": "string",
+              "const": "removeBackground"
+            },
+            "taskUUID": {
+              "title": "Task UUID",
+              "description": "UUID v4 identifier for tracking tasks and matching async responses. Must be unique per task.",
+              "type": "string",
+              "format": "uuid"
+            },
+            "webhookURL": {
+              "title": "Webhook URL",
+              "description": "Webhook URL that receives JSON responses via HTTP POST when generation tasks complete. For batch requests with multiple results, each completed item triggers a separate webhook call as it becomes available.",
+              "type": "string",
+              "format": "uri"
+            },
+            "includeCost": {
+              "title": "Include Cost",
+              "description": "Include task cost in the response.",
+              "type": "boolean"
+            },
+            "uploadEndpoint": {
+              "title": "Upload Endpoint",
+              "description": "Specifies a URL where the generated content will be automatically uploaded using the HTTP PUT method. The raw binary data of the media file is sent directly as the request body. For secure uploads to cloud storage, use presigned URLs that include temporary authentication credentials.\n\n**Common use cases:**\n\n- **Cloud storage**: Upload directly to S3 buckets, Google Cloud Storage, or Azure Blob Storage using presigned URLs.\n- **CDN integration**: Upload to content delivery networks for immediate distribution.\n\n```text\n// S3 presigned URL for secure upload\nhttps://your-bucket.s3.amazonaws.com/generated/content.mp4?X-Amz-Signature=abc123&X-Amz-Expires=3600\n\n// Google Cloud Storage presigned URL\nhttps://storage.googleapis.com/your-bucket/content.jpg?X-Goog-Signature=xyz789\n\n// Custom storage endpoint\nhttps://storage.example.com/uploads/generated-image.jpg\n```\n\nThe content data will be sent as the request body to the specified URL when generation is complete.\n\n[Read full documentation](https://runware.ai/docs/models/bria-video-background-removal#uploadEndpoint)",
+              "type": "string",
+              "format": "uri"
+            },
+            "ttl": {
+              "title": "TTL",
+              "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+              "type": "integer",
+              "minimum": 60
+            },
+            "outputQuality": {
+              "title": "Output Quality",
+              "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+              "type": "integer",
+              "minimum": 20,
+              "maximum": 99,
+              "default": 95
+            },
+            "outputType": {
+              "title": "Output Type",
+              "description": "Video output type.",
+              "type": "string",
+              "enum": [
+                "URL"
+              ],
+              "default": "URL"
+            },
+            "outputFormat": {
+              "title": "Output Format",
+              "description": "Specifies the file format of the generated output. The available values depend on the task type and the specific model's capabilities.\n\n- \\`JPG\\`: Best for photorealistic images with smaller file sizes (no transparency).\n- \\`PNG\\`: Lossless compression, supports high quality and transparency (alpha channel).\n- \\`WEBP\\`: Modern format providing superior compression and transparency support.\n- \\`MP4\\`: Widely supported video container (H.264), recommended for general use.\n- \\`WEBM\\`: Optimized for web delivery.\n- \\`MOV\\`: QuickTime format, common in professional workflows (Apple ecosystem).\n- \\`GIF\\`: Animated image format (no audio), suitable for short loops or previews.\n- \\`MP3\\`: Compressed audio, smaller file size.\n- \\`WAV\\`: Uncompressed, high-quality audio.\n- \\`FLAC\\`: Lossless compression.\n- \\`OGG\\`: Open-source compressed audio format (Vorbis codec).\n- \\`SVG\\`: Scalable Vector Graphics.\n- \\`TIFF\\`: High-quality output supporting layers.\n- \\`GLB\\`: Binary glTF format for 3D models, including geometry, textures, and PBR materials.\n\n> [!NOTE]\n> \\*\\*Transparency\\*\\*: If you are using features like background removal or LayerDiffuse that require transparency, you must select a format that supports an alpha channel (e.g., \\`PNG\\`, \\`WEBP\\`, \\`TIFF\\`). \\`JPG\\` does not support transparency.\n\n[Read full documentation](https://runware.ai/docs/models/bria-video-background-removal#outputFormat)",
+              "type": "string",
+              "enum": [
+                "WEBM",
+                "MOV"
+              ],
+              "default": "WEBM"
+            },
+            "deliveryMethod": {
+              "title": "Delivery Method",
+              "description": "Determines how the API delivers task results.",
+              "type": "string",
+              "oneOf": [
+                {
+                  "const": "async",
+                  "description": "Returns an immediate acknowledgment with the task UUID. Poll for results using getResponse. Required for long-running tasks like video generation."
+                }
+              ],
+              "default": "async"
+            },
+            "inputs": {
+              "title": "Inputs",
+              "description": "Input assets for the task.",
+              "type": "object",
+              "properties": {
+                "video": {
+                  "title": "Video",
+                  "description": "Video input (UUID or URL).",
+                  "type": "string",
+                  "anyOf": [
+                    {
+                      "format": "uuid"
+                    },
+                    {
+                      "format": "uri"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "video"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "taskType",
+            "taskUUID",
+            "model",
+            "inputs"
+          ]
+        },
+        "description": "You must always POST an array of task objects."
+      },
+      "ResponseBody": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "title": "Remove Background Video Response",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "taskType": {
+                  "title": "Task Type",
+                  "description": "Identifier for the type of task this response belongs to.",
+                  "type": "string",
+                  "const": "removeBackground"
+                },
+                "taskUUID": {
+                  "title": "Task UUID",
+                  "description": "UUID v4 identifier echoed from the original request, used to match async responses to their tasks.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "description": "Task cost in USD. Present when `includeCost` is set to `true` in the request.",
+                  "type": "number"
+                },
+                "videoUUID": {
+                  "title": "Video UUID",
+                  "description": "UUID of the output video.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "videoURL": {
+                  "title": "Video URL",
+                  "description": "URL of the output video.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "videoBase64Data": {
+                  "title": "Video Base64 Data",
+                  "description": "Base64-encoded video data.",
+                  "type": "string"
+                },
+                "videoDataURI": {
+                  "title": "Video Data URI",
+                  "description": "Data URI of the output video.",
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "required": [
+                "taskType",
+                "taskUUID",
+                "videoUUID"
+              ]
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "title": "Error Response",
+        "description": "Standard error response returned by the Runware API.",
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": true,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "A short identifier for the error (e.g., invalidApiKey, timeoutProvider)."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable explanation of what went wrong."
+                },
+                "parameter": {
+                  "type": "string",
+                  "description": "The request parameter related to the error, if applicable."
+                },
+                "taskType": {
+                  "type": "string",
+                  "description": "The task type of the request that failed."
+                },
+                "taskUUID": {
+                  "type": "string",
+                  "description": "The unique identifier of the failed request."
+                },
+                "documentation": {
+                  "type": "string",
+                  "description": "A link to relevant documentation."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "errors"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "post": {
+        "summary": "Run Bria Video Background Removal",
+        "description": "Bria Video Background Removal detects moving subjects in video and removes complex backgrounds in real time. It outputs clean alpha channels for precise keying. Ideal for virtual production, live streaming, post production pipelines, and automated video workflows.",
+        "operationId": "run_bria_video_background_removal",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Missing or invalid parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — No valid API key provided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — Insufficient account balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — The API key lacks permissions for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests — Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error — Something went wrong on Runware's end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — Temporarily unavailable (maintenance or capacity).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ]
+}

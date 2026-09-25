@@ -1,4 +1,3 @@
-<a class="skip-link" href="#main-content">{{ __('Langsung ke konten') }}</a>
 <header class="site-header">
     <div class="container header-inner">
         <a href="{{ $localeUrl('/') }}" class="brand" aria-label="{{ __('XSuper.ai, beranda') }}">

@@ -53,20 +53,29 @@ export function billedSeconds(value) {
     return null;
 }
 
-function schemaDuration(capability) {
+function schemaDefaultOf(capability, name) {
     const root = capability?.input_schema;
-    const property = displaySchema(root, root)?.properties?.duration;
+    const property = displaySchema(root, root)?.properties?.[name];
     return property === undefined ? undefined : displaySchema(property, root)?.default;
 }
 
-// The admission price is what one admitted job reserves (expected_price_tokens); count multiplies
-// only the total. `reason` explains why a per-second tariff cannot be quoted yet.
+// A schema quantity input (such as numberResults) as the server reads it: max(1, int(value)).
+export function billedQuantity(value) {
+    const number = typeof value === "number" ? value : typeof value === "string" && /^\s*[+-]?\d/.test(value) ? Number.parseFloat(value) : 0;
+    return Math.max(1, Number.isFinite(number) ? Math.trunc(number) : 1);
+}
+
+// The admission price is what one admitted job reserves (expected_price_tokens): native count
+// multiplies only the total, while a schema quantity input is part of the one job's price.
+// `reason` explains why a per-second tariff cannot be quoted yet.
 export function workspaceQuote(capability, values = {}, controls = {}) {
     const base = Number(capability?.price_tokens);
     const billing = capability?.billing || {};
     const native = capability?.contract_version !== 2;
     const count = native && billing.count_field ? Number(controls.count ?? 1) : 1;
     const pro = native && Boolean(billing.pro_field) && controls.pro === true;
+    const quantityField = !native && typeof billing.quantity_input === "string" && billing.quantity_input ? billing.quantity_input : null;
+    const quantity = quantityField ? billedQuantity(values?.[quantityField] !== undefined ? values[quantityField] : schemaDefaultOf(capability, quantityField) ?? 1) : 1;
     const perSecond = billing.mode === "per_second";
     const durations = Array.isArray(billing.durations) ? billing.durations : [];
     let seconds = null;
@@ -74,16 +83,16 @@ export function workspaceQuote(capability, values = {}, controls = {}) {
     if (perSecond) {
         seconds = billing.duration_field === "billing_seconds"
             ? billedSeconds(controls.billing_seconds)
-            : billedSeconds(values?.duration !== undefined ? values.duration : schemaDuration(capability));
+            : billedSeconds(values?.duration !== undefined ? values.duration : schemaDefaultOf(capability, "duration"));
         if (billing.duration_field === "billing_seconds" && !durations.length) reason = "Durasi tagihan per detik belum ditinjau pengelola. Operasi ini belum dapat dipakai.";
         else if (seconds == null) reason = billing.duration_field === "billing_seconds" ? "Pilih durasi yang ditagihkan." : "Tarif per detik memerlukan durasi eksplisit dalam detik bulat.";
         else if (durations.length && !durations.includes(seconds)) reason = "Durasi ini belum ditinjau untuk tarif per detik. Pilih durasi lain.";
     }
     const multiplier = !perSecond && pro ? Number(billing.pro_multiplier) : 1;
-    const empty = { unit: Number.isSafeInteger(base) && base > 0 ? base : null, admission: null, total: null, count, pro, seconds, reason };
+    const empty = { unit: Number.isSafeInteger(base) && base > 0 ? base : null, admission: null, total: null, count, pro, seconds, quantity, quantityField, reason };
     if (reason || !Number.isSafeInteger(base) || base <= 0 || !Number.isSafeInteger(count) || count < 1 || count > (billing.max_count || 1)
-        || !Number.isSafeInteger(multiplier) || multiplier < 1) return empty;
-    const admission = base * (perSecond ? seconds : 1) * multiplier;
+        || !Number.isSafeInteger(multiplier) || multiplier < 1 || (Number.isSafeInteger(billing.max_quantity) && quantity > billing.max_quantity)) return empty;
+    const admission = base * (perSecond ? seconds : 1) * multiplier * quantity;
     const total = admission * count;
     return admission <= 2147483647 && total <= 2147483647 ? { ...empty, admission, total } : empty;
 }
@@ -102,5 +111,14 @@ export const operationLabel = (operation) => ({
     language_model: "Model bahasa", structured_data: "Data terstruktur", training: "Pelatihan model", workflow: "Alur kerja",
     inference: "Inferensi", realtime_video: "Video realtime",
 }[operation] || String(operation || "").replace(/_/g, " "));
+
+// Generation from text leads (the playground default); other operations keep the server's order.
+const OPERATION_PRIORITY = ["text_to_image", "text_to_video", "text_to_speech", "music", "text_to_audio", "text_to_3d"];
+export function orderOperations(capabilities) {
+    const keys = Object.keys(capabilities || {});
+    const rank = (key) => (OPERATION_PRIORITY.includes(key) ? OPERATION_PRIORITY.indexOf(key) : OPERATION_PRIORITY.length);
+    const sorted = [...keys].sort((a, b) => rank(a) - rank(b));
+    return sorted.every((key, index) => key === keys[index]) ? capabilities || {} : Object.fromEntries(sorted.map((key) => [key, capabilities[key]]));
+}
 
 export const outputKindLabel = (kind) => ({ image: "Gambar", video: "Video", audio: "Audio", model3d: "3D", data: "Data", file: "Berkas", document: "Dokumen" }[kind] || kind || "");

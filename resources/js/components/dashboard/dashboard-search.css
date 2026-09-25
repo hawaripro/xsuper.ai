@@ -384,14 +384,9 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Phones get a pill: the label while it fits, then the icon alone (see below). */
 @media (max-width: 639px) {
-    .dashboard-search-trigger {
-        justify-content: center;
-        width: 2.5rem;
-        height: 2.5rem;
-        padding: 0.5rem;
-    }
-    .dashboard-search-trigger > span,
+    .dashboard-search-trigger { border-radius: 999px; }
     .dashboard-search-trigger > kbd { display: none; }
     .dashboard-search-dialog { margin-top: 1rem; border-radius: 0.875rem; }
     .dashboard-search-surface { max-height: calc(100dvh - 2rem); }
@@ -400,6 +395,16 @@
     .dashboard-search-help { padding-right: 1rem; padding-left: 1rem; }
     .dashboard-search-footer { gap: 0.5rem; padding-right: 1rem; padding-left: 1rem; }
     .dashboard-search-footer > span:first-child { max-width: 45%; }
+}
+
+@media (max-width: 479px) {
+    .dashboard-search-trigger {
+        justify-content: center;
+        width: 3rem;
+        height: 2.5rem;
+        padding: 0.5rem;
+    }
+    .dashboard-search-trigger > span { display: none; }
 }
 
 @media (max-height: 600px) {

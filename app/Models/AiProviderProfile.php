@@ -55,6 +55,8 @@ class AiProviderProfile extends Model
                 ? ! empty($this->getRawOriginal('api_key'))
                 : is_string(config('services.ai_proxy.key')) && trim(config('services.ai_proxy.key')) !== '',
             'configuration_source' => $saved ? 'admin' : 'environment',
+            // Runware exposes balance/usage through the admin-only account endpoint; the key itself never leaves the server.
+            'supports_account_balance' => $saved && $this->protocol === 'runware',
             'last_error' => $this->sanitizedLastError(),
         ];
     }

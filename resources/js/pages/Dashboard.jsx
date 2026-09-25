@@ -6,6 +6,7 @@ import { useLocale } from '../contexts/LocaleContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import DashboardWorkspace, { DashboardHero, WorkspaceInbox, WorkspaceLoading, WorkspaceMetric, WorkspaceModule, WorkspaceUsageChart } from '../components/dashboard/DashboardWorkspace';
 import { Button, InlineAlert, PingDot, StatePanel, StatusBadge, errorMessage, formatCount, formatLocalDate, formatUsdMicros } from '../components/member/MemberUI';
+import { studioHref } from '../components/studios/studioLinks';
 import Icons from '../layouts/SidebarIcons';
 
 const INITIAL_SOURCES = {
@@ -88,9 +89,9 @@ export default function Dashboard() {
     const healthy = Boolean(account && account.is_active && !account.is_expired);
     const studioActions = [
         ...(allowed('chat') ? [{ key: 'chat', label: 'Mulai percakapan', href: '/chat' }] : []),
-        { key: 'image', label: 'Buat gambar', href: '/generate-image' },
-        ...(allowed('video_generator', false) ? [{ key: 'video', label: 'Buat video', href: '/video' }] : []),
-        ...(allowed('audio_generator') ? [{ key: 'audio', label: 'Audio', href: '/audio' }] : []),
+        ...(allowed('image_generator') ? [{ key: 'image', label: 'Buat gambar', href: studioHref({ kind: 'image' }) }] : []),
+        ...(allowed('video_generator', false) ? [{ key: 'video', label: 'Buat video', href: studioHref({ kind: 'video' }) }] : []),
+        ...(allowed('audio_generator') ? [{ key: 'audio', label: 'Audio', href: studioHref({ kind: 'audio' }) }] : []),
         ...(allowed('video_downloader') ? [{ key: 'download', label: 'Downloads', href: '/downloads' }] : []),
         ...(allowed('media_converter') ? [{ key: 'convert', label: 'Converter', href: '/converter' }] : []),
     ];

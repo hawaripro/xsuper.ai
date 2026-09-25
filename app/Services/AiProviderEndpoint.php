@@ -59,6 +59,14 @@ class AiProviderEndpoint
 
             return 'https://fal.run';
         }
+        if ($protocol === 'runware') {
+            // One documented REST endpoint; a loopback mock is accepted only by the local gate above.
+            if ($host !== 'api.runware.ai' || $port !== 443 || ! in_array($path, ['', '/v1'], true)) {
+                throw new InvalidArgumentException('Use https://api.runware.ai/v1 as the Runware provider URL.');
+            }
+
+            return 'https://api.runware.ai/v1';
+        }
 
         return 'https://'.$host.($port === 443 ? '' : ':'.$port).($path === '' ? '/v1' : $path);
     }

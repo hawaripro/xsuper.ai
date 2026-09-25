@@ -334,6 +334,10 @@ final class MediaJsonSchema
                 $result->{$keyword} = array_map(self::schemaObject(...), $schema[$keyword]);
             }
         }
+        // A member-name map whose values are string lists: the validator needs a JSON object, never a PHP list.
+        if (isset($schema['dependentRequired']) && is_array($schema['dependentRequired'])) {
+            $result->dependentRequired = (object) $schema['dependentRequired'];
+        }
         foreach (self::CHILDREN as $keyword) {
             if (isset($schema[$keyword]) && (is_array($schema[$keyword]) || is_bool($schema[$keyword]))) {
                 $result->{$keyword} = self::schemaObject($schema[$keyword]);

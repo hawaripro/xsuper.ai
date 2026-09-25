@@ -1,0 +1,127 @@
+{
+  "model": "klingai-video-2-6-pro",
+  "examples": [
+    {
+      "id": "heritage-seed-documentary-title-sequence",
+      "title": "Heritage Seed Documentary Title Sequence",
+      "mode": "text-to-video",
+      "cost": 1.4,
+      "latencyMs": 127631,
+      "asset": "https://assets.runware.ai/examples/klingai-video-2-6-pro/d5ffcd10-0b8a-4535-a18b-c4644dec23ff.mp4",
+      "request": {
+        "taskType": "videoInference",
+        "model": "klingai:kling-video@2.6-pro",
+        "positivePrompt": "Create a polished 10-second cinematic title sequence for a premium documentary series about heritage seed keepers. Compose every shot for 16:9 landscape. Begin on an extreme macro of a dry sunflower head under hard amber dawn light; the camera slowly corkscrews toward its geometric center as papery husks tremble and fine dust hangs in the air. A sudden warm gust releases several seeds. Follow one seed with a fast lateral tracking move through shallow focus, then use its dark oval shape as a seamless match cut to the brass handle of a century-old wooden seed-catalog drawer opening in a dim agricultural archive. Cream specimen labels flutter while rows of glass jars catch narrow shafts of sunlight. Whip-pan into an overhead shot of weathered farmer's hands pouring richly colored beans—rust red, mottled cream, ochre, sage green—across a black light table. The camera descends as the beans stream into precise furrow-like lines. In the final two seconds, those rows settle into a restrained graphic composition and reveal the centered title THE SEEDKEEPERS in crisp, elegant cream serif capitals, with A DOCUMENTARY SERIES smaller beneath it. Hold the final title long enough to read. Tactile photorealism, practical macro cinematography, natural seed physics, controlled motion blur, subtle 35mm grain, deep blacks, sun-baked earth palette, intimate and quietly urgent rather than sentimental. Native audio synchronized to the visuals: brittle husk crackle, a sweeping stereo seed rattle, dry field wind, wooden drawer clack, paper rustle, then one low cello pulse and a soft resonant title sting. No narration or dialogue.",
+        "negativePrompt": "Illegible or misspelled title, extra text, logos, watermarks, modern laboratory equipment, fantasy imagery, neon colors, rain, glossy commercial product styling, duplicated hands, malformed fingers, floating jars, chaotic camera shake, abrupt exposure changes, cartoon rendering, gore",
+        "width": 1920,
+        "height": 1080,
+        "duration": 10,
+        "providerSettings": {
+          "klingai": {
+            "sound": true
+          }
+        }
+      },
+      "response": {
+        "taskType": "videoInference",
+        "videoUUID": "87e7921f-aece-4f29-b33c-701889f4361d",
+        "videoURL": "https://vm.runware.ai/video/os/a10dlim3/ws/5/vi/87e7921f-aece-4f29-b33c-701889f4361d.mp4"
+      }
+    },
+    {
+      "id": "indigo-dyehouse-music-video-segment",
+      "title": "Indigo Dyehouse Music Video Segment",
+      "mode": "reference-to-video",
+      "cost": 0.522,
+      "latencyMs": 400813,
+      "asset": "https://assets.runware.ai/examples/klingai-video-2-6-pro/6ad2ea6d-3db6-4ba1-9d09-a9b3559f4c14.mp4",
+      "request": {
+        "taskType": "videoInference",
+        "model": "klingai:kling-video@2.6-pro",
+        "positivePrompt": "Create a polished vertical music-video performance shot inside a sunlit artisan indigo dyehouse. Preserve the vocalist’s exact facial identity, silver buzz cut, age, body proportions, cream canvas coveralls, indigo-stained boots and orange gloves from the reference image. Follow the reference video’s character orientation, choreography, gestures, turns, performance timing and lip synchronization precisely, while retaining its original soundtrack unchanged and synchronized.\n\nThe vocalist performs between waist-high circular dye vats as long ultramarine fabric lengths hang overhead and billow gently in hot, dry air. Workers remain distant, soft silhouettes so the singer is always the unmistakable focus. Begin in a centered full-body composition, track sideways with her lateral steps, move into a medium profile as she turns, then ease back to reveal a graphic corridor of suspended cloth for her final raised-hand pose. Crisp midday shafts of sunlight, chalk-white plaster, saturated indigo textiles, oxidized copper vats and flashes of orange gloves; tactile documentary realism shaped into bold editorial choreography. Natural fabric movement, grounded footwork, convincing vat reflections, cinematic depth, clean cuts motivated by the percussion. No captions, lyrics, logos or added music.",
+        "providerSettings": {
+          "klingai": {
+            "characterOrientation": "video",
+            "keepOriginalSound": true
+          }
+        },
+        "inputs": {
+          "referenceImages": [
+            "https://assets.runware.ai/assets/inputs/1ac62236-afeb-4f06-b30e-d932c9fb7e16.jpg"
+          ],
+          "referenceVideos": [
+            "https://assets.runware.ai/assets/inputs/c46a78d1-7d0c-4aa5-9522-1cbcf7cbd493.mp4"
+          ]
+        }
+      },
+      "response": {
+        "taskType": "videoInference",
+        "videoUUID": "1f72d366-3468-4ef9-9101-6c9c23ed92c3",
+        "videoURL": "https://vm.runware.ai/video/os/a06dlim3/ws/5/vi/1f72d366-3468-4ef9-9101-6c9c23ed92c3.mp4"
+      }
+    },
+    {
+      "id": "archaeological-thriller-opening-title",
+      "title": "Archaeological Thriller Opening Title",
+      "mode": "first-last-frame",
+      "cost": 0.7,
+      "latencyMs": 233166,
+      "asset": "https://assets.runware.ai/examples/klingai-video-2-6-pro/a51bef89-157c-4a4a-9473-1e5bd90ef2b5.mp4",
+      "request": {
+        "taskType": "videoInference",
+        "model": "klingai:kling-video@2.6-pro",
+        "positivePrompt": "Create a single continuous 10-second opening-title shot connecting the supplied first and last frames. Preserve the exact overhead conservation-table layout, tablet geometry, props, warm raking light and restrained umber, chalk and oxidized-copper palette. Begin nearly still on the dust-covered tablet. After one second, a conservator's hand in a fitted charcoal cotton glove enters slowly from the lower left, lifts the bone-handled brush and makes three deliberate, physically believable passes across the clay. Fine dust rolls ahead of the bristles, spills into cracks and drifts through the amber light; the surrounding fragments and tools remain undisturbed. Each pass uncovers more cuneiform and fragments of engraved Roman capitals. Add an almost imperceptible controlled camera push-in without changing the overhead angle. By second eight, the final sweep reveals the exact title THE DUST LEDGER, centered and fully legible as deep incisions in the ancient clay. The hand withdraws with the brush and the camera holds on the completed title for the final two seconds. Prestige archaeological conspiracy thriller, tactile practical effects, measured suspense, realistic hand and brush contact, no cuts, no dissolves, no magical transformation. Native synchronized audio only: close dry brush bristles, granular sand trickling over wood, faint museum ventilation, one low frame-drum pulse as the full title appears, then tense silence.",
+        "negativePrompt": "Extra text, misspelled title, changing props, moving fragments, modern screens, rain, neon, fantasy glow, supernatural particles, jump cuts, camera shake, warped hands, extra fingers, floating brush, liquid dust, logos, subtitles, credits, dialogue.",
+        "duration": 10,
+        "inputs": {
+          "frameImages": [
+            {
+              "image": "https://assets.runware.ai/assets/inputs/d578121b-6e56-4588-9209-ec0cd06c4132.jpg"
+            },
+            {
+              "image": "https://assets.runware.ai/assets/inputs/fbfa0e62-9c45-46d4-9cf3-195440519140.jpg"
+            }
+          ]
+        }
+      },
+      "response": {
+        "taskType": "videoInference",
+        "videoUUID": "ed4a1324-53cd-4663-b67b-370e595943c7",
+        "videoURL": "https://vm.runware.ai/video/os/a04d20/ws/5/vi/ed4a1324-53cd-4663-b67b-370e595943c7.mp4"
+      }
+    },
+    {
+      "id": "greenhouse-dry-break-coupler-demo",
+      "title": "Greenhouse Dry-Break Coupler Demo",
+      "mode": "first-frame",
+      "cost": 0.7,
+      "latencyMs": 127042,
+      "asset": "https://assets.runware.ai/examples/klingai-video-2-6-pro/50f57e15-6292-4319-bf1c-8865add1cab8.mp4",
+      "request": {
+        "taskType": "videoInference",
+        "model": "klingai:kling-video@2.6-pro",
+        "positivePrompt": "A single continuous five-second industrial product demonstration begins from the poised macro composition. The technician firmly rotates the knurled collar a quarter turn and pulls the two hose halves apart horizontally. Track the coupling with a subtle forward camera push. Through the transparent housings, both stainless-steel spring poppet valves snap shut at the exact moment the halves separate; the blue-tinted water columns stop cleanly behind each valve with no spray or stream, only one tiny residual bead catching the sunlight. Hold briefly on the separated sealed ends so the mechanism and benefit are unmistakable. Preserve the precise coupler design, hose colors, gloves, workbench, bright greenhouse daylight, shallow depth of field, and physically accurate hand movement. Premium agricultural engineering explainer, satisfying precision, realistic water pressure and material reflections, no cuts, no slow motion, no on-screen text. Native synchronized audio: low greenhouse ventilation ambience, subtle pressurized-water hum, rubber grip squeak, collar ratchet, and a crisp paired mechanical click as both valves close. Calm female technical voice-over says, \"Twist, separate, and twin valves seal both lines instantly.\" No music.",
+        "negativePrompt": "Water spray, leaking hoses, flooding, deformed coupling, changing product geometry, extra fingers, warped hands, disconnected shadows, floating parts, visible brand names, labels, subtitles, captions, interface graphics, camera shake, dramatic rain, neon lighting, music",
+        "duration": 5,
+        "providerSettings": {
+          "klingai": {
+            "sound": true
+          }
+        },
+        "inputs": {
+          "frameImages": [
+            {
+              "image": "https://assets.runware.ai/assets/inputs/ccaf50cd-ddad-4310-a7e1-d30443cee3b3.jpg",
+              "frame": "first"
+            }
+          ]
+        }
+      },
+      "response": {
+        "taskType": "videoInference",
+        "videoUUID": "b6bcbb47-0ac8-4f7e-8cc8-454eeccd99c9",
+        "videoURL": "https://vm.runware.ai/video/os/a09dlim3/ws/5/vi/b6bcbb47-0ac8-4f7e-8cc8-454eeccd99c9.mp4"
+      }
+    }
+  ]
+}

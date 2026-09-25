@@ -17,8 +17,11 @@ use InvalidArgumentException;
 
 final class MediaModelConfig
 {
-    /** Implemented schema-contract adapters: queue/direct Fal schema execution and bounded WMA realtime. */
-    private const SCHEMA_ADAPTERS = ['fal_schema_v2', 'fal_wma_v1'];
+    /** Implemented schema-contract adapters: queue/direct Fal schema execution, bounded WMA realtime and async Runware tasks. */
+    private const SCHEMA_ADAPTERS = ['fal_schema_v2', 'fal_wma_v1', 'runware_v1'];
+
+    /** Protocols whose models execute published, source-backed schema contracts. */
+    private const SCHEMA_PROTOCOLS = ['fal', 'runware'];
 
     public static function forModel(AiModelProfile $model): array
     {
@@ -34,6 +37,10 @@ final class MediaModelConfig
         if ($model->provider?->protocol === 'fal') {
             return FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id)
                 ?? throw new InvalidArgumentException('This fal media model is not supported.');
+        }
+        if ($model->provider?->protocol === 'runware') {
+            // Runware runs reviewed schema contracts only; it never inherits OpenAI-compatible media defaults.
+            return self::schemaConfig();
         }
         if ($model->provider?->protocol === 'kinovi') {
             return KinoviProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id)
@@ -83,22 +90,49 @@ final class MediaModelConfig
             return self::forModel($model);
         }
         $unit = $revision->curation_overrides['pricing']['unit'] ?? 'request';
-        // A per-second tariff kept through a technical upgrade retains its native duration choices.
-        $native = $unit === 'second' ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
+        // A per-second Fal tariff kept through a technical upgrade retains its native duration choices.
+        $native = $unit === 'second' && $model->provider?->protocol === 'fal' ? FalProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
 
         return [
-            'schema_driven' => true, 'price_unit' => $unit,
+            ...self::schemaConfig(),
+            'price_unit' => $unit,
             'max_session_seconds' => $revision->executionMetadata()['max_session_seconds'] ?? null,
+            // The reviewed binding names the result-count input (e.g. Runware numberResults) that multiplies the tariff.
+            'quantity_input' => self::quantityInput($revision),
+            'durations' => $native['durations'] ?? [],
+            'duration_min' => $native['duration_min'] ?? null, 'duration_max' => $native['duration_max'] ?? null,
+            'duration_default' => $native['duration_default'] ?? null,
+        ];
+    }
+
+    /** Neutral fixed-form facts: a schema contract declares its own inputs, so no native control applies. */
+    private static function schemaConfig(): array
+    {
+        return [
+            'schema_driven' => true, 'max_session_seconds' => null, 'quantity_input' => null,
             'image_path' => null, 'video_path' => null, 'video_status_path' => null,
-            'sizes' => [], 'durations' => $native['durations'] ?? [], 'aspect_ratios' => [], 'max_quantity' => 1,
+            'sizes' => [], 'durations' => [], 'aspect_ratios' => [], 'max_quantity' => 1,
             'supports_size' => false, 'supports_n' => false, 'supports_duration' => false,
             'supports_aspect_ratio' => false, 'supports_pro' => false, 'supports_reference_image' => false,
             'reference_required' => false, 'reference_model' => null,
             'audio_path' => null, 'audio_status_path' => null, 'audio_kind' => null, 'voices' => [],
             'speed_min' => null, 'speed_max' => null, 'speed_default' => null,
-            'duration_min' => $native['duration_min'] ?? null, 'duration_max' => $native['duration_max'] ?? null,
-            'duration_default' => $native['duration_default'] ?? null, 'max_characters' => null,
+            'duration_min' => null, 'duration_max' => null, 'duration_default' => null, 'max_characters' => null,
         ];
+    }
+
+    /** The published binding's quantity input, read from whichever columns the caller selected. */
+    private static function quantityInput(MediaCapabilityRevision $revision): ?string
+    {
+        $attributes = $revision->getAttributes();
+        $field = match (true) {
+            array_key_exists('quantity_input', $attributes) => $attributes['quantity_input'],
+            array_key_exists('provider_bindings', $attributes) => $revision->provider_bindings['quantity_input'] ?? null,
+            default => MediaCapabilityRevision::query()->whereKey($revision->id)
+                ->first(['provider_bindings->quantity_input as quantity_input'])?->quantity_input,
+        };
+
+        return is_string($field) && $field !== '' ? $field : null;
     }
 
     /** A historical v1 source-backed image contract; schema contracts never enter the legacy image path. */
@@ -117,7 +151,7 @@ final class MediaModelConfig
      */
     private static function publishedSchemaRevisions(AiModelProfile $model): Collection
     {
-        if ($model->provider?->protocol !== 'fal') {
+        if (! in_array($model->provider?->protocol, self::SCHEMA_PROTOCOLS, true)) {
             return collect();
         }
         if ($model->relationLoaded('capabilityRevisions')) {
@@ -129,12 +163,16 @@ final class MediaModelConfig
 
         return $model->capabilityRevisions()->where('status', 'published')->where('contract_version', 2)
             ->whereIn('provider_bindings->adapter', self::SCHEMA_ADAPTERS)->whereNotNull('source_schema')->orderByDesc('id')
-            ->get(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'status', 'curation_overrides', 'provider_bindings->max_session_seconds as session_seconds']);
+            ->get(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'status', 'curation_overrides',
+                'provider_bindings->max_session_seconds as session_seconds', 'provider_bindings->quantity_input as quantity_input']);
     }
 
     /** Existing positive tariffs keep their current billing unit during technical upgrades. */
     public static function catalogPriceUnit(AiModelProfile $model): string
     {
+        if ($model->provider?->protocol === 'runware') {
+            return self::runwarePriceUnit($model);
+        }
         if ($model->provider?->protocol !== 'fal') {
             $native = $model->provider?->protocol === 'kinovi'
                 ? KinoviProtocol::mediaConfig($model->upstream_model_id ?: $model->model_id) : null;
@@ -178,6 +216,25 @@ final class MediaModelConfig
         }
 
         return 'request';
+    }
+
+    /**
+     * Runware bills per result unless its newest imported price reference charges per second of
+     * output (`durationSecond`); the unit is a provider fact captured with the source schema.
+     */
+    private static function runwarePriceUnit(AiModelProfile $model): string
+    {
+        if ($model->relationLoaded('capabilityRevisions')) {
+            $source = $model->capabilityRevisions->filter(fn (MediaCapabilityRevision $revision): bool => (bool) ($revision->source_backed ?? is_array($revision->source_schema)))
+                ->sortByDesc('id')->first();
+            $attributes = $source?->getAttributes() ?? [];
+            $unit = array_key_exists('catalog_unit', $attributes) ? $attributes['catalog_unit'] : ($source?->source_metadata['pricing']['catalog_unit'] ?? null);
+        } else {
+            $unit = $model->capabilityRevisions()->whereNotNull('source_schema')->orderByDesc('id')
+                ->first(['source_metadata->pricing->catalog_unit as catalog_unit'])?->catalog_unit;
+        }
+
+        return in_array($unit, ['generation', 'second'], true) ? $unit : 'generation';
     }
 
     public static function catalogCategory(string $category): string
@@ -231,6 +288,10 @@ final class MediaModelConfig
     {
         if (ThreeDProtocol::supports($model)) {
             return ThreeDProtocol::capabilities($model->model_id);
+        }
+        if ($model->provider?->protocol === 'runware') {
+            // Runware operations exist only as reviewed, published schema contracts.
+            return [];
         }
         // Legacy fallback is deliberately restricted to the existing curated integrations.
         $config = $model->provider?->protocol === 'fal'
@@ -480,6 +541,8 @@ final class MediaModelConfig
             'fal' => ThreeDProtocol::supports($model) || self::hasCatalogImage($model)
                 || (FalProtocol::MEDIA_MODELS[$routing] ?? null) === $model->category,
             'kinovi' => (KinoviProtocol::MODELS[$routing] ?? null) === $model->category,
+            // Schema contracts are workspace-only; Runware has no fixed-form native integration.
+            'runware' => false,
             default => true,
         };
     }

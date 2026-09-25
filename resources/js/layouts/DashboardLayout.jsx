@@ -37,21 +37,6 @@ export default function DashboardLayout({ children }) {
     const [logoutError, setLogoutError] = useState('');
     const sidebar = useRef(null);
     const menuButton = useRef(null);
-    const shell = useRef(null);
-    const ribbonWrap = useRef(null);
-
-    // The ribbon owns the very top of the viewport; the topbar and sidebar stick
-    // right below it. Its height is dynamic (absent without an announcement).
-    useEffect(() => {
-        const wrap = ribbonWrap.current;
-        const host = shell.current;
-        if (!wrap || !host) return;
-        const apply = () => host.style.setProperty('--dw-ribbon-h', `${Math.round(wrap.getBoundingClientRect().height)}px`);
-        apply();
-        const observer = new ResizeObserver(apply);
-        observer.observe(wrap);
-        return () => observer.disconnect();
-    }, []);
 
     useEffect(() => { setSidebarOpen(false); }, [location.key]);
     useEffect(() => {
@@ -92,12 +77,8 @@ export default function DashboardLayout({ children }) {
     const userNav = [
         { name: 'Overview', href: '/dashboard', icon: Icons.dashboard, tone: 'red' },
         ...(hasChat ? [{ name: 'Chat', href: '/chat', icon: Icons.chat, tone: 'emerald' }] : []),
-        ...(allowed('image_generator') || allowed('video_generator', false) || allowed('audio_generator') || hasChat ? [{ name: 'Studio Media', href: '/media', icon: Icons.model, tone: 'indigo' }] : []),
-        { name: 'Generate Gambar', href: '/generate-image', icon: Icons.image, tone: 'fuchsia' },
-        ...(allowed('video_generator', false) ? [{ name: 'Generate Video', href: '/video', icon: Icons.video, tone: 'violet' }] : []),
-        ...(allowed('audio_generator') ? [{ name: 'Audio', href: '/audio', icon: Icons.audio, tone: 'pink' }] : []),
-        ...(allowed('video_generator', false) ? [{ name: 'Avatar', href: '/avatar', icon: Icons.profile, tone: 'violet' }] : []),
-        ...(allowed('image_generator') ? [{ name: 'Studio 3D', href: '/3d', icon: Icons.cube, tone: 'cyan' }] : []),
+        // One entry for every studio (same gate as the /studio route, which admits chat-only members too).
+        ...(allowed('image_generator') || allowed('video_generator', false) || allowed('audio_generator') || hasChat ? [{ name: 'Studio Media', href: '/studio', icon: Icons.model, tone: 'indigo' }] : []),
         ...(allowed('video_downloader') ? [{ name: 'Downloads', href: '/downloads', icon: Icons.download, tone: 'blue' }] : []),
         ...(allowed('media_converter') ? [{ name: 'Converter', href: '/converter', icon: Icons.convert, tone: 'teal' }] : []),
         ...(allowed('media_converter') ? [{ name: 'Hapus Latar', href: '/remove-background', icon: Icons.image, tone: 'fuchsia' }] : []),
@@ -155,9 +136,10 @@ export default function DashboardLayout({ children }) {
     }
 
     return (
-        <div ref={shell} className={`dashboard-shell xsuper-workspace-shell min-h-dvh flex flex-col ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'} relative`}>
+        <div className={`dashboard-shell xsuper-workspace-shell min-h-dvh flex flex-col ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'} relative`}>
             <a className="dw-skip-link" href="#dashboard-content">{t('Lewati ke konten')}</a>
-            <div ref={ribbonWrap} className="sticky top-0 z-[80] w-full" inert={sidebarOpen && !isDesktop}><AnnouncementRibbon surface="dashboard" /></div>
+            {/* The ribbon publishes --xs-ribbon-h; the topbar, desktop sidebar and mobile drawer start right below it. */}
+            <div className="sticky top-0 z-[80] w-full" inert={sidebarOpen && !isDesktop}><AnnouncementRibbon surface="dashboard" /></div>
             {sidebarOpen && !isDesktop && <button type="button" className="dw-nav-overlay" tabIndex={-1} onClick={() => setSidebarOpen(false)} aria-label={t('Tutup menu')} />}
             <div className="flex min-h-0 flex-1">
                 <aside ref={sidebar} id="dashboard-navigation" aria-label={t('Navigasi dashboard')} role={!isDesktop && sidebarOpen ? 'dialog' : undefined} aria-modal={!isDesktop && sidebarOpen ? true : undefined} inert={!isDesktop && !sidebarOpen} className={`dw-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
@@ -184,14 +166,15 @@ export default function DashboardLayout({ children }) {
                     </div>
                 </aside>
                 <div className="flex-1 flex flex-col min-w-0 relative" inert={sidebarOpen && !isDesktop}>
-                    <header className="dw-topbar sticky z-30 flex items-center justify-between px-4 lg:px-6" style={{ top: 'var(--dw-ribbon-h, 0px)' }}>
-                        <div className="flex items-center gap-3 min-w-0">
+                    {/* Three slots at every width: page context, centered search, account tools. */}
+                    <header className="dw-topbar px-4 lg:px-6">
+                        <div className="dw-topbar-start">
                             <button ref={menuButton} type="button" onClick={() => setSidebarOpen(true)} className="dw-shell-control dw-mobile-control" aria-label={t('Buka menu')} aria-expanded={sidebarOpen} aria-controls="dashboard-navigation">{Icons.menu}</button>
                             <nav className="hidden xl:flex items-center gap-2 text-xs min-w-0" aria-label={t('Breadcrumb')}><Link to={localizedPath('/dashboard')} className="text-slate-500 dark:text-slate-400">XSuper.ai</Link><span aria-hidden="true" className="text-slate-400 [&>svg]:w-3 [&>svg]:h-3">{Icons.chevron}</span><span className="font-semibold truncate" aria-current="page">{currentPage}</span></nav>
                             <span className="hidden sm:block xl:hidden text-xs font-semibold truncate">{currentPage}</span>
                         </div>
+                        <div className="dw-topbar-search"><DashboardSearch /></div>
                         <div className="dw-topbar-tools">
-                            <div className="dw-topbar-search"><DashboardSearch /></div>
                             <NotificationMenu />
                             <Link to={otherLocalePath(`${location.pathname}${location.search}${location.hash}`)} className="dw-shell-control text-[11px] font-bold" aria-label={locale === 'en' ? 'Ganti ke bahasa Indonesia' : 'Switch to English'}>{locale === 'en' ? 'ID' : 'EN'}</Link>
                             <button type="button" onClick={toggleTheme} className="dw-shell-control" title={isDark ? t('Mode terang') : t('Mode gelap')} aria-label={isDark ? t('Mode terang') : t('Mode gelap')}>{isDark ? Icons.sun : Icons.moon}</button>

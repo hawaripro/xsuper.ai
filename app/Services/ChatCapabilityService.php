@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Media\AssetService;
 use App\Models\AiModelProfile;
 use App\Models\User;
+use App\Support\StudioLink;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -76,7 +77,7 @@ class ChatCapabilityService
                     'image_generation' => [
                         'available' => false, 'control' => 'link',
                         'reason' => 'Image generation runs separately in Studio with its own model and reviewed price.',
-                        'href' => $user->hasPermission('image_generator') ? '/generate-image' : null,
+                        'href' => $user->hasPermission('image_generator') ? StudioLink::to('image') : null,
                     ],
                     'web_search' => ['available' => false, 'reason' => 'No web search executor is connected to chat.'],
                     'code_interpreter' => ['available' => false, 'reason' => 'No code execution sandbox is connected to chat.'],

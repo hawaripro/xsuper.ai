@@ -6,6 +6,7 @@ import { useLocale } from "../contexts/LocaleContext";
 import useMediaToolQueue, { isActiveJob } from "../components/media-tools/useMediaToolQueue";
 import MediaActionDialog from "../components/MediaActionDialog";
 import { errorMessage, formatLocalDate } from "../components/member/MemberUI";
+import { studioHref } from "../components/studios/studioLinks";
 import "../components/media-tools/media-tools.css";
 
 const STAGE_LABELS = {
@@ -105,7 +106,7 @@ export default function RemoveBackground() {
                     <div><h1>{t("Hapus Latar")}</h1><p>{t("Unggah gambar dan hapus latar belakangnya secara otomatis. Hasil berupa PNG transparan.")}</p></div>
                 </div>
                 <div className="mt-page-actions">
-                    <Link className="mt-button mt-button--secondary" to={localizedPath("/generate-image")}><Icon path={<path d="m2 15 5-5 3 3 4-4 8 8M3 5h18v14H3z" />} />{t("Studio gambar")}</Link>
+                    <Link className="mt-button mt-button--secondary" to={localizedPath(studioHref({ kind: "image" }))}><Icon path={<path d="m2 15 5-5 3 3 4-4 8 8M3 5h18v14H3z" />} />{t("Studio gambar")}</Link>
                     <button type="button" className="mt-button mt-button--secondary" disabled={queue.historyLoading} onClick={queue.refresh}><Icon path={<path d="M3 12a9 9 0 1 1 3 6.7L3 16" />} />{t("Muat ulang")}</button>
                 </div>
             </header>

@@ -33,7 +33,8 @@ class MediaCatalogController extends Controller
             'items.*.model_id' => ['required', 'integer', 'min:1', 'distinct'],
             'items.*.revision_id' => ['required', 'integer', 'min:1', 'distinct'],
             'items.*.token_cost' => ['required', 'integer', 'min:1', 'max:2147483647'],
-            'items.*.price_unit' => ['required', Rule::in(['request'])],
+            // The service requires each item's unit to equal that model's catalog price unit.
+            'items.*.price_unit' => ['required', Rule::in(['request', 'generation', 'second'])],
             'items.*.max_session_seconds' => ['sometimes', 'integer', 'min:1', 'max:60'],
             'expected_count' => ['required', 'integer', 'min:1', 'max:50'],
             'action' => ['required', Rule::in(['review', 'publish'])],

@@ -1,0 +1,911 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Runware API - Tripo 3D v3.1",
+    "summary": "High-fidelity 3D asset generation with enhanced geometry and texture precision",
+    "description": "Tripo 3D v3.1 is a high-fidelity 3D generation model that creates production-ready 3D assets from text prompts or images. It delivers enhanced detail, stronger geometry precision, and improved texture quality compared to earlier versions, with support for PBR materials and export in GLB, FBX, OBJ, and STL formats.",
+    "version": "1.0.0",
+    "x-model-id": "tripo-v3-1",
+    "x-air-id": "tripo:v3.1@0",
+    "x-status": "live",
+    "x-creator": {
+      "id": "tripo",
+      "name": "Tripo AI",
+      "logo": "https://assets.runware.ai/16fe42ac-338e-481f-9c3d-14454dc3896a.png"
+    },
+    "x-capabilities": [
+      "text-to-3d",
+      "image-to-3d",
+      "checkpoint"
+    ],
+    "x-modes": [
+      {
+        "id": "text",
+        "inputs": []
+      },
+      {
+        "id": "images",
+        "inputs": [
+          "images"
+        ]
+      }
+    ],
+    "x-released-at": "2026-02-11T00:00:00Z",
+    "x-cover-image": "https://assets.runware.ai/covers/tripo-v3-1.jpg",
+    "x-examples": "https://runware.ai/docs/models/tripo-v3-1/examples.json",
+    "x-pricing": {
+      "currency": "USD",
+      "docs": "https://runware.ai/docs/platform/pricing",
+      "rates": [
+        {
+          "amount": 0.3,
+          "unit": "output",
+          "label": "Text-to-3D",
+          "display": "$0.30 per run"
+        },
+        {
+          "amount": 0.4,
+          "unit": "output",
+          "label": "Image-to-3D",
+          "display": "$0.40 per run"
+        }
+      ],
+      "examples": [
+        {
+          "id": "near-future-apiary-smoker-prop",
+          "configuration": "segmented-3d",
+          "price": 0.3,
+          "latencyMs": 111043
+        },
+        {
+          "id": "polar-research-ice-core-auger",
+          "configuration": "geometry-only-3d",
+          "price": 0.3,
+          "latencyMs": 106090
+        },
+        {
+          "id": "metro-signal-relay-room",
+          "configuration": "reference-to-3d",
+          "price": 0.3,
+          "latencyMs": 238081
+        },
+        {
+          "id": "sculptural-watering-can-product-model",
+          "configuration": "quad-mesh",
+          "price": 0.35,
+          "latencyMs": 123572
+        },
+        {
+          "id": "wildfire-ranger-pangolin-character",
+          "configuration": "text-to-3d",
+          "price": 0.5,
+          "latencyMs": 213532
+        }
+      ],
+      "overview": "Pricing starts $0.3 per generation, for Text-to-3D, and $0.4 for Image-to-3D and Multiview-to-3D"
+    }
+  },
+  "externalDocs": {
+    "description": "Tripo 3D v3.1 on Runware",
+    "url": "https://runware.ai/docs/models/tripo-v3-1"
+  },
+  "servers": [
+    {
+      "url": "https://api.runware.ai/v1",
+      "description": "Runware REST API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Runware API Key (e.g., Bearer <your-key>)"
+      }
+    },
+    "schemas": {
+      "AuthenticationTask": {
+        "title": "Authentication",
+        "description": "Authenticates a connection using an API key. Can be sent as the first element of the request array as an alternative to using the Authorization header.",
+        "type": "object",
+        "x-response-schema": "https://schemas.runware.ai/responses/utilities/authentication.json",
+        "properties": {
+          "taskType": {
+            "$id": "https://schemas.runware.ai/requests/parameters/api/task-type.json",
+            "title": "Task Type",
+            "description": "Identifier for the type of task being performed.",
+            "type": "string",
+            "const": "authentication"
+          },
+          "apiKey": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/api-key.json",
+            "title": "API Key",
+            "description": "Your Runware API key.",
+            "type": "string"
+          },
+          "connectionSessionUUID": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/connection-session-uuid.json",
+            "title": "Connection Session UUID",
+            "description": "Optional session UUID to resume a previous connection and receive any buffered results.",
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "taskType",
+          "apiKey"
+        ],
+        "additionalProperties": false
+      },
+      "RequestBody": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "title": "Model",
+              "description": "Identifier of the model to use for generation.",
+              "type": "string",
+              "const": "tripo:v3.1@0"
+            },
+            "outputFormat": {
+              "title": "Output Format",
+              "description": "Specifies the file format of the generated output. The available values depend on the task type and the specific model's capabilities.\n\n- \\`JPG\\`: Best for photorealistic images with smaller file sizes (no transparency).\n- \\`PNG\\`: Lossless compression, supports high quality and transparency (alpha channel).\n- \\`WEBP\\`: Modern format providing superior compression and transparency support.\n- \\`MP4\\`: Widely supported video container (H.264), recommended for general use.\n- \\`WEBM\\`: Optimized for web delivery.\n- \\`MOV\\`: QuickTime format, common in professional workflows (Apple ecosystem).\n- \\`GIF\\`: Animated image format (no audio), suitable for short loops or previews.\n- \\`MP3\\`: Compressed audio, smaller file size.\n- \\`WAV\\`: Uncompressed, high-quality audio.\n- \\`FLAC\\`: Lossless compression.\n- \\`OGG\\`: Open-source compressed audio format (Vorbis codec).\n- \\`SVG\\`: Scalable Vector Graphics.\n- \\`TIFF\\`: High-quality output supporting layers.\n- \\`GLB\\`: Binary glTF format for 3D models, including geometry, textures, and PBR materials.\n\n> [!NOTE]\n> \\*\\*Transparency\\*\\*: If you are using features like background removal or LayerDiffuse that require transparency, you must select a format that supports an alpha channel (e.g., \\`PNG\\`, \\`WEBP\\`, \\`TIFF\\`). \\`JPG\\` does not support transparency.\n\n[Read full documentation](https://runware.ai/docs/models/tripo-v3-1#outputFormat)",
+              "type": "string",
+              "enum": [
+                "GLB",
+                "FBX"
+              ],
+              "default": "GLB"
+            },
+            "inputs": {
+              "title": "Inputs",
+              "description": "Input assets for the task.",
+              "type": "object",
+              "properties": {
+                "images": {
+                  "title": "Images",
+                  "description": "Image inputs for image-to-3D or multiview-to-3D generation (UUID, URL, Data URI, or Base64).",
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "title": "Image",
+                    "description": "Image input (UUID, URL, Data URI, or Base64).",
+                    "type": "string",
+                    "anyOf": [
+                      {
+                        "format": "uuid"
+                      },
+                      {
+                        "format": "uri"
+                      },
+                      {
+                        "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                      },
+                      {
+                        "pattern": "^[a-zA-Z0-9+/=]+$"
+                      }
+                    ]
+                  },
+                  "maxItems": 4
+                }
+              },
+              "additionalProperties": false
+            },
+            "positivePrompt": {
+              "title": "Positive Prompt",
+              "description": "Text prompt describing elements to include in the generated output.",
+              "type": "string",
+              "maxLength": 1024
+            },
+            "negativePrompt": {
+              "title": "Negative Prompt",
+              "description": "Prompt to guide what to exclude from generation. Ignored when guidance is disabled (CFGScale ≤ 1).",
+              "type": "string",
+              "maxLength": 255
+            },
+            "seed": {
+              "title": "Seed",
+              "description": "Random seed for reproducible generation. When not provided, a random seed is generated in the unsigned 32-bit range.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20240919
+            },
+            "settings": {
+              "title": "Settings",
+              "description": "Global inference settings.",
+              "type": "object",
+              "properties": {
+                "autoSize": {
+                  "type": "boolean",
+                  "title": "Auto Size",
+                  "description": "Scales the model to real-world dimensions in meters."
+                },
+                "compress": {
+                  "type": "string",
+                  "title": "Compress",
+                  "description": "Compression method for the output mesh.",
+                  "default": "meshopt",
+                  "oneOf": [
+                    {
+                      "description": "Geometry-based compression. Requires decompression for editing.",
+                      "const": "geometry"
+                    },
+                    {
+                      "description": "Default mesh optimization compression.",
+                      "const": "meshopt"
+                    }
+                  ]
+                },
+                "exportUv": {
+                  "type": "boolean",
+                  "title": "Export UV",
+                  "description": "Enables UV unwrapping on the output mesh.",
+                  "default": true
+                },
+                "faceLimit": {
+                  "type": "integer",
+                  "title": "Face Limit",
+                  "description": "Maximum number of faces (polygons) in the output mesh. If not set, determined adaptively. Range depends on mode: 1000–20000 for low-poly, 500–10000 for quad.",
+                  "minimum": 500,
+                  "maximum": 20000
+                },
+                "generateParts": {
+                  "type": "boolean",
+                  "title": "Generate Parts",
+                  "description": "Generates segmented 3D models with individually editable parts."
+                },
+                "geometryQuality": {
+                  "type": "string",
+                  "title": "Geometry Quality",
+                  "description": "Controls the geometric detail level of the output mesh.",
+                  "default": "standard",
+                  "oneOf": [
+                    {
+                      "description": "Balanced detail and generation speed.",
+                      "const": "standard"
+                    },
+                    {
+                      "description": "Maximum geometric detail. Slower generation.",
+                      "const": "detailed"
+                    }
+                  ]
+                },
+                "imageAutoFix": {
+                  "type": "boolean",
+                  "title": "Image Auto Fix",
+                  "description": "Optimizes the input image for better 3D generation results."
+                },
+                "orientation": {
+                  "type": "string",
+                  "title": "Orientation",
+                  "description": "Controls model orientation.",
+                  "default": "default",
+                  "oneOf": [
+                    {
+                      "description": "Default model orientation.",
+                      "const": "default"
+                    },
+                    {
+                      "description": "Rotates the model to match the input image viewpoint.",
+                      "const": "align_image"
+                    }
+                  ]
+                },
+                "pbr": {
+                  "type": "boolean",
+                  "title": "PBR",
+                  "description": "Enables physically-based rendering materials.",
+                  "default": true
+                },
+                "quad": {
+                  "type": "boolean",
+                  "title": "Quad Mesh",
+                  "description": "Enables quad mesh output."
+                },
+                "smartLowPoly": {
+                  "type": "boolean",
+                  "title": "Smart Low Poly",
+                  "description": "Generates low-poly meshes optimized for simple inputs. May fail on complex models."
+                },
+                "texture": {
+                  "type": "boolean",
+                  "title": "Texture",
+                  "description": "Enables texturing on the generated model. Set to false for a base model without textures.",
+                  "default": true
+                },
+                "textureAlignment": {
+                  "type": "string",
+                  "title": "Texture Alignment",
+                  "description": "Controls texture alignment priority.",
+                  "oneOf": [
+                    {
+                      "description": "Prioritizes visual fidelity to the source image. May introduce minor 3D inconsistencies.",
+                      "const": "original_image"
+                    },
+                    {
+                      "description": "Prioritizes structural accuracy. May slightly deviate from original appearance.",
+                      "const": "geometry"
+                    }
+                  ]
+                },
+                "textureQuality": {
+                  "type": "string",
+                  "title": "Texture Quality",
+                  "description": "Resolution quality for generated textures.",
+                  "default": "standard",
+                  "oneOf": [
+                    {
+                      "description": "Balanced quality and speed.",
+                      "const": "standard"
+                    },
+                    {
+                      "description": "Higher resolution textures with finer surface detail.",
+                      "const": "detailed"
+                    }
+                  ]
+                },
+                "textureSeed": {
+                  "type": "integer",
+                  "title": "Texture Seed",
+                  "description": "Seed for texture generation reproducibility.",
+                  "minimum": 0,
+                  "maximum": 20240919
+                }
+              },
+              "additionalProperties": false
+            },
+            "taskType": {
+              "title": "Task Type",
+              "description": "Identifier for the type of task being performed.",
+              "type": "string",
+              "const": "3dInference"
+            },
+            "taskUUID": {
+              "title": "Task UUID",
+              "description": "UUID v4 identifier for tracking tasks and matching async responses. Must be unique per task.",
+              "type": "string",
+              "format": "uuid"
+            },
+            "webhookURL": {
+              "title": "Webhook URL",
+              "description": "Webhook URL that receives JSON responses via HTTP POST when generation tasks complete. For batch requests with multiple results, each completed item triggers a separate webhook call as it becomes available.",
+              "type": "string",
+              "format": "uri"
+            },
+            "includeCost": {
+              "title": "Include Cost",
+              "description": "Include task cost in the response.",
+              "type": "boolean"
+            },
+            "numberResults": {
+              "title": "Number of Results",
+              "description": "Number of results to generate. Each result uses a different seed, producing variations of the same parameters.",
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "maximum": 4
+            },
+            "uploadEndpoint": {
+              "title": "Upload Endpoint",
+              "description": "Specifies a URL where the generated content will be automatically uploaded using the HTTP PUT method. The raw binary data of the media file is sent directly as the request body. For secure uploads to cloud storage, use presigned URLs that include temporary authentication credentials.\n\n**Common use cases:**\n\n- **Cloud storage**: Upload directly to S3 buckets, Google Cloud Storage, or Azure Blob Storage using presigned URLs.\n- **CDN integration**: Upload to content delivery networks for immediate distribution.\n\n```text\n// S3 presigned URL for secure upload\nhttps://your-bucket.s3.amazonaws.com/generated/content.mp4?X-Amz-Signature=abc123&X-Amz-Expires=3600\n\n// Google Cloud Storage presigned URL\nhttps://storage.googleapis.com/your-bucket/content.jpg?X-Goog-Signature=xyz789\n\n// Custom storage endpoint\nhttps://storage.example.com/uploads/generated-image.jpg\n```\n\nThe content data will be sent as the request body to the specified URL when generation is complete.\n\n[Read full documentation](https://runware.ai/docs/models/tripo-v3-1#uploadEndpoint)",
+              "type": "string",
+              "format": "uri"
+            },
+            "ttl": {
+              "title": "TTL",
+              "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+              "type": "integer",
+              "minimum": 60
+            },
+            "outputType": {
+              "title": "Output Type",
+              "description": "3D output type.",
+              "type": "string",
+              "enum": [
+                "URL"
+              ],
+              "default": "URL"
+            },
+            "deliveryMethod": {
+              "title": "Delivery Method",
+              "description": "Determines how the API delivers task results.",
+              "type": "string",
+              "oneOf": [
+                {
+                  "const": "sync",
+                  "description": "Returns complete results directly in the API response."
+                },
+                {
+                  "const": "async",
+                  "description": "Returns an immediate acknowledgment with the task UUID. Poll for results using getResponse."
+                }
+              ],
+              "default": "async"
+            }
+          },
+          "allOf": [
+            {
+              "not": {
+                "allOf": [
+                  {
+                    "required": [
+                      "negativePrompt"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "inputs": {
+                        "required": [
+                          "images"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "inputs"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "settings": {
+                    "properties": {
+                      "generateParts": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "generateParts"
+                    ]
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              },
+              "then": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "settings": {
+                          "properties": {
+                            "texture": {
+                              "const": true
+                            }
+                          },
+                          "required": [
+                            "texture"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "settings": {
+                          "properties": {
+                            "pbr": {
+                              "const": true
+                            }
+                          },
+                          "required": [
+                            "pbr"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "settings": {
+                          "properties": {
+                            "quad": {
+                              "const": true
+                            }
+                          },
+                          "required": [
+                            "quad"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "settings": {
+                    "properties": {
+                      "pbr": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "pbr"
+                    ]
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "settings": {
+                    "properties": {
+                      "texture": {
+                        "const": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "settings": {
+                    "required": [
+                      "imageAutoFix"
+                    ]
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "inputs": {
+                    "required": [
+                      "images"
+                    ]
+                  }
+                },
+                "required": [
+                  "inputs"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "settings": {
+                    "properties": {
+                      "orientation": {
+                        "const": "align_image"
+                      }
+                    },
+                    "required": [
+                      "orientation"
+                    ]
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "inputs": {
+                    "required": [
+                      "images"
+                    ]
+                  }
+                },
+                "required": [
+                  "inputs"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "settings": {
+                    "properties": {
+                      "quad": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "quad"
+                    ]
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "outputFormat": {
+                    "const": "FBX"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "outputFormat": {
+                    "const": "GLB"
+                  }
+                }
+              }
+            },
+            {
+              "oneOf": [
+                {
+                  "required": [
+                    "positivePrompt"
+                  ]
+                },
+                {
+                  "properties": {
+                    "inputs": {
+                      "properties": {
+                        "images": {
+                          "minItems": 1
+                        }
+                      },
+                      "required": [
+                        "images"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "inputs"
+                  ]
+                }
+              ]
+            }
+          ],
+          "additionalProperties": false,
+          "required": [
+            "taskType",
+            "taskUUID",
+            "model"
+          ]
+        },
+        "description": "You must always POST an array of task objects."
+      },
+      "ResponseBody": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "title": "3D Response",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "taskType": {
+                  "title": "Task Type",
+                  "description": "Identifier for the type of task this response belongs to.",
+                  "type": "string",
+                  "const": "3dInference"
+                },
+                "taskUUID": {
+                  "title": "Task UUID",
+                  "description": "UUID v4 identifier echoed from the original request, used to match async responses to their tasks.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "description": "Task cost in USD. Present when `includeCost` is set to `true` in the request.",
+                  "type": "number"
+                },
+                "outputs": {
+                  "title": "Outputs",
+                  "description": "Generated output artifacts.",
+                  "type": "object",
+                  "properties": {
+                    "files": {
+                      "title": "Output Files",
+                      "description": "Generated output files.",
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uuid": {
+                            "title": "File UUID",
+                            "description": "UUID of the output file.",
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "url": {
+                            "title": "File URL",
+                            "description": "URL of the output file.",
+                            "type": "string",
+                            "format": "uri"
+                          }
+                        },
+                        "required": [
+                          "uuid",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "files"
+                  ],
+                  "additionalProperties": false
+                },
+                "seed": {
+                  "title": "Seed",
+                  "description": "The seed used for generation. If none was provided, shows the randomly generated seed.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "taskType",
+                "taskUUID",
+                "outputs"
+              ]
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "title": "Error Response",
+        "description": "Standard error response returned by the Runware API.",
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": true,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "A short identifier for the error (e.g., invalidApiKey, timeoutProvider)."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable explanation of what went wrong."
+                },
+                "parameter": {
+                  "type": "string",
+                  "description": "The request parameter related to the error, if applicable."
+                },
+                "taskType": {
+                  "type": "string",
+                  "description": "The task type of the request that failed."
+                },
+                "taskUUID": {
+                  "type": "string",
+                  "description": "The unique identifier of the failed request."
+                },
+                "documentation": {
+                  "type": "string",
+                  "description": "A link to relevant documentation."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "errors"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "post": {
+        "summary": "Run Tripo 3D v3.1",
+        "description": "Tripo 3D v3.1 is a high-fidelity 3D generation model that creates production-ready 3D assets from text prompts or images. It delivers enhanced detail, stronger geometry precision, and improved texture quality compared to earlier versions, with support for PBR materials and export in GLB, FBX, OBJ, and STL formats.",
+        "operationId": "run_tripo_v3_1",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Missing or invalid parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — No valid API key provided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — Insufficient account balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — The API key lacks permissions for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests — Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error — Something went wrong on Runware's end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — Temporarily unavailable (maintenance or capacity).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ]
+}

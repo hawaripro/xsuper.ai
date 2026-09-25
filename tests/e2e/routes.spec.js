@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { login, captureErrors, databaseRows } from './helpers.js';
 
+// Legacy studio paths (/video, /audio, /generate-image, /media, /avatar, /3d) redirect into /studio.
 const memberRoutes = [
-    '/dashboard', '/profile', '/chat', '/video', '/audio', '/downloads', '/converter', '/templates', '/library',
+    '/dashboard', '/profile', '/chat', '/studio', '/video', '/audio', '/downloads', '/converter', '/templates', '/library',
     '/generate-image', '/media', '/token-usage', '/deposit', '/paket', '/referral', '/bantuan', '/notifications',
     '/avatar', '/3d', '/remove-background', '/history',
 ];

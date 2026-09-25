@@ -22,16 +22,16 @@ class WorkspaceMediaController extends Controller
     public function models(Request $request): JsonResponse
     {
         $filters = $request->validate(['kind' => ['nullable', 'string', 'max:30'], 'q' => ['nullable', 'string', 'max:200'],
-            'cursor' => ['nullable', 'string', 'max:100']]);
+            'cursor' => ['nullable', 'string', 'max:100'], 'locale' => ['nullable', 'string', 'in:id,en']]);
 
         return response()->json($this->media->models($request->user(), $filters));
     }
 
     public function capabilities(Request $request): JsonResponse
     {
-        $data = $request->validate(['model' => ['required', 'string', 'max:160']]);
+        $data = $request->validate(['model' => ['required', 'string', 'max:160'], 'locale' => ['nullable', 'string', 'in:id,en']]);
 
-        return response()->json($this->media->capabilities($request->user(), $data['model']));
+        return response()->json($this->media->capabilities($request->user(), $data['model'], $data['locale'] ?? null));
     }
 
     public function index(Request $request): JsonResponse
@@ -44,7 +44,7 @@ class WorkspaceMediaController extends Controller
     /** Clears one studio's finished history; active or still-referenced originals are retained and counted. */
     public function clear(Request $request): JsonResponse
     {
-        $data = $request->validate(['kind' => ['required', 'string', 'in:image,video,audio,avatar,model3d']]);
+        $data = $request->validate(['kind' => ['required', 'string', 'in:image,video,audio,avatar,model3d,other']]);
 
         return response()->json($this->media->clear($request->user(), $data['kind']));
     }

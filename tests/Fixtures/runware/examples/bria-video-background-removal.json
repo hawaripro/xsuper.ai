@@ -1,0 +1,137 @@
+{
+  "model": "bria-video-background-removal",
+  "examples": [
+    {
+      "id": "polar-docuseries-title-sequence-plate",
+      "title": "Polar Docuseries Title Sequence Plate",
+      "mode": "remove-background",
+      "cost": 0.3024,
+      "latencyMs": 37057,
+      "asset": "https://assets.runware.ai/examples/bria-video-background-removal/0acd3579-57f4-4fdd-b6db-8f42dde87cda.webm",
+      "request": {
+        "taskType": "removeBackground",
+        "outputFormat": "WEBM",
+        "model": "bria:51@1",
+        "providerSettings": {
+          "bria": {
+            "rgba": [
+              255,
+              255,
+              255,
+              0
+            ]
+          }
+        },
+        "inputs": {
+          "video": "https://assets.runware.ai/assets/inputs/21e8ea12-1953-44c2-b859-0e3150b65899.mp4"
+        }
+      },
+      "response": {
+        "taskType": "removeBackground",
+        "videoUUID": "2641d09c-a90d-497f-ac92-27bec92c7110",
+        "videoURL": "https://vm.runware.ai/video/os/a09dlim3/ws/5/vi/2641d09c-a90d-497f-ac92-27bec92c7110.webm",
+        "mediaURL": "https://vm.runware.ai/video/os/a09dlim3/ws/5/vi/2641d09c-a90d-497f-ac92-27bec92c7110.webm",
+        "mediaUUID": "2641d09c-a90d-497f-ac92-27bec92c7110"
+      }
+    },
+    {
+      "id": "tidal-turbine-logo-loop",
+      "title": "Tidal Turbine Logo Loop",
+      "mode": "remove-background",
+      "cost": 0.3024,
+      "latencyMs": 23159,
+      "asset": "https://assets.runware.ai/examples/bria-video-background-removal/eedcde26-c14b-4fc1-9d63-e3216b2f57fa.webm",
+      "request": {
+        "taskType": "removeBackground",
+        "outputFormat": "WEBM",
+        "model": "bria:51@1",
+        "providerSettings": {
+          "bria": {
+            "rgba": [
+              255,
+              255,
+              255,
+              0
+            ]
+          }
+        },
+        "inputs": {
+          "video": "https://assets.runware.ai/assets/inputs/76dc0774-4413-4b90-9e57-2c2c8ae22232.mp4"
+        }
+      },
+      "response": {
+        "taskType": "removeBackground",
+        "videoUUID": "e8cbf88d-cb86-4c6b-877c-b07657fcd9fb",
+        "videoURL": "https://vm.runware.ai/video/os/a08dlim3/ws/5/vi/e8cbf88d-cb86-4c6b-877c-b07657fcd9fb.webm",
+        "mediaURL": "https://vm.runware.ai/video/os/a08dlim3/ws/5/vi/e8cbf88d-cb86-4c6b-877c-b07657fcd9fb.webm",
+        "mediaUUID": "e8cbf88d-cb86-4c6b-877c-b07657fcd9fb"
+      }
+    },
+    {
+      "id": "punk-asl-lyric-cutout",
+      "title": "Punk ASL Lyric Cutout",
+      "mode": "remove-background",
+      "cost": 0.3024,
+      "latencyMs": 21844,
+      "asset": "https://assets.runware.ai/examples/bria-video-background-removal/d012797d-19c7-4d5f-a1a2-104755588ce3.webm",
+      "request": {
+        "taskType": "removeBackground",
+        "outputFormat": "WEBM",
+        "model": "bria:51@1",
+        "providerSettings": {
+          "bria": {
+            "rgba": [
+              255,
+              255,
+              255,
+              0
+            ]
+          }
+        },
+        "inputs": {
+          "video": "https://assets.runware.ai/assets/inputs/bec99432-bb3d-4f91-93a1-9555bf65136a.mp4"
+        }
+      },
+      "response": {
+        "taskType": "removeBackground",
+        "videoUUID": "0a9ae0ca-b0db-4dda-9fde-fe6f94146e03",
+        "videoURL": "https://vm.runware.ai/video/os/a06dlim3/ws/5/vi/0a9ae0ca-b0db-4dda-9fde-fe6f94146e03.webm",
+        "mediaURL": "https://vm.runware.ai/video/os/a06dlim3/ws/5/vi/0a9ae0ca-b0db-4dda-9fde-fe6f94146e03.webm",
+        "mediaUUID": "0a9ae0ca-b0db-4dda-9fde-fe6f94146e03"
+      }
+    },
+    {
+      "id": "adaptive-fencing-reel-subject-cutout",
+      "title": "Adaptive Fencing Reel Subject Cutout",
+      "mode": "remove-background",
+      "cost": 0.3024,
+      "latencyMs": 23143,
+      "asset": "https://assets.runware.ai/examples/bria-video-background-removal/28e7dea1-92b8-4106-9a2f-02f675fa58ea.webm",
+      "request": {
+        "taskType": "removeBackground",
+        "outputFormat": "WEBM",
+        "model": "bria:51@1",
+        "providerSettings": {
+          "bria": {
+            "rgba": [
+              255,
+              255,
+              255,
+              0
+            ]
+          }
+        },
+        "inputs": {
+          "video": "https://assets.runware.ai/assets/inputs/37845e92-1321-4a24-b371-0ed835a9f808.mp4"
+        }
+      },
+      "response": {
+        "taskType": "removeBackground",
+        "videoUUID": "147961d9-af29-4219-9799-223a585eb73b",
+        "videoURL": "https://vm.runware.ai/video/os/a02d21/ws/5/vi/147961d9-af29-4219-9799-223a585eb73b.webm",
+        "mediaURL": "https://vm.runware.ai/video/os/a02d21/ws/5/vi/147961d9-af29-4219-9799-223a585eb73b.webm",
+        "mediaUUID": "147961d9-af29-4219-9799-223a585eb73b"
+      }
+    }
+  ]
+}

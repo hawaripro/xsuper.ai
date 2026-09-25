@@ -10,6 +10,9 @@ class UserDevice extends Model
 {
     private const SESSION_DEVICE_KEY = 'auth.user_device_id';
 
+    /** A known device's activity is refreshed at most this often; a new address is recorded at once. */
+    private const ACTIVITY_INTERVAL_SECONDS = 60;
+
     protected $fillable = ['user_id', 'device_hash', 'device_name', 'device_type', 'user_agent', 'ip_address', 'status', 'last_active_at'];
 
     protected function casts(): array
@@ -58,28 +61,26 @@ class UserDevice extends Model
 
     public static function trackDevice(int $userId, Request $request, int $maxDevices = 2): ?self
     {
-        return DB::transaction(function () use ($userId, $request, $maxDevices): ?self {
-            // Serialize admissions for the owner, including concurrent new fingerprints.
-            $user = User::query()->lockForUpdate()->findOrFail($userId);
-            $ua = $request->userAgent() ?? 'Unknown';
-            $ip = $request->ip();
-            $isApiKey = self::viaVerifiedApiKey($request);
-            $device = self::findForRequest($userId, $request);
+        $ip = $request->ip();
+        $device = self::findForRequest($userId, $request);
 
-            if ($device) {
-                if ($device->status !== 'blocked') {
-                    $device->ip_address = $ip;
-                    $device->last_active_at = now();
-                    $device->save();
+        if ($device === null) {
+            // Only admitting a NEW identity allocates a device slot, so only admission is serialized on the
+            // owner's row (concurrent new fingerprints still cannot both take the last slot); requests from
+            // known devices never queue behind the member's other requests.
+            $device = DB::transaction(function () use ($userId, $request, $maxDevices, $ip): self {
+                $user = User::query()->lockForUpdate()->findOrFail($userId);
+                // A concurrent request may have admitted this fingerprint while this one waited for the lock.
+                if ($admitted = self::findForRequest($userId, $request)) {
+                    return $admitted;
                 }
-            } else {
-                $status = 'active';
-                if (! $user->isAdmin()
-                    && static::where('user_id', $userId)->where('status', 'active')->count() >= $maxDevices) {
-                    $status = 'pending';
-                }
+                $ua = $request->userAgent() ?? 'Unknown';
+                $isApiKey = self::viaVerifiedApiKey($request);
+                $status = ! $user->isAdmin()
+                    && static::where('user_id', $userId)->where('status', 'active')->count() >= $maxDevices
+                    ? 'pending' : 'active';
 
-                $device = static::create([
+                return static::create([
                     'device_hash' => self::generateFingerprint($userId, $request),
                     'user_id' => $userId,
                     'device_name' => $isApiKey ? self::parsePluginName($ua, $request) : self::parseDeviceName($ua),
@@ -89,15 +90,31 @@ class UserDevice extends Model
                     'status' => $status,
                     'last_active_at' => now(),
                 ]);
-            }
+            });
+        } elseif ($device->status !== 'blocked') {
+            self::recordActivity($device, $ip);
+        }
 
-            // Bind denied identities too; only a validated API key selects stateless plugin identity.
-            if (! $isApiKey && $request->hasSession() && $request->user()?->getAuthIdentifier() === $userId) {
-                $request->session()->put(self::SESSION_DEVICE_KEY, $device->getKey());
-            }
+        // Bind denied identities too; only a validated API key selects stateless plugin identity.
+        if (! self::viaVerifiedApiKey($request) && $request->hasSession() && $request->user()?->getAuthIdentifier() === $userId) {
+            $request->session()->put(self::SESSION_DEVICE_KEY, $device->getKey());
+        }
 
-            return $device->status === 'blocked' ? null : $device;
-        });
+        return $device->status === 'blocked' ? null : $device;
+    }
+
+    private static function recordActivity(self $device, ?string $ip): void
+    {
+        $now = now();
+        if ($device->ip_address === $ip && $device->last_active_at !== null
+            && $device->last_active_at->gt($now->copy()->subSeconds(self::ACTIVITY_INTERVAL_SECONDS))) {
+            return;
+        }
+        // One conditional statement: it never waits on the owner's row and never touches a device an
+        // administrator blocked after it was read.
+        static::query()->whereKey($device->getKey())->where('status', '!=', 'blocked')
+            ->update(['ip_address' => $ip, 'last_active_at' => $now]);
+        $device->forceFill(['ip_address' => $ip, 'last_active_at' => $now])->syncOriginalAttributes(['ip_address', 'last_active_at']);
     }
 
     /** Only VerifyApiKey's validated key selects plugin identity; a raw Bearer header is client input. */

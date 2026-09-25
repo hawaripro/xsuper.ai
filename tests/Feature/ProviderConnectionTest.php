@@ -305,6 +305,65 @@ class ProviderConnectionTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_runware_connections_are_pinned_to_the_official_endpoint(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $this->postJson('/api/admin/ai/providers', [
+            'name' => 'Runware', 'protocol' => 'runware', 'base_url' => 'https://api.runware.ai', 'api_key' => 'runware-fixture-private-key',
+        ])->assertCreated()->assertJsonPath('provider.protocol', 'runware')->assertJsonPath('provider.base_url', 'https://api.runware.ai/v1')
+            ->assertJsonPath('provider.supports_account_balance', true)->assertJsonPath('provider.status', 'unknown');
+        $this->postJson('/api/admin/ai/providers', [
+            'name' => 'Runware lookalike', 'protocol' => 'runware', 'base_url' => 'https://runware.example.test/v1', 'api_key' => 'runware-other-private-key',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['base_url' => 'Use https://api.runware.ai/v1 as the Runware provider URL.']);
+        $this->assertDatabaseCount('ai_provider_profiles', 1);
+        Http::assertNothingSent();
+    }
+
+    public function test_runware_check_verifies_the_key_with_the_free_account_lookup_instead_of_a_catalog_sync(): void
+    {
+        $provider = $this->runwareProvider();
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        Http::fake(['https://api.runware.ai/v1' => Http::sequence()
+            ->push($this->runwareAccount())
+            ->push(['errors' => [['code' => 'invalidApiKey', 'message' => 'Invalid API key runware-private-key']]], 401)]);
+
+        $this->postJson('/api/admin/ai/providers/'.$provider->id.'/check')->assertOk()
+            ->assertJsonPath('provider.status', 'healthy')->assertJsonPath('model_count', 0)
+            ->assertJsonPath('provider.catalog_discovered_at', null)
+            ->assertJsonPath('message', 'The Runware account is authenticated. Individual model generation has not been verified.');
+        $this->assertNotNull($provider->fresh()->authenticated_at);
+        Http::assertSent(fn ($request): bool => $request->method() === 'POST' && $request->hasHeader('Authorization', 'Bearer runware-private-key')
+            && $request->data()[0]['taskType'] === 'accountManagement' && $request->data()[0]['operation'] === 'getDetails');
+
+        $response = $this->postJson('/api/admin/ai/providers/'.$provider->id.'/check')->assertStatus(502)
+            ->assertJsonPath('provider.status', 'error')->assertJsonPath('provider.authenticated_at', null);
+        $this->assertStringNotContainsString('runware-private-key', $response->getContent());
+        Http::assertSentCount(2);
+    }
+
+    public function test_runware_account_balance_is_admin_only_and_reduced_to_balance_and_usage(): void
+    {
+        $provider = $this->runwareProvider();
+        Http::fake(['https://api.runware.ai/v1' => Http::sequence()->push($this->runwareAccount())->push('', 503)]);
+        $this->actingAs(User::factory()->create(['role' => 'member']))->getJson('/api/admin/ai/providers/'.$provider->id.'/account')->assertForbidden();
+        Http::assertNothingSent();
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $response = $this->getJson('/api/admin/ai/providers/'.$provider->id.'/account')->assertOk()
+            ->assertJsonPath('account.balance', 12.34)->assertJsonPath('account.free_balance', 1)->assertJsonPath('account.currency', 'USD')
+            ->assertJsonPath('account.usage.today', ['credits' => 0.5, 'requests' => 3])
+            ->assertJsonPath('account.usage.last_30_days', ['credits' => 9.75, 'requests' => 40]);
+        $this->assertSame(['balance', 'free_balance', 'currency', 'usage', 'checked_at'], array_keys($response->json('account')));
+        foreach (['Private Org', 'owner@private.test', 'rw-****', 'runware-private-key'] as $privateValue) {
+            $this->assertStringNotContainsString($privateValue, $response->getContent());
+        }
+        $this->getJson('/api/admin/ai/providers/'.$provider->id.'/account')->assertUnprocessable()
+            ->assertExactJson(['message' => 'The Runware account is unavailable. Try again shortly.']);
+        $this->getJson('/api/admin/ai/providers/'.$this->provider('not-runware')->id.'/account')->assertUnprocessable()
+            ->assertExactJson(['message' => 'Account balance is available only for Runware connections.']);
+        Http::assertSentCount(2);
+    }
+
     public function test_scoped_sync_keeps_shared_upstream_ids_and_curated_metadata_owned_by_their_provider(): void
     {
         config()->set(['services.ai_proxy.url' => 'https://legacy.example.test', 'services.ai_proxy.key' => 'legacy-private-key']);
@@ -602,6 +661,26 @@ class ProviderConnectionTest extends TestCase
         $previous->errorInfo = ['23505', 7, $diagnostic];
 
         return new UniqueConstraintViolationException('pgsql', 'insert into ai_model_profiles (display_name) values (?)', ['"ai_models_provider_upstream_unique"'], $previous);
+    }
+
+    private function runwareProvider(): AiProviderProfile
+    {
+        return AiProviderProfile::create([
+            'slug' => 'runware', 'name' => 'Runware', 'protocol' => 'runware', 'base_url' => 'https://api.runware.ai/v1',
+            'api_key' => 'runware-private-key', 'is_enabled' => true, 'status' => 'unknown',
+        ]);
+    }
+
+    /** A getDetails reply; an item without a taskUUID is matched to the only task sent. */
+    private function runwareAccount(): array
+    {
+        return ['data' => [[
+            'taskType' => 'accountManagement', 'organizationName' => 'Private Org',
+            'balance' => ['amount' => 12.34, 'freeBalance' => 1, 'currency' => 'USD'],
+            'team' => [['email' => 'owner@private.test']], 'apiKeys' => [['apiKey' => 'rw-****-1234']],
+            'usage' => ['today' => ['credits' => 0.5, 'requests' => 3], 'last7Days' => ['credits' => 2.25, 'requests' => 11],
+                'last30Days' => ['credits' => 9.75, 'requests' => 40]],
+        ]]];
     }
 
     private function provider(string $slug, string $protocol = 'openai'): AiProviderProfile

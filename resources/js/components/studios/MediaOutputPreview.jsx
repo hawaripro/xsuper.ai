@@ -67,7 +67,7 @@ function NativePlayback({ kind, src, name }) {
 
 // Deliberately acyclic: artifact viewers can import this component without pulling in
 // workspace state or ArtifactPanel. No returned text, SVG or HTML is executed as markup.
-export default function MediaOutputPreview({ output }) {
+export default function MediaOutputPreview({ output, actions = true }) {
     const { t, locale } = useLocale();
     if (!output) return null;
     const src = ownedMediaUrl(output.url || output.preview_url);
@@ -91,10 +91,10 @@ export default function MediaOutputPreview({ output }) {
     else content = unavailable;
     return <div className="media-studio media-output-preview">
         {content}
-        <div className="studio-toolbar media-output-download"><div><strong>{output.name || t("Hasil")}</strong><p className="studio-help">{[kind, mime, output.bytes != null ? `${new Intl.NumberFormat(locale).format(output.bytes)} bytes` : null].filter(Boolean).join(" · ")}</p></div>
+        {actions && <div className="studio-toolbar media-output-download"><div><strong>{output.name || t("Hasil")}</strong><p className="studio-help">{[kind, mime, output.bytes != null ? `${new Intl.NumberFormat(locale).format(output.bytes)} bytes` : null].filter(Boolean).join(" · ")}</p></div>
             <div className="studio-toolbar-actions">{preview && kind === "video" && <a className="studio-text-link" href={src} target="_blank" rel="noreferrer">{t("Buka asli")}</a>}
                 {download ? <a className="studio-button studio-download" href={download} download><StudioIcon name="download" />{t("Unduh asli")}</a>
                     : <p className="studio-help">{t("Tautan unduhan belum tersedia. Muat ulang status hasil.")}</p>}</div>
-        </div>
+        </div>}
     </div>;
 }

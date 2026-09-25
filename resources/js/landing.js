@@ -1037,6 +1037,21 @@ function enhanceLanding() {
     setupAnnouncementMarquee();
     syncMotion();
     document.documentElement.classList.add("js");
+    publishSiteTopHeight();
+}
+
+// The announcement and header stick together as one stack. Its height (which changes with the
+// header breakpoints and the JS-only mobile nav) is published as --site-top-h, so anchors
+// (scroll-padding-top), the /models filter drawer and sticky panels start below it.
+function publishSiteTopHeight() {
+    const stack = document.querySelector("[data-site-top]");
+    if (!stack) return;
+    const root = document.documentElement;
+    const publish = () => root.style.setProperty("--site-top-h", `${Math.round(stack.getBoundingClientRect().height)}px`);
+    publish();
+    if (typeof ResizeObserver === "function") {
+        new ResizeObserver(publish).observe(stack);
+    }
 }
 
 // Match the dashboard ribbon: constant 70px/s scroll and enough repeated copies

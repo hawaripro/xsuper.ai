@@ -29,17 +29,19 @@ test('template opens Chat, attachments reach the real request, unavailable provi
     expect(errors).toEqual([]);
 });
 
-test('image studio submits once through the unified workspace and shows the real queued job', async ({ page }) => {
+test('image studio submits once through the full-page studio and shows the real queued job', async ({ page }) => {
     const errors = captureErrors(page);
     await login(page, 'other');
     const user = databaseRows('users', { email: 'other@dashboard-e2e.test' })[0];
     const balance = databaseRows('user_tokens', { user_id: user.id })[0].balance;
     const lastTransactionId = Math.max(0, ...databaseRows('token_transactions', { user_id: user.id }).map(entry => Number(entry.id)));
+    // The former image studio URL redirects into /studio with its kind filter.
     await page.goto('/en/generate-image');
-    const form = page.locator('form.media-workspace-form');
-    await expect(form.locator('#media-model')).toHaveValue('qa-image');
+    await expect(page).toHaveURL(/\/en\/studio\?kind=image/);
+    const form = page.locator('form.sw-request');
+    await expect(form.locator('.sw-model-meta code')).toHaveText('qa-image');
     await form.locator('#cap-prompt').fill('QA unified image request must reserve once.');
-    await expect(form.locator('.studio-quote strong')).toContainText('15');
+    await expect(form.locator('.sw-estimate-total strong')).toContainText('15');
     const submitted = page.waitForResponse(response => response.url().endsWith('/api/media/workspace/jobs') && response.request().method() === 'POST');
     // The image studio confirms model, quantity and total before reserving tokens; going back sends nothing.
     await form.locator('button[type="submit"]').click();
@@ -62,10 +64,18 @@ test('image studio submits once through the unified workspace and shows the real
     expect(ledger[0].amount).toBe(15);
     expect(databaseRows('user_tokens', { user_id: user.id })[0].balance).toBe(balance - 15);
     await expect(page).toHaveURL(new RegExp(`job=${encodeURIComponent(job.id)}`));
-    await expect(page.locator('.media-workspace-results .studio-progress')).toBeVisible();
-    await expect(page.locator('.media-workspace-results .media-output-preview')).toHaveCount(0);
+    const card = page.locator('.sw-results .sw-card[aria-current="true"]');
+    await expect(card).toContainText('QA unified image request must reserve once.');
+    await expect(card.locator('.sw-card-running')).toBeVisible();
+    await expect(card.locator('.sw-card-media img')).toHaveCount(0);
+    // A reload keeps the ?job= link: the result opens in the detail dialog.
     await page.reload();
-    await expect(page.getByRole('button', { name: /^QA unified image request must reserve once\./ })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.media-workspace-results code')).toHaveText(job.id);
+    const detail = page.locator('dialog.sw-detail');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText('QA unified image request must reserve once.');
+    await expect(detail.locator('code', { hasText: job.id })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(detail).toHaveCount(0);
+    await expect(page.locator('.sw-results .sw-card[aria-current="true"]')).toContainText('QA unified image request must reserve once.');
     expect(errors).toEqual([]);
 });

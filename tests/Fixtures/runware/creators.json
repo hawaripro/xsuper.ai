@@ -1,0 +1,58 @@
+[
+    {
+        "id": "alibaba",
+        "name": "Alibaba",
+        "logo": "https://assets.runware.ai/cd72ed4c-ef94-4962-a44b-cbe38b3bf6ea.png",
+        "headline": "Enterprise grade multimodal AI for advanced visual and video creation",
+        "description": "Alibaba develops large scale multimodal AI systems that combine visual understanding, image generation, and high quality video synthesis inside a single research and production ecosystem. Their teams release powerful image models, visual editing tools, and fast evolving video generation technology supported by extensive infrastructure and long term investment in foundational AI. Through Runware, Alibaba becomes a flexible provider for image creation, image to image workflows, and next generation video generation, allowing teams to integrate enterprise level visual AI without changing their pipelines as new models and capabilities arrive."
+    },
+    {
+        "id": "bytedance",
+        "name": "ByteDance",
+        "logo": "https://assets.runware.ai/a370f11f-f8f3-4af2-b0dc-755bac69f620.png",
+        "headline": "Scalable AI media generation built for global creative platforms",
+        "description": "ByteDance develops high performance generative models used across massive creative communities and social ecosystems. Their research advances fast and controllable image and video generation that supports dynamic content and platform scale innovation. Runware integrates ByteDance as a provider for multimedia pipelines where reliability, speed, and visual consistency matter for high volume production."
+    },
+    {
+        "id": "boogu",
+        "name": "Boogu",
+        "logo": "https://assets.runware.ai/2a6cc12a-9e15-4737-a756-5aa8314a5723.png",
+        "headline": "Open-source unified image generation and editing with bilingual text rendering",
+        "description": "Boogu develops open-weights image models that handle generation and editing in a single architecture. Its Boogu-Image family covers text-to-image, distilled fast variants and instruction editing at 10B parameters under Apache-2.0, with photographic realism and stable Chinese and English text rendering as its focus. As a Runware provider, Boogu adds open unified generation and editing to the available image model set."
+    },
+    {
+        "id": "bria",
+        "name": "Bria",
+        "logo": "https://assets.runware.ai/4f68fe9d-851e-4e6a-a6f8-cd47ec4312cb.png",
+        "headline": "Commercial safe AI visuals for enterprise scale production",
+        "description": "Bria builds visual foundation models trained on ethically sourced and legally verified datasets, providing clarity and safety for commercial usage. The platform empowers brands and agencies to generate large volumes of product imagery and campaign assets without licensing uncertainty. Through Runware, Bria becomes a scalable and compliant provider for visual generation inside professional production pipelines."
+    },
+    {
+        "id": "klingai",
+        "name": "Kling AI",
+        "logo": "https://assets.runware.ai/f15ad256-9875-47bc-a5bf-0f4d3c45875e.png",
+        "headline": "High realism text to video generation for cinematic content",
+        "description": "Kling AI develops video generation models that turn text prompts or reference images into smooth, physically coherent clips with strong motion realism, detailed environments, and HD resolution output. Integrated into Runware, Kling AI becomes a provider for advanced text to video and image to video workflows with precise control over camera behavior and scene structure."
+    },
+    {
+        "id": "tripo",
+        "name": "Tripo AI",
+        "logo": "https://assets.runware.ai/16fe42ac-338e-481f-9c3d-14454dc3896a.png",
+        "headline": "AI-powered 3D model generation from text and images",
+        "description": "Tripo AI provides 3D generation models available through Runware. Their models generate production-ready 3D assets from text prompts or images, with support for PBR texturing and multiple export formats."
+    },
+    {
+        "id": "anthropic",
+        "name": "Anthropic",
+        "logo": "https://assets.runware.ai/473b60db-1948-464c-b3fd-1edc00891c38.png",
+        "headline": "Frontier language models for coding, reasoning, multimodal understanding, and AI agents",
+        "description": "Anthropic develops the Claude family of language models, focused on strong reasoning, coding, multimodal understanding, and long-running agent workflows. In Runware, Anthropic models fit teams that need reliable instruction following, high-quality text generation, image understanding, and production-grade AI systems across knowledge work and software engineering."
+    },
+    {
+        "id": "black-forest-labs",
+        "name": "Black Forest Labs",
+        "logo": "https://assets.runware.ai/07bfd96d-d2df-4d52-aba5-636fb27874be.png",
+        "headline": "High fidelity visual generation with advanced creative control",
+        "description": "Black Forest Labs is a research driven leader in generative image technology focused on realism, precision, and strong prompt coherence. Their work enables professional grade visual creation suited for concept design, marketing imagery, and cinematic development. Integrated into Runware as a premium visual provider, Black Forest Labs offers reliable high performance inference and continuous innovation in controllable AI image generation."
+    }
+]

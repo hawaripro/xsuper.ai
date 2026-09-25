@@ -83,7 +83,8 @@
 }
 html {
     scroll-behavior: smooth;
-    scroll-padding-top: 90px;
+    /* Anchors land below the sticky announcement + header stack (landing.js sets --site-top-h). */
+    scroll-padding-top: var(--site-top-h, 90px);
     scrollbar-color: #8da5cc var(--paper);
 }
 body {

@@ -8,6 +8,7 @@ use App\Models\PromptTemplate;
 use App\Models\User;
 use App\Services\AiProxyService;
 use App\Services\WorkspaceMediaService;
+use App\Support\StudioLink;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
@@ -42,14 +43,14 @@ class DashboardSearchController extends Controller
                 $this->addGroup($groups, 'conversations', 'Riwayat chat', $this->conversations($user, $pattern));
             }
             foreach ([
-                'image' => ['image_jobs', '/generate-image', 'Gambar Anda'],
-                'video' => ['video_jobs', '/video', 'Video Anda'],
-                'audio' => ['audio_jobs', '/audio', 'Audio Anda'],
-                'avatar' => ['video_jobs', '/avatar', 'Avatar Anda'],
-                'model3d' => ['three_d_jobs', '/3d', 'Model 3D Anda'],
-            ] as $kind => [$table, $path, $label]) {
+                'image' => ['image_jobs', 'Gambar Anda'],
+                'video' => ['video_jobs', 'Video Anda'],
+                'audio' => ['audio_jobs', 'Audio Anda'],
+                'avatar' => ['video_jobs', 'Avatar Anda'],
+                'model3d' => ['three_d_jobs', 'Model 3D Anda'],
+            ] as $kind => [$table, $label]) {
                 if ($access[$kind]) {
-                    $this->addGroup($groups, $kind, $label, $this->media($user, $table, $kind, $path, $pattern));
+                    $this->addGroup($groups, $kind, $label, $this->media($user, $table, $kind, $pattern));
                 }
             }
             if ($access['download'] || $access['convert']) {
@@ -98,11 +99,13 @@ class DashboardSearchController extends Controller
             ]],
             ['studios', 'Studio', [
                 ['chat', 'Chat AI', 'Buka workspace percakapan', '/chat', $access['chat'], 'conversation percakapan'],
-                ['image', 'Studio gambar', 'Buat dan tinjau gambar', '/generate-image', $access['image'], 'image generate gambar'],
-                ['video', 'Studio video', 'Buat dan tinjau video', '/video', $access['video'], 'video generator'],
-                ['audio', 'Studio audio', 'Suara, musik, dan hasil tersimpan', '/audio', $access['audio'], 'audio music musik speech voice suara'],
-                ['avatar', 'Studio avatar', 'Foto dan ucapan menjadi avatar berbicara', '/avatar', $access['avatar'], 'avatar talking portrait wajah'],
-                ['model3d', 'Studio 3D', 'Buat dan periksa model tiga dimensi', '/3d', $access['model3d'], '3d model mesh glb'],
+                ['studio', 'Studio Media', 'Semua model gambar, video, audio, avatar, dan 3D', StudioLink::to(),
+                    $access['image'] || $access['video'] || $access['audio'] || $access['avatar'] || $access['model3d'], 'studio media model generate gambar video audio avatar 3d'],
+                ['image', 'Studio gambar', 'Buat dan tinjau gambar', StudioLink::to('image'), $access['image'], 'image generate gambar'],
+                ['video', 'Studio video', 'Buat dan tinjau video', StudioLink::to('video'), $access['video'], 'video generator'],
+                ['audio', 'Studio audio', 'Suara, musik, dan hasil tersimpan', StudioLink::to('audio'), $access['audio'], 'audio music musik speech voice suara'],
+                ['avatar', 'Studio avatar', 'Foto dan ucapan menjadi avatar berbicara', StudioLink::to('avatar'), $access['avatar'], 'avatar talking portrait wajah'],
+                ['model3d', 'Studio 3D', 'Buat dan periksa model tiga dimensi', StudioLink::to('model3d'), $access['model3d'], '3d model mesh glb'],
             ]],
             ['tools', 'Alat media', [
                 ['download', 'Video Downloader', 'Unduh media yang boleh Anda gunakan', '/downloads', $access['download'], 'download unduh'],
@@ -172,7 +175,6 @@ class DashboardSearchController extends Controller
             'provider' => $model->provider_name,
             'category' => $model->category,
         ])->all()))->keyBy('id');
-        $paths = ['image' => '/generate-image', 'video' => '/video', 'audio' => '/audio', 'model3d' => '/3d'];
         $results = [];
         foreach ($candidates as $model) {
             $public = $publicModels->get($model->model_id);
@@ -188,14 +190,15 @@ class DashboardSearchController extends Controller
                 if ($kinds === []) {
                     continue;
                 }
-                $path = match (true) {
-                    $model->category === 'avatar' => '/avatar',
-                    isset($paths[$model->category]) && $kinds === [$model->category] => $paths[$model->category],
-                    default => '/media',
+                // Avatar models open the avatar studio; a model spanning several output kinds opens unfiltered.
+                $kind = match (true) {
+                    $model->category === 'avatar' => 'avatar',
+                    $kinds === [$model->category] => $model->category,
+                    default => null,
                 };
                 $results[] = $this->result('model', $model->model_id, $public['name'],
                     $model->category === 'other' ? 'Media' : ucfirst($model->category),
-                    $path.'?'.http_build_query(['model' => $model->model_id], '', '&', PHP_QUERY_RFC3986));
+                    StudioLink::to($kind, ['model' => $model->model_id]));
             }
             if (count($results) === self::GROUP_LIMIT) {
                 break;
@@ -242,7 +245,7 @@ class DashboardSearchController extends Controller
         })->all();
     }
 
-    private function media(User $user, string $table, string $kind, string $path, string $pattern): array
+    private function media(User $user, string $table, string $kind, string $pattern): array
     {
         $query = DB::table($table)->where('user_id', $user->id);
         if ($table === 'video_jobs') {
@@ -254,7 +257,7 @@ class DashboardSearchController extends Controller
         return $query->select('job_id', 'model', 'status')->selectRaw('SUBSTR('.$titleColumn.', 1, 160) as title')
             ->orderByDesc('created_at')->orderByDesc('id')->limit(self::GROUP_LIMIT)->get()
             ->map(fn (object $row): array => $this->result($kind, $row->job_id, $row->title ?: $row->model,
-                $row->model.' · '.$row->status, $path.'?'.http_build_query(['job' => $row->job_id], '', '&', PHP_QUERY_RFC3986)))->all();
+                $row->model.' · '.$row->status, StudioLink::to($kind, ['job' => $row->job_id])))->all();
     }
 
     private function tools(User $user, array $access, string $pattern): array

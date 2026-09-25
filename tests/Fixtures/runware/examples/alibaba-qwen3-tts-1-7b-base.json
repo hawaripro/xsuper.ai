@@ -1,0 +1,119 @@
+{
+  "model": "alibaba-qwen3-tts-1-7b-base",
+  "examples": [
+    {
+      "id": "urban-leak-detection-explainer",
+      "title": "Urban Leak Detection Explainer",
+      "mode": "voice-cloning",
+      "cost": 0.0052,
+      "latencyMs": 3608,
+      "asset": "https://assets.runware.ai/examples/alibaba-qwen3-tts-1-7b-base/59a1c4da-f9a1-4c90-a883-dd7e0128e489.wav",
+      "request": {
+        "taskType": "audioInference",
+        "model": "alibaba:qwen@3-tts-1.7b-base",
+        "speech": {
+          "text": "Una fuga subterránea puede pasar meses sin verse, pero no sin escucharse. Nuestros sensores acústicos analizan la red durante la noche, identifican sonidos anómalos y señalan el tramo exacto que necesita atención. Así, el equipo municipal puede reparar antes, excavar menos y evitar que miles de litros de agua potable se pierdan bajo la ciudad.",
+          "voice": "clone",
+          "language": "Spanish"
+        },
+        "settings": {
+          "transcript": "Today, the morning light made every familiar street feel new again.",
+          "xVectorOnly": false
+        },
+        "inputs": {
+          "audio": "https://assets.runware.ai/assets/inputs/9c7e0f15-6070-4526-a1fc-41013cad9e81.mp3"
+        }
+      },
+      "response": {
+        "taskType": "audioInference",
+        "audioUUID": "835d9685-7072-4180-8d4b-42e1a5872fdb",
+        "audioURL": "https://am.runware.ai/audio/os/a03d21/ws/5/ai/835d9685-7072-4180-8d4b-42e1a5872fdb.wav"
+      }
+    },
+    {
+      "id": "coffee-grounds-collection-explainer",
+      "title": "Coffee Grounds Collection Explainer",
+      "mode": "speaker-embedding",
+      "cost": 0.0028,
+      "latencyMs": 4814,
+      "asset": "https://assets.runware.ai/examples/alibaba-qwen3-tts-1-7b-base/68cd37ee-ab73-44c6-88f3-764aa32f182f.wav",
+      "request": {
+        "taskType": "audioInference",
+        "model": "alibaba:qwen@3-tts-1.7b-base",
+        "speech": {
+          "text": "Yesterday’s coffee grounds still have work to do. We collect them from local cafés and turn them into rich mushroom substrate, keeping useful material in circulation, one bucket at a time.",
+          "voice": "clone",
+          "language": "English"
+        },
+        "settings": {
+          "xVectorOnly": true
+        },
+        "inputs": {
+          "audio": "https://assets.runware.ai/assets/inputs/06a2dbe3-5891-45f1-a53b-55ccf01235fc.mp3"
+        }
+      },
+      "response": {
+        "taskType": "audioInference",
+        "audioUUID": "e51e6bdb-6af9-4dcb-abbd-c292d05e3cfc",
+        "audioURL": "https://am.runware.ai/audio/os/a07dlim3/ws/5/ai/e51e6bdb-6af9-4dcb-abbd-c292d05e3cfc.wav"
+      }
+    },
+    {
+      "id": "orbital-greenhouse-intercom-ambience",
+      "title": "Orbital Greenhouse Intercom Ambience",
+      "mode": "speaker-embedding",
+      "cost": 0.0005,
+      "latencyMs": 3772,
+      "asset": "https://assets.runware.ai/examples/alibaba-qwen3-tts-1-7b-base/7f6ad73d-ac97-4a2c-9085-3ae6c2181243.wav",
+      "request": {
+        "taskType": "audioInference",
+        "model": "alibaba:qwen@3-tts-1.7b-base",
+        "speech": {
+          "text": "水耕栽培区画の散水を開始します。通路の青い表示線から離れてください。",
+          "voice": "clone",
+          "language": "Japanese"
+        },
+        "settings": {
+          "xVectorOnly": true
+        },
+        "inputs": {
+          "audio": "https://assets.runware.ai/assets/inputs/17e50fde-abe7-47ee-a9a3-5175214461af.mp3"
+        }
+      },
+      "response": {
+        "taskType": "audioInference",
+        "audioUUID": "eab423c1-9865-47b3-a37e-94dce148cfbe",
+        "audioURL": "https://am.runware.ai/audio/os/a09dlim3/ws/5/ai/eab423c1-9865-47b3-a37e-94dce148cfbe.wav"
+      }
+    },
+    {
+      "id": "rare-seed-licensing-podcast-intro",
+      "title": "Rare Seed Licensing Podcast Intro",
+      "mode": "voice-cloning",
+      "cost": 0.0029,
+      "latencyMs": 4286,
+      "asset": "https://assets.runware.ai/examples/alibaba-qwen3-tts-1-7b-base/3546274e-4d01-4ed3-ad05-97856cf6cb45.wav",
+      "request": {
+        "taskType": "audioInference",
+        "model": "alibaba:qwen@3-tts-1.7b-base",
+        "speech": {
+          "text": "Welcome to Field Rights. Today, we follow a drought-tolerant sorghum trait from a university greenhouse to a licensing dispute in Kansas—and ask when public research becomes private leverage.",
+          "voice": "clone",
+          "language": "English"
+        },
+        "settings": {
+          "transcript": "Today, the morning light made every familiar street feel new again.",
+          "xVectorOnly": false
+        },
+        "inputs": {
+          "audio": "https://assets.runware.ai/assets/inputs/23b5f12c-dd5c-4cf1-882b-65d9c33bd790.mp3"
+        }
+      },
+      "response": {
+        "taskType": "audioInference",
+        "audioUUID": "dfe6ef7d-0b3b-4d3a-b92b-e60b05b6970e",
+        "audioURL": "https://am.runware.ai/audio/os/a01d21/ws/5/ai/dfe6ef7d-0b3b-4d3a-b92b-e60b05b6970e.wav"
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AiProviderNotSent;
 use App\Exceptions\AiProviderRequestRejected;
 use App\Exceptions\AiProxyException;
 use App\Media\FalCapabilityImporter;
@@ -21,6 +22,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Throwable;
@@ -52,6 +54,10 @@ final class AiProviderTransport
         }
         if ($connection['protocol'] === 'kinovi') {
             return KinoviProtocol::catalog();
+        }
+        if ($connection['protocol'] === 'runware') {
+            // Runware models are schema contracts imported by catalog discovery; the key is verified by the account check.
+            throw new AiProxyException('Runware models are imported through catalog discovery, not a catalog sync.', 422);
         }
 
         $response = $this->send('GET', $connection['base_url'].'/models', $connection, timeout: 10);
@@ -351,6 +357,113 @@ final class AiProviderTransport
         }
 
         return $response;
+    }
+
+    /**
+     * One Runware REST call: a JSON array of tasks POSTed to the pinned endpoint, never retried.
+     * Returns the envelope's `data` and `errors` (the singular `error` form is merged into `errors`).
+     * HTTP 4xx (including 402 insufficient balance) is a rejection carrying the Runware error code;
+     * 408/409/429, 5xx and transport failures are unknown outcomes.
+     *
+     * @param  list<array<string, mixed>>  $tasks
+     * @return array{data: list<array<string, mixed>>, errors: list<array<string, mixed>>}
+     */
+    public function runwareTasks(AiProviderProfile $provider, array $tasks, int $timeoutSeconds = 60): array
+    {
+        try {
+            $connection = $this->connection($provider);
+            if ($connection['protocol'] !== 'runware' || $tasks === [] || ! array_is_list($tasks) || count($tasks) > 20
+                || $timeoutSeconds < 1 || $timeoutSeconds > 300) {
+                throw new AiProxyException('The Runware task request is invalid.', 422);
+            }
+            foreach ($tasks as $task) {
+                if (! is_array($task) || array_is_list($task) || ! is_string($task['taskType'] ?? null)
+                    || preg_match('/^[A-Za-z0-9]{1,64}$/D', $task['taskType']) !== 1
+                    || ! is_string($task['taskUUID'] ?? null) || ! Str::isUuid($task['taskUUID'])) {
+                    throw new AiProxyException('The Runware task request is invalid.', 422);
+                }
+            }
+            if ($connection['base_url'] !== 'https://api.runware.ai/v1'
+                && ! $this->endpoint->allowsLoopback((string) parse_url($connection['base_url'], PHP_URL_HOST))) {
+                throw new AiProxyException('The Runware provider destination is invalid.', 503);
+            }
+        } catch (AiProxyException $exception) {
+            // Nothing has been sent yet, so a paid task cannot have been accepted.
+            throw new AiProviderNotSent($exception->getMessage(), $exception->responseStatus(), $exception);
+        }
+        $response = $this->send('POST', $connection['base_url'], $connection, $tasks, $timeoutSeconds, errorCodes: true);
+        if (strlen($response->body()) > 16 * 1024 * 1024) {
+            throw new AiProxyException('The Runware provider response is too large.', 502);
+        }
+        $body = $response->json();
+        if (! is_array($body) || ($body !== [] && array_is_list($body))) {
+            throw new AiProxyException('The Runware provider returned an invalid response.', 502);
+        }
+        $envelope = [];
+        foreach (['data' => $body['data'] ?? [], 'errors' => $body['errors'] ?? []] as $key => $items) {
+            // A lone object is one item; anything else must be a list of objects.
+            $items = is_array($items) && $items !== [] && ! array_is_list($items) ? [$items] : $items;
+            if (! is_array($items) || array_filter($items, static fn (mixed $item): bool => ! is_array($item)) !== []) {
+                throw new AiProxyException('The Runware provider returned an invalid response.', 502);
+            }
+            $envelope[$key] = array_values($items);
+        }
+        if (array_key_exists('error', $body)) {
+            $envelope['errors'][] = is_array($body['error']) ? $body['error'] : ['message' => is_string($body['error']) ? $body['error'] : null];
+        }
+
+        return $envelope;
+    }
+
+    /**
+     * accountManagement getDetails, reduced to balance and usage. Organization identity, team
+     * members and API keys in the provider response are never returned or stored.
+     *
+     * @return array{balance: float, free_balance: float, currency: string, usage: array<string, array{credits: ?float, requests: ?int}>}
+     */
+    public function runwareAccount(AiProviderProfile $provider): array
+    {
+        $taskId = (string) Str::uuid();
+        $result = $this->runwareTasks($provider, [['taskType' => 'accountManagement', 'taskUUID' => $taskId, 'operation' => 'getDetails']], 20);
+        $item = collect($result['data'])->first(static fn (array $item): bool => ($item['taskUUID'] ?? $taskId) === $taskId);
+        $balance = is_array($item) ? ($item['balance'] ?? null) : null;
+        if ($result['errors'] !== [] || ! is_array($balance) || ! is_numeric($balance['amount'] ?? null)
+            || ! is_string($balance['currency'] ?? null) || preg_match('/^[A-Z]{3}$/D', $balance['currency']) !== 1) {
+            throw new AiProxyException('The Runware account details could not be read with this API key.', 502);
+        }
+        $usage = [];
+        foreach (['today' => 'today', 'last_7_days' => 'last7Days', 'last_30_days' => 'last30Days'] as $period => $source) {
+            $values = is_array($item['usage'][$source] ?? null) ? $item['usage'][$source] : [];
+            $usage[$period] = [
+                'credits' => is_numeric($values['credits'] ?? null) ? (float) $values['credits'] : null,
+                'requests' => is_numeric($values['requests'] ?? null) ? (int) $values['requests'] : null,
+            ];
+        }
+
+        return [
+            'balance' => (float) $balance['amount'],
+            // Documented with every balance; an absent value means no free credit was reported.
+            'free_balance' => is_numeric($balance['freeBalance'] ?? null) ? (float) $balance['freeBalance'] : 0.0,
+            'currency' => $balance['currency'],
+            'usage' => $usage,
+        ];
+    }
+
+    /** mediaStorage upload of one owned reference (a data URI or a signed, time-limited URL); returns its mediaUUID. */
+    public function uploadRunwareReference(AiProviderProfile $provider, string $media): string
+    {
+        if ($media === '' || strlen($media) > 48 * 1024 * 1024
+            || (! str_starts_with($media, 'data:') && (preg_match('~^https?://~i', $media) !== 1 || filter_var($media, FILTER_VALIDATE_URL) === false))) {
+            throw new AiProxyException('The reference upload is invalid.', 422);
+        }
+        $taskId = (string) Str::uuid();
+        $result = $this->runwareTasks($provider, [['taskType' => 'mediaStorage', 'taskUUID' => $taskId, 'operation' => 'upload', 'media' => $media]], 120);
+        $item = collect($result['data'])->first(static fn (array $item): bool => ($item['taskUUID'] ?? $taskId) === $taskId);
+        if ($result['errors'] !== [] || ! is_string($item['mediaUUID'] ?? null) || ! Str::isUuid($item['mediaUUID'])) {
+            throw new AiProxyException('The reference upload could not be confirmed.', 502);
+        }
+
+        return $item['mediaUUID'];
     }
 
     /** @return array<string, mixed> */
@@ -988,7 +1101,7 @@ final class AiProviderTransport
     {
         $saved = $provider?->base_url !== null;
         $protocol = $saved ? strtolower(trim((string) $provider->protocol)) : 'openai';
-        if (! in_array($protocol, ['openai', 'anthropic', 'fal', 'kinovi'], true)) {
+        if (! in_array($protocol, ['openai', 'anthropic', 'fal', 'kinovi', 'runware'], true)) {
             throw new AiProxyException('The AI provider configuration is invalid.', 503);
         }
         $baseUrl = $saved ? (string) $provider->base_url : (string) config('services.ai_proxy.url', '');
@@ -1063,6 +1176,7 @@ final class AiProviderTransport
         bool $catalogRetry = false,
         array $headers = [],
         ?callable $isCancelled = null,
+        bool $errorCodes = false,
     ): Response {
         $this->assertNotCancelled($isCancelled);
         if ($connection['protocol'] === 'fal') {
@@ -1128,6 +1242,7 @@ final class AiProviderTransport
         }
 
         if (! $response->successful()) {
+            $providerCode = $errorCodes ? self::providerErrorCode($response) : null;
             $response->toPsrResponse()->getBody()->close();
             if ($image && in_array($response->status(), [404, 405, 501], true)) {
                 throw new AiProviderRequestRejected('Image generation is not supported by the AI provider.', 502, $response->status());
@@ -1137,12 +1252,26 @@ final class AiProviderTransport
                 ? ($image ? 'The AI image provider is unavailable.' : 'The AI provider is unavailable.')
                 : ($image ? 'The AI image provider rejected the request.' : 'The AI provider rejected the request.');
             if ($response->clientError() && ! in_array($response->status(), [408, 409, 429], true)) {
-                throw new AiProviderRequestRejected($message, 502, $response->status());
+                throw new AiProviderRequestRejected($message, 502, $response->status(), $providerCode);
             }
             throw new AiProxyException($message, $unavailable ? 503 : 502);
         }
 
         return $response;
+    }
+
+    /** The provider's own error code from a small JSON error body (`errors[0].code` or `error.code`), sanitized. */
+    private static function providerErrorCode(Response $response): ?string
+    {
+        try {
+            $body = strlen($response->body()) <= 65536 ? $response->json() : null;
+        } catch (Throwable) {
+            return null;
+        }
+        $error = is_array($body) ? ($body['errors'][0] ?? $body['error'] ?? null) : null;
+        $code = is_array($error) ? ($error['code'] ?? null) : null;
+
+        return is_string($code) && preg_match('/^[A-Za-z0-9_.:-]{1,64}$/D', $code) === 1 ? $code : null;
     }
 
     /**

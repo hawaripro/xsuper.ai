@@ -12,13 +12,13 @@ use Throwable;
 class RenormalizeMediaCatalog extends Command
 {
     protected $signature = 'media:renormalize-catalog
-        {--provider= : Stored fal provider ID}
+        {--provider= : Stored fal or Runware provider ID}
         {--actor= : Administrator user ID for candidate audit attribution}
         {--after=0 : Resume after this model row ID}
         {--limit=100 : Maximum models in this batch, 1–500}
         {--report= : Optional append-only NDJSON coverage report path}';
 
-    protected $description = 'Normalize captured fal schemas offline into immutable v2 candidates; never discover, price, activate or publish';
+    protected $description = 'Normalize captured fal or Runware schemas offline into immutable v2 candidates; never discover, price, activate or publish';
 
     public function handle(MediaCatalogService $catalog): int
     {
@@ -33,8 +33,8 @@ class RenormalizeMediaCatalog extends Command
         }
         $provider = AiProviderProfile::find($providerId);
         $actor = User::find($actorId);
-        if ($provider?->protocol !== 'fal' || ! $actor?->isAdmin()) {
-            $this->error('A stored fal provider and an administrator actor are required.');
+        if (! in_array($provider?->protocol, ['fal', 'runware'], true) || ! $actor?->isAdmin()) {
+            $this->error('A stored fal or Runware provider and an administrator actor are required.');
 
             return self::INVALID;
         }

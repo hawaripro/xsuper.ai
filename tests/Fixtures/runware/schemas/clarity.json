@@ -1,0 +1,626 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Runware API - Clarity",
+    "summary": "Creative 4× image upscaler for detail enhancement",
+    "description": "Clarity is an image upscaling model focused on boosting perceived detail during 2× to 4× enlargement, keeping structure stable while enhancing texture and small features for cleaner, higher-impact images.",
+    "version": "1.0.0",
+    "x-model-id": "clarity",
+    "x-air-id": "runware:500@1",
+    "x-status": "live",
+    "x-capabilities": [
+      "image-to-image",
+      "upscale",
+      "checkpoint"
+    ],
+    "x-modes": [
+      {
+        "id": "image",
+        "inputs": [
+          "image"
+        ]
+      }
+    ],
+    "x-released-at": "2024-04-30T00:00:00",
+    "x-cover-image": "https://assets.runware.ai/covers/clarity.jpg",
+    "x-examples": "https://runware.ai/docs/models/clarity/examples.json",
+    "x-pricing": {
+      "currency": "USD",
+      "docs": "https://runware.ai/docs/platform/pricing",
+      "measured": [
+        {
+          "configuration": "upscaleFactor 2 · settings.steps 20",
+          "price": 0.0051,
+          "latencyMs": 14820
+        },
+        {
+          "configuration": "upscaleFactor 2 · settings.steps 40",
+          "price": 0.007,
+          "latencyMs": 18037
+        }
+      ],
+      "examples": [
+        {
+          "id": "historic-organ-campaign-panorama",
+          "configuration": "upscale",
+          "price": 0.0026,
+          "latencyMs": 11385
+        },
+        {
+          "id": "antarctic-radio-archive-photo-restoration",
+          "configuration": "upscale",
+          "price": 0.0032,
+          "latencyMs": 13001
+        },
+        {
+          "id": "cave-rescue-team-commemorative-wall-portrait",
+          "configuration": "upscale",
+          "price": 0.0045,
+          "latencyMs": 15962
+        },
+        {
+          "id": "falconry-hood-cutout-upscale",
+          "configuration": "upscale",
+          "price": 0.0064,
+          "latencyMs": 16304
+        }
+      ]
+    }
+  },
+  "externalDocs": {
+    "description": "Clarity on Runware",
+    "url": "https://runware.ai/docs/models/clarity"
+  },
+  "servers": [
+    {
+      "url": "https://api.runware.ai/v1",
+      "description": "Runware REST API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Runware API Key (e.g., Bearer <your-key>)"
+      }
+    },
+    "schemas": {
+      "AuthenticationTask": {
+        "title": "Authentication",
+        "description": "Authenticates a connection using an API key. Can be sent as the first element of the request array as an alternative to using the Authorization header.",
+        "type": "object",
+        "x-response-schema": "https://schemas.runware.ai/responses/utilities/authentication.json",
+        "properties": {
+          "taskType": {
+            "$id": "https://schemas.runware.ai/requests/parameters/api/task-type.json",
+            "title": "Task Type",
+            "description": "Identifier for the type of task being performed.",
+            "type": "string",
+            "const": "authentication"
+          },
+          "apiKey": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/api-key.json",
+            "title": "API Key",
+            "description": "Your Runware API key.",
+            "type": "string"
+          },
+          "connectionSessionUUID": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/connection-session-uuid.json",
+            "title": "Connection Session UUID",
+            "description": "Optional session UUID to resume a previous connection and receive any buffered results.",
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "taskType",
+          "apiKey"
+        ],
+        "additionalProperties": false
+      },
+      "RequestBody": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "x-constraints": [
+            {
+              "operation": "area",
+              "parameters": [
+                "inputs.image"
+              ],
+              "maximum": 1153433,
+              "scope": "each"
+            }
+          ],
+          "properties": {
+            "model": {
+              "title": "Model",
+              "description": "Identifier of the model to use for generation.",
+              "type": "string",
+              "const": "runware:500@1"
+            },
+            "upscaleFactor": {
+              "title": "Upscale Factor",
+              "description": "Factor by which to upscale the generated image. A value of 2 doubles width and height.",
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4
+            },
+            "settings": {
+              "title": "Settings",
+              "description": "Global inference settings.",
+              "type": "object",
+              "properties": {
+                "positivePrompt": {
+                  "title": "Positive Prompt",
+                  "description": "Text prompt describing elements to include in the generated output.",
+                  "type": "string"
+                },
+                "negativePrompt": {
+                  "title": "Negative Prompt",
+                  "description": "Prompt to guide what to exclude from generation. Ignored when guidance is disabled (CFGScale ≤ 1).",
+                  "type": "string"
+                },
+                "seed": {
+                  "title": "Seed",
+                  "description": "Random seed for reproducible generation. When not provided, a random seed is generated in the unsigned 32-bit range.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854776000
+                },
+                "steps": {
+                  "title": "Steps",
+                  "description": "Total number of denoising steps. Higher values generally produce more detailed results but take longer.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "scheduler": {
+                  "title": "Scheduler",
+                  "description": "Scheduler to use for the diffusion process.",
+                  "type": "string",
+                  "enum": [
+                    "DDIM",
+                    "DDIMScheduler",
+                    "DDPMScheduler",
+                    "DEISMultistepScheduler",
+                    "Default",
+                    "DPM++",
+                    "DPM++ 2M",
+                    "DPM++ 2M Beta",
+                    "DPM++ 2M Exponential",
+                    "DPM++ 2M Karras",
+                    "DPM++ 2M SDE",
+                    "DPM++ 2M SDE Beta",
+                    "DPM++ 2M SDE Exponential",
+                    "DPM++ 2M SDE Karras",
+                    "DPM++ 2M SDE Uniform",
+                    "DPM++ 2M Uniform",
+                    "DPM++ 3M",
+                    "DPM++ 3M Beta",
+                    "DPM++ 3M Exponential",
+                    "DPM++ 3M Karras",
+                    "DPM++ 3M SDE Uniform",
+                    "DPM++ 3M Uniform",
+                    "DPM++ Beta",
+                    "DPM++ Exponential",
+                    "DPM++ Karras",
+                    "DPM++ SDE",
+                    "DPM++ SDE Beta",
+                    "DPM++ SDE Exponential",
+                    "DPM++ SDE Karras",
+                    "DPM++ Uniform",
+                    "DPM++ Uniform Beta",
+                    "DPM++ Uniform Exponential",
+                    "DPM++ Uniform Karras",
+                    "DPMSolverMultistepInverse",
+                    "DPMSolverMultistepScheduler",
+                    "DPMSolverSinglestepScheduler",
+                    "EDMDPMSolverMultistepScheduler",
+                    "EDMEulerScheduler",
+                    "Euler",
+                    "Euler a",
+                    "Euler Beta",
+                    "Euler Exponential",
+                    "Euler Karras",
+                    "EulerAncestralDiscreteScheduler",
+                    "EulerDiscreteScheduler",
+                    "FlowMatchEulerDiscreteScheduler",
+                    "Heun",
+                    "HeunDiscreteScheduler",
+                    "Heun Karras",
+                    "IPNDMScheduler",
+                    "IPNDM Uniform",
+                    "IPNDM Uniform Beta",
+                    "IPNDM Uniform Exponential",
+                    "IPNDM Uniform Karras",
+                    "KDPM2AncestralDiscreteScheduler",
+                    "KDPM2DiscreteScheduler",
+                    "LCM",
+                    "LCMScheduler",
+                    "LMS",
+                    "LMSDiscreteScheduler",
+                    "LMS Karras",
+                    "PNDMScheduler",
+                    "TCDScheduler",
+                    "UniPC",
+                    "UniPC 2M",
+                    "UniPC 2M Karras",
+                    "UniPC 2M Uniform",
+                    "UniPC 3M",
+                    "UniPC 3M Karras",
+                    "UniPC 3M Uniform",
+                    "UniPC Karras",
+                    "UniPC Uniform",
+                    "UniPC Uniform Beta",
+                    "UniPC Uniform Exponential",
+                    "UniPC Uniform Karras"
+                  ]
+                },
+                "CFGScale": {
+                  "title": "CFG Scale",
+                  "description": "Guidance scale representing how closely the output will resemble the prompt. Higher values produce results more aligned with the prompt.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": 0
+                },
+                "strength": {
+                  "title": "Strength",
+                  "description": "Strength of the transformation. Lower values result in more influence from the original input.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": 0,
+                  "maximum": 1,
+                  "default": 0.8
+                },
+                "controlNetWeight": {
+                  "title": "ControlNet Weight",
+                  "description": "Strength of the ControlNet influence. A value of 0 means no influence. Higher values increase the influence, and negative values can be used to steer away from the guide image.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": -4,
+                  "maximum": 4,
+                  "default": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "taskType": {
+              "title": "Task Type",
+              "description": "Identifier for the type of task being performed.",
+              "type": "string",
+              "const": "upscale"
+            },
+            "taskUUID": {
+              "title": "Task UUID",
+              "description": "UUID v4 identifier for tracking tasks and matching async responses. Must be unique per task.",
+              "type": "string",
+              "format": "uuid"
+            },
+            "webhookURL": {
+              "title": "Webhook URL",
+              "description": "Webhook URL that receives JSON responses via HTTP POST when generation tasks complete. For batch requests with multiple results, each completed item triggers a separate webhook call as it becomes available.",
+              "type": "string",
+              "format": "uri"
+            },
+            "includeCost": {
+              "title": "Include Cost",
+              "description": "Include task cost in the response.",
+              "type": "boolean"
+            },
+            "uploadEndpoint": {
+              "title": "Upload Endpoint",
+              "description": "Specifies a URL where the generated content will be automatically uploaded using the HTTP PUT method. The raw binary data of the media file is sent directly as the request body. For secure uploads to cloud storage, use presigned URLs that include temporary authentication credentials.\n\n**Common use cases:**\n\n- **Cloud storage**: Upload directly to S3 buckets, Google Cloud Storage, or Azure Blob Storage using presigned URLs.\n- **CDN integration**: Upload to content delivery networks for immediate distribution.\n\n```text\n// S3 presigned URL for secure upload\nhttps://your-bucket.s3.amazonaws.com/generated/content.mp4?X-Amz-Signature=abc123&X-Amz-Expires=3600\n\n// Google Cloud Storage presigned URL\nhttps://storage.googleapis.com/your-bucket/content.jpg?X-Goog-Signature=xyz789\n\n// Custom storage endpoint\nhttps://storage.example.com/uploads/generated-image.jpg\n```\n\nThe content data will be sent as the request body to the specified URL when generation is complete.\n\n[Read full documentation](https://runware.ai/docs/models/clarity#uploadEndpoint)",
+              "type": "string",
+              "format": "uri"
+            },
+            "ttl": {
+              "title": "TTL",
+              "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+              "type": "integer",
+              "minimum": 60
+            },
+            "outputQuality": {
+              "title": "Output Quality",
+              "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+              "type": "integer",
+              "minimum": 20,
+              "maximum": 99,
+              "default": 95
+            },
+            "outputType": {
+              "title": "Output Type",
+              "description": "Image output type.",
+              "type": "string",
+              "enum": [
+                "URL",
+                "base64Data",
+                "dataURI"
+              ],
+              "default": "URL"
+            },
+            "outputFormat": {
+              "title": "Output Format",
+              "description": "Specifies the file format of the generated output. The available values depend on the task type and the specific model's capabilities.\n\n- \\`JPG\\`: Best for photorealistic images with smaller file sizes (no transparency).\n- \\`PNG\\`: Lossless compression, supports high quality and transparency (alpha channel).\n- \\`WEBP\\`: Modern format providing superior compression and transparency support.\n- \\`MP4\\`: Widely supported video container (H.264), recommended for general use.\n- \\`WEBM\\`: Optimized for web delivery.\n- \\`MOV\\`: QuickTime format, common in professional workflows (Apple ecosystem).\n- \\`GIF\\`: Animated image format (no audio), suitable for short loops or previews.\n- \\`MP3\\`: Compressed audio, smaller file size.\n- \\`WAV\\`: Uncompressed, high-quality audio.\n- \\`FLAC\\`: Lossless compression.\n- \\`OGG\\`: Open-source compressed audio format (Vorbis codec).\n- \\`SVG\\`: Scalable Vector Graphics.\n- \\`TIFF\\`: High-quality output supporting layers.\n- \\`GLB\\`: Binary glTF format for 3D models, including geometry, textures, and PBR materials.\n\n> [!NOTE]\n> \\*\\*Transparency\\*\\*: If you are using features like background removal or LayerDiffuse that require transparency, you must select a format that supports an alpha channel (e.g., \\`PNG\\`, \\`WEBP\\`, \\`TIFF\\`). \\`JPG\\` does not support transparency.\n\n[Read full documentation](https://runware.ai/docs/models/clarity#outputFormat)",
+              "type": "string",
+              "enum": [
+                "JPG",
+                "PNG",
+                "WEBP"
+              ],
+              "default": "JPG"
+            },
+            "deliveryMethod": {
+              "title": "Delivery Method",
+              "description": "Determines how the API delivers task results.",
+              "type": "string",
+              "oneOf": [
+                {
+                  "const": "sync",
+                  "description": "Returns complete results directly in the API response."
+                },
+                {
+                  "const": "async",
+                  "description": "Returns an immediate acknowledgment with the task UUID. Poll for results using getResponse."
+                }
+              ],
+              "default": "sync"
+            },
+            "inputs": {
+              "title": "Inputs",
+              "description": "Input assets for the task.",
+              "type": "object",
+              "properties": {
+                "image": {
+                  "title": "Image",
+                  "description": "Image input (UUID, URL, Data URI, or Base64).",
+                  "type": "string",
+                  "anyOf": [
+                    {
+                      "format": "uuid"
+                    },
+                    {
+                      "format": "uri"
+                    },
+                    {
+                      "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                    },
+                    {
+                      "pattern": "^[a-zA-Z0-9+/=]+$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "image"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "taskType",
+            "taskUUID",
+            "model",
+            "inputs"
+          ]
+        },
+        "description": "You must always POST an array of task objects."
+      },
+      "ResponseBody": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "title": "Upscale Image Response",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "taskType": {
+                  "title": "Task Type",
+                  "description": "Identifier for the type of task this response belongs to.",
+                  "type": "string",
+                  "const": "upscale"
+                },
+                "taskUUID": {
+                  "title": "Task UUID",
+                  "description": "UUID v4 identifier echoed from the original request, used to match async responses to their tasks.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "description": "Task cost in USD. Present when `includeCost` is set to `true` in the request.",
+                  "type": "number"
+                },
+                "imageUUID": {
+                  "title": "Image UUID",
+                  "description": "UUID of the output image.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "imageURL": {
+                  "title": "Image URL",
+                  "description": "URL of the output image.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "imageBase64Data": {
+                  "title": "Image Base64 Data",
+                  "description": "Base64-encoded image data.",
+                  "type": "string"
+                },
+                "imageDataURI": {
+                  "title": "Image Data URI",
+                  "description": "Data URI of the output image.",
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "required": [
+                "taskType",
+                "taskUUID",
+                "imageUUID"
+              ]
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "title": "Error Response",
+        "description": "Standard error response returned by the Runware API.",
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": true,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "A short identifier for the error (e.g., invalidApiKey, timeoutProvider)."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable explanation of what went wrong."
+                },
+                "parameter": {
+                  "type": "string",
+                  "description": "The request parameter related to the error, if applicable."
+                },
+                "taskType": {
+                  "type": "string",
+                  "description": "The task type of the request that failed."
+                },
+                "taskUUID": {
+                  "type": "string",
+                  "description": "The unique identifier of the failed request."
+                },
+                "documentation": {
+                  "type": "string",
+                  "description": "A link to relevant documentation."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "errors"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "post": {
+        "summary": "Run Clarity",
+        "description": "Clarity is an image upscaling model focused on boosting perceived detail during 2× to 4× enlargement, keeping structure stable while enhancing texture and small features for cleaner, higher-impact images.",
+        "operationId": "run_clarity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Missing or invalid parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — No valid API key provided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — Insufficient account balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — The API key lacks permissions for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests — Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error — Something went wrong on Runware's end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — Temporarily unavailable (maintenance or capacity).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ]
+}

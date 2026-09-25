@@ -173,6 +173,7 @@ export default function AICatalog() {
                                             {provider.last_error && <span className="mt-3 block break-words text-xs leading-5 text-red-700 dark:text-red-300">{provider.last_error}</span>}
                                             {provider.verification?.catalog_source === "static_documentation" && <span className="mt-2 block text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Katalog dari dokumentasi; autentikasi dan generasi belum diverifikasi.")}</span>}
                                             {provider.protocol === "fal" && <span className="mt-2 block text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Impor, harga, dan publikasi terpisah. Koneksi terautentikasi bukan bukti generasi berhasil.")}</span>}
+                                            {provider.protocol === "runware" && <span className="mt-2 block text-xs leading-5 text-slate-600 dark:text-slate-400">{t("Impor katalog, harga token, dan publikasi terpisah. Saldo Runware hanya terlihat oleh admin.")}</span>}
                                         </button>
                                     </li>
                                 );

@@ -31,7 +31,8 @@ final class CapabilityPresenter
                 continue;
             }
             $definition = $resolved->capability->toArray();
-            $storedUi = $resolved->revisionId === null ? [] : (MediaCapabilityRevision::find($resolved->revisionId)?->ui_metadata ?? []);
+            $revision = $resolved->revisionId === null ? null : MediaCapabilityRevision::query()->select(['id', 'ui_metadata', 'source_metadata->examples as examples'])->find($resolved->revisionId);
+            $storedUi = $revision?->ui_metadata ?? [];
             $payload = [
                 'operation' => $operationValue,
                 'output_kind' => $definition['output_kind'],
@@ -46,6 +47,10 @@ final class CapabilityPresenter
                 $payload['input_schema'] = $definition['input_schema'];
                 $payload['output_schema'] = $definition['output_schema'];
                 $payload['execution'] = self::execution($resolved->capability->providerBindings);
+                $examples = self::examples($revision?->examples);
+                if ($examples !== []) {
+                    $payload['examples'] = $examples;
+                }
             }
             $out[$operationValue] = $payload;
         }
@@ -53,7 +58,7 @@ final class CapabilityPresenter
         return $out;
     }
 
-    /** Public execution facts only: no endpoint, queue root, request schema or credentials. */
+    /** Public execution facts only: no endpoint, queue root, request schema or credentials. Async Runware tasks are queued jobs. */
     private static function execution(array $bindings): array
     {
         if (($bindings['adapter'] ?? null) === 'fal_wma_v1') {
@@ -65,5 +70,24 @@ final class CapabilityPresenter
         }
 
         return ['transport' => ($bindings['transport'] ?? 'queue') === 'direct' ? 'direct' : 'queue'];
+    }
+
+    /**
+     * Reviewed form presets imported with the revision: title, prompt and member-schema values only.
+     *
+     * @return list<array{title: string, prompt: ?string, values: array<string, mixed>}>
+     */
+    private static function examples(mixed $stored): array
+    {
+        $stored = is_string($stored) ? json_decode($stored, true) : $stored;
+        $examples = [];
+        foreach (is_array($stored) && array_is_list($stored) ? array_slice($stored, 0, 6) : [] as $example) {
+            if (is_array($example) && is_string($example['title'] ?? null) && is_array($example['values'] ?? null)) {
+                $examples[] = ['title' => $example['title'], 'prompt' => is_string($example['prompt'] ?? null) ? $example['prompt'] : null,
+                    'values' => $example['values']];
+            }
+        }
+
+        return $examples;
     }
 }

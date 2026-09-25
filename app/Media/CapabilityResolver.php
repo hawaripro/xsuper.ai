@@ -99,14 +99,18 @@ final class CapabilityResolver
 
             return;
         }
-        $valid = $model->provider?->protocol === 'fal' && ($bindings['endpoint'] ?? null) === $routing
-            && $capability->inputSchema !== [] && match ($bindings['adapter'] ?? null) {
-                'fal_schema_v2' => is_array($bindings['request_schema'] ?? null) && is_array($bindings['output_schema'] ?? null)
-                    && (($bindings['transport'] ?? null) === 'direct'
-                        || (($bindings['transport'] ?? null) === 'queue' && is_string($bindings['queue_root'] ?? null) && $bindings['queue_root'] !== '')),
-                'fal_wma_v1' => $capability->operation === MediaOperation::RealtimeVideo,
-                default => false,
-            };
+        $protocol = $model->provider?->protocol;
+        $valid = ($bindings['endpoint'] ?? null) === $routing && $capability->inputSchema !== [] && match ($bindings['adapter'] ?? null) {
+            'fal_schema_v2' => $protocol === 'fal' && is_array($bindings['request_schema'] ?? null) && is_array($bindings['output_schema'] ?? null)
+                && (($bindings['transport'] ?? null) === 'direct'
+                    || (($bindings['transport'] ?? null) === 'queue' && is_string($bindings['queue_root'] ?? null) && $bindings['queue_root'] !== '')),
+            'fal_wma_v1' => $protocol === 'fal' && $capability->operation === MediaOperation::RealtimeVideo,
+            // One asynchronous Runware task per job, addressed by the reviewed AIR and task type.
+            'runware_v1' => $protocol === 'runware' && ($bindings['transport'] ?? null) === 'async'
+                && is_string($bindings['task_type'] ?? null) && $bindings['task_type'] !== ''
+                && is_array($bindings['request_schema'] ?? null) && is_array($bindings['output_schema'] ?? null),
+            default => false,
+        };
         if (! $valid) {
             throw new \UnexpectedValueException('Published schema binding is not executable for this model routing.');
         }

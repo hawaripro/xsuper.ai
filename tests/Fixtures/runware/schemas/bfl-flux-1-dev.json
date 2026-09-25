@@ -1,0 +1,1526 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Runware API - FLUX.1 [dev]",
+    "summary": "Open-weight 12B text to image model for rich visuals",
+    "description": "FLUX.1 [dev] is a 12-billion-parameter text-to-image model from Black Forest Labs. Its guidance-distilled architecture combines strong prompt adherence with detailed, high-quality visual generation, making it a versatile foundation for creative image workflows and customized model development.",
+    "version": "1.0.0",
+    "x-model-id": "bfl-flux-1-dev",
+    "x-air-id": "runware:101@1",
+    "x-status": "live",
+    "x-creator": {
+      "id": "black-forest-labs",
+      "name": "Black Forest Labs",
+      "logo": "https://assets.runware.ai/07bfd96d-d2df-4d52-aba5-636fb27874be.png"
+    },
+    "x-capabilities": [
+      "text-to-image",
+      "checkpoint"
+    ],
+    "x-modes": [
+      {
+        "id": "text",
+        "inputs": []
+      },
+      {
+        "id": "seed-image",
+        "inputs": [
+          "seedImage"
+        ]
+      },
+      {
+        "id": "seed-image+mask-image",
+        "inputs": [
+          "seedImage",
+          "maskImage"
+        ]
+      }
+    ],
+    "x-released-at": "2024-08-01T00:00:00Z",
+    "x-cover-image": "https://assets.runware.ai/covers/bfl-flux-1-dev.jpg",
+    "x-examples": "https://runware.ai/docs/models/bfl-flux-1-dev/examples.json",
+    "x-pricing": {
+      "currency": "USD",
+      "docs": "https://runware.ai/docs/platform/pricing",
+      "measured": [
+        {
+          "configuration": "1024x1024 · 28 steps",
+          "price": 0.0038
+        },
+        {
+          "configuration": "512x512 · 28 steps",
+          "price": 0.0019
+        },
+        {
+          "configuration": "1024x1024 · 28 steps +1 LoRA",
+          "price": 0.0051
+        },
+        {
+          "configuration": "1024x1024 · 28 steps +2 LoRAs",
+          "price": 0.058
+        }
+      ],
+      "examples": [
+        {
+          "id": "coastal-radar-station-rental-interior",
+          "configuration": "text-to-image · 1024×1024 · steps 28",
+          "price": 0.0013,
+          "latencyMs": 2942
+        },
+        {
+          "id": "bespoke-sign-painter-portrait",
+          "configuration": "expand · 1536×1024",
+          "price": 0.0032,
+          "latencyMs": 7612
+        },
+        {
+          "id": "wastewater-science-picture-book-spread",
+          "configuration": "image-to-image · 720p",
+          "price": 0.0038,
+          "latencyMs": 4263
+        },
+        {
+          "id": "desert-survival-save-station-concept",
+          "configuration": "inpaint · 1024×1024",
+          "price": 0.0038,
+          "latencyMs": 8294
+        }
+      ],
+      "overview": "Each image generation costs $0.0038 at 1024x1024."
+    }
+  },
+  "externalDocs": {
+    "description": "FLUX.1 [dev] on Runware",
+    "url": "https://runware.ai/docs/models/bfl-flux-1-dev"
+  },
+  "servers": [
+    {
+      "url": "https://api.runware.ai/v1",
+      "description": "Runware REST API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Runware API Key (e.g., Bearer <your-key>)"
+      }
+    },
+    "schemas": {
+      "AuthenticationTask": {
+        "title": "Authentication",
+        "description": "Authenticates a connection using an API key. Can be sent as the first element of the request array as an alternative to using the Authorization header.",
+        "type": "object",
+        "x-response-schema": "https://schemas.runware.ai/responses/utilities/authentication.json",
+        "properties": {
+          "taskType": {
+            "$id": "https://schemas.runware.ai/requests/parameters/api/task-type.json",
+            "title": "Task Type",
+            "description": "Identifier for the type of task being performed.",
+            "type": "string",
+            "const": "authentication"
+          },
+          "apiKey": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/api-key.json",
+            "title": "API Key",
+            "description": "Your Runware API key.",
+            "type": "string"
+          },
+          "connectionSessionUUID": {
+            "$id": "https://schemas.runware.ai/requests/parameters/authentication/connection-session-uuid.json",
+            "title": "Connection Session UUID",
+            "description": "Optional session UUID to resume a previous connection and receive any buffered results.",
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "taskType",
+          "apiKey"
+        ],
+        "additionalProperties": false
+      },
+      "RequestBody": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "title": "Model",
+              "description": "Identifier of the model to use for generation.",
+              "type": "string",
+              "const": "runware:101@1"
+            },
+            "steps": {
+              "title": "Steps",
+              "description": "Total number of denoising steps. Higher values generally produce more detailed results but take longer.",
+              "type": "integer",
+              "minimum": 1,
+              "default": 28,
+              "maximum": 100
+            },
+            "inputs": {
+              "title": "Inputs",
+              "description": "Input assets for the task.",
+              "type": "object",
+              "properties": {
+                "seedImage": {
+                  "title": "Seed Image",
+                  "description": "Image used as a starting point for the generation (UUID, URL, Data URI, or Base64).",
+                  "type": "string",
+                  "anyOf": [
+                    {
+                      "format": "uuid"
+                    },
+                    {
+                      "format": "uri"
+                    },
+                    {
+                      "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                    },
+                    {
+                      "pattern": "^[a-zA-Z0-9+/=]+$"
+                    }
+                  ]
+                },
+                "maskImage": {
+                  "title": "Mask Image",
+                  "description": "Image used to specify which areas of the input image should be edited (UUID, URL, Data URI, or Base64). White marks the area to edit, black is preserved.",
+                  "type": "string",
+                  "anyOf": [
+                    {
+                      "format": "uuid"
+                    },
+                    {
+                      "format": "uri"
+                    },
+                    {
+                      "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                    },
+                    {
+                      "pattern": "^[a-zA-Z0-9+/=]+$"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "positivePrompt": {
+              "title": "Positive Prompt",
+              "description": "Text prompt describing elements to include in the generated output.",
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 3000
+            },
+            "negativePrompt": {
+              "title": "Negative Prompt",
+              "description": "Prompt to guide what to exclude from generation. Ignored when guidance is disabled (CFGScale ≤ 1).",
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 3000
+            },
+            "width": {
+              "title": "Width",
+              "description": "Width of the generated media in pixels.",
+              "type": "integer",
+              "minimum": 128,
+              "maximum": 2048,
+              "multipleOf": 64
+            },
+            "height": {
+              "title": "Height",
+              "description": "Height of the generated media in pixels.",
+              "type": "integer",
+              "minimum": 128,
+              "maximum": 2048,
+              "multipleOf": 64
+            },
+            "seed": {
+              "title": "Seed",
+              "description": "Random seed for reproducible generation. When not provided, a random seed is generated in the unsigned 32-bit range.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9223372036854776000
+            },
+            "scheduler": {
+              "title": "Scheduler",
+              "description": "Scheduler to use for the diffusion process.",
+              "type": "string",
+              "enum": [
+                "DDIM",
+                "DDIMScheduler",
+                "DDPMScheduler",
+                "DEISMultistepScheduler",
+                "Default",
+                "DPM++",
+                "DPM++ 2M",
+                "DPM++ 2M Beta",
+                "DPM++ 2M Exponential",
+                "DPM++ 2M Karras",
+                "DPM++ 2M SDE",
+                "DPM++ 2M SDE Beta",
+                "DPM++ 2M SDE Exponential",
+                "DPM++ 2M SDE Karras",
+                "DPM++ 2M SDE Uniform",
+                "DPM++ 2M Uniform",
+                "DPM++ 3M",
+                "DPM++ 3M Beta",
+                "DPM++ 3M Exponential",
+                "DPM++ 3M Karras",
+                "DPM++ 3M SDE Uniform",
+                "DPM++ 3M Uniform",
+                "DPM++ Beta",
+                "DPM++ Exponential",
+                "DPM++ Karras",
+                "DPM++ SDE",
+                "DPM++ SDE Beta",
+                "DPM++ SDE Exponential",
+                "DPM++ SDE Karras",
+                "DPM++ Uniform",
+                "DPM++ Uniform Beta",
+                "DPM++ Uniform Exponential",
+                "DPM++ Uniform Karras",
+                "DPMSolverMultistepInverse",
+                "DPMSolverMultistepScheduler",
+                "DPMSolverSinglestepScheduler",
+                "EDMDPMSolverMultistepScheduler",
+                "EDMEulerScheduler",
+                "Euler",
+                "Euler a",
+                "Euler Beta",
+                "Euler Exponential",
+                "Euler Karras",
+                "EulerAncestralDiscreteScheduler",
+                "EulerDiscreteScheduler",
+                "FlowMatchEulerDiscreteScheduler",
+                "Heun",
+                "HeunDiscreteScheduler",
+                "Heun Karras",
+                "IPNDMScheduler",
+                "IPNDM Uniform",
+                "IPNDM Uniform Beta",
+                "IPNDM Uniform Exponential",
+                "IPNDM Uniform Karras",
+                "KDPM2AncestralDiscreteScheduler",
+                "KDPM2DiscreteScheduler",
+                "LCM",
+                "LCMScheduler",
+                "LMS",
+                "LMSDiscreteScheduler",
+                "LMS Karras",
+                "PNDMScheduler",
+                "TCDScheduler",
+                "UniPC",
+                "UniPC 2M",
+                "UniPC 2M Karras",
+                "UniPC 2M Uniform",
+                "UniPC 3M",
+                "UniPC 3M Karras",
+                "UniPC 3M Uniform",
+                "UniPC Karras",
+                "UniPC Uniform",
+                "UniPC Uniform Beta",
+                "UniPC Uniform Exponential",
+                "UniPC Uniform Karras"
+              ]
+            },
+            "CFGScale": {
+              "title": "CFG Scale",
+              "description": "Guidance scale representing how closely the output will resemble the prompt. Higher values produce results more aligned with the prompt.",
+              "type": "number",
+              "multipleOf": 0.01,
+              "minimum": 0,
+              "maximum": 20
+            },
+            "strength": {
+              "title": "Strength",
+              "description": "Strength of the transformation. Lower values result in more influence from the original input.",
+              "type": "number",
+              "multipleOf": 0.01,
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.8
+            },
+            "maskMargin": {
+              "title": "Mask Margin",
+              "description": "Extra context pixels around the masked region during inpainting. The model zooms into the masked area with these additional pixels for better integration.",
+              "type": "integer",
+              "minimum": 32,
+              "maximum": 128
+            },
+            "promptWeighting": {
+              "title": "Prompt Weighting",
+              "description": "Defines the syntax to be used for prompt weighting.\n\nPrompt weighting allows you to adjust how strongly different parts of your prompt influence the generated image. Choose between `compel` notation with advanced weighting operations or `sdEmbeds` for simple emphasis adjustments.\n\n**Compel syntax**:\n\nAdds 0.2 seconds to image inference time and incurs additional costs.\n\nWhen `compel` syntax is selected, you can use the following notation in prompts:\n\n**Weighting**\n\nSyntax: `+` `-` `(word)0.9`\n\nIncrease or decrease the attention given to specific words or phrases.\n\nExamples:\n\n- Single words: `small+ dog, pixar style`\n- Multiple words: `small dog, (pixar style)-`\n- Multiple symbols for more effect: `small+++ dog, pixar style`\n- Nested weighting: `(small+ dog)++, pixar style`\n- Explicit weight percentage: `small dog, (pixar)1.2 style`\n\n**Blend**\n\nSyntax: `.blend()`\n\nMerge multiple conditioning prompts.\n\nExample: `(\"small dog\", \"robot\").blend(1, 0.8)`\n\n**Conjunction**\n\nSyntax: `.and()`\n\nBreak a prompt into multiple clauses and pass them separately.\n\nExample: `(\"small dog\", \"pixar style\").and()`\n\n**SdEmbeds syntax**:\n\nWhen `sdEmbeds` syntax is selected, you can use the following notation in prompts:\n\n**Weighting**\n\nSyntax: `(text)` `(text:number)` `[text]`\n\nUse parentheses `()` to increase attention, square brackets `[]` to decrease it. Add a number after the text to specify a custom multiplier.\n\nExamples:\n\n- Single words: `(small) dog, pixar style`\n- Multiple words: `small dog, [pixar style]`\n- Higher emphasis: `(small:2.5) dog, pixar style`\n- Combined emphasis: `(small dog:1.5), pixar style`\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#promptWeighting)",
+              "type": "string",
+              "enum": [
+                "sdEmbeds"
+              ]
+            },
+            "acceleratorOptions": {
+              "title": "Accelerator Options",
+              "description": "Advanced caching mechanisms to speed up generation.",
+              "type": "object",
+              "properties": {
+                "cacheEndStep": {
+                  "title": "Cache End Step",
+                  "description": "Absolute step number to end caching. Must be greater than `cacheStartStep` and less than or equal to `steps`.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "cacheEndStepPercentage": {
+                  "title": "Cache End Step Percentage",
+                  "description": "Percentage of steps to end caching. Alternative to `cacheEndStep`. Must be greater than `cacheStartStepPercentage`.",
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "cacheMaxConsecutiveSteps": {
+                  "title": "Cache Max Consecutive Steps",
+                  "description": "Limits the maximum number of consecutive steps that can use cached computations before forcing a fresh computation.",
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5,
+                  "default": 3
+                },
+                "cacheStartStep": {
+                  "title": "Cache Start Step",
+                  "description": "Absolute step number to start caching. Must be less than `cacheEndStep`.",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cacheStartStepPercentage": {
+                  "title": "Cache Start Step Percentage",
+                  "description": "Percentage of steps to start caching. Alternative to `cacheStartStep`. Must be less than `cacheEndStepPercentage`.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 99
+                },
+                "teaCache": {
+                  "title": "TeaCache",
+                  "description": "TeaCache acceleration for transformer-based models. Estimates step differences to skip redundant computations.",
+                  "type": "boolean"
+                },
+                "teaCacheDistance": {
+                  "title": "TeaCache Distance",
+                  "description": "Controls the aggressiveness of the TeaCache feature. Lower values prioritize quality, higher values prioritize speed.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": 0,
+                  "maximum": 1,
+                  "default": 0.5
+                },
+                "dbCache": {
+                  "title": "DB Cache",
+                  "description": "DB Cache (CacheDiT) acceleration. Caches and reuses intermediate transformer block outputs to skip redundant computations.",
+                  "type": "boolean"
+                },
+                "dbCacheThreshold": {
+                  "title": "DB Cache Threshold",
+                  "description": "Controls the sensitivity threshold for DB Cache. Lower values reuse cached blocks more aggressively, higher values prioritize quality.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": 0,
+                  "maximum": 1,
+                  "default": 0.25
+                },
+                "dbCacheSkipInterval": {
+                  "title": "DB Cache Skip Interval",
+                  "description": "Controls how many steps to skip between cache refreshes. Higher values skip more steps for faster generation at the cost of quality.",
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 5
+                }
+              },
+              "allOf": [
+                {
+                  "not": {
+                    "required": [
+                      "cacheStartStep",
+                      "cacheStartStepPercentage"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "cacheEndStep",
+                      "cacheEndStepPercentage"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "fbCache": {
+                            "const": true
+                          },
+                          "teaCache": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "fbCache",
+                          "teaCache"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "fbCache": {
+                            "const": true
+                          },
+                          "dbCache": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "fbCache",
+                          "dbCache"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "fbCache": {
+                            "const": true
+                          },
+                          "deepCache": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "fbCache",
+                          "deepCache"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "teaCache": {
+                            "const": true
+                          },
+                          "dbCache": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "teaCache",
+                          "dbCache"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "teaCache": {
+                            "const": true
+                          },
+                          "deepCache": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "teaCache",
+                          "deepCache"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "dbCache": {
+                            "const": true
+                          },
+                          "deepCache": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "dbCache",
+                          "deepCache"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ],
+              "additionalProperties": false
+            },
+            "outpaint": {
+              "title": "Outpaint",
+              "description": "Pixel extensions for each boundary direction of the source image. At least one direction is required.",
+              "type": "object",
+              "properties": {
+                "top": {
+                  "title": "Outpaint Top",
+                  "description": "Number of pixels to extend to the top.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "multipleOf": 64
+                },
+                "bottom": {
+                  "title": "Outpaint Bottom",
+                  "description": "Number of pixels to extend to the bottom.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "multipleOf": 64
+                },
+                "left": {
+                  "title": "Outpaint Left",
+                  "description": "Number of pixels to extend to the left.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "multipleOf": 64
+                },
+                "right": {
+                  "title": "Outpaint Right",
+                  "description": "Number of pixels to extend to the right.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "multipleOf": 64
+                },
+                "blur": {
+                  "title": "Outpaint Blur",
+                  "description": "Amount of blur to apply to the mask edge.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 32
+                }
+              },
+              "anyOf": [
+                {
+                  "required": [
+                    "top"
+                  ]
+                },
+                {
+                  "required": [
+                    "bottom"
+                  ]
+                },
+                {
+                  "required": [
+                    "left"
+                  ]
+                },
+                {
+                  "required": [
+                    "right"
+                  ]
+                }
+              ],
+              "additionalProperties": false
+            },
+            "lora": {
+              "title": "LoRA",
+              "description": "With LoRA (Low-Rank Adaptation), you can adapt a model to specific styles or features by emphasizing particular aspects of the data. This technique enhances the quality and relevance of generated content and can be especially useful when the output needs to adhere to a specific artistic style or follow particular guidelines.\n\nMultiple LoRA models can be used simultaneously to achieve different adaptation goals.\n\n**Examples**:\n\n```json\n\"lora\": [\n  {\n    \"model\": \"<lora-model-air>\",\n    \"weight\": 0.8\n  }\n]\n```\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#lora)",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "title": "LoRA Model",
+                    "description": "LoRA model identifier.",
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9._-]+(:[a-zA-Z0-9._/@-]+)?$"
+                  },
+                  "weight": {
+                    "title": "LoRA Weight",
+                    "description": "Strength of the LoRA influence. A value of 0 means no influence. Higher values increase the influence, and negative values can be used to steer away from the LoRA's style.",
+                    "type": "number",
+                    "multipleOf": 0.01,
+                    "minimum": -4,
+                    "maximum": 4,
+                    "default": 1
+                  }
+                },
+                "required": [
+                  "model"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "controlNet": {
+              "title": "ControlNet",
+              "description": "With ControlNet, you can provide a guide image to help the model generate images that align with the desired structure. This guide image can be generated with our ControlNet preprocessing tool, extracting guidance information from an input image. The guide image can be in the form of an edge map, a pose, a depth estimation or any other type of control image that guides the generation process via the ControlNet model.\n\nMultiple ControlNet models can be used at the same time to provide different types of guidance information to the model.\n\n**Examples**:\n\n```json\n\"controlNet\": [\n  {\n    \"model\": \"<controlnet-model-air>\",\n    \"guideImage\": \"c64351d5-4c59-42f7-95e1-eace013eddab\",\n    \"weight\": 0.7,\n    \"startStep\": 0,\n    \"endStep\": 20,\n    \"controlMode\": \"controlnet\"\n  }\n]\n```\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#controlNet)",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "title": "ControlNet Model",
+                    "description": "ControlNet model identifier.",
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9._-]+(:[a-zA-Z0-9._/@-]+)?$",
+                    "enum": [
+                      "runware:25@1",
+                      "runware:26@1",
+                      "runware:27@1",
+                      "runware:28@1",
+                      "runware:29@1",
+                      "runware:30@1",
+                      "runware:31@1",
+                      "runware:98@1"
+                    ]
+                  },
+                  "weight": {
+                    "title": "ControlNet Weight",
+                    "description": "Strength of the ControlNet influence. A value of 0 means no influence. Higher values increase the influence, and negative values can be used to steer away from the guide image.",
+                    "type": "number",
+                    "multipleOf": 0.01,
+                    "minimum": -4,
+                    "maximum": 4,
+                    "default": 1
+                  },
+                  "guideImage": {
+                    "title": "Guide Image",
+                    "description": "Reference image for ControlNet guidance (UUID, URL, Data URI, or Base64).",
+                    "type": "string",
+                    "anyOf": [
+                      {
+                        "format": "uuid"
+                      },
+                      {
+                        "format": "uri"
+                      },
+                      {
+                        "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                      },
+                      {
+                        "pattern": "^[a-zA-Z0-9+/=]+$"
+                      }
+                    ]
+                  },
+                  "controlMode": {
+                    "title": "Control Mode",
+                    "description": "ControlNet guidance mode.",
+                    "type": "string",
+                    "default": "balanced",
+                    "oneOf": [
+                      {
+                        "const": "balanced",
+                        "description": "Equal weight between ControlNet and prompt."
+                      },
+                      {
+                        "const": "controlnet",
+                        "description": "Prioritize ControlNet guidance."
+                      },
+                      {
+                        "const": "prompt",
+                        "description": "Prioritize prompt guidance."
+                      }
+                    ]
+                  },
+                  "endStep": {
+                    "title": "ControlNet End Step",
+                    "description": "Absolute step number to end ControlNet influence. Must be greater than `startStep` and less than or equal to `steps`.",
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "endStepPercentage": {
+                    "title": "End Step Percentage",
+                    "description": "Percentage of steps to end ControlNet influence. Must be greater than `startStepPercentage`.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "startStep": {
+                    "title": "Start Step",
+                    "description": "Absolute step number to start ControlNet influence. Must be less than `endStep`.",
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "startStepPercentage": {
+                    "title": "Start Step Percentage",
+                    "description": "Percentage of steps to start ControlNet influence. Must be less than `endStepPercentage`.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 99
+                  }
+                },
+                "required": [
+                  "model",
+                  "guideImage"
+                ],
+                "allOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "startStep",
+                        "startStepPercentage"
+                      ]
+                    }
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "endStep",
+                        "endStepPercentage"
+                      ]
+                    }
+                  }
+                ],
+                "additionalProperties": false
+              }
+            },
+            "ipAdapters": {
+              "title": "IP Adapters",
+              "description": "IP-Adapters enable image-prompted generation, allowing you to use reference images to guide the style and content of your generations. Multiple IP Adapters can be used simultaneously.\n\n**Examples**:\n\n```json\n\"ipAdapters\": [\n  {\n    \"model\": \"<ip-adapter-model-air>\",\n    \"guideImages\": [\"c64351d5-4c59-42f7-95e1-eace013eddab\"],\n    \"weight\": 0.75\n  },\n  {\n    \"model\": \"<ip-adapter-model-air>\",\n    \"guideImages\": [\"d7e8f9a0-2b5c-4e7f-a1d3-9c8b7a6e5d4f\"],\n    \"weight\": 0.5\n  }\n]\n```\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#ipAdapters)",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "title": "IP-Adapter Model",
+                    "description": "We make use of the [AIR system](https://runware.ai/docs/models) to identify IP-Adapter models. This identifier is a unique string that represents a specific model.\n\n**Supported models list**:\n\n| AIR ID | Model Name |\n| --- | --- |\n| runware:55@1 | IP Adapter SDXL |\n| runware:55@2 | IP Adapter SDXL Plus |\n| runware:55@3 | IP Adapter SDXL Plus Face |\n| runware:55@4 | IP Adapter SDXL Vit-H |\n| runware:55@5 | IP Adapter SD 1.5 |\n| runware:55@6 | IP Adapter SD 1.5 Plus |\n| runware:55@7 | IP Adapter SD 1.5 Light |\n| runware:55@8 | IP Adapter SD 1.5 Plus Face |\n| runware:55@10 | IP Adapter SD 1.5 Vit-G |\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#model)",
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9._-]+(:[a-zA-Z0-9._/@-]+)?$",
+                    "enum": [
+                      "runware:56@1",
+                      "runware:56@2",
+                      "runware:56@3",
+                      "runware:56@4"
+                    ]
+                  },
+                  "weight": {
+                    "title": "IP-Adapter Weight",
+                    "description": "Strength of the IP-Adapter influence. A value of 0 means no influence. Higher values increase the influence, and negative values can be used to steer away from the reference.",
+                    "type": "number",
+                    "multipleOf": 0.01,
+                    "minimum": -4,
+                    "maximum": 4,
+                    "default": 1
+                  },
+                  "guideImages": {
+                    "title": "Guide Images",
+                    "description": "Images to guide the IP-Adapter (UUID, URL, Data URI, or Base64).",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "title": "Image",
+                      "description": "Image input (UUID, URL, Data URI, or Base64).",
+                      "type": "string",
+                      "anyOf": [
+                        {
+                          "format": "uuid"
+                        },
+                        {
+                          "format": "uri"
+                        },
+                        {
+                          "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                        },
+                        {
+                          "pattern": "^[a-zA-Z0-9+/=]+$"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "model",
+                  "guideImages"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "advancedFeatures": {
+              "title": "Advanced Features",
+              "description": "Model-specific advanced configuration options.",
+              "type": "object",
+              "properties": {
+                "layerDiffuse": {
+                  "title": "Layer Diffuse",
+                  "description": "Enables LayerDiffuse technology, which allows for the direct generation of images with transparency (alpha channels).\n\nWhen enabled, this feature applies the necessary LwwwwwwoRA and VAE components to produce high-quality transparent images without requiring post-processing background removal.\n\nThis is particularly useful for creating product images, overlays, composites, and other content that requires transparency. The output must be in a format that supports transparency, such as PNG.\n\nNote: This feature is only available for the FLUX model architecture. It automatically applies the equivalent of:\n\n```json\n\n  \"lora\": [{ \"model\": \"runware:120@2\" }],\n  \"vae\": \"runware:120@4\"\n```\n\n**Examples**:\n\n```json\n\"outputFormat\": \"png\",\n\"advancedFeatures\": {\n  \"layerDiffuse\": true\n}\n```\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#layerDiffuse)",
+                  "type": "boolean"
+                },
+                "watermark": {
+                  "title": "Watermark",
+                  "description": "Configuration object for adding watermarks to generated videos. Watermarks can be applied using either text or image content with customizable positioning and appearance. You must provide either `text` or `image` content for the watermark, but not both.\n\n**Text watermark**:\n\n```json\n\"advancedFeatures\": {\n  \"watermark\": {\n    \"text\": \"© 2025 Company\",\n    \"displayPosition\": \"bottom-right\",\n    \"opacity\": 0.6,\n    \"fontColor\": \"#ffffff\",\n    \"bgColor\": \"#000000\"\n  }\n}\n```\n\n**Image watermark**:\n\n```json\n\"advancedFeatures\": {\n  \"watermark\": {\n    \"image\": \"c64351d5-4c59-42f7-95e1-eace013eddab\",\n    \"displayPosition\": \"top-left\",\n    \"opacity\": 0.6\n  }\n}\n```\n\n**Tiled watermark**:\n\n```json\n\"advancedFeatures\": {\n  \"watermark\": {\n    \"text\": \"PREVIEW\",\n    \"tiled\": true,\n    \"opacity\": 0.4,\n    \"fontColor\": \"#cccccc\"\n  }\n}\n```\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#watermark)",
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "title": "Watermark Text",
+                      "description": "Watermark text.",
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 32
+                    },
+                    "image": {
+                      "title": "Watermark Image",
+                      "description": "Watermark image (UUID, URL, Data URI, or Base64).",
+                      "type": "string",
+                      "anyOf": [
+                        {
+                          "format": "uuid"
+                        },
+                        {
+                          "format": "uri"
+                        },
+                        {
+                          "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                        },
+                        {
+                          "pattern": "^[a-zA-Z0-9+/=]+$"
+                        }
+                      ]
+                    },
+                    "displayPosition": {
+                      "title": "Display Position",
+                      "description": "Watermark position.",
+                      "type": "string",
+                      "enum": [
+                        "top-left",
+                        "top-center",
+                        "top-right",
+                        "center-left",
+                        "center-center",
+                        "center-right",
+                        "bottom-left",
+                        "bottom-center",
+                        "bottom-right",
+                        "tiled"
+                      ]
+                    },
+                    "opacity": {
+                      "title": "Watermark Opacity",
+                      "description": "Watermark opacity.",
+                      "type": "number",
+                      "multipleOf": 0.01,
+                      "minimum": 0.1,
+                      "maximum": 1
+                    },
+                    "fontColor": {
+                      "title": "Font Color",
+                      "description": "Text color in hex format.",
+                      "type": "string",
+                      "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+                    },
+                    "bgColor": {
+                      "title": "Background Color",
+                      "description": "Background color in hex format.",
+                      "type": "string",
+                      "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+                    }
+                  },
+                  "oneOf": [
+                    {
+                      "required": [
+                        "text"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "image"
+                      ]
+                    }
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "hiresFix": {
+              "title": "HiresFix",
+              "description": "Two-stage generation for improved resolution and detail. The model generates at a lower resolution first, then upscales and refines the result in a second pass. Can be enabled with `true` for default settings, or configured as an object for fine-grained control over the upscaling model, steps, and strength.\n\nWhen using the object form, the `model` parameter is required. Available upscaling models:\n\n| Model | Name | Upscale Factor |\n| --- | --- | --- |\n| `runware:504@1` | RealESRGAN\\_x4plus | 4x |\n| `runware:realesrgan@anime-6b` | RealESRGAN\\_x4plus\\_anime\\_6B | 4x |\n| `runware:esrgan@animesharp` | 4x-AnimeSharp | 4x |\n| `runware:esrgan@ultrasharp` | 4x-UltraSharp | 4x |\n\n**Simple (boolean)**:\n\n```json\n\"hiresFix\": true\n```\n\n**Configured (object)**:\n\n```json\n\"hiresFix\": {\n  \"model\": \"runware:esrgan@ultrasharp\",\n  \"steps\": 15,\n  \"strength\": 0.6\n}\n```\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#hiresFix)",
+              "oneOf": [
+                {
+                  "type": "boolean",
+                  "const": true
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "title": "Model",
+                      "description": "Upscaling model for hires fix.",
+                      "type": "string",
+                      "pattern": "^[a-zA-Z0-9._-]+(:[a-zA-Z0-9._/@-]+)?$",
+                      "enum": [
+                        "runware:realesrgan@anime-6b",
+                        "runware:esrgan@animesharp",
+                        "runware:esrgan@ultrasharp",
+                        "runware:504@1"
+                      ]
+                    },
+                    "steps": {
+                      "title": "Steps",
+                      "description": "Total number of denoising steps. Higher values generally produce more detailed results but take longer.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 35,
+                      "default": 10
+                    },
+                    "strength": {
+                      "title": "Strength",
+                      "description": "Strength of the transformation. Lower values result in more influence from the original input.",
+                      "type": "number",
+                      "multipleOf": 0.01,
+                      "minimum": 0,
+                      "maximum": 1,
+                      "default": 0.8
+                    },
+                    "upscaleFactor": {
+                      "title": "Upscale Factor",
+                      "description": "Factor by which to upscale the generated image. A value of 2 doubles width and height.",
+                      "type": "integer",
+                      "enum": [
+                        4
+                      ],
+                      "default": 4
+                    }
+                  },
+                  "required": [
+                    "model"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "pulid": {
+              "title": "PuLID",
+              "description": "PuLID (Pure and Lightning ID Customization) enables fast and high-quality identity customization for text-to-image generation. This object allows you to configure settings for transferring facial characteristics from a reference image to generated images with high fidelity.\n\n> [!NOTE]\n> `CFGstartStep` and `CFGstartStepPercentage` are mutually exclusive, they both control when CFG guidance begins, but as an absolute step number or a percentage respectively. Use one or the other, not both.\n\n**Examples**:\n\n```json\n\"puLID\": {\n  \"images\": [\"59a2edc2-45e6-429f-be5f-7ded59b92046\"],\n  \"idWeight\": 1,\n  \"trueCFGScale\": 1.5,\n  \"CFGStartStep\": 3\n}\n```\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#pulid)",
+              "type": "object",
+              "properties": {
+                "CFGstartStep": {
+                  "title": "CFG Start Step",
+                  "description": "Absolute step number to start identity influence. Must be less than `steps`.",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "CFGstartStepPercentage": {
+                  "title": "CFG Start Step Percentage",
+                  "description": "Percentage of steps to start identity influence.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 99
+                },
+                "idWeight": {
+                  "title": "ID Weight",
+                  "description": "Identity preservation strength. Higher values create closer resemblance to the reference face.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": 0,
+                  "maximum": 3,
+                  "default": 1
+                },
+                "images": {
+                  "title": "Images",
+                  "description": "Reference images for identity customization (UUID, URL, Data URI, or Base64).",
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 1,
+                  "items": {
+                    "title": "Image",
+                    "description": "Image input (UUID, URL, Data URI, or Base64).",
+                    "type": "string",
+                    "anyOf": [
+                      {
+                        "format": "uuid"
+                      },
+                      {
+                        "format": "uri"
+                      },
+                      {
+                        "pattern": "^data:image\\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+$"
+                      },
+                      {
+                        "pattern": "^[a-zA-Z0-9+/=]+$"
+                      }
+                    ]
+                  }
+                },
+                "trueCFGScale": {
+                  "title": "True CFG Scale",
+                  "description": "Guidance scale for identity embedding.",
+                  "type": "number",
+                  "multipleOf": 0.1,
+                  "minimum": 0,
+                  "maximum": 10
+                }
+              },
+              "required": [
+                "images"
+              ],
+              "allOf": [
+                {
+                  "not": {
+                    "required": [
+                      "CFGstartStep",
+                      "CFGstartStepPercentage"
+                    ]
+                  }
+                }
+              ],
+              "additionalProperties": false
+            },
+            "trueCFGScale": {
+              "title": "True CFG Scale",
+              "description": "True Classifier-Free Guidance scale. Higher values increase prompt adherence at the cost of quality.",
+              "type": "number"
+            },
+            "ultralytics": {
+              "title": "Ultralytics Features",
+              "description": "Configuration object for Ultralytics face enhancement during generation. This feature uses face detection and inpainting to improve facial details in the same generation step, without requiring post-processing.\n\n> [!NOTE]\n> Face enhancement is available for Stable Diffusion 1.X, SDXL, and FLUX models. The system automatically detects faces and applies targeted refinement to improve quality while maintaining consistency with the overall generation.\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#ultralytics)",
+              "type": "object",
+              "properties": {
+                "CFGScale": {
+                  "title": "CFG Scale",
+                  "description": "Face refinement guidance scale.",
+                  "type": "number",
+                  "multipleOf": 0.1,
+                  "minimum": 0,
+                  "maximum": 50,
+                  "default": 8
+                },
+                "confidence": {
+                  "title": "Confidence",
+                  "description": "Confidence threshold for detection.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "minimum": 0,
+                  "maximum": 1,
+                  "default": 0.9
+                },
+                "inpaintSize": {
+                  "type": "integer",
+                  "title": "Inpaint Size",
+                  "description": "Image size (in pixels) to use for each inpainting region. YOLO detects faces, crops the region, and scales it to this size before running diffusion. Set so most faces land in the 2–4× range of their original pixel size. Going beyond 8× may degrade identity resemblance.",
+                  "default": 1024,
+                  "minimum": 128,
+                  "maximum": 2048
+                },
+                "maskBlur": {
+                  "title": "Mask Blur",
+                  "description": "Mask feathering amount. Higher values create softer transitions between the enhanced face region and surrounding areas.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "default": 5
+                },
+                "maskPadding": {
+                  "title": "Mask Padding",
+                  "description": "Padding around detected face in pixels. Expands the refinement area to include surrounding context like hair and neck.",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 20,
+                  "default": 5
+                },
+                "negativePrompt": {
+                  "title": "Negative Prompt",
+                  "description": "Negative prompt for detection.",
+                  "type": "string"
+                },
+                "positivePrompt": {
+                  "title": "Positive Prompt",
+                  "description": "Positive prompt for detection.",
+                  "type": "string"
+                },
+                "steps": {
+                  "title": "Steps",
+                  "description": "Number of face refinement steps.",
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 20
+                },
+                "strength": {
+                  "title": "Strength",
+                  "description": "Refinement strength. Lower values preserve more of the original, higher values allow more aggressive reconstruction.",
+                  "type": "number",
+                  "multipleOf": 0.01,
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "default": 0.3
+                }
+              },
+              "additionalProperties": false
+            },
+            "taskType": {
+              "title": "Task Type",
+              "description": "Identifier for the type of task being performed.",
+              "type": "string",
+              "const": "imageInference"
+            },
+            "taskUUID": {
+              "title": "Task UUID",
+              "description": "UUID v4 identifier for tracking tasks and matching async responses. Must be unique per task.",
+              "type": "string",
+              "format": "uuid"
+            },
+            "webhookURL": {
+              "title": "Webhook URL",
+              "description": "Webhook URL that receives JSON responses via HTTP POST when generation tasks complete. For batch requests with multiple results, each completed item triggers a separate webhook call as it becomes available.",
+              "type": "string",
+              "format": "uri"
+            },
+            "includeCost": {
+              "title": "Include Cost",
+              "description": "Include task cost in the response.",
+              "type": "boolean"
+            },
+            "numberResults": {
+              "title": "Number of Results",
+              "description": "Number of results to generate. Each result uses a different seed, producing variations of the same parameters.",
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "maximum": 20
+            },
+            "uploadEndpoint": {
+              "title": "Upload Endpoint",
+              "description": "Specifies a URL where the generated content will be automatically uploaded using the HTTP PUT method. The raw binary data of the media file is sent directly as the request body. For secure uploads to cloud storage, use presigned URLs that include temporary authentication credentials.\n\n**Common use cases:**\n\n- **Cloud storage**: Upload directly to S3 buckets, Google Cloud Storage, or Azure Blob Storage using presigned URLs.\n- **CDN integration**: Upload to content delivery networks for immediate distribution.\n\n```text\n// S3 presigned URL for secure upload\nhttps://your-bucket.s3.amazonaws.com/generated/content.mp4?X-Amz-Signature=abc123&X-Amz-Expires=3600\n\n// Google Cloud Storage presigned URL\nhttps://storage.googleapis.com/your-bucket/content.jpg?X-Goog-Signature=xyz789\n\n// Custom storage endpoint\nhttps://storage.example.com/uploads/generated-image.jpg\n```\n\nThe content data will be sent as the request body to the specified URL when generation is complete.\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#uploadEndpoint)",
+              "type": "string",
+              "format": "uri"
+            },
+            "ttl": {
+              "title": "TTL",
+              "description": "Time-to-live (TTL) in seconds for generated content. Only applies when `outputType` is `URL`.",
+              "type": "integer",
+              "minimum": 60
+            },
+            "outputType": {
+              "title": "Output Type",
+              "description": "Image output type.",
+              "type": "string",
+              "enum": [
+                "URL",
+                "base64Data",
+                "dataURI"
+              ],
+              "default": "URL"
+            },
+            "outputFormat": {
+              "title": "Output Format",
+              "description": "Specifies the file format of the generated output. The available values depend on the task type and the specific model's capabilities.\n\n- \\`JPG\\`: Best for photorealistic images with smaller file sizes (no transparency).\n- \\`PNG\\`: Lossless compression, supports high quality and transparency (alpha channel).\n- \\`WEBP\\`: Modern format providing superior compression and transparency support.\n- \\`MP4\\`: Widely supported video container (H.264), recommended for general use.\n- \\`WEBM\\`: Optimized for web delivery.\n- \\`MOV\\`: QuickTime format, common in professional workflows (Apple ecosystem).\n- \\`GIF\\`: Animated image format (no audio), suitable for short loops or previews.\n- \\`MP3\\`: Compressed audio, smaller file size.\n- \\`WAV\\`: Uncompressed, high-quality audio.\n- \\`FLAC\\`: Lossless compression.\n- \\`OGG\\`: Open-source compressed audio format (Vorbis codec).\n- \\`SVG\\`: Scalable Vector Graphics.\n- \\`TIFF\\`: High-quality output supporting layers.\n- \\`GLB\\`: Binary glTF format for 3D models, including geometry, textures, and PBR materials.\n\n> [!NOTE]\n> \\*\\*Transparency\\*\\*: If you are using features like background removal or LayerDiffuse that require transparency, you must select a format that supports an alpha channel (e.g., \\`PNG\\`, \\`WEBP\\`, \\`TIFF\\`). \\`JPG\\` does not support transparency.\n\n[Read full documentation](https://runware.ai/docs/models/bfl-flux-1-dev#outputFormat)",
+              "type": "string",
+              "enum": [
+                "JPG",
+                "PNG",
+                "WEBP"
+              ],
+              "default": "JPG"
+            },
+            "outputQuality": {
+              "title": "Output Quality",
+              "description": "Compression quality of the output. Higher values preserve quality but increase file size.",
+              "type": "integer",
+              "minimum": 20,
+              "maximum": 99,
+              "default": 95
+            },
+            "deliveryMethod": {
+              "title": "Delivery Method",
+              "description": "Determines how the API delivers task results.",
+              "type": "string",
+              "oneOf": [
+                {
+                  "const": "sync",
+                  "description": "Returns complete results directly in the API response."
+                },
+                {
+                  "const": "async",
+                  "description": "Returns an immediate acknowledgment with the task UUID. Poll for results using getResponse."
+                }
+              ],
+              "default": "sync"
+            },
+            "safety": {
+              "type": "object",
+              "title": "Safety Settings",
+              "description": "Content safety checking configuration for image generation.",
+              "properties": {
+                "checkContent": {
+                  "title": "Check Content",
+                  "description": "Enable or disable content safety checking. Increases total generation time.",
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "positivePrompt",
+            "width",
+            "height",
+            "taskType",
+            "taskUUID",
+            "model"
+          ],
+          "allOf": [
+            {
+              "dependentRequired": {
+                "width": [
+                  "height"
+                ],
+                "height": [
+                  "width"
+                ]
+              }
+            },
+            {
+              "if": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "strength"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "inputs": {
+                        "required": [
+                          "maskImage"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "inputs"
+                    ]
+                  }
+                ]
+              },
+              "then": {
+                "properties": {
+                  "inputs": {
+                    "required": [
+                      "seedImage"
+                    ]
+                  }
+                },
+                "required": [
+                  "inputs"
+                ]
+              }
+            }
+          ],
+          "additionalProperties": false
+        },
+        "description": "You must always POST an array of task objects."
+      },
+      "ResponseBody": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "title": "Image Response",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "taskType": {
+                  "title": "Task Type",
+                  "description": "Identifier for the type of task this response belongs to.",
+                  "type": "string",
+                  "const": "imageInference"
+                },
+                "taskUUID": {
+                  "title": "Task UUID",
+                  "description": "UUID v4 identifier echoed from the original request, used to match async responses to their tasks.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "cost": {
+                  "title": "Cost",
+                  "description": "Task cost in USD. Present when `includeCost` is set to `true` in the request.",
+                  "type": "number"
+                },
+                "imageUUID": {
+                  "title": "Image UUID",
+                  "description": "UUID of the output image.",
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "imageURL": {
+                  "title": "Image URL",
+                  "description": "URL of the output image.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "imageBase64Data": {
+                  "title": "Image Base64 Data",
+                  "description": "Base64-encoded image data.",
+                  "type": "string"
+                },
+                "imageDataURI": {
+                  "title": "Image Data URI",
+                  "description": "Data URI of the output image.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "seed": {
+                  "title": "Seed",
+                  "description": "The seed used for generation. If none was provided, shows the randomly generated seed.",
+                  "type": "integer"
+                },
+                "NSFWContent": {
+                  "title": "NSFW Content",
+                  "description": "Flag indicating if NSFW content was detected.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "taskType",
+                "taskUUID",
+                "imageUUID"
+              ]
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "title": "Error Response",
+        "description": "Standard error response returned by the Runware API.",
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": true,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "A short identifier for the error (e.g., invalidApiKey, timeoutProvider)."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable explanation of what went wrong."
+                },
+                "parameter": {
+                  "type": "string",
+                  "description": "The request parameter related to the error, if applicable."
+                },
+                "taskType": {
+                  "type": "string",
+                  "description": "The task type of the request that failed."
+                },
+                "taskUUID": {
+                  "type": "string",
+                  "description": "The unique identifier of the failed request."
+                },
+                "documentation": {
+                  "type": "string",
+                  "description": "A link to relevant documentation."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "errors"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "post": {
+        "summary": "Run FLUX.1 [dev]",
+        "description": "FLUX.1 [dev] is a 12-billion-parameter text-to-image model from Black Forest Labs. Its guidance-distilled architecture combines strong prompt adherence with detailed, high-quality visual generation, making it a versatile foundation for creative image workflows and customized model development.",
+        "operationId": "run_bfl_flux_1_dev",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Missing or invalid parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — No valid API key provided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — Insufficient account balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — The API key lacks permissions for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests — Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error — Something went wrong on Runware's end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — Temporarily unavailable (maintenance or capacity).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ]
+}

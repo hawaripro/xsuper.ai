@@ -1,0 +1,512 @@
+[
+    {
+        "model": "anthropic-claude-fable-5",
+        "air": "anthropic:claude@fable-5",
+        "name": "Claude Fable 5",
+        "creator": "anthropic",
+        "status": "live",
+        "releasedAt": "2026-06-09T00:00:00Z",
+        "weight": 5,
+        "headline": "Frontier multimodal agentic model for long-horizon coding, research, and complex professional work",
+        "description": "Claude Fable 5 is Anthropic's new top-capability generally available Claude model. It is built for long-running coding, agentic execution, multimodal reasoning, research, and high-stakes professional workflows, with stronger long-horizon performance than earlier Opus models, state-of-the-art vision, and a 1M-token context window. Safety classifiers can route some sensitive requests to Claude Opus 4.8 instead.",
+        "capabilities": [
+            "io:text-to-text",
+            "io:image-to-text",
+            "form:checkpoint"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/anthropic-claude-fable-5.jpg",
+        "ogImage": "https://assets.runware.ai/og/anthropic-claude-fable-5.png",
+        "contextWindow": 1000000,
+        "pricingBasis": "token",
+        "pricingRates": [
+            {
+                "amount": 1.0e-5,
+                "unit": "inputToken"
+            },
+            {
+                "amount": 5.0e-5,
+                "unit": "outputToken"
+            },
+            {
+                "amount": 1.0e-6,
+                "unit": "cachedInputToken"
+            },
+            {
+                "amount": 1.25e-5,
+                "unit": "cacheWriteToken"
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "split-thinking",
+                "price": "$0.0347",
+                "latencyMs": 10709,
+                "exampleId": "commercial-solar-bid-recommendation"
+            },
+            {
+                "configuration": "text-generation",
+                "price": "$0.119",
+                "latencyMs": 35389,
+                "exampleId": "library-capital-campaign-case-statement"
+            },
+            {
+                "configuration": "structured-output",
+                "price": "$0.14",
+                "latencyMs": 33445,
+                "exampleId": "mobile-prenatal-clinic-siting-brief"
+            },
+            {
+                "configuration": "reference-to-text",
+                "price": "$0.271",
+                "latencyMs": 84501,
+                "exampleId": "freight-damage-claims-assessment"
+            }
+        ]
+    },
+    {
+        "model": "tripo-v3-1",
+        "air": "tripo:v3.1@0",
+        "name": "Tripo 3D v3.1",
+        "creator": "tripo",
+        "status": "live",
+        "releasedAt": "2026-02-11T00:00:00Z",
+        "weight": 3,
+        "headline": "High-fidelity 3D asset generation with enhanced geometry and texture precision",
+        "description": "Tripo 3D v3.1 is a high-fidelity 3D generation model that creates production-ready 3D assets from text prompts or images. It delivers enhanced detail, stronger geometry precision, and improved texture quality compared to earlier versions, with support for PBR materials and export in GLB, FBX, OBJ, and STL formats.",
+        "capabilities": [
+            "io:text-to-3d",
+            "io:image-to-3d",
+            "form:checkpoint"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/tripo-v3-1.jpg",
+        "ogImage": "https://assets.runware.ai/og/tripo-v3-1.png",
+        "pricingOverview": "Pricing starts $0.3 per generation, for Text-to-3D, and $0.4 for Image-to-3D and Multiview-to-3D",
+        "pricingRates": [
+            {
+                "amount": 0.3,
+                "unit": "output",
+                "label": "Text-to-3D"
+            },
+            {
+                "amount": 0.4,
+                "unit": "output",
+                "label": "Image-to-3D"
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "segmented-3d",
+                "price": "$0.30",
+                "latencyMs": 111043,
+                "exampleId": "near-future-apiary-smoker-prop"
+            },
+            {
+                "configuration": "geometry-only-3d",
+                "price": "$0.30",
+                "latencyMs": 106090,
+                "exampleId": "polar-research-ice-core-auger"
+            },
+            {
+                "configuration": "reference-to-3d",
+                "price": "$0.30",
+                "latencyMs": 238081,
+                "exampleId": "metro-signal-relay-room"
+            },
+            {
+                "configuration": "quad-mesh",
+                "price": "$0.35",
+                "latencyMs": 123572,
+                "exampleId": "sculptural-watering-can-product-model"
+            },
+            {
+                "configuration": "text-to-3d",
+                "price": "$0.50",
+                "latencyMs": 213532,
+                "exampleId": "wildfire-ranger-pangolin-character"
+            }
+        ]
+    },
+    {
+        "model": "bytedance-seedance-1-5-pro",
+        "air": "bytedance:seedance@1.5-pro",
+        "name": "Seedance 1.5 Pro",
+        "creator": "bytedance",
+        "status": "deprecated",
+        "replacedBy": "bytedance-seedance-2-5",
+        "deactivatesAt": "2026-11-11T00:00:00Z",
+        "releasedAt": "2025-12-23T00:00:00",
+        "weight": 3,
+        "headline": "Native audio-visual cinematic AI video generation",
+        "description": "Seedance 1.5 Pro is a next-generation AI video model from BytePlus that generates cinematic videos with native synchronized audio directly from text or image inputs. It offers precise audio-visual timing, strong motion coherence, expressive camera control, and advanced narrative prompt handling for short video creation.",
+        "capabilities": [
+            "io:text-to-video",
+            "io:image-to-video",
+            "io:audio-to-video",
+            "form:checkpoint",
+            "feat:audio"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/bytedance-seedance-1-5-pro.jpg",
+        "ogImage": "https://assets.runware.ai/og/bytedance-seedance-1-5-pro.png",
+        "pricingOverview": "≈ $0.06/5s at 480p, $0.12/5s at 480p (+ audio), $0.13/5s at 720p, and $0.26/5s at 720p (+ audio)",
+        "pricingRates": [
+            {
+                "amount": 0.012,
+                "unit": "durationSecond",
+                "label": "480p · No audio"
+            },
+            {
+                "amount": 0.024,
+                "unit": "durationSecond",
+                "label": "480p · Audio"
+            },
+            {
+                "amount": 0.026,
+                "unit": "durationSecond",
+                "label": "720p · No audio"
+            },
+            {
+                "amount": 0.052,
+                "unit": "durationSecond",
+                "label": "720p · Audio"
+            },
+            {
+                "amount": 0.0588,
+                "unit": "durationSecond",
+                "label": "1080p · No audio"
+            },
+            {
+                "amount": 0.1176,
+                "unit": "durationSecond",
+                "label": "1080p · Audio"
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "draft-preview · 480p · 4s · audio",
+                "price": "$0.0585",
+                "latencyMs": 29721,
+                "exampleId": "metrology-conspiracy-series-title-teaser"
+            },
+            {
+                "configuration": "first-frame · 720p · 8s · audio",
+                "price": "$0.417",
+                "latencyMs": 99571,
+                "exampleId": "apiary-workwear-fashion-showcase-reel"
+            },
+            {
+                "configuration": "text-to-video · 1080p · 5s · audio",
+                "price": "$0.588",
+                "latencyMs": 123644,
+                "exampleId": "art-restitution-documentary-title-sequence"
+            },
+            {
+                "configuration": "first-last-frame · 1080p · 6s",
+                "price": "$0.705",
+                "latencyMs": 209848,
+                "exampleId": "textile-recycling-sorter-b-roll"
+            }
+        ]
+    },
+    {
+        "model": "klingai-video-2-6-pro",
+        "air": "klingai:kling-video@2.6-pro",
+        "name": "Kling VIDEO 2.6 Pro",
+        "creator": "klingai",
+        "status": "live",
+        "releasedAt": "2025-12-11T00:00:00",
+        "weight": 3,
+        "headline": "Kling VIDEO 2.6 Pro is a full audio-visual AI video model that combines cinematic-quality video generation with native audio (dialogue, sound effects, ambience), with optional Motion Control for precise character movement via the API.",
+        "description": "Kling VIDEO 2.6 Pro is a full audio-visual AI video model that combines cinematic-quality video generation with native audio (dialogue, sound effects, ambience). It supports flexible workflows from text or image input, delivering synchronized video and sound in one pass with strong consistency and creative control. Via the API, Motion Control enables creators to guide character movement using a reference video for more realistic and physically grounded motion.",
+        "capabilities": [
+            "io:text-to-video",
+            "io:image-to-video",
+            "form:checkpoint",
+            "feat:audio"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/klingai-video-2-6-pro.jpg",
+        "ogImage": "https://assets.runware.ai/og/klingai-video-2-6-pro.png",
+        "pricingOverview": "From $0.07/s (without audio), or $0.14/s (with audio)",
+        "pricingRates": [
+            {
+                "amount": 0.07,
+                "unit": "durationSecond",
+                "label": "without audio"
+            },
+            {
+                "amount": 0.14,
+                "unit": "durationSecond",
+                "label": "with audio"
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "reference-to-video",
+                "price": "$0.522",
+                "latencyMs": 400813,
+                "exampleId": "indigo-dyehouse-music-video-segment"
+            },
+            {
+                "configuration": "first-last-frame · 10s",
+                "price": "$0.70",
+                "latencyMs": 233166,
+                "exampleId": "archaeological-thriller-opening-title"
+            },
+            {
+                "configuration": "first-frame · 5s",
+                "price": "$0.70",
+                "latencyMs": 127042,
+                "exampleId": "greenhouse-dry-break-coupler-demo"
+            },
+            {
+                "configuration": "text-to-video · 1080p · 10s",
+                "price": "$1.40",
+                "latencyMs": 127631,
+                "exampleId": "heritage-seed-documentary-title-sequence"
+            }
+        ]
+    },
+    {
+        "model": "boogu-image-0-1-edit",
+        "air": "boogu:image@0.1-edit",
+        "name": "Boogu-Image-0.1-Edit",
+        "creator": "boogu",
+        "hosted": true,
+        "zdr": true,
+        "status": "coming-soon",
+        "weight": 3,
+        "headline": "Instruction-based image editing with bilingual text rendering",
+        "description": "Boogu-Image-0.1-Edit is the instruction editing checkpoint of the 10B Boogu-Image-0.1 family, released under Apache-2.0. It applies a text instruction to a single reference image for object insertion and removal, attribute changes, background replacement and style transfer, and it renders Chinese and English text. The result is returned at the reference image's own size, floored to a multiple of 16 pixels, so the edit keeps the original framing.",
+        "capabilities": [
+            "io:image-to-image",
+            "op:edit",
+            "form:checkpoint"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/boogu-image-0-1-edit.jpg",
+        "ogImage": "https://assets.runware.ai/og/boogu-image-0-1-edit.png"
+    },
+    {
+        "model": "alibaba-qwen3-tts-1-7b-base",
+        "air": "alibaba:qwen@3-tts-1.7b-base",
+        "name": "Qwen3-TTS 1.7B Base",
+        "creator": "alibaba",
+        "hosted": true,
+        "zdr": true,
+        "status": "live",
+        "releasedAt": "2026-01-01T00:00:00Z",
+        "weight": 2,
+        "headline": "High-quality multilingual text-to-speech with voice cloning and ultra-low latency",
+        "description": "Qwen3-TTS 1.7B Base is the foundation text-to-speech model from Alibaba's Qwen3-TTS family. It generates human-like speech across 10+ languages including Chinese, English, Japanese, Korean, and European languages. It supports voice cloning from a 3-second audio sample and achieves latency as low as 97ms for real-time applications.",
+        "capabilities": [
+            "io:text-to-audio",
+            "form:checkpoint"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/alibaba-qwen3-tts-1-7b-base.jpg",
+        "ogImage": "https://assets.runware.ai/og/alibaba-qwen3-tts-1-7b-base.png",
+        "pricingRates": [
+            {
+                "amount": 1.5e-5,
+                "unit": "character"
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "speaker-embedding",
+                "price": "$0.0005",
+                "latencyMs": 3772,
+                "exampleId": "orbital-greenhouse-intercom-ambience"
+            },
+            {
+                "configuration": "speaker-embedding",
+                "price": "$0.0028",
+                "latencyMs": 4814,
+                "exampleId": "coffee-grounds-collection-explainer"
+            },
+            {
+                "configuration": "voice-cloning",
+                "price": "$0.0029",
+                "latencyMs": 4286,
+                "exampleId": "rare-seed-licensing-podcast-intro"
+            },
+            {
+                "configuration": "voice-cloning",
+                "price": "$0.0052",
+                "latencyMs": 3608,
+                "exampleId": "urban-leak-detection-explainer"
+            }
+        ]
+    },
+    {
+        "model": "clarity",
+        "air": "runware:500@1",
+        "name": "Clarity",
+        "hosted": true,
+        "zdr": true,
+        "status": "live",
+        "releasedAt": "2024-04-30T00:00:00",
+        "weight": 2,
+        "headline": "Creative 4× image upscaler for detail enhancement",
+        "description": "Clarity is an image upscaling model focused on boosting perceived detail during 2× to 4× enlargement, keeping structure stable while enhancing texture and small features for cleaner, higher-impact images.",
+        "capabilities": [
+            "io:image-to-image",
+            "op:upscale",
+            "form:checkpoint"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/clarity.jpg",
+        "ogImage": "https://assets.runware.ai/og/clarity.png",
+        "pricingMeasured": [
+            {
+                "configuration": "upscaleFactor 2 · settings.steps 20",
+                "price": 0.0051,
+                "latencyMs": 14820
+            },
+            {
+                "configuration": "upscaleFactor 2 · settings.steps 40",
+                "price": 0.007,
+                "latencyMs": 18037
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "upscale",
+                "price": "$0.0026",
+                "latencyMs": 11385,
+                "exampleId": "historic-organ-campaign-panorama"
+            },
+            {
+                "configuration": "upscale",
+                "price": "$0.0032",
+                "latencyMs": 13001,
+                "exampleId": "antarctic-radio-archive-photo-restoration"
+            },
+            {
+                "configuration": "upscale",
+                "price": "$0.0045",
+                "latencyMs": 15962,
+                "exampleId": "cave-rescue-team-commemorative-wall-portrait"
+            },
+            {
+                "configuration": "upscale",
+                "price": "$0.0064",
+                "latencyMs": 16304,
+                "exampleId": "falconry-hood-cutout-upscale"
+            }
+        ]
+    },
+    {
+        "model": "bria-video-background-removal",
+        "air": "bria:51@1",
+        "name": "Bria Video Background Removal",
+        "creator": "bria",
+        "status": "live",
+        "releasedAt": "2025-06-14T00:00:00",
+        "weight": 1,
+        "headline": "Real time AI video background removal for clean layers",
+        "description": "Bria Video Background Removal detects moving subjects in video and removes complex backgrounds in real time. It outputs clean alpha channels for precise keying. Ideal for virtual production, live streaming, post production pipelines, and automated video workflows.",
+        "capabilities": [
+            "io:video-to-video",
+            "op:remove-background",
+            "form:checkpoint",
+            "feat:transparency"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/bria-video-background-removal.jpg",
+        "ogImage": "https://assets.runware.ai/og/bria-video-background-removal.png",
+        "pricingOverview": "Each operation costs $0.05/s.",
+        "pricingRates": [
+            {
+                "amount": 0.05,
+                "unit": "durationSecond"
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "remove-background",
+                "price": "$0.302",
+                "latencyMs": 37057,
+                "exampleId": "polar-docuseries-title-sequence-plate"
+            },
+            {
+                "configuration": "remove-background",
+                "price": "$0.302",
+                "latencyMs": 23159,
+                "exampleId": "tidal-turbine-logo-loop"
+            },
+            {
+                "configuration": "remove-background",
+                "price": "$0.302",
+                "latencyMs": 21844,
+                "exampleId": "punk-asl-lyric-cutout"
+            },
+            {
+                "configuration": "remove-background",
+                "price": "$0.302",
+                "latencyMs": 23143,
+                "exampleId": "adaptive-fencing-reel-subject-cutout"
+            }
+        ]
+    },
+    {
+        "model": "bfl-flux-1-dev",
+        "air": "runware:101@1",
+        "name": "FLUX.1 [dev]",
+        "creator": "black-forest-labs",
+        "hosted": true,
+        "zdr": true,
+        "status": "live",
+        "releasedAt": "2024-08-01T00:00:00Z",
+        "weight": 1,
+        "headline": "Open-weight 12B text to image model for rich visuals",
+        "description": "FLUX.1 [dev] is a 12-billion-parameter text-to-image model from Black Forest Labs. Its guidance-distilled architecture combines strong prompt adherence with detailed, high-quality visual generation, making it a versatile foundation for creative image workflows and customized model development.",
+        "architecture": "flux-1-dev",
+        "capabilities": [
+            "io:text-to-image",
+            "form:checkpoint"
+        ],
+        "coverImage": "https://assets.runware.ai/covers/bfl-flux-1-dev.jpg",
+        "ogImage": "https://assets.runware.ai/og/bfl-flux-1-dev.png",
+        "pricingOverview": "Each image generation costs $0.0038 at 1024x1024.",
+        "pricingMeasured": [
+            {
+                "configuration": "1024x1024 · 28 steps",
+                "price": 0.0038
+            },
+            {
+                "configuration": "512x512 · 28 steps",
+                "price": 0.0019
+            },
+            {
+                "configuration": "1024x1024 · 28 steps +1 LoRA",
+                "price": 0.0051
+            },
+            {
+                "configuration": "1024x1024 · 28 steps +2 LoRAs",
+                "price": 0.058
+            }
+        ],
+        "pricingExamples": [
+            {
+                "configuration": "text-to-image · 1024×1024 · steps 28",
+                "price": "$0.0013",
+                "latencyMs": 2942,
+                "exampleId": "coastal-radar-station-rental-interior"
+            },
+            {
+                "configuration": "expand · 1536×1024",
+                "price": "$0.0032",
+                "latencyMs": 7612,
+                "exampleId": "bespoke-sign-painter-portrait"
+            },
+            {
+                "configuration": "image-to-image · 720p",
+                "price": "$0.0038",
+                "latencyMs": 4263,
+                "exampleId": "wastewater-science-picture-book-spread"
+            },
+            {
+                "configuration": "inpaint · 1024×1024",
+                "price": "$0.0038",
+                "latencyMs": 8294,
+                "exampleId": "desert-survival-save-station-concept"
+            }
+        ]
+    }
+]

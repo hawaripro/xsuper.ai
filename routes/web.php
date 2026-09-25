@@ -372,6 +372,7 @@ Route::prefix('api')->middleware('web')->group(function () {
             Route::patch('/admin/ai/providers/{provider}', [AiProviderController::class, 'update']);
             Route::delete('/admin/ai/providers/{provider}', [AiProviderController::class, 'destroy']);
             Route::post('/admin/ai/providers/{provider}/check', [AiProviderController::class, 'check']);
+            Route::get('/admin/ai/providers/{provider}/account', [AiProviderController::class, 'account'])->middleware('throttle:30,1');
             Route::post('/admin/ai/providers/{provider}/sync', [AiCatalogController::class, 'sync']);
             Route::post('/admin/ai/models', [AiCatalogController::class, 'storeModel']);
             Route::patch('/admin/ai/models/bulk', [AiCatalogController::class, 'bulkUpdateModels']);

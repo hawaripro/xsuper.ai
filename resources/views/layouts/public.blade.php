@@ -40,22 +40,26 @@
     @endif
 </head>
 <body class="public-site {{ $page['type'] === 'policy' ? 'policy-site' : 'landing-site' }}" data-motion="paused" data-copy-success="{{ __('Kode berhasil disalin.') }}" data-copy-failure="{{ __('Penyalinan otomatis tidak tersedia. Pilih teks kode lalu salin secara manual.') }}">
-    @include('public.partials.header')
-    @if(!empty($site['announcement']))
-        <aside class="site-announcement" role="status" data-level="{{ $site['announcement']['level'] ?? 'info' }}" aria-label="{{ $site['announcement']['message'] }}">
-            <div class="site-announcement-track">
-                @foreach([false, true] as $duplicate)
-                    <span class="site-announcement-copy" @if($duplicate) aria-hidden="true" @endif>
-                        <span>{{ $site['announcement']['message'] }}</span>
-                        @if(!empty($site['announcement']['action']))
-                            <a href="{{ $site['announcement']['action']['url'] }}">{{ $site['announcement']['action']['label'] }}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
-                        @endif
-                        <span class="site-announcement-sep" aria-hidden="true">•</span>
-                    </span>
-                @endforeach
-            </div>
-        </aside>
-    @endif
+    <a class="skip-link" href="#main-content">{{ __('Langsung ke konten') }}</a>
+    {{-- Announcement and header stick together: the announcement always sits above the header and pushes it down. --}}
+    <div class="site-top" data-site-top>
+        @if(!empty($site['announcement']))
+            <aside class="site-announcement" role="status" data-level="{{ $site['announcement']['level'] ?? 'info' }}" aria-label="{{ $site['announcement']['message'] }}">
+                <div class="site-announcement-track">
+                    @foreach([false, true] as $duplicate)
+                        <span class="site-announcement-copy" @if($duplicate) aria-hidden="true" @endif>
+                            <span>{{ $site['announcement']['message'] }}</span>
+                            @if(!empty($site['announcement']['action']))
+                                <a href="{{ $site['announcement']['action']['url'] }}">{{ $site['announcement']['action']['label'] }}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+                            @endif
+                            <span class="site-announcement-sep" aria-hidden="true">•</span>
+                        </span>
+                    @endforeach
+                </div>
+            </aside>
+        @endif
+        @include('public.partials.header')
+    </div>
     @yield('content')
     @include('public.partials.footer')
 </body>

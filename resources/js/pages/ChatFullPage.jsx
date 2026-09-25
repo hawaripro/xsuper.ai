@@ -14,6 +14,7 @@ import WorkspaceContextPanel from '../components/chat/WorkspaceContextPanel';
 import SafeMarkdown from '../components/chat/SafeMarkdown';
 import VoiceInput from '../components/chat/VoiceInput';
 import { SaveArtifactDialog } from '../components/chat/ArtifactPanel';
+import { studioHref } from '../components/studios/studioLinks';
 import './chat-workspace.css';
 
 // ============================================
@@ -722,11 +723,9 @@ export default function ChatFullPage() {
         return counts;
     }, [models]);
 
-    // Mode-card authorization mirrors real route gates in app.jsx:
-    // /generate-image has no permission prop and DashboardLayout exposes it to every
-    // authenticated user by default — same default-enabled pattern as hasChat
-    // (isAdmin || perms.x !== false); an explicit false still hides it.
-    // /video requires the video_generator grant (admin bypasses).
+    // Mode cards keep the gates of the legacy studios that /studio?kind=… replaces: image is
+    // default-enabled (isAdmin || perms.image_generator !== false; an explicit false hides it),
+    // video requires the video_generator grant (admin bypasses).
     const isAdmin = user?.role === 'admin';
     const perms = user?.permissions || {};
     const canImage = isAdmin || perms.image_generator !== false;
@@ -988,8 +987,8 @@ export default function ChatFullPage() {
                                 canImage={canImage}
                                 canVideo={canVideo}
                                 onPickChat={pickChatMode}
-                                onGoImage={() => navigate(localizedPath('/generate-image'))}
-                                onGoVideo={() => navigate(localizedPath('/video'))}
+                                onGoImage={() => navigate(localizedPath(studioHref({ kind: 'image' })))}
+                                onGoVideo={() => navigate(localizedPath(studioHref({ kind: 'video' })))}
                                 t={t}
                             />
 

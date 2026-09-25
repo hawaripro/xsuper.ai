@@ -1,7 +1,13 @@
-.site-header {
+/* Announcement + header: one sticky stack, so the announcement always sits above the header
+   and pushes it down. landing.js publishes the stack height as --site-top-h. */
+.site-top {
     position: sticky;
     top: 0;
     z-index: 80;
+}
+/* Positioned: the mobile dropdown nav hangs from the header's bottom edge. */
+.site-header {
+    position: relative;
     background: var(--paper);
     background: color-mix(in srgb, var(--paper) 92%, transparent);
     border-bottom: 1px solid var(--line);
@@ -1719,7 +1725,7 @@ html.dark .purchase-notification-dismiss:hover {
 .policy-toc {
     align-self: start;
     position: sticky;
-    top: 28px;
+    top: calc(var(--site-top-h, 97px) + 28px);
     font-size: 13px;
 }
 .policy-toc h2 {

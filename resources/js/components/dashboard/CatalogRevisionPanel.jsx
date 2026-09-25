@@ -53,6 +53,53 @@ const actions = {
 
 const priceUnits = { request: "permintaan", generation: "generasi", second: "detik" };
 
+// Admin-only USD price reference captured with Runware candidates; never a sale price.
+const pricingBasis = { token: "Berbasis token", passthrough: "Tarif provider diteruskan", floor: "Harga minimum", plusTokens: "Tarif + token" };
+const rateUnits = {
+    output: "per hasil", durationSecond: "per detik", computeSecond: "per detik komputasi", step: "per langkah",
+    inputImage: "per gambar masukan", inputMegapixel: "per megapiksel masukan", outputMegapixel: "per megapiksel keluaran",
+    character: "per karakter", utf8Byte: "per byte UTF-8", inputToken: "per token masukan", outputToken: "per token keluaran",
+    cachedInputToken: "per token masukan tersimpan", cacheWriteToken: "per token tulis cache",
+};
+const saleUnits = { generation: "per hasil, dikalikan jumlah hasil (numberResults)", second: "per detik durasi, dikalikan jumlah hasil (numberResults)" };
+
+function ProviderPriceReference({ pricing }) {
+    const { t, locale } = useLocale();
+    const usd = (value, fallback) => value != null && Number.isFinite(Number(value))
+        ? new Intl.NumberFormat(locale, { style: "currency", currency: "USD", maximumFractionDigits: 6 }).format(Number(value))
+        : fallback || "—";
+    const rates = Array.isArray(pricing.rates) ? pricing.rates : [];
+    const runs = [["Konfigurasi terukur", pricing.measured], ["Contoh eksekusi", pricing.examples]].filter(([, entries]) => Array.isArray(entries) && entries.length);
+    return <div className="min-w-0 space-y-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-white/10">
+        <h4 className="text-sm font-semibold">{t("Referensi harga provider (USD)")}</h4>
+        {typeof pricing.overview === "string" && pricing.overview && <p className="max-w-prose leading-6 text-slate-700 dark:text-slate-300">{pricing.overview}</p>}
+        {pricing.basis && <p><span className="font-semibold">{t("Dasar tarif")}</span>: {t(pricingBasis[pricing.basis] || pricing.basis)}</p>}
+        {typeof pricing.note === "string" && pricing.note && <p className="max-w-prose rounded-md border border-amber-500/30 bg-amber-500/5 p-2 leading-6 text-amber-900 dark:text-amber-200"><span className="font-semibold">{t("Catatan harga")}</span>: {pricing.note}</p>}
+        {rates.length > 0 && <div className="max-w-full overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-700 dark:text-slate-200">
+                <caption className="sr-only">{t("Tarif provider")}</caption>
+                <thead className="bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400"><tr>
+                    <th scope="col" className="px-3 py-2">{t("Tarif")}</th>
+                    <th scope="col" className="px-3 py-2">{t("Unit")}</th>
+                    <th scope="col" className="px-3 py-2">{t("Keterangan")}</th>
+                </tr></thead>
+                <tbody>{rates.map((rate, index) => <tr key={index} className="border-t border-slate-200 dark:border-white/10">
+                    <td className="px-3 py-2 tabular-nums">{usd(rate.amount, rate.display)}</td>
+                    <td className="px-3 py-2">{rateUnits[rate.unit] ? t(rateUnits[rate.unit]) : <code className="break-all">{rate.unit || "—"}</code>}</td>
+                    <td className="break-words px-3 py-2">{rate.label || "—"}</td>
+                </tr>)}</tbody>
+            </table>
+        </div>}
+        {runs.map(([title, entries]) => <div key={title} className="space-y-1">
+            <h5 className="text-xs font-semibold">{t(title)}</h5>
+            <ul className="space-y-1 text-xs">{entries.map((entry, index) => <li key={index} className="flex flex-wrap justify-between gap-x-3 border-t border-slate-100 pt-1 first:border-0 first:pt-0 dark:border-white/5">
+                <span className="min-w-0 break-words">{entry.configuration || "—"}</span><span className="tabular-nums">{usd(entry.price)}</span>
+            </li>)}</ul>
+        </div>)}
+        <p className="max-w-prose leading-6 text-slate-600 dark:text-slate-300">{t("Unit harga jual")}: {saleUnits[pricing.catalog_unit] ? t(saleUnits[pricing.catalog_unit]) : pricing.catalog_unit || "—"}. {t("Biaya provider hanya referensi khusus admin dan tidak ditampilkan kepada member. Admin menetapkan harga token secara manual.")}</p>
+    </div>;
+}
+
 export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabled = false }) {
     const { t } = useLocale();
     const [state, setState] = useState({ data: null, loading: true, error: "" });
@@ -91,6 +138,7 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
     // Documented-direct contracts already surface their evidence warnings in the compatibility report.
     const supplementWarnings = (Array.isArray(revision?.source_metadata?.source_evidence?.warnings) ? revision.source_metadata.source_evidence.warnings : [])
         .filter((warning) => !warnings.includes(warning));
+    const source = revision?.source_metadata || {};
     const sale = state.data?.model || {};
     const account = state.data?.account_verification || {};
     const priceReviewed = revision?.price_review?.token_cost === sale.token_cost && revision?.price_review?.unit === sale.price_unit
@@ -144,6 +192,8 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
                 <dl className="grid gap-3 text-xs sm:grid-cols-2">
                     <div><dt className="font-semibold">{t("ID publik")}</dt><dd className="mt-1 break-all font-mono">{model.model_id}</dd></div>
                     <div><dt className="font-semibold">{t("ID upstream")}</dt><dd className="mt-1 break-all font-mono">{model.upstream_model_id || "—"}</dd></div>
+                    {typeof source.air === "string" && source.air && <div><dt className="font-semibold">{t("AIR Runware")}</dt><dd className="mt-1 break-all font-mono">{source.air}</dd></div>}
+                    {typeof source.task_type === "string" && source.task_type && <div><dt className="font-semibold">{t("Jenis tugas")}</dt><dd className="mt-1 break-all font-mono">{source.task_type}</dd></div>}
                     <div className="sm:col-span-2"><dt className="font-semibold">{t("Hash schema sumber")}</dt><dd className="mt-1 break-all font-mono">{revision.source_hash || "—"}</dd></div>
                     <div><dt className="font-semibold">{t("Bukti schema")}</dt><dd className="mt-1">{t(revision.source_evidence === "documented_supplement" ? "Dipulihkan dari dokumentasi resmi" : revision.source_evidence === "captured" ? "Sumber tersimpan" : "Sumber belum tersedia")} · {t(revision.compatible ? "Lulus kompatibilitas" : "Perlu penanganan")}</dd></div>
                     <div><dt className="font-semibold">{t("Verifikasi akun provider")}</dt><dd className="mt-1">{t(account.authenticated && account.healthy ? "Koneksi terautentikasi" : "Koneksi belum diverifikasi")}</dd></div>
@@ -156,6 +206,7 @@ export default function CatalogRevisionPanel({ model, onRefresh, onClose, disabl
                     <Blockers items={supplementWarnings} />
                 </div>}
                 {revision.execution?.transport === "realtime" && <p className="text-sm font-medium">{t("Satu sesi, maksimal")} {revision.execution.max_session_seconds} {t("detik; biaya bervariasi menurut resolusi.")}</p>}
+                {source.pricing && typeof source.pricing === "object" && <ProviderPriceReference pricing={source.pricing} />}
                 {needsPriceReview && <div className="space-y-3">
                     <p className="max-w-prose text-sm leading-6 text-amber-900 dark:text-amber-200">{t("Jumlah hasil, durasi, resolusi, dan konfigurasi dapat mengubah biaya upstream. Tinjau harga jual beserta unitnya; biaya provider bukan harga jual otomatis. Tarif positif yang ada tidak akan ditimpa.")}</p>
                     {Number(sale.token_cost) > 0

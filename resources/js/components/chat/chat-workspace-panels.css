@@ -133,10 +133,11 @@
 .cwp-artifacts-link { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: start; padding: .65rem 0; border: 0; color: var(--cw-text, #17212e); background: transparent; font-size: .8rem !important; }
 .cwp-artifacts-link > span { flex: 1; }
 .cwp-artifacts-link:hover { color: var(--cw-accent-text, #c72335); }
-.cwp-panel-backdrop { position: fixed; inset: 0; z-index: 79; border: 0; background: rgba(15, 23, 42, .45); cursor: default; }
+/* Drawer and scrim start below the announcement ribbon (--xs-ribbon-h), which stays on top. */
+.cwp-panel-backdrop { position: fixed; inset: var(--xs-ribbon-h, 0px) 0 0; z-index: 79; border: 0; background: rgba(15, 23, 42, .45); cursor: default; }
 /* Slate on a slate theme barely dims anything; the modal drawer needs a scrim the reader can see. */
 .cw-dark .cwp-panel-backdrop { background: rgba(0, 0, 0, .62); }
-.cwp-panel.is-drawer { position: fixed; z-index: 80; inset-block: 0; inset-inline-end: 0; max-height: 100dvh; width: min(360px, calc(100vw - 1rem)); border: 0; box-shadow: -12px 0 32px -12px rgba(15, 23, 42, .28); }
+.cwp-panel.is-drawer { position: fixed; z-index: 80; inset-block: var(--xs-ribbon-h, 0px) 0; inset-inline-end: 0; max-height: calc(100dvh - var(--xs-ribbon-h, 0px)); width: min(360px, calc(100vw - 1rem)); border: 0; box-shadow: -12px 0 32px -12px rgba(15, 23, 42, .28); }
 @keyframes cwp-panel-in { from { transform: translateX(8px); } to { transform: translateX(0); } }
 
 /* Safe Markdown has bounded horizontal scroll, native text direction, and explicit code actions. */

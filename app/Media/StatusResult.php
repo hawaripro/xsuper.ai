@@ -14,11 +14,13 @@ final readonly class StatusResult
         public ?string $publicError = null,
         /** Complete provider JSON. Provider URLs must be replaced before member presentation. */
         public mixed $resultData = null,
+        /** Provider-reported completion percentage (0–100) while processing; null when not reported. */
+        public ?int $progress = null,
     ) {}
 
-    public static function processing(): self
+    public static function processing(?int $progress = null): self
     {
-        return new self(MediaState::Processing);
+        return new self(MediaState::Processing, progress: $progress === null ? null : max(0, min(100, $progress)));
     }
 
     /** @param  string[]  $resultUrls */

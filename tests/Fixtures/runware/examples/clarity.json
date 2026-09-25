@@ -1,0 +1,107 @@
+{
+  "model": "clarity",
+  "examples": [
+    {
+      "id": "antarctic-radio-archive-photo-restoration",
+      "title": "Antarctic Radio Archive Photo Restoration",
+      "mode": "upscale",
+      "cost": 0.0032,
+      "latencyMs": 13001,
+      "asset": "https://assets.runware.ai/examples/clarity/1e5b9824-b4fe-4cba-801e-5ddf56044318.jpg",
+      "request": {
+        "taskType": "upscale",
+        "model": "runware:500@1",
+        "upscaleFactor": 2,
+        "settings": {
+          "positivePrompt": "Restore and enlarge this archival Antarctic research photograph while preserving the exact composition, radio operator’s identity, facial expression, pose, equipment layout, and monochrome documentary character. Recover natural facial detail, knitted wool fibers, parka fur, radio dial markings, braided cable texture, handwritten logbook lines, map edges, frost crystals, and restrained silver-gelatin film grain. Reduce scan softness, dust, scratches, fading, and the shallow print crease without making the image look modern, glossy, colorized, or artificially sharpened.",
+          "negativePrompt": "changed face, altered identity, added objects, missing equipment, rearranged composition, colorization, modern electronics, plastic skin, excessive sharpening, halos, waxy texture, invented lettering, illegible replacement text, heavy HDR, oversaturated contrast"
+        },
+        "inputs": {
+          "image": "https://assets.runware.ai/assets/inputs/e3de92ff-1d3d-44cc-a9c5-07f1f429c904.jpg"
+        }
+      },
+      "response": {
+        "taskType": "imageUpscale",
+        "imageUUID": "f1e68736-9f58-4e94-8696-feb85ea1e1bc",
+        "imageURL": "https://im.runware.ai/image/os/a08dlim3/ws/4/ii/f1e68736-9f58-4e94-8696-feb85ea1e1bc.jpg",
+        "inputImageUUID": "4037474a-bb9f-4c8c-aa90-6e99ebe84f34"
+      }
+    },
+    {
+      "id": "falconry-hood-cutout-upscale",
+      "title": "Falconry Hood Cutout Upscale",
+      "mode": "upscale",
+      "cost": 0.0064,
+      "latencyMs": 16304,
+      "asset": "https://assets.runware.ai/examples/clarity/5148bffd-c671-471b-9884-bfa3b26c54de.jpg",
+      "request": {
+        "taskType": "upscale",
+        "model": "runware:500@1",
+        "upscaleFactor": 2,
+        "settings": {
+          "positivePrompt": "Upscale this finished background-replaced product photograph without changing its composition or the hood's identity. Preserve the exact silhouette and clean separation from the pale-sage background. Enhance the fine leather grain, punched ventilation holes, cream stitching, braided topknot fibers, engraved tooling, aged brass patina, natural edge definition, soft grounding shadow, and controlled studio lighting. Keep the background seamless, matte, evenly colored, and free of artifacts."
+        },
+        "inputs": {
+          "image": "https://assets.runware.ai/assets/inputs/6a1e0185-5ed7-4603-af59-e416f85480fc.jpg"
+        }
+      },
+      "response": {
+        "taskType": "imageUpscale",
+        "imageUUID": "8075f74f-47f0-4a13-a5b4-c6c4c9a2be9b",
+        "imageURL": "https://im.runware.ai/image/os/a01d21/ws/3/ii/8075f74f-47f0-4a13-a5b4-c6c4c9a2be9b.jpg",
+        "inputImageUUID": "97064fbe-5c0e-4d61-b4e6-a609ed207bd3"
+      }
+    },
+    {
+      "id": "historic-organ-campaign-panorama",
+      "title": "Historic Organ Campaign Panorama",
+      "mode": "upscale",
+      "cost": 0.0026,
+      "latencyMs": 11385,
+      "asset": "https://assets.runware.ai/examples/clarity/a0948e4f-6e96-4ea0-abf5-60a48bb5a3c0.jpg",
+      "request": {
+        "taskType": "upscale",
+        "model": "runware:500@1",
+        "upscaleFactor": 2,
+        "settings": {
+          "positivePrompt": "Preserve the exact panoramic composition, symmetry, organ design, architectural geometry, lighting, and subject identity. Enhance the fine fluting and aged patina of every pipe, carved walnut ornament, console keys, balcony joinery, cobalt wall texture, and subtle pools of amber light. Keep the extended side architecture coherent and natural without adding, removing, or rearranging elements."
+        },
+        "inputs": {
+          "image": "https://assets.runware.ai/assets/inputs/d7f31d2a-03e2-42e9-8569-8e1dad2e1463.jpg"
+        }
+      },
+      "response": {
+        "taskType": "imageUpscale",
+        "imageUUID": "370e2485-157d-47aa-8aff-4e05ae3ede44",
+        "imageURL": "https://im.runware.ai/image/os/a01d21/ws/3/ii/370e2485-157d-47aa-8aff-4e05ae3ede44.jpg",
+        "inputImageUUID": "f2176eb8-0967-47e9-a63a-687bcbad1289"
+      }
+    },
+    {
+      "id": "cave-rescue-team-commemorative-wall-portrait",
+      "title": "Cave Rescue Team Commemorative Wall Portrait",
+      "mode": "upscale",
+      "cost": 0.0045,
+      "latencyMs": 15962,
+      "asset": "https://assets.runware.ai/examples/clarity/c015ccce-4288-43a6-a561-1fba068b9d05.jpg",
+      "request": {
+        "taskType": "upscale",
+        "model": "runware:500@1",
+        "upscaleFactor": 2,
+        "settings": {
+          "positivePrompt": "Preserve the exact group composition, all eight rescuers, their individual faces, poses, equipment and the retired border collie seated at center. Enhance realistic facial definition, individual fur strands, rope fibers, scratched helmets, woven technical fabrics, metal carabiners and damp limestone texture. Maintain the existing warm work-light and cool cave-shadow balance, documentary realism and seamless integration of the added dog without changing subject identity or placement.",
+          "negativePrompt": "Changed faces, altered poses, missing or additional people, duplicated limbs, extra dogs, shifted subjects, modified equipment, artificial fur, plastic skin, halos, cutout edges, oversharpening, invented text, changed composition"
+        },
+        "inputs": {
+          "image": "https://assets.runware.ai/assets/inputs/0a72bbe8-2013-4cc3-8d06-72fa00780c08.jpg"
+        }
+      },
+      "response": {
+        "taskType": "imageUpscale",
+        "imageUUID": "45d0a12e-7e92-43ab-addc-5431739ec4f6",
+        "imageURL": "https://im.runware.ai/image/os/a08dlim3/ws/4/ii/45d0a12e-7e92-43ab-addc-5431739ec4f6.jpg",
+        "inputImageUUID": "c4973f93-e6f5-4a9f-963c-0083f54fcb7f"
+      }
+    }
+  ]
+}

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Support\StudioLink;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
@@ -251,7 +252,7 @@ class DashboardController extends Controller
             $actions[] = ['key' => 'library', 'label' => 'Library', 'href' => '/library'];
         }
         if ($hasAccess && $user->hasPermission('video_generator')) {
-            $actions[] = ['key' => 'video', 'label' => 'Video generator', 'href' => '/video'];
+            $actions[] = ['key' => 'video', 'label' => 'Video generator', 'href' => StudioLink::to('video')];
         }
         if ($hasAccess && $user->hasPermission('ai_api')) {
             $actions[] = ['key' => 'api', 'label' => 'API XSuper.ai', 'href' => 'https://api.xsuper.dev'];

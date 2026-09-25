@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\AiProxyException;
 use App\Http\Controllers\Controller;
+use App\Media\RunwareSchemaNormalizer;
 use App\Models\AiModelProfile;
 use App\Models\AiProviderProfile;
 use App\Models\AudioJob;
@@ -37,7 +38,8 @@ class AiCatalogController extends Controller
     public function storeModel(Request $request, AuditService $audit): JsonResponse
     {
         $validated = $request->validate([
-            'model_id' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._\/:\-]+$/', 'unique:ai_model_profiles,model_id'],
+            // Runware AIRs (creator:family@version) are the only IDs that may contain '@'.
+            'model_id' => ['required', 'string', 'max:120', 'regex:/^(?:[A-Za-z0-9._\/:\-]+|'.RunwareSchemaNormalizer::AIR_PATTERN.')$/', 'unique:ai_model_profiles,model_id'],
             ...$this->modelRules(false),
         ]);
 
@@ -129,7 +131,7 @@ class AiCatalogController extends Controller
             'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
         $query = AiModelProfile::query()->where('provider_id', $provider->id)->with('provider')
-            ->with(['capabilityRevisions' => fn ($query) => $query->select(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'revision', 'status', 'compatibility_report', 'curation_overrides', 'reviewed_at', 'published_at', 'provider_bindings->max_session_seconds as session_seconds', 'provider_bindings->adapter as adapter'])->selectRaw('source_schema IS NOT NULL as source_backed')->orderByDesc('revision')]);
+            ->with(['capabilityRevisions' => fn ($query) => $query->select(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'revision', 'status', 'compatibility_report', 'curation_overrides', 'reviewed_at', 'published_at', 'provider_bindings->max_session_seconds as session_seconds', 'provider_bindings->adapter as adapter', 'provider_bindings->quantity_input as quantity_input', 'source_metadata->pricing->catalog_unit as catalog_unit'])->selectRaw('source_schema IS NOT NULL as source_backed')->orderByDesc('revision')]);
         if (($input['q'] ?? '') !== '') {
             $needle = '%'.strtolower(str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $input['q'])).'%';
             $query->where(fn ($query) => $query->whereRaw('LOWER(display_name) LIKE ?', [$needle])
@@ -171,6 +173,10 @@ class AiCatalogController extends Controller
     public function sync(Request $request, AiProxyService $proxy, AuditService $audit, AiProviderProfile $provider): JsonResponse
     {
         $connection = Arr::only($provider->getRawOriginal(), ['base_url', 'api_key', 'protocol', 'api_version']);
+        if ($provider->protocol === 'runware') {
+            // Runware models arrive as reviewed schema candidates; a sync must not reset the verified connection.
+            return response()->json(['message' => 'Runware models are imported through catalog discovery, not a catalog sync.'], 422);
+        }
 
         try {
             $models = collect($proxy->fetchCatalog($provider))->keyBy('id')->values()->all();
@@ -543,7 +549,7 @@ class AiCatalogController extends Controller
             'display_name' => [$required, 'required', 'string', 'max:160'],
             'provider_name' => ['sometimes', 'nullable', 'string', 'max:120'],
             'provider_slug' => [$required, 'required', 'string', 'max:64', 'exists:ai_provider_profiles,slug'],
-            'upstream_model_id' => ['sometimes', $partial ? 'required' : 'nullable', 'string', 'max:160', 'regex:/^(?!.*:\/\/)[A-Za-z0-9._\/:\-]+$/D'],
+            'upstream_model_id' => ['sometimes', $partial ? 'required' : 'nullable', 'string', 'max:160', 'regex:/^(?!.*:\/\/)(?:[A-Za-z0-9._\/:\-]+|'.RunwareSchemaNormalizer::AIR_PATTERN.')$/D'],
             'category' => [$required, 'required', 'string', 'max:32'],
             'description_id' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'description_en' => ['sometimes', 'nullable', 'string', 'max:2000'],
@@ -641,7 +647,9 @@ class AiCatalogController extends Controller
         if ($model->isDirty('provider_id')) {
             $model->unsetRelation('provider');
         }
-        if ($model->provider?->protocol === 'fal' && $model->capabilityRevisions()->where('contract_version', 2)->whereNotNull('source_schema')->exists()) {
+        $sourceBacked = $model->provider?->protocol === 'runware'
+            || ($model->provider?->protocol === 'fal' && $model->capabilityRevisions()->where('contract_version', 2)->whereNotNull('source_schema')->exists());
+        if ($sourceBacked) {
             if ($model->isDirty('generation_config') && ! empty($model->generation_config)) {
                 throw ValidationException::withMessages(['generation_config' => 'Source-backed controls are immutable capability evidence. Review a new candidate instead of overriding generation settings.']);
             }
@@ -835,7 +843,7 @@ class AiCatalogController extends Controller
             'generation_config' => in_array($model->provider?->protocol, ['fal', 'kinovi'], true) && in_array($model->category, ['image', 'video', 'audio', 'avatar', 'model3d'], true)
                 ? $this->effectiveGenerationConfig($model)
                 : ($model->generation_config === null ? null : Arr::only($model->generation_config, self::CONFIG_KEYS)),
-            'generation_config_readonly' => in_array($model->provider?->protocol, ['fal', 'kinovi'], true),
+            'generation_config_readonly' => in_array($model->provider?->protocol, ['fal', 'kinovi', 'runware'], true),
             'capability_summary' => ($model->relationLoaded('capabilityRevisions') ? $model->capabilityRevisions : $model->capabilityRevisions()->select(['id', 'ai_model_profile_id', 'operation', 'contract_version', 'revision', 'status', 'compatibility_report', 'curation_overrides', 'reviewed_at', 'published_at', 'provider_bindings->max_session_seconds as session_seconds'])->get())
                 ->map(fn ($revision) => $revision->adminPayload(false))->values()->all(),
             'is_enabled' => $model->is_enabled,
