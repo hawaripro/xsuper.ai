@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { errorMessage } from "../member/MemberUI";
 import { useLocale } from "../../contexts/LocaleContext";
 import { modelBrand, modelKind } from "./modelBrands";
@@ -82,17 +82,53 @@ export function StudioIcon({ name, className = "" }) {
         back: <path d="M20 12H4m6-6-6 6 6 6" />,
         trash: <path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
         search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
-        spark: <><path d="M12 3c.5 3.9 2.1 5.5 6 6-3.9.5-5.5 2.1-6 6-.5-3.9-2.1-5.5-6-6 3.9-.5 5.5-2.1 6-6Z" /><path d="M19 14.5c.2 1.6.9 2.3 2.5 2.5-1.6.2-2.3.9-2.5 2.5-.2-1.6-.9-2.3-2.5-2.5 1.6-.2 2.3-.9 2.5-2.5ZM5 15c.2 1.3.7 1.8 2 2-1.3.2-1.8.7-2 2-.2-1.3-.7-1.8-2-2 1.3-.2 1.8-.7 2-2Z" /></>,
-        wand: <><path d="m4 20 11-11m-2-2 2 2M17 3v3m-1.5-1.5h3M20 8v2m-1-1h2M9 3v2M8 4h2" /></>,
-        layers: <><path d="m12 3 9 5-9 5-9-5Z" /><path d="m3 13 9 5 9-5" /></>,
+        spark: <><path d="M12 3.5 13.9 8.6 19 10.5l-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9Z" /><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z" /></>,
+        layers: <><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 13 9 5 9-5" /></>,
         bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7Z" />,
-        alert: <><path d="M12 3 2 20h20Z" /><path d="M12 10v4m0 3v.5" /></>,
+        alert: <><path d="M12 3.5 2.5 20h19Z" /><path d="M12 10v4m0 3v.5" /></>,
+        sliders: <><path d="M4 7h10m4 0h2M4 17h4m4 0h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>,
     };
     return <svg className={`studio-icon ${className}`} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name === "avatar" ? "video" : name] || paths.settings}</svg>;
 }
 
 export function StudioButton({ children, icon, primary = false, className = "", type = "button", ...props }) {
     return <button type={type} className={`studio-button ${primary ? "studio-button-primary" : ""} ${className}`} {...props}>{icon && <StudioIcon name={icon} />}{children}</button>;
+}
+
+// Geometry drawn for each studio kind: what a result looks like before or without a preview.
+const PLATES = {
+    image: <><rect x="20" y="24" width="56" height="48" rx="4" /><circle cx="35" cy="39" r="4.5" /><path d="m20 62 15-14 12 12 10-13 19 19" /></>,
+    video: <><rect x="16" y="26" width="64" height="44" rx="3" /><path d="M16 36h64M16 60h64M26 26v10M40 26v10M56 26v10M70 26v10M26 60v10M40 60v10M56 60v10M70 60v10" /><path d="m43 41 12 7-12 7Z" /></>,
+    audio: <path d="M14 48v0M22 42v12M30 36v24M38 40v16M46 28v40M54 34v28M62 42v12M70 31v34M78 44v8" strokeWidth="4" />,
+    avatar: <><circle cx="42" cy="38" r="11" /><path d="M23 74a19 19 0 0 1 38 0" /><path d="M68 34a10 10 0 0 1 0 14M73 28a17 17 0 0 1 0 26" /></>,
+    model3d: <><path d="M48 20 74 34v28L48 76 22 62V34Z" /><path d="M22 34l26 14 26-14M48 48v28" /><path d="m48 48-26 14M48 48l26 14" strokeDasharray="3 4" opacity=".55" /></>,
+    other: <><path d="M36 26c-6 0-8 2-8 8v8c0 3-2 6-6 6 4 0 6 3 6 6v8c0 6 2 8 8 8M60 26c6 0 8 2 8 8v8c0 3 2 6 6 6-4 0-6 3-6 6v8c0 6-2 8-8 8" /><path d="M42 40h12M42 48h12M42 56h8" /></>,
+};
+export function KindPlate({ kind = "other", operation = "", className = "" }) {
+    const plate = operation === "text_to_speech" ? "audio" : PLATES[kind] ? kind : "other";
+    return <svg className={`sw-plate ${className}`} aria-hidden="true" viewBox="0 0 96 96" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">{PLATES[plate]}</svg>;
+}
+
+const DIGITS = "0123456789";
+// A number whose digits roll to their new value. The digit strips are drawn by CSS, so the element's
+// text is only the number itself (for assistive tech, copy and tests); static under reduced motion.
+export function RollingNumber({ value, className = "" }) {
+    const text = value == null ? "—" : String(value);
+    const previous = useRef(text);
+    const [settled, setSettled] = useState(true);
+    useEffect(() => {
+        if (previous.current === text) return undefined;
+        previous.current = text;
+        setSettled(false);
+        const timer = setTimeout(() => setSettled(true), 520);
+        return () => clearTimeout(timer);
+    }, [text]);
+    return <span className={`sw-roll${settled ? "" : " is-rolling"} ${className}`}>
+        <span className="studio-visually-hidden">{text}</span>
+        <span className="sw-roll-face" aria-hidden="true">{Array.from(text).map((char, index) => DIGITS.includes(char)
+            ? <span key={index} className="sw-roll-digit"><span className="sw-roll-strip" style={{ "--n": Number(char) }} /></span>
+            : <span key={index} className="sw-roll-char" data-char={char} />)}</span>
+    </span>;
 }
 const MARK_ICONS = { image: "image", video: "video", audio: "audio", avatar: "ugc", model3d: "model3d", other: "spark" };
 // Runware fills catalog logos with its creator images; the maker's vector mark reads better at these sizes.
@@ -134,7 +170,7 @@ export const jobProgress = (job) => typeof job?.progress === "number" && Number.
 export function StudioProgressBar({ value }) {
     const { t } = useLocale();
     return <div className="studio-progress-bar" role="progressbar" aria-label={t("Kemajuan proses")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
-        <span style={{ width: `${value}%` }} /><small>{value}%</small></div>;
+        <span style={{ "--p": value / 100 }} /><small>{value}%</small></div>;
 }
 export const stageLabel = (job) => stageLabels[job?.stage || job?.status] || "Sedang diproses";
 export function StudioProgress({ job, submitting = false, synchronous = false }) {

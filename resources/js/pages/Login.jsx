@@ -3,12 +3,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { AUTH_CONTROLS_SPACE, AuthControls } from '../components/AuthScaffold';
 import { UltrLockup } from '../components/UltrLogo';
 
 export default function Login() {
     const { login, completeTwoFactor } = useAuth();
-    const { theme, toggleTheme } = useTheme();
-    const { locale, t, localizedPath, otherLocalePath } = useLocale();
+    const { theme } = useTheme();
+    const { locale, t, localizedPath } = useLocale();
     const isDark = theme === 'dark';
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -92,7 +93,7 @@ export default function Login() {
     `;
 
     return (
-        <div className={`min-h-dvh flex items-center justify-center relative overflow-hidden px-4 py-10 ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'}`}>
+        <div className={`min-h-dvh flex items-center justify-center relative overflow-hidden px-4 ${AUTH_CONTROLS_SPACE} ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'}`}>
             {/* =========================
                 Background
                ========================= */}
@@ -108,23 +109,7 @@ export default function Login() {
                 <div className="absolute inset-0 ui-grid-bg opacity-60" />
             </div>
 
-            <Link to={otherLocalePath(location.pathname)} className={`absolute right-16 top-5 z-20 grid h-9 min-w-9 place-items-center rounded-xl border px-2 text-[11px] font-bold ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/10' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'}`} aria-label={locale === 'en' ? 'Ganti ke bahasa Indonesia' : 'Switch to English'}>{locale === 'en' ? 'ID' : 'EN'}</Link>
-            {/* Theme toggle floating */}
-            <button
-                onClick={toggleTheme}
-                className={`absolute top-5 right-5 p-2.5 rounded-xl backdrop-blur-xl border transition-all duration-200 z-10 ${
-                    isDark
-                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
-                        : 'bg-white/80 border-gray-200 text-gray-500 hover:bg-white hover:text-red-500 hover:shadow-md'
-                }`}
-                aria-label="Toggle theme"
-            >
-                {isDark ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><line x1="12" y1="2" x2="12" y2="4" /><line x1="12" y1="20" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="6.34" y2="6.34" /><line x1="17.66" y1="17.66" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="4" y2="12" /><line x1="20" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="6.34" y2="17.66" /><line x1="17.66" y1="6.34" x2="19.07" y2="4.93" /></svg>
-                ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
-                )}
-            </button>
+            <AuthControls />
 
             <div className="w-full max-w-[440px] animate-fade-in-up">
                 {/* Logo */}

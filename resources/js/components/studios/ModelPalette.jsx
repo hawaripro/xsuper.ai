@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocale } from "../../contexts/LocaleContext";
 import { apiRequest } from "../../lib/api";
 import { ModelMark, StudioButton, StudioIcon, StudioNotice, mediaError } from "./StudioUI";
@@ -30,6 +30,16 @@ export default function ModelPalette({ kind = "", selectedId = "", recent = [], 
     const active = models.length ? Math.min(activeIndex, models.length - 1) : -1;
     const activeId = active >= 0 && !refreshing ? `${listId}-${active}` : undefined;
     const total = isLocal ? models.length : catalog.total;
+    // One highlight slides to the active row (mouse or arrow keys) instead of each row restyling itself.
+    const listRef = useRef(null);
+    useLayoutEffect(() => {
+        const list = listRef.current;
+        if (!list) return;
+        const row = active >= 0 ? list.children[active] : null;
+        if (!row || row.getAttribute("role") !== "option") { list.style.setProperty("--sw-cursor-h", "0px"); return; }
+        list.style.setProperty("--sw-cursor-y", `${row.offsetTop}px`);
+        list.style.setProperty("--sw-cursor-h", `${row.offsetHeight}px`);
+    }, [active, models, refreshing]);
     const availability = !isLocal && catalog.key === searchKey ? catalog.availability : null;
     const error = !isLocal && catalog.key === searchKey ? catalog.error : null;
     const hasMore = !isLocal && catalog.key === searchKey && Boolean(catalog.next_cursor);
@@ -183,7 +193,7 @@ export default function ModelPalette({ kind = "", selectedId = "", recent = [], 
                 <div ref={scrollRef} className="sw-palette-scroll">
                     {availability?.state === "restricted" && <StudioNotice>{t(availability.reason || "Studio media belum tersedia untuk akun Anda.")}</StudioNotice>}
                     {error && <StudioNotice error action={<StudioButton onClick={() => { void loadPage(catalog.errorCursor); }}>{t("Coba lagi")}</StudioButton>}>{t(mediaError(error))}</StudioNotice>}
-                    <div id={listId} role="listbox" aria-label={t("Pilih model")} aria-busy={refreshing || paging} className={`sw-palette-list${refreshing ? " is-refreshing" : ""}`}>
+                    <div id={listId} role="listbox" aria-label={t("Pilih model")} aria-busy={refreshing || paging} className={`sw-palette-list${refreshing ? " is-refreshing" : ""}`} ref={listRef}>
                         {models.map((model, index) => {
                             const price = startingPrice(model);
                             const operations = model.operations || [];

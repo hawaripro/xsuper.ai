@@ -4,18 +4,43 @@ import { useLocale } from '../contexts/LocaleContext';
 import { UltrLockup } from './UltrLogo';
 
 /**
+ * Language and theme controls for guest auth pages. They sit in a reserved top band (the page
+ * pads its content below `AUTH_CONTROLS_SPACE`), so the brand mark never collides with them on
+ * short or narrow screens.
+ */
+export const AUTH_CONTROLS_SPACE = 'pt-[76px] pb-10';
+export function AuthControls() {
+    const { theme, toggleTheme } = useTheme();
+    const { locale, otherLocalePath } = useLocale();
+    const location = useLocation();
+    const isDark = theme === 'dark';
+    const control = `grid h-10 min-w-10 place-items-center rounded-xl border px-2.5 text-[11px] font-bold backdrop-blur-xl transition-colors duration-200 ${isDark ? 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white' : 'border-gray-200 bg-white/80 text-slate-600 hover:bg-white hover:text-red-500'}`;
+    return (
+        <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-5 sm:top-5">
+            <Link to={otherLocalePath(location.pathname)} className={control} aria-label={locale === 'en' ? 'Ganti ke bahasa Indonesia' : 'Switch to English'}>{locale === 'en' ? 'ID' : 'EN'}</Link>
+            <button type="button" onClick={toggleTheme} className={control} aria-label={isDark ? 'Mode terang' : 'Mode gelap'} title={isDark ? 'Mode terang' : 'Mode gelap'}>
+                {isDark ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><line x1="12" y1="2" x2="12" y2="4" /><line x1="12" y1="20" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="6.34" y2="6.34" /><line x1="17.66" y1="17.66" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="4" y2="12" /><line x1="20" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="6.34" y2="17.66" /><line x1="17.66" y1="6.34" x2="19.07" y2="4.93" /></svg>
+                ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+                )}
+            </button>
+        </div>
+    );
+}
+
+/**
  * Shared chrome for guest auth pages (login, register, forgot/reset password):
  * animated background, language + theme toggles, brand mark, heading, and the
  * card that wraps the page's form.
  */
 export default function AuthScaffold({ title, subtitle, children, footer }) {
-    const { theme, toggleTheme } = useTheme();
-    const { locale, t, otherLocalePath } = useLocale();
-    const location = useLocation();
+    const { theme } = useTheme();
+    const { locale, t } = useLocale();
     const isDark = theme === 'dark';
 
     return (
-        <div className={`min-h-dvh flex items-center justify-center relative overflow-hidden px-4 py-10 ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'}`}>
+        <div className={`min-h-dvh flex items-center justify-center relative overflow-hidden px-4 ${AUTH_CONTROLS_SPACE} ${isDark ? 'bg-[#030712]' : 'bg-[#fafbfc]'}`}>
             <div className="absolute inset-0 -z-10">
                 <div className={`absolute top-[-20%] right-[-15%] w-[560px] h-[560px] rounded-full blur-[120px] animate-aurora ${isDark ? 'bg-red-500/20' : 'bg-red-200/50'}`} />
                 <div className={`absolute bottom-[-20%] left-[-10%] w-[480px] h-[480px] rounded-full blur-[120px] animate-aurora ${isDark ? 'bg-orange-500/15' : 'bg-orange-200/40'}`} style={{ animationDelay: '3s' }} />
@@ -23,14 +48,7 @@ export default function AuthScaffold({ title, subtitle, children, footer }) {
                 <div className="absolute inset-0 ui-grid-bg opacity-60" />
             </div>
 
-            <Link to={otherLocalePath(location.pathname)} className={`absolute right-16 top-5 z-20 grid h-9 min-w-9 place-items-center rounded-xl border px-2 text-[11px] font-bold ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/10' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'}`} aria-label={locale === 'en' ? 'Ganti ke bahasa Indonesia' : 'Switch to English'}>{locale === 'en' ? 'ID' : 'EN'}</Link>
-            <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2.5 rounded-xl backdrop-blur-xl border transition-all duration-200 z-10 ${isDark ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white' : 'bg-white/80 border-gray-200 text-gray-500 hover:bg-white hover:text-red-500 hover:shadow-md'}`} aria-label="Toggle theme">
-                {isDark ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><line x1="12" y1="2" x2="12" y2="4" /><line x1="12" y1="20" x2="12" y2="22" /><line x1="4.93" y1="4.93" x2="6.34" y2="6.34" /><line x1="17.66" y1="17.66" x2="19.07" y2="19.07" /><line x1="2" y1="12" x2="4" y2="12" /><line x1="20" y1="12" x2="22" y2="12" /><line x1="4.93" y1="19.07" x2="6.34" y2="17.66" /><line x1="17.66" y1="6.34" x2="19.07" y2="4.93" /></svg>
-                ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
-                )}
-            </button>
+            <AuthControls />
 
             <div className="w-full max-w-[440px] animate-fade-in-up">
                 <div className="text-center mb-8 animate-fade-in-down">

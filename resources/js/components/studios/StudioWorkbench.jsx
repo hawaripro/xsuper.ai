@@ -1,11 +1,11 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useLocale } from "../../contexts/LocaleContext";
 import MediaActionDialog from "../MediaActionDialog";
 import { formatLocalDate } from "../member/MemberUI";
 import JobDetailDialog from "./JobDetailDialog";
 import { UNIT_LABELS, quoteBreakdown } from "./RequestPanel";
-import { ModelMark, StudioButton, StudioEmpty, StudioIcon, StudioNotice, StudioProgressBar, StudioStatus, jobProgress, mediaError, stageLabel } from "./StudioUI";
+import { KindPlate, ModelMark, StudioButton, StudioEmpty, StudioIcon, StudioNotice, StudioProgressBar, StudioStatus, jobProgress, mediaError, stageLabel } from "./StudioUI";
 import { modelKind } from "./modelBrands";
 import { schemaDocs } from "./studioForm";
 import { BILLING_LABELS, HISTORY_KINDS, STATUS_FILTERS, groupJobs, jobDraft, jobPrompt, jobStatusGroup, jobThumbnail, jobTokens, jobVideoPreview, timeAgo } from "./studioJobs";
@@ -18,8 +18,6 @@ const DISPLAY_KEY = "xsuper:studio:display:v1";
 const VIEWS = [{ id: "grid", label: "Grid", icon: "grid" }, { id: "list", label: "Tampilan daftar", icon: "list" }, { id: "thumbs", label: "Thumbnail", icon: "thumbs" }];
 const SIZES = [{ id: "s", label: "Kecil" }, { id: "m", label: "Sedang" }, { id: "l", label: "Besar" }];
 const DEFAULT_DISPLAY = { view: "grid", size: "m", prompt: true, meta: true };
-const kindIcon = (job) => job?.output_kind === "audio" ? (job.operation === "text_to_speech" ? "voice" : "audio") : job?.operation === "talking_avatar" ? "ugc"
-    : ["image", "video", "model3d"].includes(job?.output_kind) ? job.output_kind : "code";
 const readDisplay = () => {
     try {
         const value = JSON.parse(localStorage.getItem(DISPLAY_KEY) || "{}");
@@ -78,10 +76,10 @@ function CardMedia({ job, members, jobsById }) {
     // Members that are not loaded (page boundary, deleted) are not shown as running forever.
     const running = set ? members.some((id) => jobsById.has(id) && mediaJobPending(jobsById.get(id))) : mediaJobPending(job);
     const progress = jobProgress(job);
-    return <span className={`sw-card-media kind-${job.output_kind || "data"}${thumbs.length > 1 ? " is-mosaic" : ""}`}>
+    return <span className={`sw-card-media${thumbs.length > 1 ? " is-mosaic" : ""}`}>
         {thumbs.length ? thumbs.map((src) => <img key={src} src={src} alt="" loading="lazy" />)
             : video ? <video src={`${video}#t=0.1`} muted playsInline preload="metadata" tabIndex={-1} aria-hidden="true" />
-                : <span className="sw-card-placeholder"><StudioIcon name={kindIcon(job)} /></span>}
+                : <span className="sw-card-placeholder"><KindPlate kind={modelKind(job)} operation={job.operation} /></span>}
         {running && <span className="sw-card-running"><span className="studio-spinner" aria-hidden="true" /><span>{t(stageLabel(job))}</span>
             {progress != null && <StudioProgressBar value={progress} />}</span>}
         {!running && job.status !== "completed" && <span className="sw-card-badge"><StudioStatus job={job} /></span>}
@@ -331,13 +329,28 @@ export default function StudioWorkbench({ ref, studio, capability, quote, docsSc
         setTab(tabs[next].id);
         document.getElementById(`sw-tab-${tabs[next].id}`)?.focus();
     };
+    // One indicator slides between tabs instead of each tab drawing its own underline.
+    const tablist = useRef(null);
+    useLayoutEffect(() => {
+        const list = tablist.current;
+        const selected = list?.querySelector('[role="tab"][aria-selected="true"]');
+        if (!list || !selected) return undefined;
+        const place = () => {
+            list.style.setProperty("--sw-tab-x", `${selected.offsetLeft}px`);
+            list.style.setProperty("--sw-tab-w", String(selected.offsetWidth));
+        };
+        place();
+        const observer = typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
+        observer?.observe(selected);
+        return () => observer?.disconnect();
+    }, [current, tabs.length, running]);
     const job = studio.job;
     return <section ref={ref} id="sw-workbench" className="sw-workbench" aria-label={t("Ruang kerja hasil")}>
-        <div className="sw-tabs" role="tablist" aria-label={t("Ruang kerja")}>{tabs.map((entry, index) => <button type="button" role="tab" key={entry.id} id={`sw-tab-${entry.id}`}
+        <div className="sw-tabs" role="tablist" aria-label={t("Ruang kerja")} ref={tablist}>{tabs.map((entry, index) => <button type="button" role="tab" key={entry.id} id={`sw-tab-${entry.id}`}
             aria-selected={current === entry.id} aria-controls={`sw-panel-${entry.id}`} tabIndex={current === entry.id ? 0 : -1}
             onClick={() => setTab(entry.id)} onKeyDown={(event) => moveTab(event, index)}>
             <StudioIcon name={entry.icon} /><span>{t(entry.label)}</span>{entry.id === "results" && running > 0 && <span className="sw-tab-count" aria-label={`${running} ${t("berjalan")}`}>{running}</span>}
-        </button>)}</div>
+        </button>)}<span className="sw-tab-indicator" aria-hidden="true" /></div>
         <div className="sw-panels">
             <div id="sw-panel-results" role="tabpanel" aria-labelledby="sw-tab-results" className="sw-panel" hidden={current !== "results"}>
                 <ResultsPanel studio={studio} realtime={realtime} capability={capability} canSubmit={canSubmit} realtimeProps={realtimeProps} items={items} jobsById={jobsById}

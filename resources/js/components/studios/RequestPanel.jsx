@@ -4,7 +4,7 @@ import { useLocale } from "../../contexts/LocaleContext";
 import CapabilityForm from "./CapabilityForm";
 import JsonEditor from "./JsonEditor";
 import { AudioAuthoring, AvatarRules, ProOption, VideoAuthoring } from "./NativeStudioAuthoring";
-import { ModelMark, StudioButton, StudioField, StudioIcon, StudioNotice, mediaError } from "./StudioUI";
+import { ModelMark, RollingNumber, StudioButton, StudioField, StudioIcon, StudioNotice, mediaError } from "./StudioUI";
 import { operationLabel, outputKindLabel } from "./workspaceMedia";
 
 export const UNIT_LABELS = { generation: "generasi", second: "detik", request: "permintaan", invocation: "permintaan", session: "sesi", image: "gambar", video: "video", output: "hasil" };
@@ -162,7 +162,7 @@ export default function RequestPanel({ ref, studio, request, actions }) {
         onSubmit={(event) => { event.preventDefault(); actions.submit(); }}>
         <div className="sw-request-scroll">
             <div className="sw-panel-head">
-                <h2 id="sw-request-title"><StudioIcon name="wand" />{t("Pengaturan permintaan")}</h2>
+                <h2 id="sw-request-title"><StudioIcon name="sliders" />{t("Pengaturan permintaan")}</h2>
                 {capability && !request.restricted && <div className="sw-mode" role="group" aria-label={t("Mode input")}>
                     <button type="button" aria-pressed={!json.open} onClick={() => actions.json.toggle(false)}>{t("Form")}</button>
                     <button type="button" aria-pressed={json.open} onClick={() => actions.json.toggle(true)}><StudioIcon name="code" />JSON</button>
@@ -202,7 +202,7 @@ export default function RequestPanel({ ref, studio, request, actions }) {
         </div>
         <div className="sw-request-footer" ref={footer}>
             <div className="sw-estimate">
-                <div className="sw-estimate-total"><span><StudioIcon name="tokens" />{t("Estimasi")}</span><strong key={quote.total ?? "none"}>{quote.total == null ? "—" : format(quote.total)} <small>{t("token")}</small></strong></div>
+                <div className="sw-estimate-total"><span><StudioIcon name="tokens" />{t("Estimasi")}</span><strong><RollingNumber value={quote.total == null ? null : format(quote.total)} /> <small>{t("token")}</small></strong></div>
                 {capability && <p className="sw-estimate-line">{quoteBreakdown(quote, billing, capability, t, format)}</p>}
                 {insufficient && <p className="sw-estimate-warning">{t("Saldo token tidak cukup untuk jumlah ini.")} <Link to={localizedPath("/deposit")}>{t("Isi saldo")}</Link></p>}
             </div>
