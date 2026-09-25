@@ -3,8 +3,7 @@ import { useLocale } from '../../contexts/LocaleContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiRequest, formatDateTime } from '../../lib/api';
 
-const OPENAI_BASE = 'https://api.xsuper.dev/v1';
-const ANTHROPIC_BASE = 'https://api.xsuper.dev';
+import { ANTHROPIC_BASE, OPENAI_BASE } from '../../lib/apiAccess';
 
 /* Connection card — one per wire protocol, with a copyable base URL + snippet. */
 function ConnectionCard({ dark, tone, title, subtitle, badge, baseUrl, snippet, onCopy, copied }) {

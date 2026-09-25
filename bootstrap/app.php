@@ -28,6 +28,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Named per-key limits need the verified identity before Laravel sorts throttling middleware.
         $middleware->prependToPriorityList(\Illuminate\Routing\Middleware\ThrottleRequests::class, \App\Http\Middleware\VerifyApiKey::class);
 
+        // Protocol payloads are data: whitespace and empty tool results must not be rewritten by web form normalization.
+        $middleware->trimStrings(except: [fn (Request $request) => $request->is('v1/*')]);
+        $middleware->convertEmptyStringsToNull(except: [fn (Request $request) => $request->is('v1/*')]);
+
         // Make auth middleware return JSON 401 for AJAX/API requests
         // instead of redirecting to login page
         $middleware->redirectGuestsTo(function (Request $request) {
@@ -49,9 +53,9 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(fn (\Throwable $error, Request $request) => \App\Http\Api\MediaApiResponse::error($error, $request));
+        $exceptions->render(fn (\Throwable $exception, Request $request) => \App\Http\Api\DeveloperApiErrors::render($exception, $request));
         // Running out of balance is an expected member outcome, not an application fault.
         $exceptions->dontReport(InsufficientBalanceException::class);
-
         // Return JSON for API errors
         $exceptions->shouldRenderJsonWhen(function (Request $request) {
             return $request->is('api/*') || $request->expectsJson();

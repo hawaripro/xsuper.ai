@@ -192,6 +192,32 @@ class AiProxyService
         }
     }
 
+    public function protocolForModel(string $model): string
+    {
+        [$provider] = $this->routeModel($model);
+
+        return $provider?->base_url !== null ? $provider->protocol : 'openai';
+    }
+
+    public function nativeMessages(array $body, array $headers = []): array
+    {
+        $model = $body['model'];
+        [$provider, $upstream] = $this->routeModel($model);
+        $result = $this->transport->nativeMessages($provider, [...$body, 'model' => $upstream], $headers);
+        $result['model'] = $model;
+        $result['usage'] = array_intersect_key((array) ($result['usage'] ?? []),
+            array_flip(['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'cache_creation']));
+
+        return $result;
+    }
+
+    public function nativeMessageStream(array $body, array $headers = []): Generator
+    {
+        [$provider, $upstream] = $this->routeModel($body['model']);
+
+        yield from $this->transport->nativeMessageStream($provider, [...$body, 'model' => $upstream], $body['model'], $headers);
+    }
+
 
     /**
      * Check if AI proxy is reachable

@@ -216,6 +216,43 @@ final class ProviderSseStream
         }
     }
 
+    /** Preserve native events while keeping routing identities and non-protocol metadata private. */
+    public static function anthropicPassthrough(StreamInterface $body, string $publicModel): Generator
+    {
+        $started = false;
+        $finished = false;
+        foreach (self::frames($body) as $frame) {
+            $original = self::decode($frame['data']);
+            $data = array_intersect_key($original, array_flip(['type', 'message', 'index', 'content_block', 'delta', 'usage']));
+            $type = $data['type'] ?? $frame['event'];
+            if ($type === 'error') {
+                throw self::streamFailure();
+            }
+            if ($type === 'message_start') {
+                if (! is_array($data['message'] ?? null)) { throw self::invalidStream(); }
+                $started = true;
+                $data['message'] = array_intersect_key($data['message'], array_flip(['id', 'type', 'role', 'model', 'content', 'stop_reason', 'stop_sequence', 'usage']));
+                if (isset($data['message']['usage'])) {
+                    $data['message']['usage'] = self::nativeUsage($data['message']['usage']);
+                }
+                $data['message']['model'] = $publicModel;
+            }
+            if (isset($data['usage'])) { $data['usage'] = self::nativeUsage($data['usage']); }
+            if ($data !== $original) {
+                $frame['raw'] = 'event: '.$frame['event']."\n".'data: '.json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n\n";
+            }
+            if ($type === 'message_stop') { $finished = true; }
+            yield ['data' => $data, 'raw' => $frame['raw']];
+            if ($finished) { break; }
+        }
+        if (! $started || ! $finished) { throw self::incompleteStream(); }
+    }
+
+    private static function nativeUsage(array $usage): array
+    {
+        return array_intersect_key($usage, array_flip(['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'cache_creation']));
+    }
+
     /**
      * @return Generator<int, array{event: string, data: string}>
      */
@@ -232,7 +269,7 @@ final class ProviderSseStream
                 $buffer = substr($buffer, $position + $delimiterLength);
                 $parsed = self::frame($rawFrame);
                 if ($parsed !== null) {
-                    yield $parsed;
+                    yield [...$parsed, 'raw' => $rawFrame.$match[0][0]];
                 }
             }
         }

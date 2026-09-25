@@ -21,6 +21,7 @@ class ProviderRoutingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutVite();
         Http::preventStrayRequests();
         $this->app->instance(AiProviderEndpoint::class, new class extends AiProviderEndpoint
         {

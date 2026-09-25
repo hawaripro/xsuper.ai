@@ -2,92 +2,60 @@
 
 namespace Tests\Feature;
 
-use App\Models\ApiKey;
-use App\Models\User;
-use App\Services\AiProxyService;
-use App\Services\UsageBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Mockery;
+use Illuminate\Support\Facades\Http;
+use Tests\Feature\Api\ApiFixture;
 use Tests\TestCase;
 
 class AnthropicApiCompatibilityTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, ApiFixture;
 
-    private function fakeBilling(): void
+    public function test_native_messages_preserve_tool_result_cache_control_and_thinking_signatures(): void
     {
-        $billing = Mockery::mock(UsageBillingService::class);
-        $billing->shouldReceive('estimateInputTokens')->andReturn(10);
-        $billing->shouldReceive('reserveApi')->andReturn(['reservation' => 'test']);
-        $billing->shouldReceive('settleApi')->andReturn(1000);
-        $this->app->instance(UsageBillingService::class, $billing);
+        [, $key] = $this->apiFixture('anthropic');
+        $payload = ['model' => 'public-model', 'max_tokens' => 100,
+            'system' => [['type' => 'text', 'text' => "  Client instructions\n", 'cache_control' => ['type' => 'ephemeral']]],
+            'thinking' => ['type' => 'enabled', 'budget_tokens' => 50],
+            'messages' => [
+                ['role' => 'user', 'content' => 'Read a file'],
+                ['role' => 'assistant', 'content' => [['type' => 'thinking', 'thinking' => 'Plan', 'signature' => 'signed-thought'], ['type' => 'tool_use', 'id' => 'tool_1', 'name' => 'read', 'input' => new \stdClass]]],
+                ['role' => 'user', 'content' => [['type' => 'tool_result', 'tool_use_id' => 'tool_1', 'content' => '', 'is_error' => false]]],
+            ], 'tools' => [['name' => 'read', 'input_schema' => ['type' => 'object']]], 'tool_choice' => ['type' => 'auto']];
+        Http::fake(['*' => Http::response(['id' => 'msg_native', 'type' => 'message', 'role' => 'assistant', 'model' => 'private-model',
+            'content' => [['type' => 'text', 'text' => 'Done'], ['type' => 'tool_use', 'id' => 'tool_next', 'name' => 'read', 'input' => new \stdClass]], 'stop_reason' => 'tool_use', 'stop_sequence' => null,
+            'usage' => ['input_tokens' => 10, 'output_tokens' => 5, 'provider_cost' => 99], 'provider' => 'upstream-secret'])]);
+        $response = $this->withToken($key->plainKey)->postJson('/v1/messages', $payload)->assertOk();
+        $response->assertJsonPath('model', 'public-model')->assertJsonPath('content.0.text', 'Done')->assertDontSee('private-model')->assertDontSee('provider')->assertDontSee('upstream-secret');
+        $this->assertInstanceOf(\stdClass::class, json_decode($response->getContent())->content[1]->input);
+        Http::assertSent(function ($request) use ($payload): bool {
+            $this->assertEquals(json_decode(json_encode([...$payload, 'model' => 'private-model'])), json_decode($request->body()));
+            return true;
+        });
     }
 
-    public function test_messages_endpoint_translates_openai_response_to_anthropic_shape(): void
+    public function test_openai_coding_request_preserves_client_system_and_tool_messages(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $key = ApiKey::generate($admin->id, 'Test', ['rate_limit' => 60]);
-
-        $proxy = Mockery::mock(AiProxyService::class);
-        $proxy->shouldReceive('getModels')->andReturn([['id' => 'claude-test', 'name' => 'Claude Test']]);
-        $proxy->shouldReceive('chatCompletion')->once()->andReturn([
-            'choices' => [['message' => ['role' => 'assistant', 'content' => 'Hello there'], 'finish_reason' => 'stop']],
-            'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5, 'total_tokens' => 15],
-        ]);
-        $this->app->instance(AiProxyService::class, $proxy);
-        $this->fakeBilling();
-
-        $response = $this->withHeaders(['Authorization' => 'Bearer '.$key->plainKey])
-            ->postJson('/v1/messages', [
-                'model' => 'claude-test',
-                'max_tokens' => 100,
-                'system' => 'You are helpful.',
-                'messages' => [['role' => 'user', 'content' => 'Hi']],
-            ]);
-
-        $response->assertOk();
-        $response->assertJson([
-            'type' => 'message',
-            'role' => 'assistant',
-            'model' => 'claude-test',
-            'content' => [['type' => 'text', 'text' => 'Hello there']],
-            'stop_reason' => 'end_turn',
-            'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
-        ]);
-        $this->assertStringStartsWith('msg_', $response->json('id'));
+        [, $key] = $this->apiFixture();
+        Http::fake(['*' => Http::response($this->openAiAnswer())]);
+        $messages = [['role' => 'developer', 'content' => "  Client-owned rules\n"],
+            ['role' => 'assistant', 'content' => null, 'tool_calls' => [['id' => 'call_1', 'type' => 'function', 'function' => ['name' => 'read', 'arguments' => '{}']]]],
+            ['role' => 'tool', 'tool_call_id' => 'call_1', 'content' => '']];
+        $this->withToken($key->plainKey)->postJson('/v1/chat/completions', ['model' => 'public-model', 'messages' => $messages, 'max_completion_tokens' => 32,
+            'tools' => [['type' => 'function', 'function' => ['name' => 'read', 'parameters' => ['type' => 'object']]]], 'tool_choice' => 'auto'])->assertOk();
+        Http::assertSent(function ($request) use ($messages): bool {
+            $this->assertEquals($messages, $request['messages']);
+            return $request['max_completion_tokens'] === 32 && $request['tool_choice'] === 'auto';
+        });
     }
 
-    public function test_messages_endpoint_rejects_unknown_model(): void
+    public function test_fal_tools_are_rejected_before_billing_or_network(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $key = ApiKey::generate($admin->id, 'Test', ['rate_limit' => 60]);
-
-        $proxy = Mockery::mock(AiProxyService::class);
-        $proxy->shouldReceive('getModels')->andReturn([['id' => 'claude-test']]);
-        $proxy->shouldReceive('chatCompletion')->never();
-        $this->app->instance(AiProxyService::class, $proxy);
-        $this->fakeBilling();
-
-        $response = $this->withHeaders(['Authorization' => 'Bearer '.$key->plainKey])
-            ->postJson('/v1/messages', [
-                'model' => 'not-a-real-model',
-                'max_tokens' => 100,
-                'messages' => [['role' => 'user', 'content' => 'Hi']],
-            ]);
-
-        $response->assertStatus(403);
-        $response->assertJson(['type' => 'error', 'error' => ['type' => 'permission_error']]);
-    }
-
-    public function test_messages_endpoint_requires_valid_api_key(): void
-    {
-        $response = $this->withHeaders(['Authorization' => 'Bearer invalid-key'])
-            ->postJson('/v1/messages', [
-                'model' => 'claude-test',
-                'max_tokens' => 100,
-                'messages' => [['role' => 'user', 'content' => 'Hi']],
-            ]);
-
-        $response->assertStatus(401);
+        [$user, $key, , $provider] = $this->apiFixture();
+        $provider->update(['protocol' => 'fal', 'base_url' => 'https://fal.run']);
+        $this->withToken($key->plainKey)->postJson('/v1/messages', ['model' => 'public-model', 'messages' => [['role' => 'user', 'content' => 'Read']],
+            'tools' => [['name' => 'read', 'input_schema' => ['type' => 'object']]]])->assertStatus(400)->assertJsonPath('type', 'error')->assertJsonPath('error.type', 'invalid_request_error');
+        $this->assertDatabaseMissing('wallet_transactions', ['user_id' => $user->id, 'type' => 'reserve']);
+        Http::assertNothingSent();
     }
 }

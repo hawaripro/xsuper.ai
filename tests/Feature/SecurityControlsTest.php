@@ -103,7 +103,7 @@ class SecurityControlsTest extends TestCase
         $this->assertSame(1, UserDevice::where('user_id', $member->id)->where('status', 'pending')->count());
     }
 
-    public function test_plugin_key_ignores_and_preserves_an_attached_browser_session_device(): void
+    public function test_api_key_does_not_create_or_rebind_a_browser_device(): void
     {
         $member = User::factory()->create([
             'role' => 'member', 'is_active' => true, 'expires_at' => now()->addDay(),
@@ -123,15 +123,10 @@ class SecurityControlsTest extends TestCase
         $next = fn () => response()->noContent();
 
         $this->assertSame(204, $middleware->handle($request, $next)->getStatusCode());
-        $plugin = UserDevice::where('user_id', $member->id)->where('device_type', 'plugin')->sole();
-        $this->assertSame(2, UserDevice::where('user_id', $member->id)->where('status', 'active')->count());
-
-        $plugin->update(['status' => 'blocked']);
-        $denied = $middleware->handle($request, $next);
-        $this->assertSame(403, $denied->getStatusCode());
-        $this->assertSame('device_limit_error', $denied->getData(true)['error']['type']);
+        $this->assertSame(1, UserDevice::where('user_id', $member->id)->where('status', 'active')->count());
+        $this->assertDatabaseMissing('user_devices', ['user_id' => $member->id, 'device_type' => 'plugin']);
         $this->get('/api/u/me', ['User-Agent' => 'Shared client'])->assertOk();
-        $this->assertDatabaseCount('user_devices', 2);
+        $this->assertDatabaseCount('user_devices', 1);
     }
 
     public function test_admin_ip_allowlist_blocks_disallowed_ip_and_allows_listed_ip(): void

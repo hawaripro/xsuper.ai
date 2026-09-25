@@ -29,7 +29,6 @@ class AdminApiKeyManagementTest extends TestCase
         $this->assertTrue($row->is_active);
         $this->assertSame(120, $row->rate_limit);
 
-        // List (admin sees the full key)
         $list = $this->actingAs($admin)->getJson('/api/k/list?user_id='.$member->id);
         $list->assertOk();
         // The full key is never returned after creation — only a masked prefix.
@@ -54,7 +53,7 @@ class AdminApiKeyManagementTest extends TestCase
         $this->assertDatabaseMissing('api_keys', ['id' => $row->id]);
     }
 
-    public function test_member_cannot_access_api_key_management(): void
+    public function test_member_cannot_access_admin_api_key_management(): void
     {
         $member = User::factory()->create(['role' => 'member']);
         $target = User::factory()->create(['role' => 'member']);

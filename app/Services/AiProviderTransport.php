@@ -502,6 +502,39 @@ final class AiProviderTransport
         return $data;
     }
 
+    /** A native Messages request must not lose tools, thinking, or cache-control blocks in a round trip. */
+    public function nativeMessages(AiProviderProfile $provider, array $payload, array $headers = []): array
+    {
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'anthropic') {
+            throw new AiProxyException('The selected model does not support native Messages.', 400);
+        }
+        $response = $this->send('POST', $connection['base_url'].'/messages', $connection, $payload, headers: $headers);
+        // Decode only the envelope as an array; native tool input {} must not become [] in our response.
+        $data = (array) json_decode($response->body());
+        if (($data['type'] ?? null) !== 'message' || ! is_array($data['content'] ?? null)
+            || ! is_string($data['stop_reason'] ?? null) || $data['stop_reason'] === '') {
+            throw new AiProxyException('The AI provider returned an invalid response.', 502);
+        }
+
+        return array_intersect_key($data, array_flip(['id', 'type', 'role', 'model', 'content', 'stop_reason', 'stop_sequence', 'usage']));
+    }
+
+    public function nativeMessageStream(AiProviderProfile $provider, array $payload, string $publicModel, array $headers = []): Generator
+    {
+        $connection = $this->connection($provider);
+        if ($connection['protocol'] !== 'anthropic') {
+            throw new AiProxyException('The selected model does not support native Messages.', 400);
+        }
+        $response = $this->send('POST', $connection['base_url'].'/messages', $connection, $payload, stream: true, headers: $headers);
+        $body = $response->toPsrResponse()->getBody();
+        try {
+            yield from ProviderSseStream::anthropicPassthrough($body, $publicModel);
+        } finally {
+            $body->close();
+        }
+    }
+
     /** @return Generator<int, array<string, mixed>> */
     public function stream(?AiProviderProfile $provider, array $payload): Generator
     {

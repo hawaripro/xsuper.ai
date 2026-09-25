@@ -63,7 +63,7 @@ class TenantAccessSecurityTest extends TestCase
         $this->assertSame('pending', $pending->fresh()->status);
     }
 
-    public function test_verified_api_key_keeps_its_plugin_identity_without_rebinding_the_browser_session(): void
+    public function test_verified_api_key_does_not_rebind_or_admit_the_blocked_browser_session(): void
     {
         $member = $this->member(['expires_at' => now()->addDay(), 'permissions' => ['ai_api' => true]]);
         $this->browserDevice($member, 'Shared client', 'blocked');
@@ -73,8 +73,7 @@ class TenantAccessSecurityTest extends TestCase
 
         $this->getJson('/v1/models', ['User-Agent' => 'Shared client', 'Authorization' => 'Bearer '.$key->plainKey])
             ->assertOk()->assertJsonPath('object', 'list');
-        $plugin = UserDevice::where('user_id', $member->id)->where('device_type', 'plugin')->sole();
-        $this->assertSame('active', $plugin->status);
+        $this->assertDatabaseMissing('user_devices', ['user_id' => $member->id, 'device_type' => 'plugin']);
 
         $request = Request::create('/v1/models', 'GET', server: [
             'HTTP_USER_AGENT' => 'Shared client',
@@ -87,7 +86,7 @@ class TenantAccessSecurityTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
         $this->getJson('/api/u/me', ['User-Agent' => 'Shared client'])
             ->assertForbidden()->assertJsonPath('device_blocked', true);
-        $this->assertDatabaseCount('user_devices', 2);
+        $this->assertDatabaseCount('user_devices', 1);
     }
 
     public function test_every_support_alias_holds_admins_to_the_required_two_factor_policy(): void
