@@ -46,6 +46,11 @@ class DurationPackagePrice extends Model
                 'price_usd' => $override ? (float) $override->price_usd : self::defaultUsd($package['price']),
                 'is_active' => $override?->is_active ?? true,
                 'sort_order' => $override?->sort_order ?? array_search($id, array_keys(DurationOrder::PACKAGES), true),
+                'bonus_tokens' => (int) ($override?->bonus_tokens ?? 0),
+                'bonus_wallet_microusd' => (int) ($override?->bonus_wallet_microusd ?? 0),
+                'bonus_wallet_usd' => number_format(($override?->bonus_wallet_microusd ?? 0) / 1_000_000, 2, '.', ''),
+                'storage_bytes' => (int) ($override?->storage_bytes ?? 0),
+                'storage_gb' => ($override?->storage_bytes ?? 0) / (1024 ** 3),
             ];
         }
 

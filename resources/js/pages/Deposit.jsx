@@ -12,7 +12,7 @@ import '../components/deposit/deposit.css';
 
 const tabs = [
     { key: 'tokens', label: 'Tokens' },
-    { key: 'wallet', label: 'Saldo PAYG' },
+    { key: 'wallet', label: 'Saldo AI' },
     { key: 'subscription', label: 'Langganan' },
     { key: 'storage', label: 'Penyimpanan' },
 ];
@@ -361,7 +361,7 @@ export default function Deposit() {
     const [creating, setCreating] = useState(null);
     const [checkoutError, setCheckoutError] = useState(null);
     const [checkoutSnapshot, setCheckoutSnapshot] = useState(null);
-    const [subscriptionNotice, setSubscriptionNotice] = useState(false);
+    const [subscriptionNotice, setSubscriptionNotice] = useState(null);
     const [paymentBusy, setPaymentBusy] = useState(false);
     const mutationLock = useRef(false);
     const mounted = useRef(true);
@@ -484,8 +484,8 @@ export default function Deposit() {
         setHistoryRevision(value => value + 1);
         if (order.status === 'approved') setCatalogRevision(value => value + 1);
     }, []);
-    const subscriptionApproved = useCallback(() => {
-        setSubscriptionNotice(true);
+    const subscriptionApproved = useCallback((order) => {
+        setSubscriptionNotice(order);
         setCatalogRevision(value => value + 1);
         refreshUser();
     }, [refreshUser]);
@@ -493,7 +493,7 @@ export default function Deposit() {
     const tokenPackages = Array.isArray(catalog.data?.token_packages) ? catalog.data.token_packages : [];
     const durationPackages = Object.entries(catalog.data?.duration_packages || {})
         .filter(([, item]) => item?.is_active !== false)
-        .map(([key, item]) => ({ key, label: t(item.label || key), days: item.days, price: item.price_idr ?? item.price, is_active: item.is_active }));
+        .map(([key, item]) => ({ ...item, key, label: t(item.label || key), price: item.price_idr ?? item.price }));
     const limits = catalog.data?.limits;
     const rate = Number(catalog.data?.conversion?.idr_per_usd);
     const amountValue = /^\d+$/.test(amount) ? Number(amount) : NaN;
@@ -505,17 +505,17 @@ export default function Deposit() {
     return (
         <div className="ui-page deposit-page">
             <header className="deposit-header">
-                <div><h1>{t('Deposit')}</h1><p>{t('Isi kredit untuk berkarya, saldo untuk API, atau perpanjang langganan Anda.')}</p></div>
+                <div><h1>{t('Deposit')}</h1><p>{t('Isi token media, Saldo AI untuk Chat & API, atau pilih bonus langganan.')}</p></div>
                 <Link to={localizedPath('/token-usage')} className="deposit-text-link">{t('Lihat pemakaian')}</Link>
             </header>
 
             <section className="deposit-balances" aria-label={t('Saldo akun')} aria-busy={catalog.loading}>
                 <div><h2>{t('Kredit token')}</h2><p className="deposit-balance-value">{format.count(catalog.data?.token_balance)} <span>{t('token')}</span></p><p>{t('Untuk generasi gambar dan video di workspace.')}</p></div>
-                <div><h2>{t('Saldo API PAYG')}</h2><p className="deposit-balance-value">{format.usdMicros(catalog.data?.wallet?.balance_microusd)}</p><p>{t('Saldo USD untuk pemakaian melalui API. Terpisah dari token.')}</p></div>
+                <div><h2>{t('Saldo AI')}</h2><p className="deposit-balance-value">{format.usdMicros(catalog.data?.wallet?.balance_microusd)}</p><p>{t('Saldo USD untuk Chat & API. Terpisah dari token media.')}</p></div>
             </section>
 
             {catalog.error && <DepositNotice tone="error" action={<Button variant="secondary" onClick={() => setCatalogRevision(value => value + 1)}>{t('Muat ulang katalog')}</Button>}>{depositErrorText(catalog.error, t)}</DepositNotice>}
-            {subscriptionNotice && <DepositNotice tone="success">{t('Langganan diperpanjang. Informasi akun telah diperbarui.')}</DepositNotice>}
+            {subscriptionNotice && <DepositNotice tone="success">{t('Langganan disetujui. Bonus diterima:')} {format.count(subscriptionNotice.bonus_tokens)} {t('token media')} · {t('Saldo AI')} {format.usdMicros(subscriptionNotice.bonus_wallet_microusd)} · +{Number(subscriptionNotice.storage_bytes || 0) / 1024 ** 3} GB {t('penyimpanan selama aktif')}.</DepositNotice>}
 
             <div className="deposit-tabs" role="tablist" aria-label={t('Pilihan deposit')}>
                 {tabs.map((item, index) => <button key={item.key} ref={node => { tabRefs.current[item.key] = node; }} type="button" role="tab" id={`deposit-tab-${item.key}`} aria-selected={displayedTab === item.key} aria-controls={`deposit-panel-${item.key}`} tabIndex={displayedTab === item.key ? 0 : -1} disabled={paymentBusy} onClick={() => selectTab(item.key)} onKeyDown={event => tabKeyDown(event, index)}>{t(item.label)}</button>)}
@@ -539,17 +539,17 @@ export default function Deposit() {
                                 <span className="deposit-token-action">{creating === item.code ? t('Membuat checkout…') : t('Beli dengan QRIS')}<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" /></svg></span>
                             </button>)}
                         </div> : !catalog.error && <div className="deposit-empty"><h3>{t('Paket token belum tersedia')}</h3><p>{t('Admin belum mengaktifkan paket yang dapat dibeli. Muat ulang katalog nanti.')}</p></div>}
-                        <p className="deposit-fine-print">{t('Token bukan saldo uang dan tidak mengisi dompet API PAYG. Pilih tab Saldo PAYG untuk kebutuhan API.')}</p>
+                        <p className="deposit-fine-print">{t('Token media terpisah dari Saldo AI. Pilih tab Saldo AI untuk Chat & API.')}</p>
                     </section>
 
                     <section id="deposit-panel-wallet" className="deposit-tab-panel" role="tabpanel" aria-labelledby="deposit-tab-wallet" hidden={displayedTab !== 'wallet'} tabIndex={0}>
-                        <div className="deposit-section-heading"><div><h2>{t('Isi saldo API PAYG')}</h2><p>{t('Bayar dalam rupiah. Saldo dikreditkan dalam USD menggunakan kurs yang dikunci saat checkout.')}</p></div></div>
+                        <div className="deposit-section-heading"><div><h2>{t('Isi Saldo AI')}</h2><p>{t('Bayar dalam rupiah. Saldo dikreditkan dalam USD menggunakan kurs yang dikunci saat checkout.')}</p></div></div>
                         {catalog.loading && !catalog.data ? <p className="deposit-loading" role="status">{t('Memuat kurs dan batas deposit…')}</p> : catalog.data && <form className="deposit-wallet-form deposit-surface" onSubmit={event => { event.preventDefault(); if (validAmount) startCheckout({ kind: 'wallet', amount_idr: amountValue }, event.nativeEvent.submitter); }}>
                             <label htmlFor="deposit-amount">{t('Jumlah deposit (IDR)')}</label>
                             <div className="deposit-amount-input"><span aria-hidden="true">Rp</span><input id="deposit-amount" type="text" inputMode="numeric" autoComplete="off" pattern="[0-9]+" required value={amount} onChange={event => setAmount(event.target.value)} disabled={controlsDisabled} aria-invalid={amount !== '' && !validAmount} aria-describedby={`deposit-amount-hint${amount !== '' && !validAmount ? ' deposit-amount-error' : ''}`} /></div>
                             <p id="deposit-amount-hint" className="deposit-fine-print">{t('Minimum')} {format.idr(limits?.min_idr)} · {t('Maksimum')} {format.idr(limits?.max_idr)}. {t('Masukkan rupiah bulat tanpa pemisah.')}</p>
                             {amount !== '' && !validAmount && <p id="deposit-amount-error" className="deposit-field-error">{t('Masukkan jumlah dalam batas deposit yang tersedia.')}</p>}
-                            <div className="deposit-wallet-preview"><span>{t('Pratinjau kredit API')}</span><output htmlFor="deposit-amount" aria-live="polite">{format.usdMicros(previewMicros)}</output><p>1 USD = {format.idr(rate)}</p></div>
+                            <div className="deposit-wallet-preview"><span>{t('Pratinjau Saldo AI')}</span><output htmlFor="deposit-amount" aria-live="polite">{format.usdMicros(previewMicros)}</output><p>1 USD = {format.idr(rate)}</p></div>
                             <p className="deposit-fine-print">{t('Pratinjau dibulatkan ke bawah hingga 6 desimal USD. Total dan kredit final ditampilkan sebelum Anda membayar.')}</p>
                             <Button type="submit" disabled={controlsDisabled || !validAmount}>{creating === 'wallet' ? t('Membuat checkout…') : t('Lanjut ke QRIS')}</Button>
                         </form>}
@@ -569,13 +569,13 @@ export default function Deposit() {
             <section className="deposit-history deposit-surface" aria-labelledby="deposit-history-title">
                 <div className="deposit-section-heading"><div><h2 ref={historyHeading} tabIndex={-1} id="deposit-history-title">{t('Riwayat deposit')}</h2><p>{t('Checkout, konfirmasi, dan keputusan admin tersimpan di sini, termasuk setelah Anda meninggalkan halaman.')}</p></div><Button variant="secondary" disabled={history.loading} onClick={() => setHistoryRevision(value => value + 1)}>{history.loading ? t('Memuat…') : t('Perbarui riwayat')}</Button></div>
                 <div className="deposit-history-filters">
-                    <label>{t('Jenis deposit')}<select value={historyKind} onChange={event => updateQuery({ kind: event.target.value, page: null })}><option value="">{t('Semua jenis')}</option><option value="tokens">{t('Kredit token')}</option><option value="wallet">{t('Saldo API PAYG')}</option></select></label>
+                    <label>{t('Jenis deposit')}<select value={historyKind} onChange={event => updateQuery({ kind: event.target.value, page: null })}><option value="">{t('Semua jenis')}</option><option value="tokens">{t('Kredit token')}</option><option value="wallet">{t('Saldo AI')}</option></select></label>
                     <label>{t('Status deposit')}<select value={historyStatus} onChange={event => updateQuery({ status: event.target.value, page: null })}><option value="">{t('Semua status')}</option>{historyStatuses.map(([key, label]) => <option key={key} value={key}>{t(label)}</option>)}</select></label>
                 </div>
                 {history.error && <DepositNotice tone="error" action={<Button variant="secondary" onClick={() => setHistoryRevision(value => value + 1)}>{t('Coba lagi')}</Button>}>{depositErrorText(history.error, t)}</DepositNotice>}
                 {history.loading && !history.data ? <p className="deposit-loading" role="status">{t('Memuat riwayat deposit…')}</p> : historyRows.length ? <div className="deposit-history-table" role="region" aria-label={t('Daftar deposit')} tabIndex={0} aria-busy={history.loading}><DataTable rows={historyRows} columns={[
                     { key: 'reference', label: t('Referensi'), render: order => <div><code className="deposit-table-reference">{order.payment_reference}</code><span className="deposit-table-meta">{format.date(order.created_at)}</span></div> },
-                    { key: 'kind', label: t('Jenis'), render: order => <div>{order.kind === 'tokens' ? t('Kredit token') : t('Saldo API PAYG')}<span className="deposit-table-meta"><DepositCredit order={order} /></span></div> },
+                    { key: 'kind', label: t('Jenis'), render: order => <div>{order.kind === 'tokens' ? t('Kredit token') : t('Saldo AI')}<span className="deposit-table-meta"><DepositCredit order={order} /></span></div> },
                     { key: 'amount', label: t('Pembayaran'), render: order => <span className="deposit-numeric">{format.idr(order.amount_idr)}</span> },
                     { key: 'status', label: t('Status'), render: order => <DepositStatus status={order.status} /> },
                     { key: 'action', label: t('Tindakan'), render: order => <Button variant="secondary" disabled={Boolean(creating) || paymentBusy} onClick={event => showOrder(order, event.currentTarget)}>{order.status === 'checkout' ? t('Lanjutkan pembayaran') : order.status === 'pending' ? t('Pantau deposit') : t('Lihat detail')}</Button> },

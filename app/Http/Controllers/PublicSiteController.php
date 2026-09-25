@@ -7,8 +7,13 @@ use App\Models\AiModelProfile;
 use App\Models\ContentBlock;
 use App\Models\DurationOrder;
 use App\Models\DurationPackagePrice;
+use App\Models\TokenPackage;
+use App\Models\User;
 use App\Models\UsageRate;
 use App\Services\AiProxyService;
+use App\Services\MediaModelConfig;
+use App\Services\Pricing\PricingEngine;
+use App\Services\WorkspaceMediaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -79,11 +84,22 @@ class PublicSiteController extends Controller
         }
 
         $data = $this->sharedData($request, 'pricing');
+        $pricing = app(PricingEngine::class);
+        $data['tokenPackages'] = TokenPackage::query()->where('is_active', true)->orderBy('sort_order')->orderBy('price_idr')->get()
+            ->map(fn (TokenPackage $package): array => [
+                'name' => $package->name, 'total_tokens' => $package->total_tokens,
+                'priceLabel' => $data['locale'] === 'en'
+                    ? '$'.number_format($pricing->packageUsd($package->price_idr), 2, '.', ',')
+                    : 'Rp '.number_format($package->price_idr, 0, ',', '.'),
+            ])->all();
+        $data['walletRate'] = (int) $pricing->settings()->wallet_idr_per_usd;
+        $data['walletMinimumUsd'] = (int) config('deposits.minimum_idr', 10000) / $data['walletRate'];
+        $data['priceExamples'] = $this->priceExamples($pricing, $data['tokenPackages'] !== []);
         $site = $data['site'];
         $startingPrice = $data['plans'][0]['priceLabel'];
         $data['page'] = $this->pageMetadata([
-            'title' => __('Harga XSuper.ai — Pilih Durasi Akses AI'),
-            'description' => __('Pilih paket XSuper.ai mulai :price: satu hari, satu minggu, satu bulan, hingga satu tahun. Harga dan durasi tampil transparan.', ['price' => $startingPrice]),
+            'title' => __('Harga XSuper.ai — Token, Saldo AI & Bonus Langganan'),
+            'description' => __('Paket mulai :price dengan bonus token media, Saldo AI, dan penyimpanan. Chat, Studio & API memakai saldo/token sesuai pemakaian.', ['price' => $startingPrice]),
             'robots' => 'index, follow, max-image-preview:large, max-snippet:-1',
             'indexable' => true,
             'type' => 'pricing',
@@ -213,6 +229,7 @@ class PublicSiteController extends Controller
             '12_months' => __('Temani rencana dan karya sepanjang tahun.'),
         ];
         $plans = [];
+        $pricing = app(PricingEngine::class);
         foreach (DurationPackagePrice::catalog() as $id => $package) {
             if (! $package['is_active']) {
                 continue;
@@ -235,6 +252,8 @@ class PublicSiteController extends Controller
                 'priceLabel' => $priceLabel,
                 'perDayLabel' => $perDayLabel,
                 'description' => $descriptions[$id],
+                'bonusWalletLabel' => '$'.number_format((float) $package['bonus_wallet_usd'], 2, $isUsd ? '.' : ',', $isUsd ? ',' : '.'),
+                'bonusWalletIdrLabel' => 'Rp '.number_format($pricing->idrForUsd($package['bonus_wallet_microusd'] / 1_000_000), 0, ',', '.'),
                 'featured' => $id === '1_month',
                 'active' => $package['is_active'],
                 'checkoutUrl' => 'https://wa.me/'.$site['support']['phone'].'?text='.rawurlencode($message),
@@ -248,6 +267,51 @@ class PublicSiteController extends Controller
             'locale' => $locale,
             'localeUrl' => fn (string $path): string => $this->localizedPath($path, $locale),
         ];
+    }
+
+    /** Retail examples only: no provider metadata or costs are passed to the view. */
+    private function priceExamples(PricingEngine $pricing, bool $hasTokenPackages): array
+    {
+        $enabled = AiModelProfile::query()->where('is_enabled', true)->where('is_available', true)
+            ->whereHas('provider', fn ($provider) => $provider->where('is_enabled', true));
+        $rates = UsageRate::query()->active()->where('service', 'api')->where('price_usd', '>', 0)
+            ->whereIn('meter', ['input_tokens', 'output_tokens'])->get()->groupBy('model');
+        $chat = [];
+        foreach ((clone $enabled)->where('category', 'chat')->orderBy('sort_order')->orderBy('display_name')->get() as $model) {
+            $pair = $rates->get($model->model_id, collect())->keyBy('meter');
+            if (! $pair->has('input_tokens') || ! $pair->has('output_tokens')) {
+                continue;
+            }
+            $chat[] = [
+                'name' => $model->display_name,
+                'input_usd' => (float) $pair['input_tokens']->price_usd,
+                'output_usd' => (float) $pair['output_tokens']->price_usd,
+                'input_idr' => $pricing->idrForUsd((float) $pair['input_tokens']->price_usd),
+                'output_idr' => $pricing->idrForUsd((float) $pair['output_tokens']->price_usd),
+            ];
+            if (count($chat) === 3) {
+                break;
+            }
+        }
+        $image = null;
+        if ($hasTokenPackages && ! config('media.kill_switch', false) && ! config('media.coordinator_restricted', false)) {
+            $guest = new User(['role' => 'member', 'is_active' => true]);
+            $media = app(WorkspaceMediaService::class);
+            foreach ((clone $enabled)->with('provider')->where('category', 'image')->where('token_cost', '>', 0)
+                ->orderBy('token_cost')->orderBy('id')->cursor() as $model) {
+                if (MediaModelConfig::catalogPriceUnit($model) !== 'generation'
+                    || ! in_array('image', $media->eligibleOutputKinds($guest, $model), true)) {
+                    continue;
+                }
+                $image = [
+                    'name' => $model->display_name, 'tokens' => (int) $model->token_cost,
+                    'idr' => round($model->token_cost * $pricing->tokenRevenueIdr(), 2),
+                ];
+                break;
+            }
+        }
+
+        return ['image' => $image, 'chat' => $chat];
     }
 
     private function recentPurchases(): array
@@ -449,7 +513,7 @@ class PublicSiteController extends Controller
                     'outputModalities' => $model['output_modalities'] ?? ['text'],
                     'badges' => $model['badges'] ?? [],
                     'available' => $model['is_available'] ?? true,
-                    'billing' => $isMedia ? 'tokens' : ($modelRates->isEmpty() ? 'subscription' : 'payg'),
+                    'billing' => $isMedia ? 'tokens' : 'payg',
                     'tokenCost' => $model['token_cost'] ?? null,
                     'generationUnit' => $isMedia ? $category : null,
                     'rates' => $modelRates->values()->all(),

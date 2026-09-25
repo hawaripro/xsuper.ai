@@ -10,6 +10,7 @@ use App\Models\StorageUpgradePlan;
 use App\Models\UsageRate;
 use App\Models\Wallet;
 use App\Services\AuditService;
+use App\Services\Pricing\PricingEngine;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -23,10 +24,16 @@ class PricingController extends Controller
 {
     public function index(): JsonResponse
     {
+        $pricing = app(PricingEngine::class);
+
         return response()->json([
             'duration_packages' => DurationPackagePrice::catalog(),
             'usage_rates' => UsageRate::query()->orderBy('sort_order')->orderBy('label')->get(),
             'storage_plans' => StorageUpgradePlan::query()->orderBy('sort_order')->orderBy('price_idr')->get(),
+            'valuation' => [
+                'token_revenue_idr' => \App\Models\TokenPackage::where('is_active', true)->exists() ? $pricing->tokenRevenueIdr() : null,
+                'wallet_idr_per_usd' => (int) $pricing->settings()->wallet_idr_per_usd,
+            ],
         ]);
     }
 
@@ -128,7 +135,7 @@ class PricingController extends Controller
     {
         $rules = [
             'items' => ['required', 'array', 'list', 'min:1', 'max:200'],
-            'items.*' => ['required', 'array:package,price_idr,price_usd,is_active,sort_order', 'min:2'],
+            'items.*' => ['required', 'array:package,price_idr,price_usd,is_active,sort_order,bonus_tokens,bonus_wallet_usd,storage_gb', 'min:2'],
             'items.*.package' => ['required', 'string', 'distinct', Rule::in(array_keys(DurationOrder::PACKAGES))],
         ];
         foreach ($this->durationRules() as $field => $rule) {
@@ -192,6 +199,9 @@ class PricingController extends Controller
             'price_usd' => [$required, 'numeric', 'min:0.01', 'max:999999.99'],
             'is_active' => [$required, 'boolean'],
             'sort_order' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:65535'],
+            'bonus_tokens' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
+            'bonus_wallet_usd' => ['sometimes', 'numeric', 'min:0', 'max:1000'],
+            'storage_gb' => ['sometimes', 'numeric', 'min:0', 'max:1024'],
         ];
     }
 
@@ -203,6 +213,8 @@ class PricingController extends Controller
                 $defaults[] = [
                     'package' => $package, 'price_idr' => $values['price_idr'], 'price_usd' => $values['price_usd'],
                     'is_active' => $values['is_active'], 'sort_order' => $values['sort_order'],
+                    'bonus_tokens' => $values['bonus_tokens'], 'bonus_wallet_microusd' => $values['bonus_wallet_microusd'],
+                    'storage_bytes' => $values['storage_bytes'],
                     'created_at' => now(), 'updated_at' => now(),
                 ];
             }
@@ -218,6 +230,14 @@ class PricingController extends Controller
                 unset($changes['package']);
                 if (array_key_exists('sort_order', $changes)) {
                     $changes['sort_order'] = $changes['sort_order'] ?? $price->sort_order;
+                }
+                if (array_key_exists('bonus_wallet_usd', $changes)) {
+                    $changes['bonus_wallet_microusd'] = (int) round((float) $changes['bonus_wallet_usd'] * 1_000_000);
+                    unset($changes['bonus_wallet_usd']);
+                }
+                if (array_key_exists('storage_gb', $changes)) {
+                    $changes['storage_bytes'] = (int) round((float) $changes['storage_gb'] * (1024 ** 3));
+                    unset($changes['storage_gb']);
                 }
                 $price->fill($changes);
             }

@@ -263,7 +263,7 @@ export default function DashboardSearch() {
     const triggerRef = useRef(null);
     const [open, setOpen] = useState(false);
     const close = useCallback(() => setOpen(false), []);
-    const scope = JSON.stringify([user?.id, user?.role, user?.permissions, user?.expires_at, user?.is_expired]);
+    const scope = JSON.stringify([user?.id, user?.role, user?.permissions, user?.membership]);
     const shortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd K" : "Ctrl K";
 
     useEffect(() => { setOpen(false); }, [location.pathname, location.search, user?.id]);

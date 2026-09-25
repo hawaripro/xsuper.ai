@@ -19,6 +19,13 @@ class AdminController extends Controller
         ])->map(function ($user) {
             $user->is_expired = $user->isExpired();
             $user->days_remaining = $user->daysRemaining();
+            $endsAt = $user->membershipEndsAt();
+            $active = $user->hasActiveMembership();
+            $user->membership = [
+                'active' => $active,
+                'expires_at' => $endsAt?->toISOString(),
+                'days_remaining' => $endsAt === null ? null : ($active ? (int) now()->diffInDays($endsAt) : 0),
+            ];
             $user->active_permissions = $user->getPermissions();
 
             return $user;
@@ -34,12 +41,12 @@ class AdminController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
             'role' => 'required|string|in:admin,member',
-            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d,unlimited',
+            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d',
             'permissions' => 'nullable|array',
         ]);
 
         $expiresAt = null;
-        if ($validated['role'] !== 'admin' && ! empty($validated['duration']) && $validated['duration'] !== 'unlimited') {
+        if ($validated['role'] !== 'admin' && ! empty($validated['duration'])) {
             $expiresAt = $this->calcExpiry($validated['duration']);
         }
 
@@ -66,7 +73,7 @@ class AdminController extends Controller
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8',
             'role' => 'required|string|in:admin,member',
-            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d,unlimited,clear',
+            'duration' => 'nullable|string|in:1d,7d,30d,90d,180d,365d,clear',
             'permissions' => 'nullable|array',
         ]);
 
@@ -79,7 +86,7 @@ class AdminController extends Controller
             $user->permissions = null;
         } else {
             if (isset($validated['duration'])) {
-                if ($validated['duration'] === 'unlimited' || $validated['duration'] === 'clear') {
+                if ($validated['duration'] === 'clear') {
                     $user->expires_at = null;
                 } elseif ($validated['duration'] !== '') {
                     $base = $user->expires_at && $user->expires_at->isFuture() ? $user->expires_at : now();
