@@ -15,8 +15,9 @@ final class FalPricingSource
         $endpoints = [];
         foreach ($models as $model) {
             $native = MediaCostBounds::native($model);
-            $ids = MediaCostBounds::revisions($model)->map(fn ($revision) => $revision->source_metadata['endpoint_id'] ?? null)->filter()->values()->all();
-            if ($ids === []) {
+            $ids = MediaCostBounds::contractRevisions($model)->map(fn ($revision) => $revision->source_metadata['endpoint_id'] ?? null)->filter()->values()->all();
+            // A natively executed model keeps calling its own endpoint beside any published contract.
+            if ($ids === [] || $native !== []) {
                 $ids[] = $model->upstream_model_id ?: $model->model_id;
             }
             $endpoints[$model->id] = array_values(array_unique(array_filter([...$ids, $native['reference_model'] ?? null])));

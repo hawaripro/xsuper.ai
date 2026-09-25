@@ -135,11 +135,7 @@ class MediaTariffUnitTest extends TestCase
         $fal = $this->provider('fal');
         $native = $this->model($fal, FalProtocol::IMAGE_DEV, 'image', null);
         // Catalog discovery attaches an unreviewed v2 candidate (num_images ≤ 4) to the native model.
-        $entry = FalCatalogFixture::model(FalProtocol::IMAGE_DEV);
-        $normalized = app(FalCapabilityImporter::class)->normalize([...$entry, 'model_public_id' => $native->model_id], 2);
-        MediaCapabilityRevision::create(['ai_model_profile_id' => $native->id, 'operation' => $normalized['operation'], 'contract_version' => 2,
-            'revision' => 1, 'status' => 'imported', 'source_schema' => $entry['openapi'], 'source_hash' => FalCapabilityImporter::hash($entry['openapi']),
-            'definition' => $normalized['capability']->toArray(), 'provider_bindings' => $normalized['provider_bindings'], 'compatibility_report' => $normalized['report']]);
+        $this->importedCandidate($native);
         Http::fake(['*api.fal.ai*' => Http::response(['prices' => [
             ['endpoint_id' => FalProtocol::IMAGE_DEV, 'unit_price' => 0.025, 'unit' => 'image', 'currency' => 'USD'],
         ]])]);
@@ -149,6 +145,25 @@ class MediaTariffUnitTest extends TestCase
         $this->assertSame(['generation', 0.025], [$native->cost()->first()->unit, (float) $native->cost()->first()->unit_cost]);
         $this->postJson('/api/admin/pricing/auto/apply', ['confirm' => true])->assertOk();
         $this->assertSame([10, 'generation'], [$native->fresh()->token_cost, $native->fresh()->token_cost_unit]);
+    }
+
+    public function test_an_unpublished_schema_candidate_never_widens_a_native_megapixel_bound(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $fal = $this->provider('fal');
+        $native = $this->model($fal, FalProtocol::IMAGE_DEV, 'image', null);
+        // The discovered schema accepts custom sizes up to 14142 × 14142 (200 MP); native execution offers up to 1792 × 1024.
+        $this->importedCandidate($native, ['type' => 'object', 'properties' => ['width' => ['type' => 'integer', 'maximum' => 14142], 'height' => ['type' => 'integer', 'maximum' => 14142]]]);
+        Http::fake(['*api.fal.ai*' => Http::response(['prices' => [
+            ['endpoint_id' => FalProtocol::IMAGE_DEV, 'unit_price' => 0.025, 'unit' => 'megapixels', 'currency' => 'USD'],
+        ]])]);
+
+        $this->actingAs($admin)->postJson('/api/admin/pricing/auto/refresh', ['provider_id' => $fal->id])->assertOk();
+        // ceil(1.835 MP) = 2 MP × $0.025, not 200 MP × $0.025 = $5.
+        $this->assertSame(['generation', 0.05], [$native->cost()->first()->unit, (float) $native->cost()->first()->unit_cost]);
+        $this->postJson('/api/admin/pricing/auto/apply', ['confirm' => true])->assertOk();
+        // ceil(0.05 × 19000 × 1.1 / 52.3133) = 20 tokens per image.
+        $this->assertSame([20, 'generation'], [$native->fresh()->token_cost, $native->fresh()->token_cost_unit]);
     }
 
     public function test_a_native_image_price_keeps_following_settings_after_its_first_application(): void
@@ -239,5 +254,19 @@ class MediaTariffUnitTest extends TestCase
     private function hash(AiModelProfile $model, MediaOperation $operation): string
     {
         return app(CapabilityResolver::class)->resolve($model, $operation, schemaContracts: true)->sourceHash;
+    }
+
+    private function importedCandidate(AiModelProfile $model, ?array $imageSize = null): MediaCapabilityRevision
+    {
+        $entry = FalCatalogFixture::model($model->model_id);
+        $normalized = app(FalCapabilityImporter::class)->normalize([...$entry, 'model_public_id' => $model->model_id], 2);
+        $definition = $normalized['capability']->toArray();
+        if ($imageSize !== null) {
+            $definition['input_schema']['properties']['image_size'] = $imageSize;
+        }
+
+        return MediaCapabilityRevision::create(['ai_model_profile_id' => $model->id, 'operation' => $normalized['operation'], 'contract_version' => 2,
+            'revision' => 1, 'status' => 'imported', 'source_schema' => $entry['openapi'], 'source_hash' => FalCapabilityImporter::hash($entry['openapi']),
+            'definition' => $definition, 'provider_bindings' => $normalized['provider_bindings'], 'compatibility_report' => $normalized['report']]);
     }
 }

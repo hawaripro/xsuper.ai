@@ -29,9 +29,20 @@ final class MediaCostBounds
         return $reviewed->isEmpty() ? $all->take(1) : $reviewed;
     }
 
+    /**
+     * Revisions a member can execute. While a model still runs natively, only a published v2 contract (or a
+     * published v1 catalog image) replaces that path; imported or merely reviewed candidates never bound its prices.
+     */
+    public static function contractRevisions(AiModelProfile $model): Collection
+    {
+        $revisions = self::revisions($model);
+
+        return self::executesNatively($model) ? $revisions->where('status', 'published')->values() : $revisions;
+    }
+
     public static function properties(AiModelProfile $model): array
     {
-        return self::revisions($model)->first()?->definition['input_schema']['properties'] ?? [];
+        return self::contractRevisions($model)->first()?->definition['input_schema']['properties'] ?? [];
     }
 
     public static function maximum(array $schema): ?float
@@ -45,16 +56,18 @@ final class MediaCostBounds
 
     public static function duration(AiModelProfile $model, bool $minimum = false): ?float
     {
-        $schemas = self::revisions($model)->map(fn ($revision) => $revision->definition['input_schema']['properties'] ?? [])->filter()->all();
-        if ($schemas === []) {
-            $native = self::native($model);
-            if (($native['durations'] ?? []) !== []) {
-                return $minimum ? min($native['durations']) : max($native['durations']);
-            }
-            return $native[$minimum ? 'duration_min' : 'duration_max'] ?? null;
-        }
         $bounds = [];
-        foreach ($schemas as $properties) {
+        $native = self::native($model);
+        if (($native['durations'] ?? []) !== []) {
+            $bounds[] = (float) ($minimum ? min($native['durations']) : max($native['durations']));
+        } elseif (is_numeric($native[$minimum ? 'duration_min' : 'duration_max'] ?? null)) {
+            $bounds[] = (float) $native[$minimum ? 'duration_min' : 'duration_max'];
+        }
+        foreach (self::contractRevisions($model) as $revision) {
+            $properties = $revision->definition['input_schema']['properties'] ?? [];
+            if ($properties === []) {
+                continue;
+            }
             $schema = $properties['duration'] ?? [];
             $values = $schema['enum'] ?? [];
             $bound = $minimum
@@ -65,25 +78,24 @@ final class MediaCostBounds
             }
             $bounds[] = (float) $bound;
         }
-        return $minimum ? min($bounds) : max($bounds);
+        return $bounds === [] ? null : ($minimum ? min($bounds) : max($bounds));
+    }
+
+    private static function executesNatively(AiModelProfile $model): bool
+    {
+        return self::native($model) !== [] || ThreeDProtocol::supports($model) || MediaModelConfig::hasCatalogImage($model);
     }
 
     /**
      * The most outputs one billed invocation can return. Native v1 execution bills each output (count) and a
      * v2 contract whose reviewed quantity input multiplies a per-generation or per-second tariff bills per
-     * output too; any other v2 contract charges its tariff once per request, however many outputs its
-     * schema lets a member ask for. While a model still executes natively, only a published v2 contract
-     * replaces that path, so unpublished candidates never scale its per-output price. Null when such a count
-     * has no numeric maximum.
+     * output too; any other executable v2 contract charges its tariff once per request, however many outputs
+     * its schema lets a member ask for. Null when such a count has no numeric maximum.
      */
     public static function outputsPerInvocation(AiModelProfile $model, string $unit): ?int
     {
         $outputs = 1;
-        $revisions = self::revisions($model)->where('contract_version', 2);
-        if (self::native($model) !== [] || ThreeDProtocol::supports($model) || MediaModelConfig::hasCatalogImage($model)) {
-            $revisions = $revisions->where('status', 'published');
-        }
-        foreach ($revisions as $revision) {
+        foreach (self::contractRevisions($model)->where('contract_version', 2) as $revision) {
             $schema = $revision->definition['input_schema'] ?? null;
             $properties = is_array($schema) ? self::inputProperties($schema) : [];
             $bound = $revision->provider_bindings['quantity_input'] ?? null;
@@ -119,9 +131,13 @@ final class MediaCostBounds
 
     public static function megapixels(AiModelProfile $model): ?float
     {
-        $schemas = self::revisions($model)->map(fn ($revision) => $revision->definition['input_schema']['properties'] ?? [])->filter()->all();
+        $schemas = self::contractRevisions($model)->map(fn ($revision) => $revision->definition['input_schema']['properties'] ?? [])->filter()->values()->all();
+        if (($sizes = self::native($model)['sizes'] ?? []) !== []) {
+            // Native execution offers exactly these sizes alongside any published contract.
+            $schemas[] = ['image_size' => ['enum' => $sizes]];
+        }
         if ($schemas === []) {
-            $schemas = [['image_size' => ['enum' => self::native($model)['sizes'] ?? []]]];
+            return null;
         }
         $pixels = [];
         foreach ($schemas as $properties) {
